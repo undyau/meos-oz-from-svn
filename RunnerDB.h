@@ -1,0 +1,163 @@
+#pragma once
+
+#include <vector>
+#include <map>
+#include "inthashmap.h"
+#include "oclub.h"
+
+/************************************************************************
+    MeOS - Orienteering Software
+    Copyright (C) 2009-2011 Melin Software HB
+    
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    Melin Software HB - software@melin.nu - www.melin.nu
+    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+
+************************************************************************/
+
+const int baseNameLength=32;
+
+//Has 0-clearing constructor. Must not contain any
+//dynamic data etc.
+struct RunnerDBEntryV1 {
+  RunnerDBEntryV1();
+
+  char name[baseNameLength];
+  int cardNo;
+  int clubNo;
+  char national[3];
+  char sex;
+  short int birthYear;
+  short int reserved;
+};
+
+struct RunnerDBEntry {
+  // Init from old struct
+  void init(const RunnerDBEntryV1 &dbe);
+  RunnerDBEntry();
+
+  /** Binary compatible with V1*/
+  char name[baseNameLength];
+  int cardNo;
+  int clubNo;
+  char national[3];
+  char sex;
+  short int birthYear;
+  short int reserved;
+  /** End of V1*/
+
+  __int64 extId;
+
+  void getName(string &name) const;
+  void setName(const char *name);
+
+  string getGivenName() const;
+  string getFamilyName() const;
+
+  string getNationality() const;
+  int getBirthYear() const {return birthYear;}
+  string getSex() const;
+
+  __int64 getExtId() const;
+  void setExtId(__int64 id);
+};
+
+typedef vector<RunnerDBEntry> RunnerDBVector;
+
+class RunnerDB {
+private:
+  oEvent *oe;
+  bool check(const RunnerDBEntry &rde) const;
+
+  /** Init name hash lazy */
+  void setupNameHash() const; 
+  void setupIdHash() const; 
+  void setupCNHash() const; 
+
+  vector<RunnerDBEntry> rdb;
+  vector<oClub> cdb;
+
+  // Runner card hash
+  inthashmap rhash;
+
+  // Runner id hash
+  //mutable map<int, int> idhash;
+  mutable inthashmap idhash;
+  
+  // Club id hash
+  inthashmap chash;
+
+  // Name hash
+  mutable multimap<string, int> nhash;
+  
+  // Club name hash
+  mutable multimap<string, int> cnhash;
+
+  static void canonizeSplitName(const string &name, vector<string> &split);
+
+  bool loadedFromServer;
+
+  /** Date when database was updated. The format is YYYYMMDD */
+  int dataDate;
+
+  /** Time when database was updated. The format is HH:MM:SS */
+  int dataTime;
+public:
+  /** Get the date, YYYY-MM-DD HH:MM:SS when database was updated */
+  string getDataDate() const;
+  /** Set the date YYYY-MM-DD HH:MM:SS when database was updated */
+  void setDataDate(const string &date);
+
+
+  /** Returns true if the database was loaded from server */
+  bool isFromServer() const {return loadedFromServer;}
+
+  /** Prepare for loading runner from server*/
+  void prepareLoadFromServer(int nrunner, int nclub);
+
+  const vector<RunnerDBEntry>& getRunnerDB();
+  const vector<oClub>& getClubDB();
+
+  void clearRunners();
+  void clearClubs();
+
+  void addClub(oClub &c);
+  RunnerDBEntry *addRunner(const char *name, __int64 extId, 
+                           int club, int card);
+  
+  RunnerDBEntry *getRunnerById(int extId) const;
+  RunnerDBEntry *getRunnerByCard(int card) const;
+  RunnerDBEntry *getRunnerByName(const string &name, int clubId, 
+                                 int expectedBirthYear) const;
+  
+  bool getClub(int clubId, string &club) const;
+  oClub *getClub(int clubId) const;
+  
+  oClub *getClub(const string &name) const; 
+  
+  void saveClubs(const char *file);
+  void saveRunners(const char *file);
+  void loadRunners(const char *file);
+  void loadClubs(const char *file);
+  
+  void updateAdd(const oRunner &r);
+
+  void importClub(oClub &club, bool matchName);
+  void compactifyClubs();
+
+  void getAllNames(vector<string> &givenName, vector<string> &familyName);
+  RunnerDB(oEvent *);
+  ~RunnerDB(void);
+};

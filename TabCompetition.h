@@ -1,0 +1,98 @@
+#pragma once
+/************************************************************************
+    MeOS - Orienteering Software
+    Copyright (C) 2009-2011 Melin Software HB
+    
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    Melin Software HB - software@melin.nu - www.melin.nu
+    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    
+************************************************************************/
+
+#include "tabbase.h"
+
+#include "oFreeImport.h"
+
+void runCourseImport(gdioutput& gdi, const string &filename, oEvent *oe);
+
+class TabCompetition :
+	public TabBase
+{
+  string eventorBase;
+  void textSizeControl(gdioutput &gdi) const;
+  
+  bool showConnectionPage;
+  bool importFile(HWND hWnd, gdioutput &gdi);
+  bool exportFileAs(HWND hWnd, gdioutput &gdi);
+
+  string browseForSave(const string &Filter, const string &defext, int &FilterIndex);
+  string browseForOpen(const string &Filter, const string &defext);
+  bool save(gdioutput &gdi, bool write = true);
+
+  // Events from Eventor
+  vector<CompetitionInfo> events;
+
+  oFreeImport fi;
+  string entryText;
+  vector<oEntryBlock> entries;
+  void loadConnectionPage(gdioutput &gdi);
+    
+  string defaultServer;
+  string defaultName;
+  string defaultPwd;
+  string defaultPort;
+
+  void copyrightLine(gdioutput &gdi) const;
+  void loadAboutPage(gdioutput &gdi) const;
+
+  int organizorId;
+
+  struct {
+    string name;
+    string careOf;
+    string street;
+    string city;
+    string zipCode;
+    string account;
+    string email;
+  } eventor;
+
+  int getOrganizer(bool updateEvent);
+  void getAPIKey(vector< pair<string, string> > &key) const;
+  void getEventorCompetitions(gdioutput &gdi,
+                              const string &fromDate,
+                              vector<CompetitionInfo> &events) const;
+
+  void getEventorCmpData(gdioutput &gdi, int id, 
+                         const string &eventFile,
+                         const string &clubFile,
+                         const string &classFile,
+                         const string &entryFile,
+                         const string &dbFile) const;
+
+  void loadMultiEvent(gdioutput &gdi);
+
+  string eventorOrigin; // The command used when checking eventor
+  bool checkEventor(gdioutput &gdi, ButtonInfo &bi);
+
+  bool useEventor() const;
+
+public:
+  int competitionCB(gdioutput &gdi, int type, void *data);
+  int restoreCB(gdioutput &gdi, int type, void *data);
+	bool loadPage(gdioutput &gdi);
+	TabCompetition(oEvent *oe);
+	~TabCompetition(void);
+};

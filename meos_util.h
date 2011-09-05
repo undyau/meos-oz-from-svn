@@ -1,0 +1,140 @@
+/************************************************************************
+    MeOS - Orienteering Software
+    Copyright (C) 2009-2011 Melin Software HB
+    
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    Melin Software HB - software@melin.nu - www.melin.nu
+    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    
+************************************************************************/
+
+#include <vector>
+
+string convertSystemTime(const SYSTEMTIME &st);
+string convertSystemTimeOnly(const SYSTEMTIME &st);
+string convertSystemDate(const SYSTEMTIME &st);
+string getLocalTime();
+string getLocalDate();
+string getLocalTimeOnly();
+
+// Get a day number after a fixed day some time ago...
+int getRelativeDay();
+
+/// Get time and date in a format that forms a part of a filename
+string getLocalTimeFileName();
+
+string getTimeMS(int m);
+string formatTime(int rt);
+string formatTimeHMS(int rt);
+string formatTimeIOF(int rt, int zeroTime);
+
+int convertDateYMS(const string &m);
+int convertDateYMS(const string &m, SYSTEMTIME &st);
+
+__int64 SystemTimeToInt64Second(const SYSTEMTIME &st);
+SYSTEMTIME Int64SecondToSystemTime(__int64 time);
+
+#define NOTIME 0x7FFFFFFF
+
+//Returns a time converted from +/-MM:SS or NOTIME, in seconds
+int convertAbsoluteTimeMS(const string &m);
+
+//Returns a time converted from HH:MM:SS or -1, in seconds
+int convertAbsoluteTimeHMS(const string &m);
+
+void split(const string &line, const string &separators, vector<string> &split_vector);
+
+string MakeDash(const string &t);
+string MakeDash(const char *t);
+string FormatRank(int rank);
+string itos(int i);
+string itos(unsigned long i);
+string itos(unsigned int i);
+string itos(__int64 i);
+
+///Lower case match (filt_lc must be lc)
+bool filterMatchString(const string &c, const char *filt_lc);
+
+int getMeosBuild();
+string getMeosDate();
+string getMeosFullVersion();
+
+void getSupporters(vector<string> &supp);
+
+int countWords(const char *p);
+
+string trim(const string &s);
+
+bool fileExist(const char *file);
+
+bool stringMatch(const string &a, const string &b);
+
+const char *decodeXML(const char *in);
+const string &decodeXML(const string &in);
+const string &encodeXML(const string &in);
+
+/** Extend a year from 03 -> 2003, 97 -> 1997 etc */
+int extendYear(int year);
+
+/** Get current year, e.g., 2010 */
+int getThisYear();
+
+/** Translate a char to lower/stripped of accents etc.*/
+int toLowerStripped(int c);
+
+/** Canonize a person/club name */
+const char *canonizeName(const char *name);
+
+/** String distance between 0 and 1. 0 is equal*/
+double stringDistance(const char *a, const char *b);
+
+
+/** Get a number suffix, Start 1 -> 1. Zero for none*/
+int getNumberSuffix(const string &str);
+
+/// Extract any number from a string and return the number, prefix and suffix
+int extractAnyNumber(const string &str, string &prefix, string &suffix); 
+
+
+/** Compare classnames, match H21 Elit with H21E and H21 E */
+bool compareClassName(const string &a, const string &b);
+
+/** Get WinAPI error from code */
+string getErrorMessage(int code);
+
+class HLS {
+private:
+  WORD HueToRGB(WORD n1, WORD n2, WORD hue) const;
+public:
+
+  HLS(WORD H, WORD L, WORD S) : hue(H), lightness(L), saturation(S) {}
+  HLS() : hue(0), lightness(0), saturation(1) {}
+  WORD hue;
+  WORD lightness;
+  WORD saturation;
+  void lighten(double f);
+  void saturate(double s);
+  void colorDegree(double d);
+  HLS &RGBtoHLS(DWORD lRGBColor);
+  DWORD HLStoRGB() const;
+};
+
+#ifndef MEOSDB
+  void unzip(const char *zipfilename, const char *password, vector<string> &extractedFiles);
+  int zip(const char *zipfilename, const char *password, const vector<string> &files);
+#endif
+
+bool isAscii(const string &s);
+bool isNumber(const string &s);

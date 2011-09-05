@@ -1,0 +1,10 @@
+#define IDR_3001                        103
+#define IDR_3002                        104
+#define IDR_3003                        105
+
+IDR_3001                300     DISCARDABLE     "swedish.lng"
+IDR_3002                300     DISCARDABLE     "english.lng"
+IDR_3003                300     DISCARDABLE     "german.lng"
+
+/////////////////////////////////////////////////////////////////////////////
+
