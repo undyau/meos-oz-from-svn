@@ -39,7 +39,7 @@ string getMeosDate()
 
 string getMeosFullVersion() {
   char bf[256];
-  sprintf_s(bf, "Version X#2.5.%d, %s", getMeosBuild(), getMeosDate().c_str());
+  sprintf_s(bf, "Version X#2.5.%d, %s (customised by Big Foot)", getMeosBuild(), getMeosDate().c_str());
   return bf;
 }
 

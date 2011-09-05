@@ -2051,7 +2051,7 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
         li.addListPost(oPrintPost(lRunnerTempTimeStatus, "", normalText, pos.get("status", scale), vspace));
       }
       if (li.lp.splitAnalysis) {
-        li.addSubHead(oPrintPost(lString, "Bomtid", boldLarge, pos.get("missed", scale), 10));
+        li.addSubHead(oPrintPost(lString, lang.tl("Bomtid"), boldLarge, pos.get("missed", scale), 10));
         li.addListPost(oPrintPost(lRunnerMissedTime, "", fontLarge, pos.get("missed", scale), vspace));
       }
 

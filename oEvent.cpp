@@ -2473,7 +2473,7 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi)
 	sortRunners(SortByStartTime);
 	oRunnerList::iterator it;
 
-	int dx[4]={0, 70, 300, 510};
+	int dx[5]={0, 70, 300, 410, 510};
 	int y=gdi.getCY();
 	int x=gdi.getCX();	
 	int lh=gdi.getLineHeight();
@@ -2523,9 +2523,11 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi)
         name = it->getName();
       else
         name = itos(it->getBib()) + ", " + it->getName();
+
       gdi.addStringUT(y, x+dx[1], fontMedium, name, dx[2]-dx[1]-4);
       gdi.addStringUT(y, x+dx[2], fontMedium, it->getClub(), dx[3]-dx[2]-4);
-		  gdi.addStringUT(y, x+dx[3], fontMedium, it->getClass());
+		  gdi.addStringUT(y, x+dx[3], fontMedium, it->getClass(), dx[4]-dx[3]-4);
+			gdi.addStringUT(y, x+dx[4], fontMedium, it->getCourse()->getName());
 		  y+=lh;
 	  }
   }
