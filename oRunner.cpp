@@ -2552,6 +2552,9 @@ void oRunner::printSplits(gdioutput &gdi) const {
   gdi.dropLine(0.5);
   gdi.addStringUT(fontSmall, lang.tl("Start: ") + getStartTimeS() + lang.tl(", Mål: ") + getFinishTimeS());
   gdi.addStringUT(fontSmall, lang.tl("Status: ") + getStatusS() + lang.tl(", Tid: ") + getRunningTimeS());
+  if (getPlaceS() != _EmptyString)
+    gdi.addStringUT(fontSmall, lang.tl("Prel. placering: ") + getPlaceS());
+
   int cy = gdi.getCY()+4;
   int cx = gdi.getCX();
 //  int pnr = 1;

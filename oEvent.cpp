@@ -726,7 +726,7 @@ bool oEvent::save(const char *file)
 
 	xml.write("Name", Name);
 	xml.write("Date", Date);
-	xml.write("ZeroTime", ZeroTime);
+	xml.writeDWORD("ZeroTime", ZeroTime);
   xml.write("NameId", CurrentNameId);
 	xml.write("Id", Id);
 	xml.write("Updated", Modified.GetStamp());
@@ -870,7 +870,8 @@ bool oEvent::open(const xmlparser &xml) {
   tOriginalName.clear();
 	
   xo=xml.getObject("ZeroTime");
-	if(xo) ZeroTime=xo.getInt();
+  ZeroTime=0;
+	if(xo) ZeroTime=xo.getDWORD();
 
 	xo=xml.getObject("Id");
 	if(xo) Id=xo.getInt();

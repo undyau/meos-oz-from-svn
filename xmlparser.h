@@ -111,6 +111,7 @@ public:
   bool write(const char *tag); // Empty case
 	bool write(const char *tag, int);
   bool write64(const char *tag, __int64);
+  bool writeDWORD(const char *tag, DWORD);
 
 	bool startTag(const char *tag);	
 	bool startTag(const char *tag, const char *Property, 
@@ -168,6 +169,8 @@ public:
   const char *get() const {return parser->xmlinfo[index].data;}
   int getInt() const {const char *d = parser->xmlinfo[index].data;
                       return d ? atoi(d) : 0;}
+  DWORD getDWORD() const {const char *d = parser->xmlinfo[index].data;
+                      return d ? atol(d) : 0;}
   __int64 getInt64() const {const char *d = parser->xmlinfo[index].data;
                            return d ? _atoi64(d) : 0;}
 

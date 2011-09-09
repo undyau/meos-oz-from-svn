@@ -130,6 +130,16 @@ bool xmlparser::write64(const char *tag, __int64 Value)
 	return fout.good();
 }
 
+bool xmlparser::writeDWORD(const char *tag, DWORD Value)
+{
+	if(!cutMode || Value!=0) {
+		fout << "<" << tag << ">";
+		fout << Value;
+		fout << "</" << tag << ">" << endl;
+	}
+	return fout.good();
+}
+
 bool xmlparser::startTag(const char *tag, const char *property, const string &Value)
 {
 	if(tagStackPointer<32) {
