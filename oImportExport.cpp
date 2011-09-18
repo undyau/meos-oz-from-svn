@@ -1963,7 +1963,7 @@ void oRunner::exportIOFRunner(xmlparser &xml, bool compact)
     xml.write("Date", "dateFormat", "YYYY", itos(extendYear(year)));
     xml.endTag();
   }
-
+  
   xml.endTag();
 }
 
@@ -2119,6 +2119,9 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
         it->Club->exportIOFClub(xml, true);
 
 			xml.startTag("Result");
+        xml.startTag("CCard");
+        xml.write("CCardId", it->getCardNo());
+        xml.endTag();
 				xml.startTag("StartTime");
         xml.write("Clock", "clockFormat", "HH:MM:SS", formatTimeIOF(it->getStartTime(), ZeroTime));
 				xml.endTag();
