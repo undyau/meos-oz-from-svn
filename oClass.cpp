@@ -416,6 +416,13 @@ pClass oEvent::getClassCreate(int Id, const string &CreateName)
 
 pClass oEvent::getClass(const string &cname) const
 {
+  // Try for exact match first
+  for (oClassList::const_iterator it=Classes.begin(); it != Classes.end(); ++it) {
+    if (cname.compare(it->Name) == 0 && !it->isRemoved())
+			return pClass(&*it);
+  }
+
+  // Then try the normal MEOS match
   for (oClassList::const_iterator it=Classes.begin(); it != Classes.end(); ++it) {
     if (compareClassName(cname, it->Name) && !it->isRemoved())
 			return pClass(&*it);

@@ -591,7 +591,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         gdi.popY();
 
 			  gdi.addInput("FirstStart", firstStart, 10, 0, "Första start:");
-			  gdi.addInput("BaseInterval", "1:00", 10, 0, "Basintervall (min)");
+			  gdi.addInput("BaseInterval", "2:00", 10, 0, "Basintervall (min)");
 			  gdi.addInput("MinInterval", minInterval, 10, 0, "Minsta intervall i klass");
 			  gdi.addInput("MaxInterval", "8:00", 10, 0, "Största intervall i klass");
 			  gdi.addInput("nFields", "10", 10, 0, "Max parallellt startande");
