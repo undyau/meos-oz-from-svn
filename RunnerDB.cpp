@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,26 +24,33 @@
 #include "RunnerDB.h"
 #include "xmlparser.h"
 #include "oRunner.h"
+#include "Table.h"
 
 #include "io.h"
 #include "fcntl.h"
 #include "sys/stat.h"
 #include "meos_util.h"
 #include "oDataContainer.h"
+#include "meosException.h"
 
 #include <algorithm>
 #include <cassert>
 #include "intkeymapimpl.hpp"
+
+#include "oEvent.h"
 
 RunnerDB::RunnerDB(oEvent *oe_): oe(oe_)
 {
   loadedFromServer = false;
   dataDate = 20100201;
   dataTime = 222222;
+  runnerTable = 0;
+  clubTable = 0;
 }
 
 RunnerDB::~RunnerDB(void)
 {
+  releaseTables();
 }
 
 RunnerDBEntry::RunnerDBEntry()
@@ -254,6 +261,14 @@ RunnerDBEntry *RunnerDB::getRunnerByCard(int card) const
   return 0;
 }
 
+RunnerDBEntry *RunnerDB::getRunnerByIndex(size_t index) const {
+  if (index >= rdb.size())
+    throw meosException("Index out of bounds");
+
+  return (RunnerDBEntry *)&rdb[index];
+}
+
+
 RunnerDBEntry *RunnerDB::getRunnerById(int extId) const
 {
   if (extId == 0)
@@ -261,9 +276,6 @@ RunnerDBEntry *RunnerDB::getRunnerById(int extId) const
 
   setupIdHash();
 
-  //map<int,int>::const_iterator it = idhash.find(extId);
-
-  //if (it!=idhash.end())
   int value;
   
   if (idhash.lookup(extId, value))
@@ -700,32 +712,11 @@ void RunnerDB::loadRunners(const char *file)
         ncard++;
       
     rhash.resize(ncard);
-//    map<int, int> tmap;
 
     for (int k=0;k<nentry;k++)
       if (rdb[k].cardNo>0) {
         rhash[rdb[k].cardNo]=k;
-//        tmap[rdb[k].cardNo]=k;
       }
-
-/*    int value;
-
-    assert(rhash.size() == tmap.size());
-
-    vector<int> tduplicate;
-    vector<int> duplicate;
-    for (int k=0;k<nentry;k++)
-      if (rdb[k].cardNo>0) {
-        assert(rhash.lookup(rdb[k].cardNo, value));
-        assert(rdb[k].cardNo == rdb[value].cardNo);
-        
-        if (k!=value)
-          duplicate.push_back(k);
-
-        if (tmap[rdb[k].cardNo] != k)
-          tduplicate.push_back(k);
-      }
-      duplicate.size();*/
   }
   else throw std::exception(ex.c_str());
 }
@@ -797,6 +788,9 @@ void RunnerDB::clearClubs()
   cnhash.clear();
   chash.clear();
   cdb.clear();
+  if (clubTable)
+    clubTable->clear();
+
 }
 
 void RunnerDB::clearRunners()
@@ -805,6 +799,8 @@ void RunnerDB::clearRunners()
   idhash.clear();
   rhash.clear();
   rdb.clear();
+  if (runnerTable)
+    runnerTable->clear();
 }
 
 const vector<oClub> &RunnerDB::getClubDB() {
@@ -817,8 +813,248 @@ const vector<RunnerDBEntry> &RunnerDB::getRunnerDB() {
 
 void RunnerDB::prepareLoadFromServer(int nrunner, int nclub) {
   loadedFromServer = true;
-  clearClubs();
+  clearClubs(); // Implicitly clears runners
   cdb.reserve(nclub);
   rdb.reserve(nrunner);
 }
 
+void RunnerDB::fillClubs(vector< pair<string, size_t> > &out) const {
+  out.resize(cdb.size());
+  for (size_t k = 0; k<cdb.size(); k++) {
+    out[k].first = cdb[k].getName();
+    out[k].second = cdb[k].getId();
+  }
+}
+
+oDBRunnerEntry::oDBRunnerEntry(oEvent *oe) : oBase(oe) {
+  db = 0;
+  index = -1;
+}
+
+oDBRunnerEntry::~oDBRunnerEntry() {}
+
+void RunnerDB::generateRunnerTableData(Table &table, oDBRunnerEntry *addEntry)
+{ 
+  oe->getDBRunnersInEvent(runnerInEvent);
+  if (addEntry) {
+    addEntry->addTableRow(table);
+    return;
+  }
+
+  table.reserve(rdb.size());
+  oRDB.resize(rdb.size(), oDBRunnerEntry(oe));
+  for (size_t k = 0; k<rdb.size(); k++){
+    oRDB[k].init(this, k);
+    oRDB[k].addTableRow(table);
+	}
+}
+
+void RunnerDB::hasEnteredCompetition(__int64 extId) {
+  if (runnerTable != 0 && extId>0) {
+    setupIdHash();
+    int value;
+    if (idhash.lookup(int(extId), value)) {
+      runnerTable->reloadRow(value + 1);
+    }
+  }
+}
+
+void RunnerDB::hasEnteredCompetitionIx(int index) {
+  if (runnerTable != 0) {
+    runnerTable->reloadRow(index + 1);
+  }
+}
+
+
+void RunnerDB::releaseTables() {
+  if (runnerTable)
+    runnerTable->releaseOwnership();
+  runnerTable = 0;
+
+  if (clubTable)
+    clubTable->releaseOwnership();
+  clubTable = 0;
+}
+
+Table *RunnerDB::getRunnerTB()//Table mode
+{	
+  if (runnerTable == 0) {
+	  Table *table=new Table(oe, 20, "Löpardatabasen", "runnerdb");
+    
+    table->addColumn("Index", 70, true, true);
+    table->addColumn("Id", 70, true, true);
+    table->addColumn("Namn", 200, false);
+    table->addColumn("Klubb", 200, false);
+    table->addColumn("SI", 70, true, true);
+    table->addColumn("Nationalitet", 70, false, true);
+    table->addColumn("Kön", 50, false, true);
+    table->addColumn("Födelseår", 70, true, true);
+    table->addColumn("Anmäl", 70, false, true);
+
+    table->setClearOnHide(false);
+    table->addOwnership();
+    runnerTable = table;
+  }
+
+  if (runnerTable->getNumDataRows() != rdb.size())
+    runnerTable->update();
+  return runnerTable;
+}
+
+void RunnerDB::generateClubTableData(Table &table, oClub *addEntry)
+{ 
+  if (addEntry) {
+    addEntry->addTableRow(table);
+    return;
+  }
+
+  table.reserve(cdb.size());
+  for (size_t k = 0; k<cdb.size(); k++){
+    cdb[k].addTableRow(table);
+	}
+}
+
+Table *RunnerDB::getClubTB()//Table mode
+{	
+  if (clubTable == 0) {
+	  Table *table = new Table(oe, 20, "Klubbdatabasen", "clubdb");
+    
+    table->addColumn("Id", 70, true, true);
+    table->addColumn("Ändrad", 70, false);
+
+    table->addColumn("Namn", 200, false);
+    oClub::buildTableCol(oe, table);
+   
+    table->setTableProp(0);
+    table->setClearOnHide(false);
+    table->addOwnership();
+    clubTable = table;
+  }
+
+  if (clubTable->getNumDataRows() != cdb.size())
+    clubTable->update();
+  return clubTable;
+}
+
+
+void oDBRunnerEntry::addTableRow(Table &table) const {
+  bool canEdit = !oe->isClient();
+
+  oDBRunnerEntry &it = *(oDBRunnerEntry *)(this);
+  table.addRow(index+1, &it);
+  if (!db)
+    throw meosException("Not initialized");
+
+  RunnerDBEntry &r = db->rdb[index];
+  int row = 0;
+  table.set(row++, it, TID_INDEX, itos(index+1), false, cellEdit);
+  
+  table.set(row++, it, TID_ID, itos(r.extId), false, cellEdit);
+  table.set(row++, it, TID_NAME, r.name, canEdit, cellEdit);
+  
+  const pClub pc = db->getClub(r.clubNo);
+  if (pc)
+    table.set(row++, it, TID_CLUB, pc->getName(), canEdit, cellSelection);
+  else
+    table.set(row++, it, TID_CLUB, "", canEdit, cellSelection);
+
+  table.set(row++, it, TID_CARD, r.cardNo > 0 ? itos(r.cardNo) : "", canEdit, cellEdit);
+  char nat[4] = {r.national[0],r.national[1],r.national[2], 0};
+
+  table.set(row++, it, TID_NATIONAL, nat, canEdit, cellEdit);
+  char sex[2] = {r.sex, 0};
+  table.set(row++, it, TID_SEX, sex, canEdit, cellEdit);
+  table.set(row++, it, TID_YEAR, itos(r.birthYear), canEdit, cellEdit);
+
+  oClass *val = 0;
+  bool found = false;
+
+  if (r.extId < unsigned(-1))
+    found = db->runnerInEvent.lookup(int(r.extId), val);
+
+  table.setTableProp(0);
+
+  if (!found)
+    table.set(row++, it, TID_ENTER, "@+", false, cellAction);
+  else 
+    table.set(row++, it, TID_ENTER, val ? val->getName() : "", false, cellEdit);
+}
+
+const RunnerDBEntry &oDBRunnerEntry::getRunner() const {
+ if (!db)
+    throw meosException("Not initialized");
+  return db->rdb[index];
+}
+
+bool oDBRunnerEntry::inputData(int id, const string &input, 
+                           int inputId, string &output, bool noUpdate)
+{
+  if (!db)
+    throw meosException("Not initialized");
+  RunnerDBEntry &r = db->rdb[index];
+  
+  switch(id) {
+    case TID_NAME:
+      r.setName(input.c_str());
+      r.getName(output);
+      return true;
+    case TID_CARD:
+      r.cardNo = atoi(input.c_str());
+      if (r.cardNo > 0)
+        output = itos(r.cardNo);
+      else
+        output = "";
+      return true;
+    case TID_NATIONAL:
+      if (input.empty()) {
+        r.national[0] = 0;
+        r.national[1] = 0;
+        r.national[2] = 0;
+      }
+      else if (input.size() >= 2)
+        memcpy(r.national, input.c_str(), 3);
+
+      output = r.getNationality();
+      break;
+    case TID_SEX:
+      r.sex = input[0];
+      output = r.getSex();
+      break;
+    case TID_YEAR:
+      r.birthYear = short(atoi(input.c_str()));
+      output = itos(r.getBirthYear());
+      break;
+
+    case TID_CLUB:
+      r.clubNo = inputId;
+      output = input;
+      break;
+  }
+  return false;
+}
+
+void oDBRunnerEntry::fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected)
+{ 
+  RunnerDBEntry &r = db->rdb[index];
+  if (id==TID_CLUB) {
+    db->fillClubs(out);
+    out.push_back(make_pair("-", 0));
+    selected = r.clubNo;
+  }
+}
+
+void oDBRunnerEntry::remove() {
+  throw meosException("Not implemented");
+}
+
+bool oDBRunnerEntry::canRemove() const {
+  return false; 
+}
+
+oDataInterface oDBRunnerEntry::getDI() {
+  throw meosException("Not implemented");
+}
+
+oDataConstInterface oDBRunnerEntry::getDCI() const  {
+  throw meosException("Not implemented");
+}

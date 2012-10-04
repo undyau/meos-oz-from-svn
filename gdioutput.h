@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,290 +31,39 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+
 #include <set>
 #include <map>
 #include <vector>
-
-enum gdiFonts {  
-  normalText=0,
-  boldText=1,
-  boldLarge=2,
-  boldHuge=3,
-  boldSmall=5,
-
-  fontLarge=11,
-  fontMedium=12,
-  fontMediumPlus=14,
-  fontSmall=13,
-
-  italicSmall = 15,
-  formatIgnore = 1000,
-};
-
-enum KeyCommandCode {
-  KC_COPY,
-  KC_PASTE,
-  KC_DELETE,
-  KC_INSERT,
-  KC_PRINT,
-  KC_REFRESH
-};
-
-const int pageNewPage=100;
-const int pageReserveHeight=101;
-const int pagePageInfo=102;
-
-const int textRight=256;
-const int textCenter=512;
-const int timerCanBeNegative=1024;
-const int breakLines=2048;
+#include <hash_set>
+#include <hash_map>
 
 class Toolbar;
 
 class gdioutput;
-typedef int (*GUICALLBACK)(gdioutput *gdi, int type, void *data);
-
-enum {GUI_BUTTON=1, GUI_INPUT=2, GUI_LISTBOX=3, 
-GUI_INFOBOX=4, GUI_CLEAR=5, GUI_INPUTCHANGE=6, 
-GUI_COMBOCHANGE, GUI_EVENT, GUI_LINK, 
-GUI_TIMEOUT, GUI_POSTCLEAR, GUI_FOCUS};
-
-enum GDICOLOR {colorRed = RGB(128,0,0), 
-              colorGreen = RGB(0,128,0),
-              colorDarkGrey = RGB(40,40,40),
-              colorDarkRed = RGB(64,0,0),
-              colorGreyBlue = RGB(92,92,128),
-              colorDarkBlue = RGB(0,0,92),
-              colorDarkGreen = RGB(0,64,0),
-              colorYellow = RGB(255, 230, 0),
-              colorLightBlue = RGB(240,240,255),
-              colorLightRed = RGB(255,230,230),
-              colorLightGreen = RGB(180, 255, 180),
-              colorLightYellow = RGB(255, 255, 200),
-              colorLightCyan = RGB(200, 255, 255),
-              colorLightMagenta = RGB(255, 200, 255),
-              colorDefault = -1};
-
 class oEvent;
 typedef oEvent *pEvent;
 
-class Table;
+struct PrinterObject;
 
+class GDIImplFontEnum;
+class GDIImplFontSet;
+
+class Table;
 class FixedTabs;
 
-class BaseInfo
-{
-protected:
-	void *extra;
-public:
-	BaseInfo():extra(0) {}
-	virtual ~BaseInfo() {}
-	string id;
+typedef int (*GUICALLBACK)(gdioutput *gdi, int type, void *data);
 
-	BaseInfo &setExtra(void *e) {extra=e; return *this;}
-	void *getExtra() const {return extra;}
-};
-
-class RestoreInfo : public BaseInfo
-{
-public:
-	int nLBI;
-	int nBI;
-	int nII;
-	int nTL;
-	int nRect;		
-	int nHWND;
-	int sCX;
-	int sCY;
-	int sMX;
-	int sMY;
-  int sOX;
-  int sOY;
-
-  int nTooltip;
-
-  GUICALLBACK onClear;
-	GUICALLBACK postClear;
-};
-
-class RectangleInfo : public BaseInfo
-{
-private:
-  DWORD color;  
-	bool drawBorder;
-	RECT rc;
-
-public:
-	RectangleInfo(): color(0), drawBorder(false) {memset(&rc, 0, sizeof(RECT));}
-  RectangleInfo &setColor(GDICOLOR c) {color = c; return *this;}	
-  friend class gdioutput;
-};
+enum GDICOLOR;
+enum KeyCommandCode;
+enum gdiFonts;
+#include "gdistructures.h"
 
 
-class TableInfo : public BaseInfo
-{
-public:
-	TableInfo():xp(0), yp(0), table(0) {}
-	int xp;
-	int yp;
-	Table *table;	
-};
+#define START_YP 30
+#define NOTIMEOUT 0x0AAAAAAA
 
-
-class TextInfo : public BaseInfo
-{
-public:
-  
-	TextInfo():format(0), color(0), xlimit(0), HasTimer(false),
-		HasCapture(false), CallBack(0), Highlight(false), 
-		Active(false), reserveHeight(0) {}
-
-  TextInfo &setColor(GDICOLOR c) {color = c; return *this;}
-	int getHeight() {return max(int(TextRect.bottom-TextRect.top), reserveHeight);}
-
-	string text;
-	
-	int xp;
-	int yp;
-
-	int format;	
-	DWORD color;
-	int xlimit;
-
-	bool HasTimer;
-	DWORD ZeroTime;
-	DWORD TimeOut;
-
-	bool HasCapture;
-	GUICALLBACK CallBack;
-	RECT TextRect;
-	bool Highlight;
-	bool Active;
-  int reserveHeight;
-};
-
-class ButtonInfo : public BaseInfo
-{	
-private:
-  bool originalState;
-  bool isEditControl;
-public:
-	ButtonInfo(): CallBack(0), hWnd(0), AbsPos(false), fixedRightTop(false),
-            flags(0), originalState(false), isEditControl(false), isCheckbox(false){}
-
-  ButtonInfo &isEdit(bool e) {isEditControl=e; return *this;}
-
-	int xp;
-	int yp;
-	string text;
-	HWND hWnd;
-	bool AbsPos;
-  bool fixedRightTop;
-  int flags;
-  bool isCheckbox;
-  bool defaultButton() {return (flags&1)==1;}
-  bool cancelButton() {return (flags&2)==2;}
-  ButtonInfo &setDefault();// {flags|=1;}
-  ButtonInfo &setCancel() {flags|=2; return *this;}
-  ButtonInfo &fixedCorner() {fixedRightTop = true; return *this;}
-	GUICALLBACK CallBack;
-  friend class gdioutput;
-};
-
-class InputInfo : public BaseInfo
-{	
-public:
-  InputInfo() : hWnd(0), CallBack(0), ignoreCheck(false), isEditControl(true), bgColor(colorDefault) {}
-	int xp;
-	int yp;
-  double width;
-  double height;
-	string text;
-  bool changed() const {return text!=original;}
-  void ignore(bool ig) {ignoreCheck=ig;}
-  InputInfo &isEdit(bool e) {isEditControl=e; return *this;}
-  InputInfo &setBgColor(GDICOLOR c) {bgColor = c; return *this;}
-  InputInfo &setPassword(bool pwd);
-  HWND hWnd;
-	GUICALLBACK CallBack;
-private:
-  GDICOLOR bgColor;
-  bool isEditControl;
-  bool writeLock;
-  string original;
-  bool ignoreCheck; // True if changed-state should be ignored
-  friend class gdioutput;
-};
-
-class ListBoxInfo : public BaseInfo
-{
-public:
-	ListBoxInfo() : hWnd(0), CallBack(0), IsCombo(false), index(-1), 
-              writeLock(false), ignoreCheck(false), isEditControl(true),
-              originalProc(0), lbiSync(0) {}
-	int xp;
-	int yp;
-  double width;
-  double height;
-	HWND hWnd;
-	string text;
-  bool changed() const {return text!=original;}
-	size_t data;
-	bool IsCombo;
-  int index;
-	GUICALLBACK CallBack;
-  void ignore(bool ig) {ignoreCheck=ig;}
-  ListBoxInfo &isEdit(bool e) {isEditControl=e; return *this;}
-
-private:
-  bool isEditControl;
-  bool writeLock;
-  string original;
-  int originalIdx;
-  bool ignoreCheck; // True if changed-state should be ignored
-
-  // Synchronize with other list box
-  WNDPROC originalProc;
-  ListBoxInfo *lbiSync;
-
-  friend LRESULT CALLBACK GetMsgProc(HWND hWnd, UINT iMsg, WPARAM wParam, LPARAM lParam);
-  friend class gdioutput;
-};
-
-class DataStore
-{
-public:
-	string id;
-	DWORD data;
-};
-
-class EventInfo : public BaseInfo
-{
-public:
-	EventInfo() : CallBack(0) {}
-	DWORD data;
-	GUICALLBACK CallBack;
-};
-
-
-class InfoBox : public BaseInfo
-{
-public:
-	InfoBox() : CallBack(0), HasCapture(0), HasTCapture(0), TimeOut(0) {}
-	string text;	
-	GUICALLBACK CallBack;
-
-	RECT TextRect;
-	RECT Close;
-  RECT BoundingBox;
-
-	bool HasCapture;
-	bool HasTCapture;
-
-	DWORD TimeOut;
-}; 
-
-typedef list<TextInfo> TIList;
+typedef list<ToolInfo> ToolList;
 
 struct PrinterObject {
 	//Printing
@@ -355,26 +104,17 @@ struct PrinterObject {
   PrinterObject(const PrinterObject &po);
 };
 
-#define START_YP 30
-#define NOTIMEOUT 0x0AAAAAAA
-
-struct ToolInfo {
-  TOOLINFO ti;
-  string tip;
-  int id;
-};
-
-typedef list<ToolInfo> ToolList;
-
 class gdioutput  {
 protected:
   // Flag set to true when clearPage is called.
   bool hasCleared;
-  mutable bool commandLock;
   bool useTables;
   list<TextInfo> transformedPageText;
   __int64 globalCS;
-  TextInfo pageInfo;
+  TextInfo *pageInfo;
+  
+  bool highContrast;
+
   bool printHeader;
   bool noPrintMargin;
   void deleteFonts();
@@ -389,8 +129,6 @@ protected:
   bool startDoc(PrinterObject &po);
 
   bool getSelectedItem(ListBoxInfo &lbi);
-
-	//void printPage(PrinterObject &po, int StartY, int &EndY);
   bool doPrint(PrinterObject &po, pEvent oe);
 
 	PrinterObject po_default;
@@ -411,12 +149,20 @@ protected:
   list<TextInfo>::iterator itTL;
 
 	list<ButtonInfo> BI;
+  stdext::hash_map<HWND, ButtonInfo *> biByHwnd;
+
 	list<InputInfo> II;
+  stdext::hash_map<HWND, InputInfo *> iiByHwnd;
+
 	list<ListBoxInfo> LBI;
-	list<DataStore> DataInfo;
+  stdext::hash_map<HWND, ListBoxInfo *> lbiByHwnd;
+
+  list<DataStore> DataInfo;
 	list<EventInfo> Events;
 	list<RectangleInfo> Rectangles;
 	list<TableInfo> Tables;
+  list<TimerInfo> timers;
+
   Toolbar *toolbar;
   ToolList toolTips;
 
@@ -438,18 +184,13 @@ protected:
 	HWND hWndTab;
 
 	HBRUSH Background;
-	HFONT Huge;
-	HFONT Large;
-	HFONT Medium;
-	HFONT Small;
 
-	HFONT pfLarge;
-	HFONT pfMedium;
-	HFONT pfSmall;
-	HFONT pfMediumPlus;
+  map<string, GDIImplFontSet> fonts;
+  const GDIImplFontSet &getCurrentFont() const;
+  const GDIImplFontSet &getFont(const string &font) const;
+  const GDIImplFontSet &loadFont(const string &font);
+  mutable const GDIImplFontSet *currentFontSet;
 
-  HFONT pfSmallItalic;
-	
 	int MaxX;
 	int MaxY;
 	int CurrentX;
@@ -470,11 +211,13 @@ protected:
   double scale;
   HFONT getGUIFont() const;
 
-  void resetLast();
-  int lastFormet; 
-  bool lastActive; 
-  bool lastHighlight;
-  DWORD lastColor;
+  void resetLast() const;
+  mutable int lastFormet; 
+  mutable bool lastActive; 
+  mutable bool lastHighlight;
+  mutable DWORD lastColor;
+  mutable string lastFont;
+
   void initCommon(double scale, const string &font);
 
   void processButtonMessage(ButtonInfo &bi, DWORD wParam);
@@ -489,7 +232,36 @@ protected:
   FixedTabs *tabs;
 
   string currentFont;
+  vector< GDIImplFontEnum > enumeratedFonts;
+
+  double autoSpeed;
+  double autoPos;
+  mutable double lastSpeed;
+  mutable double autoCounter;
+
+  bool lockRefresh;
+  bool fullScreen;
+
+  mutable bool commandLock;
+  mutable DWORD commandUnlockTime;
+
+  bool hasCommandLock() const;
+  void setCommandLock() const;
+  void liftCommandLock() const;
+
 public:
+
+  void getEnumeratedFonts(vector< pair<string, size_t> > &output) const;
+  const string &getFontName(int id);
+  double getRelativeFontScale(gdiFonts font, const char *fontFace) const;
+
+  void setFullScreen(bool useFullScreen);
+  void setAutoScroll(double speed);
+  void getAutoScroll(double &speed, double &pos) const;
+  void storeAutoPos(double pos);
+  int getAutoScrollDir() const {return (autoSpeed > 0 ? 1:-1);}
+  int setHighContrastMaxWidth();
+
   HWND getToolbarWindow() const;
   bool hasToolbar() const;
   void activateToolbar(bool active);
@@ -553,15 +325,19 @@ public:
 	
   void init(HWND hWnd, HWND hMainApp, HWND hTab);
 	bool openDoc(const char *doc);
-	string browseForSave(const string &Filter, const string &defext, int &FilterIndex);
-	string browseForOpen(const string &Filter, const string &defext);
+	string browseForSave(const vector< pair<string, string> > &filter, 
+                       const string &defext, int &FilterIndex);
+	string browseForOpen(const vector< pair<string, string> > &filter, 
+                       const string &defext);
 
 	bool clipOffset(int PageX, int PageY, int &MaxOffsetX, int &MaxOffsetY);
-  void addRectangle(RECT &rc, GDICOLOR Color = colorDefault, bool DrawBorder=true);
-	DWORD makeEvent(const string &id, DWORD data, void *extra=0);
+  void addRectangle(RECT &rc, GDICOLOR Color = GDICOLOR(-1), 
+                    bool DrawBorder = true, bool addFirst = false);
+  DWORD makeEvent(const string &id, const string &origin, 
+                  DWORD data, void *extra, bool flushEvent);
 	
   void unregisterEvent(const string &id);
-  void registerEvent(const string &id, GUICALLBACK cb);
+  EventInfo &registerEvent(const string &id, GUICALLBACK cb);
 
 	int sendCtrlMessage(const string &id);
 	bool canClear();
@@ -600,8 +376,8 @@ public:
 
   void RenderString(TextInfo &ti, const string &text, HDC hDC);
 	void RenderString(TextInfo &ti, HDC hDC=0);
-  void calcStringSize(TextInfo &ti, HDC hDC=0);
-  void formatString(const TextInfo &ti, HDC hDC);
+  void calcStringSize(TextInfo &ti, HDC hDC=0) const;
+  void formatString(const TextInfo &ti, HDC hDC) const;
 
 	string getTimerText(TextInfo *tit, DWORD T);
 	string getTimerText(int ZeroTime, int format);
@@ -625,24 +401,33 @@ public:
 	void setCX(int cx){CurrentX=cx;}
 	void setCY(int cy){CurrentY=cy;}
 	int getLineHeight() const {return lineHeight;}
+  int getLineHeight(gdiFonts font, const char *face) const;
 
   BaseInfo *setInputFocus(const string &id, bool select=false);  
   InputInfo *getInputFocus();
 	
-  void enableInput(const char *id) {setInputStatus(id, true);}
-  void disableInput(const char *id) {setInputStatus(id, false);}
-  void setInputStatus(const char *id, bool status);
-  void setInputStatus(const string &id, bool status)
-    {setInputStatus(id.c_str(), status);}
+  void enableInput(const char *id, bool acceptMissing = false) {setInputStatus(id, true, acceptMissing);}
+  void disableInput(const char *id, bool acceptMissing = false) {setInputStatus(id, false, acceptMissing);}
+  void setInputStatus(const char *id, bool status, bool acceptMissing = false);
+  void setInputStatus(const string &id, bool status, bool acceptMissing = false)
+    {setInputStatus(id.c_str(), status, acceptMissing);}
 
 	void setTabStops(const string &Name, int t1, int t2=-1);
 	void setData(const string &id, DWORD data);
-	bool getData(const string &id, DWORD &data); 
-	bool selectItemByData(const char *id, int data);
+	void setData(const string &id, void *data);
+	void *getData(const string &id) const; 
+	
+  bool getData(const string &id, DWORD &data) const; 
+	bool hasData(const char *id) const;
+
+  bool selectItemByData(const char *id, int data);
   void removeSelected(const char *id);
 
+  enum AskAnswer {AnswerNo = 0, AnswerYes = 1, AnswerCancel = 2};
   bool ask(const string &s);
-	void alert(const string &msg) const;
+	AskAnswer askCancel(const string &s);
+	
+  void alert(const string &msg) const;
 	void fillDown(){Direction=1;}
 	void fillRight(){Direction=0;}
   void fillNone(){Direction=-1;}
@@ -655,16 +440,23 @@ public:
 	void popY(){CurrentY=SY;}
 
 	void updatePos(int x, int y, int width, int height);
-	bool getSelectedItem(string id, ListBoxInfo *lbi);
+	void adjustDimension(int width, int height);
+  
+  bool getSelectedItem(string id, ListBoxInfo *lbi);
 	bool addItem(const string &id, const string &text, size_t data = 0);
 	bool addItem(const string &id, const vector< pair<string, size_t> > &items);
+  void filterOnData(const string &id, const stdext::hash_set<int> &filter);
+
   bool clearList(const string &id);
 
   bool hasField(const string &id) const;
 	const string &getText(const char *id, bool acceptMissing = false) const;
 	int getTextNo(const char *id, bool acceptMissing = false) const;
+  int getTextNo(const string &id, bool acceptMissing = false) const
+    {return getTextNo(id.c_str(), acceptMissing);}
+  
   const string &getText(const string &id, bool acceptMissing = false) const
-  {return getText(id.c_str(), acceptMissing);}
+    {return getText(id.c_str(), acceptMissing);}
 
   // Insert text and notify "focusList"
 	bool insertText(const string &id, const string &text);
@@ -723,13 +515,17 @@ public:
 	ListBoxInfo &addCombo(int x, int y, const string &id, int width, int height, GUICALLBACK cb=0, const string &Explanation="", const string &tooltip="");
 
 	TextInfo &addString(const char *id, int format, const string &text, GUICALLBACK cb=0);
-  TextInfo &addString(const char *id, int yp, int xp, int format, const string &text, int xlimit=0, GUICALLBACK cb=0);
+  TextInfo &addString(const char *id, int yp, int xp, int format, const string &text, 
+                      int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
 	// Untranslated versions
-  TextInfo &addStringUT(int yp, int xp, int format, const string &text, int xlimit=0, GUICALLBACK cb=0);
+  TextInfo &addStringUT(int yp, int xp, int format, const string &text, 
+                        int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
   TextInfo &addStringUT(int format, const string &text, GUICALLBACK cb=0);
 
 	void addTimer(int yp, int xp, int format, DWORD ZeroTime, int xlimit=0, GUICALLBACK cb=0, int TimeOut=NOTIMEOUT);
   void addTimeout(int TimeOut, GUICALLBACK cb);
+  TimerInfo &addTimeoutMilli(int timeOut, const string &id, GUICALLBACK cb);
+  void timerProc(TimerInfo &timer, DWORD timeout);
 
 	void draw(HDC hDC, RECT &rc);
 

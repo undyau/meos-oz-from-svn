@@ -12,7 +12,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ public:
 	bool isStart() const {return Type==PunchStart;}
 	bool isFinish() const {return Type==PunchFinish;}
   bool isCheck() const {return Type==PunchCheck;}
-	
+  int getControlNumber() const {return Type>=30 ? Type : 0;}
   string getType() const;
   
 	string getString() const ;

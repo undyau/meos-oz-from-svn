@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,8 +37,10 @@
 #include <algorithm>
 #include "inthashmap.h"
 #include "intkeymapimpl.hpp"
+#include "SportIdent.h"
 
 #include "gdioutput.h"
+#include "gdistructures.h"
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -53,6 +55,10 @@ oClass::oClass(oEvent *poe): oBase(poe)
   tLegTimeToPlace = 0;
   tLegAccTimeToPlace = 0;
   tSplitRevision = 0;
+  tSortIndex = 0;
+  tMaxTime = 0;
+  tCoursesChanged = false;
+  tStatusRevision = 0;
 }
 
 oClass::oClass(oEvent *poe, int id): oBase(poe)
@@ -68,6 +74,10 @@ oClass::oClass(oEvent *poe, int id): oBase(poe)
   tLegTimeToPlace = 0;
   tLegAccTimeToPlace = 0;
   tSplitRevision = 0;
+  tSortIndex = 0;
+  tMaxTime = 0;
+  tCoursesChanged = false;
+  tStatusRevision = 0;
 }
 
 oClass::~oClass()
@@ -142,31 +152,6 @@ void oClass::Set(const xmlobject *xo)
   getNoTiming();
 }
 
-string oClass::codeMultiCourse() const
-{
-	vector< vector<pCourse> >::const_iterator stage_it;
-	string str;
-	char bf[16];
-
-	for (stage_it=MultiCourse.begin();stage_it!=MultiCourse.end(); ++stage_it) {
-		vector<pCourse>::const_iterator it;
-		for (it=stage_it->begin();it!=stage_it->end(); ++it) {
-			if(*it){
-				sprintf_s(bf, 16, " %d", (*it)->getId());
-				str+=bf;
-			}
-			else str+=" 0";				
-		}
-		str+=";";
-	}
-
-  if (str.length()>0) {
-    return trim(str.substr(0, str.length()-1));
-  }
-	else return "";
-}
-
-
 void oClass::importCourses(const vector< vector<int> > &multi)
 {
   MultiCourse.resize(multi.size());
@@ -192,6 +177,34 @@ set<int> &oClass::getMCourseIdSet(set<int> &in) const
   return in;
 }
 
+string oClass::codeMultiCourse() const
+{
+	vector< vector<pCourse> >::const_iterator stage_it;
+	string str;
+	char bf[16];
+
+	for (stage_it=MultiCourse.begin();stage_it!=MultiCourse.end(); ++stage_it) {
+		vector<pCourse>::const_iterator it;
+		for (it=stage_it->begin();it!=stage_it->end(); ++it) {
+			if(*it){
+				sprintf_s(bf, 16, " %d", (*it)->getId());
+				str+=bf;
+			}
+			else str+=" 0";				
+		}
+		str += ";";
+	}
+
+  if (str.length() == 1)
+    return "@"; // Special code for the case of one stage and no course
+  else if (str.length()>0) {
+    return trim(str.substr(0, str.length()-1));
+  }
+  //if (str.length()>0) 
+ //   return trim(str);  
+	else return "";
+}
+
 void oClass::parseCourses(const string &courses, 
                           vector< vector<int> > &multi, 
                           set<int> &courseId)
@@ -200,7 +213,7 @@ void oClass::parseCourses(const string &courses,
   multi.clear();
   if (courses.empty()) 
     return;
-
+ 
 	const char *str=courses.c_str();
 
 	vector<int> empty;
@@ -210,7 +223,7 @@ void oClass::parseCourses(const string &courses,
   while (*str && isspace(*str)) 
     str++;
 	
-	while(*str){
+	while (*str) {
 		int cid=atoi(str);
 
     if (cid) {
@@ -324,14 +337,20 @@ void oClass::importLegMethod(const string &legMethods)
   apply();
 }
 
-int oClass::getNumRunners() const
+int oClass::getNumRunners(bool checkFirstLeg) const
 {
 	int nRunners=0;
 	oRunnerList::iterator it;		
 
-	for (it=oe->Runners.begin(); it != oe->Runners.end(); ++it)
-		if(it->getClassId()==Id) nRunners++;
-
+  for (it=oe->Runners.begin(); it != oe->Runners.end(); ++it) {
+    if(it->getClassId()==Id) {
+      if (it->skip())
+        continue;
+      if (checkFirstLeg && it->tLeg > 0)
+        continue;
+      nRunners++;
+    }
+  }
 	return nRunners;
 }
 
@@ -340,11 +359,12 @@ void oClass::setCourse(pCourse c)
 {
 	if(Course!=c){
 		Course=c;
+    tCoursesChanged = true;
 		updateChanged();
-	}
-  // Update start from course
-  if (Course && !Course->getStart().empty()) {
-    setStart(Course->getStart());
+    // Update start from course
+    if (Course && !Course->getStart().empty()) {
+      setStart(Course->getStart());
+    }
   }
 }
 
@@ -412,6 +432,80 @@ pClass oEvent::getClassCreate(int Id, const string &CreateName)
 		//Not found. Auto add...	
 		return pc;
 	}
+}
+
+bool oEvent::getClassesFromBirthYear(int year, PersonSex sex, vector<int> &classes) const {
+  classes.clear();
+
+  int age = year>0 ? getThisYear() - year : 0;
+
+  int bestMatchClass = -1;
+  int bestMatchDist = 1000;
+
+  for (oClassList::const_iterator it=Classes.begin(); it != Classes.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
+    PersonSex clsSex = it->getSex();
+    if (clsSex == sFemale && sex == sMale)
+      continue;
+    if (clsSex == sMale && sex == sFemale)
+      continue;
+
+    int distance = 1000;
+    if (age>0) {
+      int high, low; 
+      it->getAgeLimit(low, high);
+
+      if (high>0 && age>high)
+        continue;
+
+      if (low>0 && age<low)
+        continue;
+
+      if (high>0)
+        distance = high - age;
+
+      if (low>0)
+        distance = min(distance, age-low);
+
+      if (distance < bestMatchDist) {
+        if (bestMatchClass != -1)
+          classes.push_back(bestMatchClass);
+        // Add best class last
+        bestMatchClass = it->getId();
+        bestMatchDist = distance;
+      }
+      else
+        classes.push_back(it->getId());
+    }
+    else
+      classes.push_back(it->getId());
+	}
+
+  // Add best class last
+  if (bestMatchClass != -1) {
+    classes.push_back(bestMatchClass);
+    return true;
+  }
+  return false;
+}
+  
+
+void oEvent::getClasses(vector<pClass> &classes) {
+  Classes.sort();
+  classes.clear();
+  for (oClassList::iterator it = Classes.begin(); it != Classes.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
+    classes.push_back(pClass(&*it));
+  }
+}
+  
+
+pClass oEvent::getBestClassMatch(const string &cname) const {
+  return getClass(cname);
 }
 
 pClass oEvent::getClass(const string &cname) const
@@ -532,11 +626,17 @@ bool oClass::addStageCourse(int iStage, int CourseId)
 	pCourse pc=oe->getCourse(CourseId);
 
   if(pc) {
+    tCoursesChanged = true;
 		Stage.push_back(pc);
     updateChanged();
     return true;
   }
 	return false;
+}
+
+void oClass::clearStageCourses(int stage) {
+	if(size_t(stage) < MultiCourse.size())
+		MultiCourse[stage].clear();
 }
 
 bool oClass::removeStageCourse(int iStage, int CourseId, int position)
@@ -550,6 +650,7 @@ bool oClass::removeStageCourse(int iStage, int CourseId, int position)
     return false;
 
 	if(Stage[position]->getId()==CourseId){
+    tCoursesChanged = true;
 		Stage.erase(Stage.begin()+position);
     updateChanged();
 		return true;
@@ -860,14 +961,22 @@ void oClass::setRopeTime(int leg, const string &t)
 
 void oClass::fillLegTypes(gdioutput &gdi, const string &name)
 {
-  gdi.clearList(name);
+  vector< pair<string, size_t> > types;
+  types.push_back( make_pair(lang.tl("Normal"), LTNormal));
+  types.push_back( make_pair(lang.tl("Parallell"), LTParallel));
+  types.push_back( make_pair(lang.tl("Valbar"), LTParallelOptional));
+  types.push_back( make_pair(lang.tl("Extra"), LTExtra));
+  types.push_back( make_pair(lang.tl("Summera"), LTSum));
+  types.push_back( make_pair(lang.tl("Medlöpare"), LTIgnore));
+  gdi.addItem(name, types);
+/*  gdi.clearList(name);
 
   gdi.addItem(name, lang.tl("Normal"), LTNormal);
   gdi.addItem(name, lang.tl("Parallell"), LTParallel);
   gdi.addItem(name, lang.tl("Valbar"), LTParallelOptional);
   gdi.addItem(name, lang.tl("Extra"), LTExtra);
   gdi.addItem(name, lang.tl("Summera"), LTSum);
-  gdi.addItem(name, lang.tl("Medlöpare"), LTIgnore);
+  gdi.addItem(name, lang.tl("Medlöpare"), LTIgnore);*/
 }
 
 void oEvent::fillClasses(gdioutput &gdi, const string &id, ClassExtra extended, ClassFilter filter)
@@ -1019,7 +1128,7 @@ bool oEvent::fillClassesTB(gdioutput &gdi)//Table mode
 			xp+=dx[1];
 
 			char num[10];
-			_itoa_s(it->getNumRunners(), num, 10);
+			_itoa_s(it->getNumRunners(false), num, 10);
 
 			gdi.addString("", y, xp, 0, num, dx[2]); 
 			xp+=dx[2];
@@ -1174,6 +1283,19 @@ pCourse oClass::getCourse(int leg, unsigned fork) const
   return 0;
 }
 
+void oClass::getCourses(int leg, vector<pCourse> &courses) const {
+  courses.clear();
+  if (leg == 0 && Course)
+    courses.push_back(Course);
+
+  if(unsigned(leg)<MultiCourse.size()){
+    const vector<pCourse> &mc = MultiCourse[leg];
+    for (size_t k = 0; k < mc.size(); k++)
+      if (find(courses.begin(), courses.end(), mc[k]) == courses.end())
+        courses.push_back(mc[k]);
+  }
+}
+
 ClassType oClass::getClassType() const
 {
   if(legInfo.size()==2 && (legInfo[1].isParallel() ||
@@ -1304,12 +1426,11 @@ int oClass::getNumDistinctRunnersMinimal() const
   return max(ndist, 1);
 }
 
-void oClass::resetLeaderTime()
-{
-  vector< pair<int, int> >::iterator it;
+void oClass::resetLeaderTime() {
+  for (size_t k = 0; k<tLeaderTime.size(); k++)
+    tLeaderTime[k].reset();
 
-  for(it=tLeaderTime.begin();it!=tLeaderTime.end();++it)
-    it->first=0,it->second=0;
+  tBestTimePerCourse.clear();
 }
 
 bool oClass::hasCoursePool() const
@@ -1319,7 +1440,10 @@ bool oClass::hasCoursePool() const
 
 void oClass::setCoursePool(bool p)
 {
-  getDI().setInt("HasPool", p);
+  if (hasCoursePool() != p) {
+    getDI().setInt("HasPool", p);
+    tCoursesChanged = true;
+  }
 }
 
 pCourse oClass::selectCourseFromPool(int leg, const SICard &card) const
@@ -1360,36 +1484,84 @@ pCourse oClass::selectCourseFromPool(int leg, const SICard &card) const
 	return const_cast<pCourse>(rc);
 }
 
+void oClass::updateChangedCoursePool() {
+  if (!tCoursesChanged)
+    return;
+
+  bool hasPool = hasCoursePool();
+  vector< set<pCourse> > crs;
+  for (size_t k = 0; k < MultiCourse.size(); k++) {
+    crs.push_back(set<pCourse>());
+    for (size_t j = 0; j < MultiCourse[k].size(); j++) {
+      if (MultiCourse[k][j])
+        crs.back().insert(MultiCourse[k][j]);
+    }
+  }
+ 
+  SICard card;
+  oRunnerList::iterator it;	
+  for (it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
+	  if (it->isRemoved() || it->Class != this)
+      continue;
+
+    if (size_t(it->tLeg) >= crs.size() || crs[it->tLeg].empty())
+      continue;
+
+    if (!hasPool) {
+      if (it->Course) {
+        it->setCourseId(0);
+        it->synchronize();
+      }
+    }
+    else {
+      bool correctCourse = crs[it->tLeg].count(it->Course) > 0;
+      if ((!correctCourse || (correctCourse && it->Status == StatusMP)) && it->Card) {
+        it->Card->getSICard(card);
+        pCourse crs = selectCourseFromPool(it->tLeg, card);
+        if (crs != it->Course) {
+          it->setCourseId(crs->getId());
+          it->synchronize();
+        }
+      }
+    }
+  }
+  tCoursesChanged = false;
+} 
+
 int oClass::getBestLegTime(int leg) const
 {
   if (unsigned(leg)>=tLeaderTime.size())
     return 0;
-  else return 
-    tLeaderTime[leg].first;
+  else 
+    return tLeaderTime[leg].bestTimeOnLeg;
 }
+
+int oClass::getBestTimeCourse(int courseId) const
+{
+  map<int, int>::const_iterator res = tBestTimePerCourse.find(courseId);
+  if (res == tBestTimePerCourse.end())
+    return 0;
+  else 
+    return res->second;
+}
+
+
+int oClass::getBestInputTime(int leg) const
+{
+  if (unsigned(leg)>=tLeaderTime.size())
+    return 0;
+  else return 
+    tLeaderTime[leg].inputTime;
+}
+
 
 int oClass::getTotalLegLeaderTime(int leg) const
 {
   if (unsigned(leg)>=tLeaderTime.size())
     return 0;
   else return 
-    tLeaderTime[leg].second;
+    tLeaderTime[leg].totalLeaderTime;
 }
-
-
-/*
-bool oClass::inputData(int id, const string &input, string &output, bool noUpdate)
-{
-  switch (id) {
-    case TID_CLASSNAME:
-      setName(input);
-      synchronize();
-      output=getName();
-      return true;
-  }
-  return false;
-}*/
-
 
 void oEvent::mergeClass(int classIdPri, int classIdSec)
 {
@@ -1590,14 +1762,14 @@ int oClass::getExpectedAge() const
   return 0;
 }
 
-void oClass::setSex(const string &sex) 
+void oClass::setSex(PersonSex sex) 
 {
-  getDI().setString("Sex", sex);
+  getDI().setString("Sex", encodeSex(sex));
 }
 
-string oClass::getSex() const 
+PersonSex oClass::getSex() const 
 {
-  return getDCI().getString("Sex");
+  return interpretSex(getDCI().getString("Sex")); 
 }
 
 void oClass::setStart(const string &start)
@@ -1643,6 +1815,15 @@ bool oClass::getNoTiming() const
   return tNoTiming!=0;
 }
 
+void oClass::setFreeStart(bool quick)
+{
+  getDI().setInt("FreeStart", quick);
+}
+
+bool oClass::hasFreeStart() const 
+{
+  return getDCI().getInt("FreeStart") != 0;
+}
 
 void oClass::setType(const string &start)
 {
@@ -1923,7 +2104,7 @@ void oClass::addTableRow(Table &table) const {
   table.set(row++, *it, TID_MODIFIED, getTimeStamp(), false);
 
   table.set(row++, *it, TID_CLASSNAME, getName(), true);
-  oe->oClassData->fillTableCol(oData, *this, table);
+  oe->oClassData->fillTableCol(oData, *this, table, true);
 }
 
 
@@ -1934,12 +2115,8 @@ bool oClass::inputData(int id, const string &input,
   synchronize(false);
     
   if(id>1000) {
-    bool b = oe->oClassData->inputData(this, oData, id, input, output, noUpdate);
-    if (b) {
-      synchronize(true);
-      oe->oClassData->inputData(this, oData, id, input, output, noUpdate);
-    }
-    return b;
+    return oe->oClassData->inputData(this, oData, id, input, 
+                                       inputId, output, noUpdate);
   }
   switch(id) {
     case TID_CLASSNAME:
@@ -1955,6 +2132,11 @@ bool oClass::inputData(int id, const string &input,
 
 void oClass::fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected)
 { 
+  if(id>1000) {
+    oe->oClassData->fillInput(oData, id, 0, out, selected);
+    return;
+  }
+
   if (id==TID_COURSE) {
     out.clear();
     oe->fillCourses(out, true);
@@ -1965,7 +2147,7 @@ void oClass::fillInput(int id, vector< pair<string, size_t> > &out, size_t &sele
 }
 
 
-void oClass::getStatistics(int feeLock, int &entries, int &started) const
+void oClass::getStatistics(const set<int> &feeLock, int &entries, int &started) const
 {
   oRunnerList::const_iterator it;
   entries = 0;
@@ -1975,7 +2157,7 @@ void oClass::getStatistics(int feeLock, int &entries, int &started) const
       continue;
 
     if (it->getClassId()==Id) {
-      if (feeLock == 0 || feeLock==it->getDCI().getInt("Fee")) {
+      if (feeLock.empty() || feeLock.count(it->getDCI().getInt("Fee"))) {
         entries++;
         if (it->getStatus()!= StatusUnknown && it->getStatus()!= StatusDNS)
           started++;
@@ -1989,10 +2171,30 @@ bool oClass::isSingleRunnerMultiStage() const
   return getNumStages()>1 && getNumDistinctRunnersMinimal()==1;
 }
 
-int oClass::getEntryFee(const string &date) const 
+int oClass::getEntryFee(const string &date, int age) const 
 {
-  string oentry = oe->getDCI().getDate("OrdinaryEntry");
-  bool late = date >= oentry;
+  oDataConstInterface odc = oe->getDCI();
+  string oentry = odc.getDate("OrdinaryEntry");
+  bool late = date > oentry && oentry>="2010-01-01";
+  bool reduced = false;
+
+  if (age > 0) {
+    int low = odc.getInt("YouthAge");
+    int high = odc.getInt("SeniorAge");
+    reduced = age <= low || (high > 0 && age >= high);  
+  }
+
+  if (reduced) {
+    int high = getDCI().getInt("HighClassFeeRed");
+    int normal = getDCI().getInt("ClassFeeRed");
+
+    // Only return these fees if set
+    if (high>0 && late)
+      return high;
+    else if (normal>0)
+      return normal;
+  }
+
   if (late)
     return getDCI().getInt("HighClassFee");
   else
@@ -2016,13 +2218,21 @@ void oClass::addClassDefaultFee(bool resetFee) {
       default:
         fee = oe->getDCI().getInt("EntryFee");
     }
+
+    int reducedFee = oe->getDCI().getInt("YouthFee");
+
     double factor = 1.0 + 0.01 * atof(oe->getDCI().getString("LateEntryFactor").c_str());
     int lateFee = fee;
-    if (factor > 1)
-      lateFee = int(fee*factor + 0.5);
+    int lateReducedFee = reducedFee;
 
+    if (factor > 1) {
+      lateFee = int(fee*factor + 0.5);
+      lateReducedFee = int(reducedFee*factor + 0.5);
+    }
     getDI().setInt("ClassFee", fee);
     getDI().setInt("HighClassFee", lateFee);
+    getDI().setInt("ClassFeeRed", reducedFee);
+    getDI().setInt("HighClassFeeRed", lateReducedFee);
   }
 }
 
@@ -2034,6 +2244,11 @@ void oClass::reinitialize()
     getDI().setInt("SortIndex", ix);
   }
   tSortIndex = ix;
+
+  tMaxTime = getDI().getInt("MaxTime");
+  if (tMaxTime == 0 && oe) {
+    tMaxTime = oe->getMaximalTime();
+  }
 }
 
 void oEvent::reinitializeClasses() 
@@ -2081,17 +2296,18 @@ void oEvent::getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb)
   int e = gdi.scaleLength(520);
   int f = gdi.scaleLength(30);
 
-  int ek1 = 0, ek2 = 0, ekextra = 0;
+  int ek1 = 0, ekextra = 0;
   bool useEco = oe->useEconomy();
 
   if (useEco) {
-    ek1 = gdi.scaleLength(60);
-    ek2 = gdi.scaleLength(60);
-    ekextra = gdi.scaleLength(20);
-    d += ek1 + ek2 + ekextra;
-    e += ek1 + ek2 + ekextra;
+    ek1 = gdi.scaleLength(70);
+    ekextra = gdi.scaleLength(35);
+    d += 4 * ek1 + ekextra;
+    e += 4 * ek1 + ekextra;
     gdi.addString("", yp, c+ek1, 1, "Avgift");
-    gdi.addString("", yp, c+ek2+ek1, 1, "Hög avgift");
+    gdi.addString("", yp, c+2*ek1, 1, "Sen avgift");
+    gdi.addString("", yp, c+3*ek1, 1, "Red. avgift");
+    gdi.addString("", yp, c+4*ek1, 1, "Sen red. avgift");
   }
   
   gdi.addString("", yp, gdi.getCX(), 1, "Klass");
@@ -2117,7 +2333,9 @@ void oEvent::getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb)
   
     if (useEco) {
       gdi.addInput(c + ek1, yp, "Fee"+id, oe->formatCurrency(it->getDCI().getInt("ClassFee")), 5);
-      gdi.addInput(c + ek1 + ek2, yp, "LateFee"+id, oe->formatCurrency(it->getDCI().getInt("HighClassFee")), 5);
+      gdi.addInput(c + 2*ek1, yp, "LateFee"+id, oe->formatCurrency(it->getDCI().getInt("HighClassFee")), 5);
+      gdi.addInput(c + 3*ek1, yp, "RedFee"+id, oe->formatCurrency(it->getDCI().getInt("ClassFeeRed")), 5);
+      gdi.addInput(c + 4*ek1, yp, "RedLateFee"+id, oe->formatCurrency(it->getDCI().getInt("HighClassFeeRed")), 5);
     }
 
     string crs = "Cors"+id;
@@ -2129,10 +2347,11 @@ void oEvent::getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb)
   }
 }
 
-void oEvent::saveClassSettingsTable(gdioutput &gdi)
+void oEvent::saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee)
 {
   synchronizeList(oLCourseId);
   oClassList::iterator it;
+  classModifiedFee.clear();
 
   for (it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
@@ -2140,14 +2359,28 @@ void oEvent::saveClassSettingsTable(gdioutput &gdi)
 
     string id = itos(it->getId());
     string start = gdi.getText("Strt"+id);
-    int block = gdi.getTextNo(("Blck"+id).c_str());
-    int sort = gdi.getTextNo(("Sort"+id).c_str());
+    int block = gdi.getTextNo("Blck"+id);
+    int sort = gdi.getTextNo("Sort"+id);
 
     if (gdi.hasField("Fee" + id)) {
-      int fee = gdi.getTextNo(("Fee"+id).c_str());
-      int latefee = gdi.getTextNo(("LateFee"+id).c_str());
+      int fee = interpretCurrency(gdi.getText("Fee"+id));
+      int latefee = interpretCurrency(gdi.getText("LateFee"+id));
+      int feered = interpretCurrency(gdi.getText("RedFee"+id));
+      int latefeered = interpretCurrency(gdi.getText("RedLateFee"+id));
+
+      int oFee = it->getDCI().getInt("ClassFee");
+      int oLateFee = it->getDCI().getInt("HighClassFee");
+      int oFeeRed = it->getDCI().getInt("ClassFeeRed");
+      int oLateFeeRed = it->getDCI().getInt("HighClassFeeRed");
+
+      if (oFee != fee || oLateFee != latefee || 
+          oFeeRed != feered || oLateFeeRed != latefeered)
+        classModifiedFee.insert(it->getId());
+
       it->getDI().setInt("ClassFee", fee);
       it->getDI().setInt("HighClassFee", latefee);
+      it->getDI().setInt("ClassFeeRed", feered);
+      it->getDI().setInt("HighClassFeeRed", latefeered);
     }
 
     int courseId = 0;
@@ -2335,7 +2568,28 @@ void oClass::calculateSplits()
 
     vector< vector<int> > splits(nc+1);
     vector< vector<int> > splitsAcc(nc+1);
-  
+    vector<bool> acceptMissingPunch(nc+1, true);
+
+    for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
+      if (it->isRemoved() || it->Class != this)
+        continue;
+      pCourse tpc = it->getCourse();
+      if (tpc != pc || tpc == 0)
+        continue;
+
+      const vector<SplitData> &sp = it->getSplitTimes();
+      const int s = min<int>(nc, sp.size());
+
+      for (int k = 0; k < s; k++) {
+        if (sp[k].time > 0 && acceptMissingPunch[k]) {
+          pControl ctrl = tpc->getControl(k);
+          // If there is a 
+          if (ctrl && ctrl->getStatus() != oControl::StatusBad)
+            acceptMissingPunch[k] = false;
+        }
+      }
+    }
+
     for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
       if (it->isRemoved() || it->Class != this)
         continue;
@@ -2345,7 +2599,7 @@ void oClass::calculateSplits()
       if (tpc != pc)
         continue;
 
-      const vector<int> &sp = it->getSplitTimes();
+      const vector<SplitData> &sp = it->getSplitTimes();
       const int s = min<int>(nc, sp.size());
 
       vector<int> &tLegTimes = it->tLegTimes;
@@ -2353,16 +2607,16 @@ void oClass::calculateSplits()
       bool ok = true;
 
       for (int k = 0; k < s; k++) {
-        if (sp[k] > 0) {
+        if (sp[k].time > 0) {
           if (ok) {
             // Store accumulated times
-            int t = sp[k] - it->StartTime;
+            int t = sp[k].time - it->StartTime;
             if (it->StartTime>0 && t>0) 
               splitsAcc[k].push_back(t);
           }
 
           if (k == 0) { // start -> first
-            int t = sp[0] - it->StartTime;
+            int t = sp[0].time - it->StartTime;
             if (it->StartTime>0 && t>0) {
               splits[k].push_back(t);
               tLegTimes[k] = t;
@@ -2371,8 +2625,8 @@ void oClass::calculateSplits()
               tLegTimes[k] = 0;
           }
           else { // control -> control
-            int t = sp[k] - sp[k-1];
-            if (sp[k-1]>0 && t>0) {
+            int t = sp[k].time - sp[k-1].time;
+            if (sp[k-1].time>0 && t>0) {
               splits[k].push_back(t);
               tLegTimes[k] = t;
             }
@@ -2381,12 +2635,12 @@ void oClass::calculateSplits()
           }
         }
         else
-          ok = false;
+          ok = acceptMissingPunch[k];
       }
 
       // last -> finish
-      if (sp.size() == nc && sp[nc-1]>0 && it->FinishTime > 0) {
-        int t = it->FinishTime - sp[nc-1];
+      if (sp.size() == nc && sp[nc-1].time>0 && it->FinishTime > 0) {
+        int t = it->FinishTime - sp[nc-1].time;
         if (t>0) {
           splits[nc].push_back(t);
           tLegTimes[nc] = t;
@@ -2420,7 +2674,14 @@ void oClass::calculateSplits()
           insertAccLegPlace(pc->getId(), k, splitsAcc[k][j], place);
         }
       }
-      
+      else {
+        // Bad control / missing times
+        int t = 0;
+        if (!accLeaderTime.empty())
+          t = accLeaderTime.back();
+        accLeaderTime.push_back(t); // Store time from previous leg
+      }
+
       sort(splits[k].begin(), splits[k].end());
       const size_t ntimes = splits[k].size();
       if (ntimes == 0)
@@ -2506,4 +2767,91 @@ void oClass::remove()
 bool oClass::canRemove() const 
 {
   return !oe->isClassUsed(Id);
+}
+
+int oClass::getMaximumRunnerTime() const {
+  return tMaxTime;
+}
+
+int oClass::getNumLegNoParallel() const {
+  int nl = 1;
+  for (size_t k = 1; k < legInfo.size(); k++) {
+    if (!legInfo[k].isParallel())
+      nl++;
+  }
+  return nl;
+}
+
+bool oClass::splitLegNumberParallel(int leg, int &legNumber, int &legOrder) const {
+  legNumber = 0;
+  legOrder = 0;
+  if (legInfo.empty())
+    return false;
+
+  int stop = min<int>(leg, legInfo.size() - 1);
+  int k;
+  for (k = 0; k < stop; k++) {
+    if (legInfo[k+1].isParallel() || legInfo[k+1].isOptional())
+      legOrder++;
+    else {
+      legOrder = 0;
+      legNumber++;
+    }
+  }
+  if (legOrder == 0) {
+    if (k+1 < int(legInfo.size()) && (legInfo[k+1].isParallel() || legInfo[k+1].isOptional()))
+      return true;
+    if (!(legInfo[k].isParallel() || legInfo[k].isOptional()))
+      return false;
+  }
+  return true;
+}
+
+int oClass::getLegNumberLinear(int legNumberIn, int legOrderIn) const {
+  if (legNumberIn == 0 && legOrderIn == 0)
+    return 0;
+
+  int legNumber = 0;
+  int legOrder = 0;
+  for (size_t k = 1; k < legInfo.size(); k++) {
+    if (legInfo[k].isParallel() || legInfo[k].isOptional())
+      legOrder++;
+    else {
+      legOrder = 0;
+      legNumber++;
+    }
+    if (legNumberIn == legNumber && legOrderIn == legOrder)
+      return k;
+  }
+
+  return -1;
+}
+
+string oClass::getLegNumber(int leg) const {
+  int legNumber, legOrder;
+  bool par = splitLegNumberParallel(leg, legNumber, legOrder);
+  char bf[16];
+  if (par) {
+    char symb = 'a' + legOrder;
+    sprintf_s(bf, "%d%c", legNumber + 1, symb);
+  }
+  else {
+    sprintf_s(bf, "%d", legNumber + 1);
+  }
+  return bf;
+}
+
+oClass::ClassStatus oClass::getClassStatus() const {
+  if (tStatusRevision != oe->dataRevision) {
+    string s = getDCI().getString("Status");
+    if (s == "I")
+      tStatus =  Invalid;
+    else if (s == "IR")
+      tStatus = InvalidRefund;
+    else
+      tStatus = Normal;
+
+    tStatusRevision = oe->dataRevision;
+  }
+  return tStatus;
 }

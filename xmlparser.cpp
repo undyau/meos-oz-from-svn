@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "xmlparser.h"
 #include "meos_util.h"
 #include "progress.h"
+#include "meosexception.h"
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -40,6 +41,7 @@ xmlparser::xmlparser()
 	tagStackPointer=0;	
   isUTF = false;
   cutMode = false;
+  toString = false;
 }
 
 xmlparser::~xmlparser()
@@ -47,8 +49,13 @@ xmlparser::~xmlparser()
   delete progress;
 	//if(fin.good())
 	fin.close();
-	fout.close();
+  foutFile.close();
 }
+
+inline bool isBlankSpace(char b) {
+  return b == ' ' || b == '\t' || b == '\n' || b == '\r';
+}
+
 
 void xmlparser::setProgress(HWND hWnd)
 {
@@ -78,74 +85,109 @@ xmlobject::~xmlobject()
 bool xmlparser::write(const char *tag, const string &Value)
 {
 	if(!cutMode || Value!="")	{		
-		fout << "<" << tag << ">";
-		fout << encodeXML(Value);
-		fout << "</" << tag << ">" << endl;
+		fOut() << "<" << tag << ">"
+		       << encodeXML(Value)
+		       << "</" << tag << ">" << endl;
 	}
-	return fout.good();
+	return fOut().good();
 }
 
 bool xmlparser::write(const char *tag)
 {
-	fout << "<" << tag << "/>" << endl;
-	return fout.good();
+	fOut() << "<" << tag << "/>" << endl;
+	return fOut().good();
 }
 
 bool xmlparser::write(const char *tag, const char *Property, const string &Value)
 {
 	if(!cutMode || Value!="")	{		
-		fout << "<" << tag << " " << Property << "=\"";
-		fout << encodeXML(Value) << "\"/>" << endl;		
+		fOut() << "<" << tag << " " << Property << "=\"" 
+		       << encodeXML(Value) << "\"/>" << endl;		
 	}
-	return fout.good();
+	return fOut().good();
 }
+
+bool xmlparser::write(const char *tag, const char *prop, const char *value)
+{
+  return write(tag, prop, string(value));
+}
+
+bool xmlparser::write(const char *tag, const char *prop, bool value)
+{ 
+	if(!cutMode || value)
+    return write(tag, prop, value ? "true" : "false");
+  else return true;
+}
+
 
 bool xmlparser::write(const char *tag, const char *Property, const string &PropValue, const string &Value)
 {
-	if(!cutMode || Value!="")	{		
-		fout << "<" << tag << " " << Property << "=\"";
-		fout << encodeXML(PropValue) << "\">" << encodeXML(Value);		
-    fout << "</" << tag << ">" << endl;
+  if(!cutMode || Value != "" || PropValue != "")	{		
+		fOut() << "<" << tag << " " << Property << "=\""
+		       << encodeXML(PropValue) << "\">" << encodeXML(Value)	
+           << "</" << tag << ">" << endl;
 	}
-	return fout.good();
+	return fOut().good();
 }
+
+bool xmlparser::write(const char *tag, const char *prop, 
+                      bool propValue, const string &value) {
+  return write(tag, prop, propValue ? "true" : "false", value);  
+}
+
+bool xmlparser::write(const char *tag, const char *prop, 
+                      const char *propValue, const string &value) {
+  return write(tag, prop, string(propValue), value);
+}
+
 
 bool xmlparser::write(const char *tag, int Value)
 {
 	if(!cutMode || Value!=0) {
-		fout << "<" << tag << ">";
-		fout << Value;
-		fout << "</" << tag << ">" << endl;
+		fOut() << "<" << tag << ">"
+		       << Value
+		       << "</" << tag << ">" << endl;
 	}
-	return fout.good();
+	return fOut().good();
 }
+
+bool xmlparser::writeBool(const char *tag, bool value)
+{
+	if(!cutMode || value) {
+		fOut() << "<" << tag << ">"
+           << (value ? "true" : "false")
+		       << "</" << tag << ">" << endl;
+	}
+	return fOut().good();
+}
+
 
 bool xmlparser::write64(const char *tag, __int64 Value)
 {
 	if(!cutMode || Value!=0) {
-		fout << "<" << tag << ">";
-		fout << Value;
-		fout << "</" << tag << ">" << endl;
+		fOut() << "<" << tag << ">"
+		       << Value
+		       << "</" << tag << ">" << endl;
 	}
-	return fout.good();
+	return fOut().good();
 }
 
 bool xmlparser::writeDWORD(const char *tag, DWORD Value)
 {
 	if(!cutMode || Value!=0) {
-		fout << "<" << tag << ">";
-		fout << Value;
-		fout << "</" << tag << ">" << endl;
+		fOut() << "<" << tag << ">";
+		fOut() << Value;
+		fOut() << "</" << tag << ">" << endl;
 	}
-	return fout.good();
+	return fOut().good();
 }
 
-bool xmlparser::startTag(const char *tag, const char *property, const string &Value)
+bool xmlparser::startTag(const char *tag, const char *prop, const string &Value)
 {
 	if(tagStackPointer<32) {
-		fout << "<" << tag << " " << property << "=\"" << encodeXML(Value) << "\">" << endl;
+		fOut() << "<" << tag << " " << prop << "=\"" << encodeXML(Value) << "\">" << endl;
 		tagStack[tagStackPointer++]=tag;
-		return fout.good();
+		return fOut().good();
 	}
 	else return false;
 }
@@ -153,13 +195,13 @@ bool xmlparser::startTag(const char *tag, const char *property, const string &Va
 bool xmlparser::startTag(const char *tag, const vector<string> &propvalue)
 {
 	if(tagStackPointer<32) {
-		fout << "<" << tag << " ";
+		fOut() << "<" << tag << " ";
     for (size_t k=0;k<propvalue.size(); k+=2) {
-      fout << propvalue[k] << "=\"" << encodeXML(propvalue[k+1]) << "\" ";
+      fOut() << propvalue[k] << "=\"" << encodeXML(propvalue[k+1]) << "\" ";
     }
-    fout << ">" << endl;
+    fOut() << ">" << endl;
     tagStack[tagStackPointer++]=tag;
-		return fout.good();
+		return fOut().good();
 	}
 	else return false;
 }
@@ -168,9 +210,9 @@ bool xmlparser::startTag(const char *tag, const vector<string> &propvalue)
 bool xmlparser::startTag(const char *tag)
 {
 	if(tagStackPointer<32) {
-		fout << "<" << tag << ">" << endl;
+		fOut() << "<" << tag << ">" << endl;
 		tagStack[tagStackPointer++]=tag;
-		return fout.good();
+		return fOut().good();
 	}
 	else return false;
 }
@@ -178,12 +220,26 @@ bool xmlparser::startTag(const char *tag)
 bool xmlparser::endTag()
 {
 	if(tagStackPointer>0)	{
-		fout << "</" << tagStack[--tagStackPointer] << ">" << endl;
-		return fout.good();
+		fOut() << "</" << tagStack[--tagStackPointer] << ">" << endl;
+		return fOut().good();
 	}
   else throw std::exception("BAD XML CODE");
 
 	return false;
+}
+
+void xmlparser::openMemoryOutput(bool useCutMode) {
+  cutMode = useCutMode;
+  toString = true;
+  foutString.clear();
+  fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";  
+
+  string out = foutString.str();
+}
+
+void xmlparser::getMemoryOutput(string &res) {
+  res = foutString.str();
+  foutString.clear();
 }
 
 bool xmlparser::openOutput(const char *file, bool useCutMode)
@@ -193,15 +249,16 @@ bool xmlparser::openOutput(const char *file, bool useCutMode)
 
 bool xmlparser::openOutputT(const char *file, bool useCutMode, const string &type)
 {
+  toString = false;
   cutMode = useCutMode;
-	fout.open(file);
+	foutFile.open(file);
 
 	tagStackPointer=0;
 
-	if(fout.bad())
+	if(foutFile.bad())
 		return false;
 
-	fout << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
+	fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
 
   if (!type.empty()) {
     if (!startTag(type.c_str())) {
@@ -217,7 +274,7 @@ bool xmlparser::closeOut()
 	while(tagStackPointer>0)
 		endTag();
 
-	fout.close();
+	foutFile.close();
 	return true;
 }
 
@@ -229,12 +286,12 @@ xmldata::xmldata(const char *t, char *d) : tag(t), data(d)
 
 xmlattrib::xmlattrib(const char *t, char *d) : tag(t), data(d) {}
 
-bool xmlparser::read(const char *file, int maxobj)
+bool xmlparser::read(const string &file, int maxobj)
 {
-  fin.open(file, ios::binary);
+  fin.open(file.c_str(), ios::binary);
 
 	if(!fin.good())
-		return false;
+    throw meosException("Failed to open 'X' for reading.#" + string(file));
 
 	char bf[1024];
 	bf[0]=0;
@@ -246,38 +303,8 @@ bool xmlparser::read(const char *file, int maxobj)
 	while(fin.good() && bf[0]==0);
 
 	char *ptr=ltrim(bf);
-	isUTF = false;
-
-  if (ptr[0] == -17 && ptr[1]==-69 && ptr[2]==-65) {
-    isUTF = true;
-    ptr+=3; //Windows UTF attribute
-  }
-  int p1 = 0;
-
-  if(memcmp(ptr, "<?xml", 5) == 0) {
-    int i = 5;
-    bool hasEncode = false;
-    while (ptr[i]) {
-      if ((ptr[i] == 'U' || ptr[i] == 'u') && _memicmp(ptr+i, "UTF-8", 5)==0) {
-        isUTF = true;
-        break;
-      }
-      if (ptr[i] == 'e' && memcmp(ptr+i, "encoding", 8)==0) {
-        hasEncode = true;
-      }
-      i++;
-    }
-    if (!hasEncode) 
-      isUTF = true; // Assume UTF
-    p1 = fin.tellg();
-  }
-  else if (ptr[0] == '<' && ptr[1] == '?') {
-    // Assume UTF XML if not specified
-    isUTF = true;
-  }
-  else {
-    throw std::exception("Invalid XML file.");
-  }
+  isUTF = checkUTF(ptr);
+  int p1 = fin.tellg();
 
   fin.seekg(0, ios::end);
   int p2 = fin.tellg();
@@ -292,7 +319,7 @@ bool xmlparser::read(const char *file, int maxobj)
 
   xbf.resize(asize+1);
   xmlinfo.clear();
-  xmlinfo.reserve(xbf.size() / 30); // Guess number of tags
+  xbf.reserve(xbf.size() / 30); // Guess number of tags
 
   parseStack.clear();
 
@@ -301,6 +328,83 @@ bool xmlparser::read(const char *file, int maxobj)
 
   fin.close();
 
+  return parse(maxobj);
+}
+
+bool xmlparser::readMemory(const string &mem, int maxobj)
+{
+  if (mem.empty())
+    return false;
+
+	char bf[1024];
+	bf[0] = mem[0];
+  int i = 1;
+  int stop = min<int>(1020, mem.length());
+  while (i < stop && mem[i-1] != '>'){
+		bf[i] = mem[i];	
+		i++;
+	}
+  bf[i] = 0;
+	
+	char *ptr=ltrim(bf);
+  isUTF = checkUTF(ptr);
+  int p1 = i;
+  int p2 = mem.size();
+ 
+  int asize = p2-p1;
+  if (maxobj>0)
+    asize = min(asize, maxobj*256);
+
+  if (progress && asize>80000)
+    progress->init();
+
+  xbf.resize(asize+1);
+  xmlinfo.clear();
+  xmlinfo.reserve(xbf.size() / 30); // Guess number of tags
+
+  parseStack.clear();
+
+  memcpy(&xbf[0], mem.c_str() + p1, xbf.size()); 
+  xbf[asize] = 0;
+
+  return parse(maxobj);
+}
+
+bool xmlparser::checkUTF(const char *ptr) const {
+	bool utf = false;
+
+  if (ptr[0] == -17 && ptr[1]==-69 && ptr[2]==-65) {
+    utf = true;
+    ptr+=3; //Windows UTF attribute
+  }
+
+  if(memcmp(ptr, "<?xml", 5) == 0) {
+    int i = 5;
+    bool hasEncode = false;
+    while (ptr[i]) {
+      if ((ptr[i] == 'U' || ptr[i] == 'u') && _memicmp(ptr+i, "UTF-8", 5)==0) {
+        utf = true;
+        break;
+      }
+      if (ptr[i] == 'e' && memcmp(ptr+i, "encoding", 8)==0) {
+        hasEncode = true;
+      }
+      i++;
+    }
+    if (!hasEncode) 
+      utf = true; // Assume UTF
+  }
+  else if (ptr[0] == '<' && ptr[1] == '?') {
+    // Assume UTF XML if not specified
+    utf = true;
+  }
+  else {
+    throw std::exception("Invalid XML file.");
+  }
+  return utf;
+}
+
+bool xmlparser::parse(int maxobj) {
 	lineNumber=0;
   int oldPrg = -50001;
   int pp = 0;
@@ -352,7 +456,7 @@ bool xmlparser::processTag(char *start, char *end) {
   if (endTag)
     tag++;
   
-  while (start<=end && *start!=' ' && *start!='\t') 
+  while (start<=end && /**start!=' ' && *start!='\t'*/ !isBlankSpace(*start)) 
     start++;
 
   *start = 0;
@@ -474,7 +578,7 @@ void xmlobject::getObjects(const char *tag, xmlList &obj) const
 const xmlobject xmlparser::getObject(const char *pname) const
 {
   if(xmlinfo.size()>0){
-		if(strcmp(xmlinfo[0].tag, pname) == 0) 
+		if(pname == 0 || strcmp(xmlinfo[0].tag, pname) == 0) 
       return xmlobject(const_cast<xmlparser *>(this), 0);
 		else return xmlobject(const_cast<xmlparser *>(this), 0).getObject(pname);
 	}
@@ -483,56 +587,57 @@ const xmlobject xmlparser::getObject(const char *pname) const
 
 xmlattrib xmlobject::getAttrib(const char *pname) const 
 {
- 
-  char *start = const_cast<char *>(parser->xmlinfo[index].tag);
-  const char *end = parser->xmlinfo[index].data;
+  if (pname != 0) {    
+    char *start = const_cast<char *>(parser->xmlinfo[index].tag);
+    const char *end = parser->xmlinfo[index].data;
 
-  if (end) 
-    end-=2;
-  else {
-    if (size_t(index + 1) < parser->xmlinfo.size())
-      end = parser->xmlinfo[index+1].tag;
-    else
-      end = &parser->xbf.back();
-  }
-
-  // Scan past tag.
-  while (start<end && *start != 0)
-    start++;
-  start++;
-
-  char *oldStart = start;
-  while (start<end) {
-    while(start<end && (*start==' ' || *start=='\t'))
-      start++;
-
-    char *tag = start;
-    
-    while(start<end && *start!='=' && *start!=0)
-      start++;
-
-    if (start<end && (start[1]=='"' || start[1] == 0)) {
-      *start = 0;
-      ++start;
-      char *value = ++start;
-    
-      while(start<end && (*start!='"' && *start != 0))
-        start++;
-
-      if (start<=end) {
-        *start = 0;
-        if (strcmp(pname, tag) == 0)
-          return xmlattrib(tag, value);
-        start++;
-      }
-      else {//Error
-      }
+    if (end) 
+      end-=2;
+    else {
+      if (size_t(index + 1) < parser->xmlinfo.size())
+        end = parser->xmlinfo[index+1].tag;
+      else
+        end = &parser->xbf.back();
     }
 
-    if (oldStart == start)
-      break;
-    else
-      oldStart = start;
+    // Scan past tag.
+    while (start<end && *start != 0)
+      start++;
+    start++;
+
+    char *oldStart = start;
+    while (start<end) {
+      while(start<end && isBlankSpace(*start))
+        start++;
+
+      char *tag = start;
+    
+      while(start<end && *start!='=' && *start!=0)
+        start++;
+
+      if (start<end && (start[1]=='"' || start[1] == 0)) {
+        *start = 0;
+        ++start;
+        char *value = ++start;
+    
+        while(start<end && (*start!='"' && *start != 0))
+          start++;
+
+        if (start<=end) {
+          *start = 0;
+          if (strcmp(pname, tag) == 0)
+            return xmlattrib(tag, value);
+          start++;
+        }
+        else {//Error
+        }
+      }
+
+      if (oldStart == start)
+        break;
+      else
+        oldStart = start;
+    }
   }
   return xmlattrib(0,0);
 }
@@ -563,6 +668,16 @@ void xmlparser::convertString(const char *in, char *out, int maxlen) const
 
   if (untranslated)
     unconverted++;
+}
+
+bool xmlobject::getObjectBool(const char *pname) const
+{
+  string tmp;
+  getObjectString(pname, tmp);
+
+  return tmp=="true" || 
+         atoi(tmp.c_str()) > 0 || 
+         _strcmpi(trim(tmp).c_str(), "true") == 0;
 }
 
 string &xmlobject::getObjectString(const char *pname, string &out) const

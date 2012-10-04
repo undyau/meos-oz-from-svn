@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,11 +30,14 @@
 
 #include "oEvent.h"
 #include "gdioutput.h"
+#include "gdifonts.h"
 #include "oDataContainer.h"
+#include "MetaList.h"
 
 #include "random.h"
 #include "SportIdent.h"
 
+#include "meosException.h"
 #include "oFreeImport.h"
 #include "TabBase.h"
 #include "meos.h"
@@ -55,10 +58,11 @@
 #include "Table.h"
 
 //Version of database
-int oEvent::dbVersion = 61;
+int oEvent::dbVersion = 65;
 
 oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 {
+  readOnly = false;
   hMod=0;
 	ZeroTime=0;
   vacantId = 0;
@@ -74,8 +78,17 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 
   initProperties();
 
+#ifndef MEOSDB
+  listContainer = new MetaListContainer(this);
+#else
+  throw std::exception();
+#endif
+
+
   tCurrencyFactor = 1;
   tCurrencySymbol = "kr";
+  tCurrencySeparator = ",";
+  tCurrencyPreSymbol = false;
 
   tClubDataRevision = -1;
 
@@ -125,28 +138,40 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   oEventData->addVariableCurrency("EliteFee", "Elitavgift");
   oEventData->addVariableCurrency("EntryFee", "Normalavgift");
   oEventData->addVariableCurrency("YouthFee", "Ungdomsavgift");
+  oEventData->addVariableInt("YouthAge", oDataContainer::oIS8U, "Åldersgräns ungdom");
+  oEventData->addVariableInt("SeniorAge", oDataContainer::oIS8U, "Åldersgräns äldre");
+  
   oEventData->addVariableString("Account", 30, "Konto");
   oEventData->addVariableDate("PaymentDue", "Sista betalningsdatum");
   oEventData->addVariableDate("OrdinaryEntry", "Ordinarie anmälningsdatum");
   oEventData->addVariableString("LateEntryFactor", 6, "Avgiftshöjning (procent)");
   
   oEventData->addVariableString("Organizer", 32, "Arrangör");
+	oEventData->addVariableString("CareOf", 31, "c/o");
+
   oEventData->addVariableString("Street", 32, "Adress");
   oEventData->addVariableString("Address", 32, "Postadress");
-  oEventData->addVariableString("EMail", 40, "E-post");
+  oEventData->addVariableString("EMail", 64, "E-post");
   oEventData->addVariableString("Homepage", 40, "Hemsida");
+	oEventData->addVariableString("Phone", 32, "Telefon");
  
   oEventData->addVariableInt("UseEconomy", oDataContainer::oIS8U, "Ekonomi");
   oEventData->addVariableInt("UseSpeaker", oDataContainer::oIS8U, "Speaker");
   oEventData->addVariableInt("ExtId", oDataContainer::oIS64, "Externt Id");
 
-  oEventData->addVariableInt("MaxTime", oDataContainer::oIS32, "Maxtid");
+  oEventData->addVariableInt("MaxTime", oDataContainer::oISTime, "Maxtid");
 
   oEventData->addVariableString("PreEvent", sizeof(CurrentNameId), "");
   oEventData->addVariableString("PostEvent", sizeof(CurrentNameId), "");
 
+  // Positive number -> stage number, negative number -> no stage number. Zero = unknown
+  oEventData->addVariableInt("EventNumber", oDataContainer::oIS8, "");
+
   oEventData->addVariableInt("CurrencyFactor", oDataContainer::oIS16, "Valutafaktor");
   oEventData->addVariableString("CurrencySymbol", 5, "Valutasymbol");
+  oEventData->addVariableString("CurrencySeparator", 2, "Decimalseparator");
+  oEventData->addVariableInt("CurrencyPreSymbol", oDataContainer::oIS8, "Symbolläge");
+  oEventData->addVariableString("CurrencyCode", 5, "Valutakod");
 
 	oDataContainer dummy(0);
 	oClubData=oRunnerData=oClassData=oCourseData=oControlData=&dummy;
@@ -154,33 +179,54 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 
 	oClub oc(this);
 	oClubData=new oDataContainer(sizeof (oc.oData));
-  oClubData->addVariableInt("District", oDataContainer::oIS32, "Distriktskod");
+  oClubData->addVariableInt("District", oDataContainer::oIS32, "Organisation");
 	
+	oClubData->addVariableString("ShortName", 8, "Kortnamn");
 	oClubData->addVariableString("CareOf", 31, "c/o");
 	oClubData->addVariableString("Street", 41, "Gata");
 	oClubData->addVariableString("City", 23, "Stad");
+  oClubData->addVariableString("State", 23, "Region");
 	oClubData->addVariableString("ZIP", 11, "Postkod");
-	oClubData->addVariableString("EMail", 41, "E-post");
-	oClubData->addVariableString("Phone", 23, "Telefon");
+	oClubData->addVariableString("EMail", 64, "E-post");
+	oClubData->addVariableString("Phone", 32, "Telefon");
 	oClubData->addVariableString("Nationality", 3, "Nationalitet");
+  oClubData->addVariableString("Country", 23, "Land");
+  oClubData->addVariableString("Type", 20, "Typ");
   oClubData->addVariableInt("ExtId", oDataContainer::oIS64, "Externt Id");
+
+  vector< pair<string,string> > eInvoice;
+  eInvoice.push_back(make_pair("E", "Elektronisk"));
+  eInvoice.push_back(make_pair("A", "Elektronisk godkänd"));
+  eInvoice.push_back(make_pair("P", "Ej elektronisk"));
+  eInvoice.push_back(make_pair("", MakeDash("-")));
+  oClubData->addVariableEnum("Invoice", 1, "Faktura", eInvoice);
+	
 
 	oRunner or(this);
 	oRunnerData=new oDataContainer(sizeof (or.oData));
 	oRunnerData->addVariableCurrency("Fee", "Anm. avgift");
 	oRunnerData->addVariableCurrency("CardFee", "Brickhyra");
 	oRunnerData->addVariableCurrency("Paid", "Betalat");
+  oRunnerData->addVariableCurrency("Taxable", "Skattad avgift");
+
 	oRunnerData->addVariableInt("BirthYear", oDataContainer::oIS32, "Födelseår");	
-	oRunnerData->addVariableInt("Bib", oDataContainer::oIS16U, "Nummerlapp");
+	oRunnerData->addVariableString("Bib", 8, "Nummerlapp");
 	oRunnerData->addVariableInt("Rank", oDataContainer::oIS16U, "Ranking");
 	oRunnerData->addVariableInt("VacRank", oDataContainer::oIS16U, "Vak. ranking");
 
 	oRunnerData->addVariableDate("EntryDate", "Anm. datum");
 	
-	oRunnerData->addVariableString("Sex", 1, "Kön");
+  vector< pair<string,string> > sex;
+  sex.push_back(make_pair("M", "Man"));
+  sex.push_back(make_pair("F", "Kvinna"));
+  sex.push_back(make_pair("", MakeDash("-")));
+
+	oRunnerData->addVariableEnum("Sex", 1, "Kön", sex);
 	oRunnerData->addVariableString("Nationality", 3, "Nationalitet");
+  oRunnerData->addVariableString("Country", 23, "Land");
   oRunnerData->addVariableInt("ExtId", oDataContainer::oIS64, "Externt Id");
   oRunnerData->addVariableInt("Priority", oDataContainer::oIS8U, "Prioritering");
+  oRunnerData->addVariableString("Phone", 20, "Telefon");
 
 	oControl ocn(this);
 	oControlData=new oDataContainer(sizeof (ocn.oData));
@@ -188,6 +234,9 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   oControlData->addVariableInt("MinTime", oDataContainer::oIS32, "Minitid");
   oControlData->addVariableInt("xpos", oDataContainer::oIS32, "x");
   oControlData->addVariableInt("ypos", oDataContainer::oIS32, "y");
+  oControlData->addVariableInt("latcrd", oDataContainer::oIS32, "Latitud");
+  oControlData->addVariableInt("longcrd", oDataContainer::oIS32, "Longitud");
+
   oControlData->addVariableInt("Rogaining", oDataContainer::oIS32, "Poäng");
   
 	oCourse ocr(this);
@@ -204,31 +253,52 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 	oClass ocl(this);
 	oClassData=new oDataContainer(sizeof (ocl.oData));
 
+  oClassData->addVariableString("LongName", 32, "Långt namn");
 	oClassData->addVariableInt("LowAge", oDataContainer::oIS8U, "Undre ålder");
 	oClassData->addVariableInt("HighAge", oDataContainer::oIS8U, "Övre ålder");
   oClassData->addVariableInt("HasPool", oDataContainer::oIS8U, "Banpool");
   oClassData->addVariableInt("AllowQuickEntry", oDataContainer::oIS8U, "Direktanmälan");
   
-	oClassData->addVariableString("ClassType", 16, "Klasstyp");
-	oClassData->addVariableString("Sex", 1, "Kön");
+	oClassData->addVariableString("ClassType", 40, "Klasstyp");
+
+  vector< pair<string,string> > sexClass;
+  sexClass.push_back(make_pair("M", "Män"));
+  sexClass.push_back(make_pair("F", "Kvinnor"));
+  sexClass.push_back(make_pair("B", "Alla"));
+  sexClass.push_back(make_pair("", MakeDash("-")));
+
+  oClassData->addVariableEnum("Sex", 1, "Kön", sexClass);
 	oClassData->addVariableString("StartName", 16, "Start");
 	oClassData->addVariableInt("StartBlock", oDataContainer::oIS8U, "Block");
   oClassData->addVariableInt("NoTiming", oDataContainer::oIS8U, "Ej tidtagning");
+  oClassData->addVariableInt("FreeStart", oDataContainer::oIS8U, "Fri starttid");
 
   oClassData->addVariableInt("FirstStart", oDataContainer::oIS32, "Första start");
   
   oClassData->addVariableCurrency("ClassFee", "Anm. avgift");
   oClassData->addVariableCurrency("HighClassFee", "Efteranm. avg.");
+  oClassData->addVariableCurrency("ClassFeeRed", "Reducerad avg.");
+  oClassData->addVariableCurrency("HighClassFeeRed", "Red. avg. efteranm.");
   
   oClassData->addVariableInt("SortIndex", oDataContainer::oIS32, "Sortering");
+  oClassData->addVariableInt("MaxTime", oDataContainer::oISTime, "Maxtid");
+
+  vector< pair<string,string> > statusClass;
+  statusClass.push_back(make_pair("", "OK"));
+  statusClass.push_back(make_pair("IR", "Struken med återbetalning"));
+  statusClass.push_back(make_pair("I", "Struken utan återbetalning"));
+
+  oClassData->addVariableEnum("Status", 2, "Status", statusClass);
 
 	oTeam ot(this);
 	oTeamData = new oDataContainer(sizeof (ot.oData));
 	oTeamData->addVariableCurrency("Fee", "Anm. avgift");
 	oTeamData->addVariableCurrency("Paid", "Betalat");
+  oTeamData->addVariableCurrency("Taxable", "Skattad avgift");
 	oTeamData->addVariableDate("EntryDate", "Anm. datum");
 	oTeamData->addVariableString("Nationality", 3, "Nationalitet");
-	oTeamData->addVariableInt("Bib", oDataContainer::oIS16U, "Nummerlapp");
+  oTeamData->addVariableString("Country", 23, "Land");
+	oTeamData->addVariableString("Bib", 8, "Nummerlapp");
 	oTeamData->addVariableInt("ExtId", oDataContainer::oIS64, "Externt Id");
   oTeamData->addVariableInt("Priority", oDataContainer::oIS8U, "Prioritering");
 
@@ -265,6 +335,9 @@ oEvent::~oEvent()
 	delete oCourseData;
 	delete oClassData;
 	delete oTeamData;	
+
+  delete listContainer;
+
   return;
 }
 
@@ -466,6 +539,46 @@ pFreePunch oEvent::getPunch(int runnerRace, int type, int card) const
   }
 	return 0;
 }
+
+void oEvent::getPunchesForRunner(int runnerId, vector<pFreePunch> &runnerPunches) const {
+  runnerPunches.clear();
+  pRunner r = getRunner(runnerId, 0);
+  if (r == 0)
+    return;
+
+  // Get times for when other runners used this card
+  vector< pair<int, int> > times;
+
+  for (oRunnerList::const_iterator it = Runners.begin(); it != Runners.end(); ++it) {
+    if (it->Id == runnerId)
+      continue;
+    if (it->Card && it->CardNo == r->CardNo) {
+      pair<int, int> t = it->Card->getTimeRange();
+      if (it->getStartTime() > 0)
+        t.first = min(it->getStartTime(), t.first);
+
+      if (it->getFinishTime() > 0)
+        t.second = max(it->getFinishTime(), t.second);
+
+      times.push_back(t);
+    }
+  }
+
+  for (oFreePunchList::const_iterator it = punches.begin(); it != punches.end(); ++it) {
+    if (it->CardNo == r->CardNo) {
+      bool other = false;
+      int t = it->Time;
+      for (size_t k = 0; k<times.size(); k++) {
+        if (t >= times[k].first && t <= times[k].second)
+          other = true;
+      }
+
+      if (!other)
+        runnerPunches.push_back(pFreePunch(&*it));
+    }
+  }
+}
+
 
 pControl oEvent::getControl(int Id, bool create)
 {
@@ -774,26 +887,69 @@ bool oEvent::save(const char *file)
 	writePunches(xml, pw);
   pw.setProgress(p[i++]);
   writeCards(xml);
-	xml.closeOut();
+  
+  xml.startTag("Lists");
+  listContainer->save(MetaListContainer::ExternalList, xml);
+  xml.endTag();
+
+  xml.closeOut();
   pw.setProgress(p[i++]);
 	updateRunnerDatabase();
 	pw.setProgress(p[i++]);
+
   return true;
 }
 
-bool oEvent::open(int Id)
+string oEvent::getNameId(int id) const {
+  if (id == 0)
+    return CurrentNameId;
+
+	list<CompetitionInfo>::const_iterator it;
+	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {		
+  	if (it->Server.empty()) {
+      if(id == it->Id) 
+        return it->NameId;
+    }
+		else if(!it->Server.empty()) {			
+      if(id == (10000000+it->Id)) {			
+        return it->NameId;
+      }
+		}
+	}
+  return _EmptyString;
+}
+
+const string &oEvent::getFileNameFromId(int id) const {
+
+	list<CompetitionInfo>::const_iterator it;
+	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {		
+  	if (it->Server.empty()) {
+      if(id == it->Id) 
+        return it->FullPath;
+    }
+		else if(!it->Server.empty()) {			
+      if(id == (10000000+it->Id)) {			
+        return _EmptyString;
+      }
+		}
+	}
+  return _EmptyString;
+}
+
+
+bool oEvent::open(int id)
 {
 	list<CompetitionInfo>::iterator it;
 
 	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {		
   	if (it->Server.empty()) {
-      if(Id==it->Id) {
+      if(id == it->Id) {
         CompetitionInfo ci=*it; //Take copy
 				return open(ci.FullPath.c_str());
       }
     }
 		else if(!it->Server.empty()) {			
-      if(Id==(10000000+it->Id)) {			
+      if(id == (10000000+it->Id)) {			
         CompetitionInfo ci=*it; //Take copy
 				return readSynchronize(ci);
       }
@@ -822,7 +978,7 @@ static void toc(const string &str) {
   timer = t;
 }
 
-bool oEvent::open(const char *file, bool Import)
+bool oEvent::open(const string &file, bool Import)
 {
 	xmlparser xml;
   xml.setProgress(gdibase.getHWND());
@@ -838,7 +994,7 @@ bool oEvent::open(const char *file, bool Import)
 	newCompetition("-");
 	
   if (!Import) {
-		strcpy_s(CurrentFile, MAX_PATH, file); //Keep new file name, if imported
+    strcpy_s(CurrentFile, MAX_PATH, file.c_str()); //Keep new file name, if imported
  
     _splitpath_s(CurrentFile, NULL, 0, NULL,0, CurrentNameId, 64, NULL, 0);
     int i=0;
@@ -881,7 +1037,7 @@ bool oEvent::open(const xmlparser &xml) {
 	if(xo)
 		oEventData->set(oData, xo);
 
-  setCurrency(-1, "");
+  setCurrency(-1, "", ",", false);
 
   xo = xml.getObject("NameId");
   if (xo) 
@@ -1061,6 +1217,10 @@ bool oEvent::open(const xmlparser &xml) {
 
   toc("update");
 	
+  xmlobject xList = xml.getObject("Lists");
+  if (xList)
+    listContainer->load(MetaListContainer::ExternalList, xList);
+
 	return true;
 }
 
@@ -1097,13 +1257,14 @@ pRunner oEvent::dbLookUpById(__int64 extId) const
   sRunner = oRunner(toe, 0);
   RunnerDBEntry *dbr = runnerDB->getRunnerById(int(extId));
   if (dbr != 0) {
-    dbr->getName(sRunner.Name);
+    sRunner.init(*dbr);
+    /*dbr->getName(sRunner.Name);
     sRunner.CardNo = dbr->cardNo;
     sRunner.Club = runnerDB->getClub(dbr->clubNo);
     sRunner.getDI().setString("Nationality", dbr->getNationality());
     sRunner.getDI().setInt("BirthYear", dbr->getBirthYear());
     sRunner.getDI().setString("Sex", dbr->getSex());
-    sRunner.setExtIdentifier(dbr->getExtId());
+    sRunner.setExtIdentifier(dbr->getExtId());*/
 	  return &sRunner;
   }
   else
@@ -1118,12 +1279,13 @@ pRunner oEvent::dbLookUpByCard(int cardNo) const
   RunnerDBEntry *dbr = runnerDB->getRunnerByCard(cardNo);
   if (dbr != 0) {
     dbr->getName(sRunner.Name);
+    sRunner.init(*dbr);
     sRunner.CardNo = cardNo;
-    sRunner.Club = runnerDB->getClub(dbr->clubNo);
+    /*sRunner.Club = runnerDB->getClub(dbr->clubNo);
     sRunner.getDI().setString("Nationality", dbr->getNationality());
     sRunner.getDI().setInt("BirthYear", dbr->getBirthYear());
     sRunner.getDI().setString("Sex", dbr->getSex());
-    sRunner.setExtIdentifier(dbr->getExtId());
+    sRunner.setExtIdentifier(dbr->getExtId());*/
 	  return &sRunner;
   }
   else
@@ -1154,12 +1316,14 @@ pRunner oEvent::dbLookUpByName(const string &name, int clubId, int classId, int 
   RunnerDBEntry *dbr = runnerDB->getRunnerByName(name, clubId, birthYear);
 
   if (dbr) {
+    sRunner.init(*dbr);
+    /*
     dbr->getName(sRunner.Name);
     sRunner.CardNo = dbr->cardNo;
     sRunner.Club = runnerDB->getClub(dbr->clubNo);
     sRunner.getDI().setString("Nationality", dbr->getNationality());
     sRunner.getDI().setInt("BirthYear", dbr->getBirthYear());
-    sRunner.getDI().setString("Sex", dbr->getSex());
+    sRunner.getDI().setString("Sex", dbr->getSex());*/
     sRunner.setExtIdentifier(int(dbr->getExtId()));
 	  return &sRunner;
   }
@@ -1325,6 +1489,7 @@ pRunner oEvent::addRunnerFromDB(const pRunner db_r,
 {
   oRunner r(this);
   r.Name = db_r->Name;
+  r.CardNo = db_r->CardNo;
 
   if (db_r->Club) {
     r.Club = getClub(db_r->getClubId());
@@ -1333,10 +1498,9 @@ pRunner oEvent::addRunnerFromDB(const pRunner db_r,
   }
 
   r.Class=classId ? getClass(classId) : 0;
+  memcpy(r.oData, db_r->oData, sizeof(r.oData));
 
 	pRunner pr = addRunner(r);
-
-  memcpy(pr->oData, db_r->oData, sizeof(pr->oData));
 
   if (autoAdd)
     autoAddTeam(pr);
@@ -1371,6 +1535,9 @@ pRunner oEvent::addRunner(const oRunner &r)
     pr->Class->tResultInfo.clear();
 
   runnerById[pr->Id] = pr;
+
+  // Notify runner database that runner has entered
+  getRunnerDatabase().hasEnteredCompetition(r.getExtIdentifier());
   return pr;
 }
 
@@ -1584,6 +1751,8 @@ int oEvent::getVacantClubIfExist() const
   pClub pc=getClub("Vakant");
   if (pc == 0)
     pc = getClub("Vacant");
+  if (pc == 0)
+    pc = getClub(lang.tl("Vakant")); //other lang?
 
   if (!pc) {
     vacantId = -1;
@@ -1704,9 +1873,17 @@ void oEvent::calculateSplitResults(int controlIdFrom, int controlIdTo)
 	}
 }
 
-void oEvent::calculateResults(const bool totalResults)
+void oEvent::calculateResults(ResultType resultType)
 {
-  if (!totalResults)
+  const bool totalResults = resultType == RTTotalResult;
+  const bool courseResults = resultType == RTCourseResult;
+  const bool classCourseResults = resultType == RTClassCourseResult;
+
+  if (classCourseResults)
+    sortRunners(ClassCourseResult);
+  else if (courseResults)
+    sortRunners(CourseResult);
+  else if (!totalResults)
 	  sortRunners(ClassResult);
   else
     sortRunners(ClassTotalResult);
@@ -1718,38 +1895,78 @@ void oEvent::calculateResults(const bool totalResults)
 	int vPlace=0;
 	int cTime=0;
   int cDuplicateLeg=0;
+  bool invalidClass = false;
   bool useResults = false;
 	for (it=Runners.begin(); it != Runners.end(); ++it) {
-    if (it->getClassId()!=cClassId || it->tDuplicateLeg!=cDuplicateLeg) {
+    if (it->isRemoved())
+      continue;
+    // Start new "class"
+    if (classCourseResults) {
+      const pCourse crs = it->getCourse();
+      int crsId = it->getClassId() * 997 + (crs ? crs->getId() : 0);
+      if (crsId != cClassId) {
+        cClassId = crsId; 
+        cPlace=0;
+			  vPlace=0;
+			  cTime=0;
+        useResults = it->Class ? !it->Class->getNoTiming() : false;
+			  invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
+      }
+    }
+    else if (courseResults) {
+      const pCourse crs = it->getCourse();
+      int crsId = crs ? crs->getId() : 0;
+      if (crsId != cClassId) {
+        cClassId = crsId; 
+        useResults = crs != 0;
+        cPlace=0;
+			  vPlace=0;
+			  cTime=0;
+      }
+    }
+    else if (it->getClassId()!=cClassId || it->tDuplicateLeg!=cDuplicateLeg) {
 			cClassId=it->getClassId();
       useResults = it->Class ? !it->Class->getNoTiming() : false;
 			cPlace=0;
 			vPlace=0;
 			cTime=0;
       cDuplicateLeg = it->tDuplicateLeg;
+      invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
  		}
-    if (!totalResults) {
+
+    // Calculate results
+    if (invalidClass) {
+      it->tTotalPlace = 0;
+      it->tPlace = 0;
+    }
+    else if (!totalResults) {
+      int tPlace = 0;
+
 		  if(it->Status==StatusOK){
 			  cPlace++;
 
 			  if(it->getRunningTime()>cTime)
 				  vPlace=cPlace;
 
-			  cTime=it->getRunningTime();
+			  cTime = it->getRunningTime();
 
         if (useResults)
-			    it->tPlace = vPlace;
-        else
-          it->tPlace = 0;
+			    tPlace = vPlace;
 		  }
 		  else
-			  it->tPlace=99000+it->Status;
+			  tPlace=99000+it->Status;
+
+      if (!classCourseResults)
+        it->tPlace = tPlace;
+      else
+        it->tCoursePlace = tPlace;
     }
     else {
-      if (it->getTotalStatus() == StatusOK) {
-			  cPlace++;
-        int tt = it->getTotalRunningTime(it->FinishTime);
+      int tt = it->getTotalRunningTime(it->FinishTime);
 
+      if (it->getTotalStatus() == StatusOK && tt>0) {
+			  cPlace++;
+        
         if(tt > cTime)
 				  vPlace = cPlace;
 
@@ -1768,7 +1985,7 @@ void oEvent::calculateResults(const bool totalResults)
 
 void oEvent::calculateRogainingResults()
 {
-	sortRunners(SortByPoints);
+	sortRunners(ClassPoints);
 	oRunnerList::iterator it;
 
 	int cClassId=-1;
@@ -1778,8 +1995,12 @@ void oEvent::calculateRogainingResults()
   int cDuplicateLeg=0;
   bool useResults = false;
   bool isRogaining = false;
+  bool invalidClass = false;
 
 	for (it=Runners.begin(); it != Runners.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
     if (it->getClassId()!=cClassId || it->tDuplicateLeg!=cDuplicateLeg) {
 			cClassId = it->getClassId();
       useResults = it->Class ? !it->Class->getNoTiming() : false;
@@ -1788,12 +2009,17 @@ void oEvent::calculateRogainingResults()
 			cTime = numeric_limits<int>::min();
       cDuplicateLeg = it->tDuplicateLeg;
       isRogaining = it->Class ? it->Class->isRogaining() : false;
+      invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
 		}
 	
     if (!isRogaining)
       continue;
 
-		if(it->Status==StatusOK) {
+    if (invalidClass) {
+      it->tTotalPlace = 0;
+      it->tPlace = 0;
+    }
+    else if(it->Status==StatusOK) {
 			cPlace++;
 
       int cmpRes = 3600 * 24 * 7 * it->tRogainingPoints - it->getRunningTime();
@@ -1813,10 +2039,8 @@ void oEvent::calculateRogainingResults()
 	}
 }
 
-
 bool oEvent::calculateTeamResults(int leg)
 {
-	//sortRunners(ClassResult);
 	oTeamList::iterator it;
 	bool hasRunner=false;
 
@@ -1841,13 +2065,18 @@ bool oEvent::calculateTeamResults(int leg)
 	int cPlace=0;
 	int vPlace=0;
 	int cTime=0;
+  bool invalidClass = false;
 
 	for (it=Teams.begin(); it != Teams.end(); ++it){
+    if (it->isRemoved())
+      continue;
+
 		if(it->Class && it->Class->Id!=cClassId){
 			cClassId=it->Class->Id;
 			cPlace=0;
 			vPlace=0;
 			cTime=0;
+      invalidClass = it->Class->getClassStatus() != oClass::Normal;
 		}
 
     int sleg;
@@ -1856,7 +2085,10 @@ bool oEvent::calculateTeamResults(int leg)
     else
       sleg=leg;
 
-    if(it->_sortstatus==StatusOK){
+    if (invalidClass) {
+      it->_places[sleg] = 0;
+    }
+    else if(it->_sortstatus==StatusOK){
 			cPlace++;
 
 			if(it->_sorttime>cTime)
@@ -1888,10 +2120,6 @@ string oEvent::getZeroTime() const
 
 void oEvent::setZeroTime(string m)
 {
-	/*int hour=atoi(m.c_str());
-	int minute=atoi(m.substr(m.find_first_of(':')+1).c_str());
-	int second=atoi(m.substr(m.find_last_of(':')+1).c_str());
-	DWORD nZeroTime=hour*3600+minute*60+second;*/
   unsigned nZeroTime = convertAbsoluteTime(m);
   if (nZeroTime!=ZeroTime && nZeroTime != -1) {
     updateChanged();
@@ -1920,7 +2148,11 @@ string oEvent::getTitleName() const
 void oEvent::setDate(const string &m)
 {
  if (m!=Date) {
-    Date=m;
+    int d = convertDateYMS(m);
+    if (d <= 0)
+      throw meosException("Ange datum på formen ÅÅÅÅ-MM-DD, inte som 'X'#" + m);
+
+    Date = m;
     updateChanged();
   }
 }
@@ -1936,6 +2168,30 @@ string oEvent::getAbsTime(DWORD time) const
 	sprintf_s(bf, 256, "%02d:%02d:%02d", (t/3600)%24, (t/60)%60, t%60);
 	return bf;
 }
+
+string oEvent::getAbsTimeISO(DWORD time) const
+{
+	DWORD t = ZeroTime + time;
+
+	if(int(t)<0)
+    return "2000-01-01T00:00:00+00:00";
+
+  int extraDay = t / (3600*24);
+	char bf[256];
+	sprintf_s(bf, 256, "%02d:%02d:%02d", (t/3600)%24, (t/60)%60, t%60);
+  if (extraDay == 0 ) {
+    return Date + "T" + bf;
+  }
+  else {
+    SYSTEMTIME st;
+    convertDateYMS(Date, st);
+    __int64 sec = SystemTimeToInt64Second(st);
+    sec = sec + (extraDay * 3600 * 24);
+    st = Int64SecondToSystemTime(sec);
+    return convertSystemDate(st) + "T" + bf;
+  }
+}
+
 
 string oEvent::getAbsTimeHM(DWORD time) const
 {
@@ -2266,9 +2522,12 @@ bool oEvent::classHasResults(int Id) const
 {
 	oRunnerList::const_iterator it;
 
-	for (it=Runners.begin(); it != Runners.end(); ++it)
-		if(it->getClassId()==Id && (it->getCard() || it->FinishTime))	
+  for (it=Runners.begin(); it != Runners.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+		if( (Id == 0 || it->getClassId() == Id) && (it->getCard() || it->FinishTime))	
       return true;
+  }
 	
 	return false;
 }
@@ -2339,11 +2598,9 @@ void oEvent::generateVacancyList(gdioutput &gdi, GUICALLBACK cb)
 		oDataInterface DI=it->getDI();
 
 		if (withbib) {
-			char bib[8];
-      int b=it->getBib();
+      string bib=it->getBib();
 
-			if (b>0) {
-				sprintf_s(bib, "%d", b);
+			if (!bib.empty()) {
 				gdi.addStringUT(y, x+dx[0], 0, bib);
 			}
 		}
@@ -2520,11 +2777,10 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi)
         gdi.addStringUT(y, x+dx[0], fontMedium, itos(it->getCardNo()));
 		
       string name;
-      if (it->getBib() == 0)
+      if (it->getBib().empty())
         name = it->getName();
       else
-        name = itos(it->getBib()) + ", " + it->getName();
-
+        name = it->getBib() + ", " + it->getName();
       gdi.addStringUT(y, x+dx[1], fontMedium, name, dx[2]-dx[1]-4);
       gdi.addStringUT(y, x+dx[2], fontMedium, it->getClub(), dx[3]-dx[2]-4);
 		  gdi.addStringUT(y, x+dx[3], fontMedium, it->getClass(), dx[4]-dx[3]-4);			
@@ -2537,10 +2793,10 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi)
 
 void oEvent::generateResultlistFinishTime(gdioutput &gdi, bool PerClass, GUICALLBACK cb)
 {
-	calculateResults(false);
+  calculateResults(RTClassResult);
 
 	if(PerClass)
-		sortRunners(SortByClassFinishTime);
+		sortRunners(ClassFinishTime);
 	else
 		sortRunners(SortByFinishTime);
 
@@ -2633,10 +2889,10 @@ void oEvent::generateResultlistFinishTime(gdioutput &gdi, bool PerClass, GUICALL
 
 void oEvent::generateResultlistFinishTime(const string &file, bool PerClass)
 {
-	calculateResults(false);
+	calculateResults(RTClassResult);
 
 	if(PerClass)
-		sortRunners(SortByClassFinishTime);
+		sortRunners(ClassFinishTime);
 	else
 		sortRunners(SortByFinishTime);
 
@@ -2826,7 +3082,7 @@ bool oEvent::enumerateCompetitions(const char *file, const char *filetype)
 			xmlparser xp;
 
       try {
-			  xp.read(FullPathFile, 5);
+			  xp.read(FullPathFile, 7);
   			
         const xmlobject date=xp.getObject("Date");
 
@@ -2837,7 +3093,8 @@ bool oEvent::enumerateCompetitions(const char *file, const char *filetype)
 			  if(name) ci.Name=name.get();
 
 			  const xmlobject nameid = xp.getObject("NameId");
-			  if(nameid) ci.NameId = name.get();
+			  if(nameid) 
+          ci.NameId = nameid.get();
 
 			  cinfo.push_front(ci);
       }
@@ -2971,23 +3228,30 @@ bool oEvent::enumerateBackups(const char *file, const char *filetype, int type)
 	return true;
 }
 
-bool oEvent::fillCompetitions(gdioutput &gdi, const string &name, int type)
-{	
+bool oEvent::fillCompetitions(gdioutput &gdi, 
+                              const string &name, int type,
+                              const string &select) {	
 	cinfo.sort();
 	cinfo.reverse();
   list<CompetitionInfo>::iterator it;
 
 	gdi.clearList(name);
 	string b;
+  int idSel = -1;
 	char bf[128];
 	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
 		if (it->Server.length()==0) {
       if (type==0 || type==1) {
+        if (it->NameId == select && !select.empty())
+          idSel = it->Id;
 			  sprintf_s(bf, 128, "[%s] %s", it->Date.c_str(), it->Name.c_str()); 
 			  gdi.addItem(name, bf, it->Id);
       }
 		}
 		else if (type==0 || type==2) {
+      if (it->NameId == select && !select.empty())
+        idSel = it->Id;
+
       if (type==0)
         sprintf_s(bf, 128, lang.tl("Server: [%s] %s").c_str(), it->Date.c_str(), it->Name.c_str()); 
       else
@@ -2997,10 +3261,13 @@ bool oEvent::fillCompetitions(gdioutput &gdi, const string &name, int type)
 		}
 	}
 
+  if (idSel != -1)
+    gdi.selectItemByData(name.c_str(), idSel);
 	return true;
 }
 
 void tabAutoKillMachines();
+void clearClassData(gdioutput &gdi);
 
 void oEvent::checkDB()
 {
@@ -3045,6 +3312,8 @@ void oEvent::clear()
     tables.begin()->second->releaseOwnership();
     tables.erase(tables.begin());
   }
+
+  getRunnerDatabase().releaseTables();
 #endif
 
   tOriginalName.clear();
@@ -3107,10 +3376,14 @@ void oEvent::clear()
 
   tCurrencyFactor = 1;
   tCurrencySymbol = "kr";
+  tCurrencySeparator = ",";
+  tCurrencyPreSymbol = false;
 
   //Reset speaker data structures.
 #ifndef MEOSDB
+  listContainer->clearExternal();
   clearSpeakerData(gdibase);
+  clearClassData(gdibase);
 #else
   throw std::exception("Bad call");
 #endif
@@ -3152,9 +3425,18 @@ void oEvent::newCompetition(const string &name)
   getDI().setInt("EntryFee", getPropertyInt("EntryFee", 90));
   getDI().setInt("YouthFee", getPropertyInt("YouthFee", 50));
   
+  getDI().setInt("SeniorAge", getPropertyInt("SeniorAge", 0));
+  getDI().setInt("YouthAge", getPropertyInt("YouthAge", 16));
+  
   getDI().setString("Account", getPropertyString("Account", ""));
   getDI().setString("LateEntryFactor", getPropertyString("LateEntryFactor", "50 %"));
 
+  getDI().setString("CurrencySymbol", getPropertyString("CurrencySymbol", "kr"));
+  getDI().setString("CurrencySeparator", getPropertyString("CurrencySeparator", "."));
+  getDI().setInt("CurrencyFactor", getPropertyInt("CurrencyFactor", 1));
+  getDI().setInt("CurrencyPreSymbol", getPropertyInt("CurrencyPreSymbol", 0));
+
+  setCurrency(-1, "", "", 0);
 /*  FILETIME ft;
   SystemTimeToFileTime(&st, &ft); 
   __int64 &ft64 = *(__int64 *)&ft;
@@ -3199,9 +3481,10 @@ void oEvent::reEvaluateClass(int ClassId, bool DoSync)
 	oRunnerList::iterator it;
 
   pClass pc=getClass(ClassId);
-  if(pc)
+  if (pc) {
     pc->resetLeaderTime();
-
+    pc->reinitialize();
+  }
 	vector<int> mp;
   bool needupdate = true;
   int leg = 0;
@@ -3254,9 +3537,10 @@ void oEvent::reEvaluateAll(bool doSync)
 	if(doSync)
 		autoSynchronizeLists(false);
 
-  for(oClassList::iterator it=Classes.begin();it!=Classes.end();++it)  
+  for(oClassList::iterator it=Classes.begin();it!=Classes.end();++it) {
     it->resetLeaderTime();
-
+    it->reinitialize();
+  }
   oRunnerList::iterator it;
 	vector<int> mp;
 	bool needupdate = true;
@@ -3354,32 +3638,47 @@ int oEvent::findBestClass(const SICard &card, vector<pClass> &classes) const
 	oClassList::const_iterator it;	
 
 	for (it=Classes.begin(); it != Classes.end(); ++it) {
-		pCourse pc=it->getCourse();
+		vector<pCourse> courses;
+    it->getCourses(0, courses);
+    bool insertClass = false; // Make sure a class is only included once
 
-		if(pc) {
-			int d=pc->distance(card);
+    for (size_t k = 0; k<courses.size(); k++) {
+      pCourse pc = courses[k];
+		  if (pc) {
+			  int d=pc->distance(card);
 
-			if(d>=0) {
-				if(Distance<0) Distance=1000;
+			  if(d>=0) {
+				  if(Distance<0) Distance=1000;
 
-				if(d<Distance) {
-					Distance=d;
-          classes.clear();
-          classes.push_back(pClass(&*it));
-				}
-        else if(d == Distance)
-          classes.push_back(pClass(&*it));
-			}
-			else {
-				if(Distance<0 && d>Distance) {
-					Distance = d;
-          classes.clear();
-          classes.push_back(pClass(&*it));
-				}
-        else if (Distance == d)
-          classes.push_back(pClass(&*it));
-			}
-		}
+				  if(d<Distance) {
+					  Distance=d;
+            classes.clear();
+            insertClass = true;
+            classes.push_back(pClass(&*it));
+				  }
+          else if(d == Distance) {
+            if (!insertClass) {
+              insertClass = true;
+              classes.push_back(pClass(&*it));
+            }
+          }
+			  }
+			  else {
+				  if(Distance<0 && d>Distance) {
+					  Distance = d;
+            classes.clear();
+            insertClass = true;
+            classes.push_back(pClass(&*it));
+				  }
+          else if (Distance == d) {
+            if (!insertClass) {
+              insertClass = true;
+              classes.push_back(pClass(&*it));
+            }
+          }
+			  }
+		  }
+    }
 	}
   return Distance;
 }
@@ -3446,9 +3745,9 @@ bool oEvent::exportONattResults(gdioutput &gdi, const string &file)
 {
 	ofstream fout(file.c_str());
 
-	calculateResults(false);
+	calculateResults(RTClassResult);
 
-	sortRunners(SortByClassFinishTime);
+	sortRunners(ClassFinishTime);
 
 	oRunnerList::iterator it;
 
@@ -3535,14 +3834,14 @@ bool oEvent::hasBib(bool runnerBib, bool teamBib) const
   if (runnerBib) {
 	  oRunnerList::const_iterator it;	
 	  for (it=Runners.begin(); it != Runners.end(); ++it){
-		  if(it->getBib()>0)
+      if(!it->getBib().empty())
 			  return true;
 	  }
   }
   if (teamBib) {
 	  oTeamList::const_iterator it;	
 	  for (it=Teams.begin(); it != Teams.end(); ++it){
-		  if(it->getBib()>0)
+      if(!it->getBib().empty())
 			  return true;
 	  }	
   }
@@ -3557,7 +3856,7 @@ bool oEvent::hasTeam() const
 void oEvent::addBib(int ClassId, int leg, int FirstNumber)
 {
   if( !classHasTeams(ClassId) ) {
-	  sortRunners(ClassStartTime);
+	  sortRunners(ClassStartTimeClub);
 	  oRunnerList::iterator it;
 
 	  if(FirstNumber>0) {
@@ -3565,7 +3864,7 @@ void oEvent::addBib(int ClassId, int leg, int FirstNumber)
         if (it->isRemoved())
           continue;
         if( (ClassId==0 || it->getClassId()==ClassId) && it->legToRun()==leg) {
-          it->setBib(FirstNumber++, true);
+          it->setBib(itos(FirstNumber++), true);
           it->synchronize();
 			  }
 		  }
@@ -3575,7 +3874,7 @@ void oEvent::addBib(int ClassId, int leg, int FirstNumber)
         if (it->isRemoved())
           continue;
         if(ClassId==0 || it->getClassId()==ClassId) {
-				  it->getDI().setInt("Bib", 0);//Update only bib
+				  it->getDI().setString("Bib", "");//Update only bib
           it->synchronize();
         }
 		  }
@@ -3591,7 +3890,7 @@ void oEvent::addBib(int ClassId, int leg, int FirstNumber)
     if(FirstNumber>0) {
 		  for (it=Teams.begin(); it != Teams.end(); ++it) {	
         if(ClassId==0 || it->getClassId()==ClassId) {
-          it->setBib(FirstNumber++, true);
+          it->setBib(itos(FirstNumber++), true);
           it->apply(true, 0);
         }
 		  }
@@ -3599,7 +3898,7 @@ void oEvent::addBib(int ClassId, int leg, int FirstNumber)
 	  else {
 		  for(it=Teams.begin(); it != Teams.end(); ++it){	
         if(ClassId==0 || it->getClassId()==ClassId) {
-				  it->getDI().setInt("Bib", 0); //Update only bib
+				  it->getDI().setString("Bib", ""); //Update only bib
           it->apply(true, 0);
         }
 		  }
@@ -3746,15 +4045,20 @@ void oEvent::saveProperties(const char *file) {
 void oEvent::loadProperties(const char *file) {
   eventProperties.clear();
   initProperties();
-  xmlparser xml;
-  xml.read(file);
-  xmlobject xo = xml.getObject("MeOSPreference");
-  if (xo) {
-    xmlList list;
-    xo.getObjects(list);
-    for (size_t k = 0; k<list.size(); k++) {
-      eventProperties[list[k].getName()] = list[k].get();
+  try {
+    xmlparser xml;
+    xml.read(file);
+    xmlobject xo = xml.getObject("MeOSPreference");
+    if (xo) {
+      xmlList list;
+      xo.getObjects(list);
+      for (size_t k = 0; k<list.size(); k++) {
+        eventProperties[list[k].getName()] = list[k].get();
+      }
     }
+  }
+  catch (std::exception &) {
+    // Failed to read. Continue. 
   }
 }
 
@@ -3870,7 +4174,6 @@ const string &oEvent::formatStatus(RunnerStatus status)
 void oEvent::analyzeClassResultStatus() const
 {
   map<int, ClassResultInfo> res;
-  int vacId = getVacantClubIfExist();
   for (oRunnerList::const_iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved() || !it->Class)
       continue;
@@ -3880,9 +4183,11 @@ void oEvent::analyzeClassResultStatus() const
 
     if (it->getStatus() == StatusUnknown) {
       cri.nUnknown++;
-      if (it->StartTime > 0 && it->getClubId() != vacId) {
-        if (cri.lastStartTime>=0)
-          cri.lastStartTime = max(cri.lastStartTime, it->StartTime);
+      if (it->StartTime > 0) {
+        if (!it->isVacant()) {
+          if (cri.lastStartTime>=0)
+            cri.lastStartTime = max(cri.lastStartTime, it->StartTime);
+        }
       }
       else
         cri.lastStartTime = -1; // Cannot determine
@@ -4237,19 +4542,42 @@ void oEvent::getFreeImporter(oFreeImport &fi)
 }
 
 
-void oEvent::fillFees(gdioutput &gdi, const string &name)
-{	
+void oEvent::fillFees(gdioutput &gdi, const string &name) const {	
 	gdi.clearList(name);
 
+  set<int> fees;
+
   int f;
-  f = getDI().getInt("EliteFee");
-  gdi.addItem(name, formatCurrency(f), f);
+  for (oClassList::const_iterator it = Classes.begin(); it != Classes.end(); ++it) {
+    if (it->isRemoved())
+      continue;
 
-  f = getDI().getInt("EntryFee");
-  gdi.addItem(name, formatCurrency(f), f);
+    f = it->getDCI().getInt("ClassFee");
+    if (f > 0)
+      fees.insert(f);
 
-  f = getDI().getInt("YouthFee");
-  gdi.addItem(name, formatCurrency(f), f);
+    f = it->getDCI().getInt("ClassFeeRed");
+    if (f > 0)
+      fees.insert(f);
+  }
+
+  f = getDCI().getInt("EliteFee");
+  if (f > 0)
+    fees.insert(f);
+
+  f = getDCI().getInt("EntryFee");
+  if (f > 0)
+    fees.insert(f);
+
+  f = getDCI().getInt("YouthFee");
+  if (f > 0)
+    fees.insert(f);
+
+  vector< pair<string, size_t> > ff;
+  for (set<int>::iterator it = fees.begin(); it != fees.end(); ++it)
+    ff.push_back(make_pair(formatCurrency(*it), *it));
+
+  gdi.addItem(name, ff);
 }
 
 void oEvent::fillLegNumbers(gdioutput &gdi, const string &name)
@@ -4309,34 +4637,66 @@ void oEvent::generateTableData(const string &tname, Table &table, TableUpdateInf
     generatePunchTableData(table, c);
     return;
   }
+  else if (tname == "runnerdb") {
+    oDBRunnerEntry *entry = (oDBRunnerEntry *)(tui.object);
+    getRunnerDatabase().generateRunnerTableData(table, entry);
+    return;
+  }
+  else if (tname == "clubdb") {
+    pClub c = pClub(tui.object);
+    getRunnerDatabase().generateClubTableData(table, c);
+    return;
+  }
   throw std::exception("Wrong table name");
 }
 
-void oEvent::generateFees(const string &classType, const string &lateLimit,
-                          int BaseFee, int HighFee)
-{
-  oRunnerList::iterator it;
+void oEvent::applyEventFees(bool updateClassFromEvent, 
+                            bool updateFees, bool updateCardFees,
+                            const set<int> &classFilter) {
+  synchronizeList(oLClassId);
+  synchronizeList(oLRunnerId);
+  bool allClass = classFilter.empty();
 
-	for (it=Runners.begin(); it != Runners.end(); ++it) {
-    if (!it->skip()) {
-      pClass pc = it->Class;
-      oDataInterface di = it->getDI();
-      if (di.getInt("Fee")>0 && BaseFee>0)
+  if (updateClassFromEvent) {
+    for (oClassList::iterator it = Classes.begin(); it != Classes.end(); ++it) {
+      if (it->isRemoved())
         continue;
-      
-      if (classType=="*" || (pc && pc->getType()==classType) || (pc==0 && classType.empty())) {
-        string date = di.getDate("EntryDate");
-
-        if (date <= lateLimit)
-          di.setInt("Fee", BaseFee);
-        else
-          di.setInt("Fee", HighFee);
+      if (allClass || classFilter.count(it->getId())) {
+        it->addClassDefaultFee(true);
+        it->synchronize(true);
       }
     }
-	}
+  }
+
+  if (updateFees) {
+    for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+      if (it->skip())
+        continue;
+
+      if (allClass || classFilter.count(it->getClassId())) {
+        it->addClassDefaultFee(true); 
+        it->synchronize(true);
+      }
+    }
+  }
+
+  if (updateCardFees) {
+    int cf = getDCI().getInt("CardFee");
+    cf = max(cf, 1);
+    for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+      if (it->skip())
+        continue;
+
+      if (it->getDI().getInt("CardFee") != 0) {
+        it->getDI().setInt("CardFee", cf);
+        it->synchronize(true);
+      }
+    }
+  }
 }
 
 #ifndef MEOSDB 
+void hideTabs();
 void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker, 
                 bool skipEconomy, bool skipLists, bool skipRunners, bool skipControls);
 
@@ -4353,8 +4713,11 @@ void oEvent::updateTabs(bool force) const
   bool hasRunner = !Runners.empty() || !Classes.empty();
   bool hasLists = !Runners.empty() || !Teams.empty();
 
-  createTabs(force, empty(), !hasTeam, getDCI().getInt("UseSpeaker")==0, 
-              !useEconomy(), !hasLists, !hasRunner, Controls.empty());
+  if (isReadOnly())
+    hideTabs();
+  else
+    createTabs(force, empty(), !hasTeam, getDCI().getInt("UseSpeaker")==0, 
+                !useEconomy(), !hasLists, !hasRunner, Controls.empty());
 }
 
 #else
@@ -4504,7 +4867,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult) {
  
 
   if (expectResult && !hasResult)
-    gdi.alert("Tävlingen innehåller inga resultat");
+    gdi.alert("Tävlingen innehåller inga resultat.");
 
 
   bool warnBadStart = false;
@@ -4512,7 +4875,8 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult) {
   for (oClassList::iterator it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
       continue;
-
+    if (it->getClassStatus() != oClass::Normal)
+      continue;
     if (it->hasMultiCourse()) {
       for (unsigned k=0;k<it->getNumStages(); k++) {
         StartTypes st = it->getStartType(k);
@@ -4536,8 +4900,6 @@ HWND oEvent::hWnd() const
   return gdibase.getHWND();
 }
 
-
-
 oTimeLine::~oTimeLine() {
 
 }
@@ -4556,52 +4918,103 @@ bool oEvent::canRemove() const {
   return true;
 }
 
-string oEvent::formatCurrency(int c) const {
+string oEvent::formatCurrency(int c, bool includeSymbol) const {
   if (tCurrencyFactor == 1)
-    return itos(c) + " " + tCurrencySymbol;
+    if (!includeSymbol)
+      return itos(c);
+    else if (tCurrencyPreSymbol)
+      return tCurrencySymbol + itos(c);
+    else
+      return itos(c) + tCurrencySymbol;
   else {
     char bf[32];
-    sprintf_s(bf, 32, "%d.%02d ", c/tCurrencyFactor, c%tCurrencyFactor);
-    return bf + tCurrencySymbol;
+    if (includeSymbol) {
+      sprintf_s(bf, 32, "%d%s%02d", c/tCurrencyFactor, 
+                tCurrencySeparator.c_str(), c%tCurrencyFactor);
+      
+      if (tCurrencyPreSymbol)
+        return tCurrencySymbol + bf;
+      else
+        return bf + tCurrencySymbol;
+    }
+    else {
+      sprintf_s(bf, 32, "%d.%02d", c/tCurrencyFactor, c%tCurrencyFactor);
+      return bf;
+    }
   }
 }
 
 int oEvent::interpretCurrency(const string &c) const {
-  if (tCurrencyFactor == 1)
+  if (tCurrencyFactor == 1 && tCurrencyPreSymbol == false)
     return atoi(c.c_str());
-  else
-    return int(atof(c.c_str())*tCurrencyFactor);
+
+  size_t s = 0;
+  while (s < c.length() && (c[s]<'0' || c[s]>'9'))
+    s++;
+
+  string cc = c.substr(s);
+
+  for (size_t k = 0; k<cc.length(); k++) {
+    if (cc[k] == ',' || cc[k] == tCurrencySeparator[0])
+      cc[k] = '.';
+  }
+
+  return int(atof(cc.c_str())*tCurrencyFactor);
 }
 
 int oEvent::interpretCurrency(double val, const string &cur)  {
   if (_stricmp("sek", cur.c_str()) == 0)
-    setCurrency(1, "kr");
+    setCurrency(1, "kr", ",", false);
   else if(_stricmp("eur", cur.c_str()) == 0)
-    setCurrency(100, "€");
+    setCurrency(100, "€", ".", false);
 
-  return int(val * tCurrencyFactor);
+  return int(floor(val * tCurrencyFactor+0.5));
 }
 
-void oEvent::setCurrency(int factor, const string &symbol) {
+void oEvent::setCurrency(int factor, const string &symbol, const string &separator, bool preSymbol) {
   if (factor == -1) {
     // Load from data
-   int cf = getDCI().getInt("CurrencyFactor");
-   if (cf != 0)
-     tCurrencyFactor = cf;
+    int cf = getDCI().getInt("CurrencyFactor");
+    if (cf != 0)
+      tCurrencyFactor = cf;
 
-   string cs = getDCI().getString("CurrencySymbol");
-   if (!cs.empty())
-     tCurrencySymbol = cs;
+    string cs = getDCI().getString("CurrencySymbol");
+    if (!cs.empty())
+      tCurrencySymbol = cs;
+
+    cs = getDCI().getString("CurrencySeparator");
+    if (!cs.empty())
+      tCurrencySeparator = cs;
+
+    int ps = getDCI().getInt("CurrencyPreSymbol");
+    tCurrencyPreSymbol = (ps != 0);
+
+    if (tCurrencySymbol.size() > 0) {
+      if (tCurrencyPreSymbol) {
+        char end = *tCurrencySymbol.rbegin();
+        if ((end>='a' && end <='z') || end>='A' && end <='Z')
+          tCurrencySymbol += " ";
+      }
+      else {
+        char end = *tCurrencySymbol.begin();
+        if ((end>='a' && end <='z') || end>='A' && end <='Z')
+          tCurrencySymbol = " " + tCurrencySymbol;
+      }
+    }
   }
   else {
     tCurrencyFactor = factor;
     tCurrencySymbol = symbol;
+    tCurrencySeparator = separator;
+    tCurrencyPreSymbol = preSymbol;
     getDI().setString("CurrencySymbol", symbol);
     getDI().setInt("CurrencyFactor", factor);
+    getDI().setString("CurrencySeparator", separator);
+    getDI().setInt("CurrencyPreSymbol", preSymbol ? 1 : 0);
   }
 }
 string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes, 
-                                bool cloneCourses, bool cloneResult) {
+                                bool cloneCourses, bool cloneResult, bool addToDate) {
 
   if (cloneResult) {
     cloneTimes = true;
@@ -4615,8 +5028,15 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
   ce.ZeroTime = ZeroTime;
   ce.Date = Date;
 
+  if (addToDate) {
+    SYSTEMTIME st;
+    convertDateYMS(Date, st);
+    __int64 absD = SystemTimeToInt64Second(st);
+    absD += 3600*24;
+    ce.Date = convertSystemDate(Int64SecondToSystemTime(absD));
+  }
   int len = Name.length();
-  if (len > 2 && isdigit(Name[len-1]) && !isdigit(Name[len-1])) {
+  if (len > 2 && isdigit(Name[len-1]) && !isdigit(Name[len-2])) {
     ++ce.Name[len-1]; // E1 -> E2
   }
   else
@@ -4732,7 +5152,14 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
   vector<string> fail;
   transferResult(ce, fail);
 
+  int eventNumberCurrent = getDCI().getInt("EventNumber");
+  if (eventNumberCurrent <= 0) {
+    eventNumberCurrent = 1;
+    getDI().setInt("EventNumber", eventNumberCurrent);
+  }
+
   ce.getDI().setString("PreEvent", CurrentNameId);
+  ce.getDI().setInt("EventNumber", eventNumberCurrent + 1);
   getDI().setString("PostEvent", ce.CurrentNameId);
   ce.save();
 
@@ -4744,7 +5171,7 @@ void oEvent::transferResult(oEvent &ce, vector<string> &failures) {
   inthashmap used(Runners.size());
   failures.clear();
 
-  calculateResults(true);
+  calculateResults(RTCourseResult);
   // Lookup by id
   for (oRunnerList::iterator it = ce.Runners.begin(); it != ce.Runners.end(); ++it) {
     pRunner r = getRunner(it->Id, 0);
@@ -4851,4 +5278,10 @@ void oEvent::transferResult(oEvent &ce, vector<string> &failures) {
       }
     }
   }
+}
+
+MetaListContainer &oEvent::getListContainer() const {
+  if (!listContainer)
+    throw std::exception("Nullpointer exception");
+  return *listContainer;
 }

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,6 +50,8 @@ SYSTEMTIME Int64SecondToSystemTime(__int64 time);
 
 //Returns a time converted from +/-MM:SS or NOTIME, in seconds
 int convertAbsoluteTimeMS(const string &m);
+// Parses a time on format HH:MM:SS+01:00Z or HHMMSS+0100Z (but ignores time zone)
+int convertAbsoluteTimeISO(const string &m);
 
 //Returns a time converted from HH:MM:SS or -1, in seconds
 int convertAbsoluteTimeHMS(const string &m);
@@ -66,6 +68,7 @@ string itos(__int64 i);
 
 ///Lower case match (filt_lc must be lc)
 bool filterMatchString(const string &c, const char *filt_lc);
+bool matchNumber(int number, const char *key);
 
 int getMeosBuild();
 string getMeosDate();
@@ -138,3 +141,13 @@ public:
 
 bool isAscii(const string &s);
 bool isNumber(const string &s);
+
+
+/// Find all files in dir matching given file pattern
+bool expandDirectory(const char *dir, const char *pattern, vector<string> &res);
+
+enum PersonSex {sFemale = 1, sMale, sBoth, sUnknown};
+
+PersonSex interpretSex(const string &sex);
+
+string encodeSex(PersonSex sex);

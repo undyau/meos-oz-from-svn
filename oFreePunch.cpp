@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -128,7 +128,6 @@ bool oFreePunch::canRemove() const
 {
   return true;
 }
-
 
 Table *oEvent::getPunchesTB()//Table mode
 {

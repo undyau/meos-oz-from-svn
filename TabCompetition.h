@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,8 +25,6 @@
 
 #include "oFreeImport.h"
 
-void runCourseImport(gdioutput& gdi, const string &filename, oEvent *oe);
-
 class TabCompetition :
 	public TabBase
 {
@@ -37,9 +35,9 @@ class TabCompetition :
   bool importFile(HWND hWnd, gdioutput &gdi);
   bool exportFileAs(HWND hWnd, gdioutput &gdi);
 
-  string browseForSave(const string &Filter, const string &defext, int &FilterIndex);
-  string browseForOpen(const string &Filter, const string &defext);
   bool save(gdioutput &gdi, bool write = true);
+
+  void loadRunnerDB(gdioutput &gdi, int tableToShow, bool updateTableOnly);
 
   // Events from Eventor
   vector<CompetitionInfo> events;
@@ -83,12 +81,20 @@ class TabCompetition :
                          const string &dbFile) const;
 
   void loadMultiEvent(gdioutput &gdi);
+  void saveMultiEvent(gdioutput &gdi);
 
   string eventorOrigin; // The command used when checking eventor
   bool checkEventor(gdioutput &gdi, ButtonInfo &bi);
 
   bool useEventor() const;
 
+  bool openCompetition(gdioutput &gdi, int id);
+
+  // Welcome page for new users
+  void welcomeToMeOS(gdioutput &gdi);
+
+  // Class id for last selected class for entry
+  int lastSelectedClass;
 public:
   int competitionCB(gdioutput &gdi, int type, void *data);
   int restoreCB(gdioutput &gdi, int type, void *data);

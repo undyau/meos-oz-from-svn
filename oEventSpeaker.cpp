@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@
 #include "meos_util.h"
 #include "localizer.h"
 #include "meos.h"
+#include "gdifonts.h"
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -308,6 +310,9 @@ void oEvent::calculateResults(list<oSpeakerObject> &rl)
 
 void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId)
 {
+  gdi.restoreNoUpdate("SpeakerList");
+	gdi.setRestorePoint("SpeakerList");
+
 	gdi.setData("ClassId", ClassId);
 	gdi.setData("ControlId", ControlId);
   gdi.setData("LegNo", leg);
@@ -316,9 +321,6 @@ void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId)
 	gdi.registerEvent("DataUpdate", SpeakerCB);
 	gdi.setData("DataSync", 1);
 	gdi.setData("PunchSync", 1);
-	
-  gdi.restoreNoUpdate("SpeakerList");
-	gdi.setRestorePoint("SpeakerList");
 
 	list<oSpeakerObject> speakerList;
 
@@ -722,18 +724,20 @@ void insertResult(TempResultMap &rm, oRunner &r, int time,
   }
 }
 
-int oEvent::setupTimeLineEvents()
+int oEvent::setupTimeLineEvents(int currentTime)
 {
-  updateComputerTime();
-  int nextKnownEvent = 3600*48;
-  //ComputerTime = 3600*24;
+  if (currentTime == 0) {
+    updateComputerTime();
+    currentTime = ComputerTime;
+  }
 
+  int nextKnownEvent = 3600*48;
   vector<pRunner> started;
   started.reserve(Runners.size());
   timeLineEvents.clear();
 
   for(set<int>::iterator it = timelineClasses.begin(); it != timelineClasses.end(); ++it) {
-    int ne = setupTimeLineEvents(*it);
+    int ne = setupTimeLineEvents(*it, currentTime);
     nextKnownEvent = min(ne, nextKnownEvent);
     modifiedClasses.erase(*it);
   }
@@ -741,7 +745,7 @@ int oEvent::setupTimeLineEvents()
 }
 
 
-int oEvent::setupTimeLineEvents(int classId)
+int oEvent::setupTimeLineEvents(int classId, int currentTime)
 {
   // leg -> started on leg
   vector< vector<pRunner> > started;
@@ -794,7 +798,7 @@ int oEvent::setupTimeLineEvents(int classId)
       classSize++;
     if (size_t(r.tLeg) < skipLegs.size() && skipLegs[r.tLeg])
       continue;
-    if (r.StartTime > 0 && r.StartTime < ComputerTime) {
+    if (r.StartTime > 0 && r.StartTime < currentTime) {
       if (started.size() <= size_t(r.tLeg)) {
         started.resize(r.tLeg+1);
         started.reserve(Runners.size() / (r.tLeg + 1));
@@ -805,7 +809,7 @@ int oEvent::setupTimeLineEvents(int classId)
       int id = r.tLeg + 100 * r.StartTime;
       ++startTimes[id];
     }
-    else if (r.StartTime > ComputerTime) {
+    else if (r.StartTime > currentTime) {
       nextKnownEvent = min(r.StartTime, nextKnownEvent);
     }
   }
@@ -876,7 +880,7 @@ int oEvent::setupTimeLineEvents(int classId)
   }
   for (size_t leg = 0; leg<started.size(); leg++) {
     const vector<pControl> &rc = radioControls[leg];
-    int nv = setupTimeLineEvents(started[leg], rc, leg + 1 == started.size());
+    int nv = setupTimeLineEvents(started[leg], rc, currentTime, leg + 1 == started.size());
     nextKnownEvent = min(nv, nextKnownEvent);
   }
   return nextKnownEvent;
@@ -930,7 +934,7 @@ void oEvent::timeLinePrognose(TempResultMap &results, TimeRunner &tr, int prelT,
   }
 }
 
-int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl> &rc, bool finish)
+int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl> &rc, int currentTime, bool finish)
 {
   int nextKnownEvent = 48*3600;
   vector< vector<TimeRunner> > radioResults(rc.size());
@@ -1017,7 +1021,7 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
       oRunner &r = *radio[k].runner;
       int expected = r.StartTime + bestLeg;
       int actual = radio[k].time;
-      if ( (actual == 0 && (expected - pwTime) < ComputerTime) || (actual > (expected - pwTime)) ) {
+      if ( (actual == 0 && (expected - pwTime) < currentTime) || (actual > (expected - pwTime)) ) {
         expectedRadio.push_back(TimeRunner(expected-pwTime, &r));
       }
     }
@@ -1042,10 +1046,10 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
         else
           actual = r.FinishTime;
 
-        if ( (actual == 0 && (expected - pwTime) <= ComputerTime) || (actual > (expected - pwTime)) ) {
+        if ( (actual == 0 && (expected - pwTime) <= currentTime) || (actual > (expected - pwTime)) ) {
           expectedRadio.push_back(TimeRunner(expected-pwTime, &r));
         }
-        else if (actual == 0 && (expected - pwTime) > ComputerTime) {
+        else if (actual == 0 && (expected - pwTime) > currentTime) {
           nextKnownEvent = min(nextKnownEvent, expected - pwTime);
         }
       }
@@ -1281,10 +1285,13 @@ void oEvent::renderTimeLineEvents(gdioutput &gdi) const
   }
 }
 
+int oEvent::getTimeLineEvents(const set<int> &classes, vector<oTimeLine> &events, 
+                              set<__int64> &stored, int currentTime) {  
+  if (currentTime == 0) {
+    updateComputerTime();
+    currentTime = ComputerTime;
+  }
 
-int oEvent::getTimeLineEvents(const set<int> &classes, vector<oTimeLine> &events, set<__int64> &stored) 
-{  
-  updateComputerTime();  
   const int timeWindowSize = 10*60;
   int eval = nextTimeLineEvent <= ComputerTime;
   for (set<int>::const_iterator it = classes.begin(); it != classes.end(); ++it) {
@@ -1296,7 +1303,7 @@ int oEvent::getTimeLineEvents(const set<int> &classes, vector<oTimeLine> &events
       eval = true;
   }
   if (eval) {    
-    nextTimeLineEvent = setupTimeLineEvents();
+    nextTimeLineEvent = setupTimeLineEvents(currentTime);
   }
   
   int time = 0;

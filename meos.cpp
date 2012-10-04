@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -56,6 +56,8 @@
 #include "meos_util.h"
 #include <sys/stat.h>
 #include "random.h"
+#include "metalist.h"
+#include "gdiconstants.h"
 
 gdioutput *gdi_main=0;
 oEvent *gEvent=0;
@@ -117,9 +119,11 @@ void LoadClassPage(gdioutput &gdi)
 }
 
 void LoadPage(gdioutput &gdi, TabType type) {
+  gdi.setWaitCursor(true);
   TabBase *t = gdi.getTabs().get(type);
   if (t)
     t->loadPage(gdi);
+  gdi.setWaitCursor(false);
 }
 
 // Path to settings file
@@ -141,50 +145,6 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
   int rInit = (GetTickCount() / 100);
   InitRanom(rInit, rInit/379);
-  //intkeymap<int> foo(17);
- /* inthashmap foo(17);
-  
-  for (int i = 0; i<30; i++)
-    foo[i*7] = i;
-
-  for (int i = 0; i<10; i++)
-    foo.remove(i*7);
-
-  for (int i = 29; i>=15; i--)
-    foo[i*7] = i+100;
-
-  int v;
-  for (int i = 0; i<10; i++)
-    assert(foo.lookup(i*7,v) == false);
-  
-  for (int i = 15; i<29; i++) {
-    assert(foo.lookup(i*7,v) == true);
-    assert(v == 100 +i);
-  }
-
-  for (int i = 20; i<30; i++)
-    foo.remove(i*7);
-
-  for (int i = 0; i<10; i++)
-    foo.insert(i*7, i + 1000);
-
-  for (int i = 20; i<30; i++)
-    assert(foo.lookup(i*7,v) == false);
-  
-  for (int i = 0; i<10; i++) {
-    assert(foo.lookup(i*7,v) == true);
-    assert(v == 1000 +i);
-    assert(foo[i*7] == 1000 +i);
-  }
-
-
-  foo.remove(3);*/
-  //vector<string> files;
-  //files.push_back("f:\\temp\\result_test.xml");
-  //zip("f:\\temp\\foo.zip", 0, files);
- // vector<string> a, b;
- // unzip("c:\\temp\\foo.zip", 0, a);
- // unzip("c:\\temp\\foo.zip", 0, b);
 
   tabList=new list<TabObject>;
 
@@ -194,7 +154,13 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	gdi_main=new gdioutput(1.0);
   gdi_extra.push_back(gdi_main);
 
-	gEvent = new oEvent(*gdi_main);
+  try {
+	  gEvent = new oEvent(*gdi_main);
+  }
+  catch (std::exception &ex) {
+    gdi_main->alert(string("Failed to create base event: ") + ex.what());
+    return 0;
+  }
   gEvent->loadProperties(settings);
   
   lang.addLangResource("English", "104");
@@ -226,6 +192,37 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   }
   catch (std::exception &) {
     lang.loadLangResource("Svenska");
+  }
+
+  lang.tl("<< Lägg till");
+  try {
+    char listpath[MAX_PATH];
+    getUserFile(listpath, "");
+    vector<string> res;
+    expandDirectory(listpath, "*.lxml", res);
+#ifdef _DEBUG
+    expandDirectory(".\\Lists\\", "*.lxml", res);
+#endif
+
+    try {
+      for (size_t k = 0; k<res.size(); k++) {
+        xmlparser xml;
+
+        strcpy_s(listpath, res[k].c_str());
+        xml.read(listpath);
+
+        xmlobject xlist = xml.getObject(0);
+        gEvent->getListContainer().load(MetaListContainer::InternalList, xlist);
+      }
+    }
+    catch (std::exception &ex) {
+      string err = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
+      throw std::exception(err.c_str());
+    }
+  }
+  catch (std::exception &ex) {
+    gdi_main->alert(ex.what());
+    exit(1);
   }
 
   gEvent->openRunnerDatabase("database");
@@ -392,7 +389,14 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam)
     return (CallNextHookEx(g_hhk, nCode, wParam, lParam)); 
 } 
 
-
+void flushEvent(const string &id, const string &origin, DWORD data, void *extra)
+{
+  for (size_t k = 0; k<gdi_extra.size(); k++) {
+    if (gdi_extra[k]) {
+      gdi_extra[k]->makeEvent(id, origin, data, extra, false);
+    }
+  }
+}
 
 LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
 {
@@ -408,6 +412,7 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
   HWND hWnd = gdi ? gdi->getHWND() : 0;
   
   bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000) == 0x8000;
+  bool shiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) == 0x8000;
   
 	//if(code<0) return CallNextHookEx(
 	if(wParam==VK_TAB && (lParam& (1<<31)))
@@ -485,6 +490,14 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
     if (gdi)
       gdi->keyCommand(KC_PASTE);
   }
+  else if (wParam == 'F'  && ctrlPressed) {
+    if (gdi) {
+      if (!shiftPressed)
+        gdi->keyCommand(KC_FIND);
+      else
+        gdi->keyCommand(KC_FINDBACK);
+    }
+  }
   else if (wParam == VK_DELETE) {
     if (gdi)
       gdi->keyCommand(KC_DELETE);
@@ -497,13 +510,17 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
     if (gdi)
       gdi->keyCommand(KC_PRINT);
   }
-  else if (wParam == 'I' && ctrlPressed) {
-    if (gdi)
-      gdi->keyCommand(KC_INSERT);
-  }
   else if (wParam == VK_F5 && !ctrlPressed) {
     if (gdi)
       gdi->keyCommand(KC_REFRESH);
+  }
+  else if (wParam == 'M' && ctrlPressed) {
+    if (gdi)
+      gdi->keyCommand(KC_SPEEDUP);
+  }
+  else if (wParam == 'N' && ctrlPressed) {
+    if (gdi)
+      gdi->keyCommand(KC_SLOWDOWN);
   }
 
 		//MessageBeep(-1);
@@ -743,6 +760,12 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
     TabCtrl_SetCurSel(hMainTab, to->id);
 }
 
+void hideTabs()
+{
+  TabCtrl_DeleteAllItems(hMainTab);
+}
+
+
 void resetSaveTimer() {
   KillTimer(hWndMain, 1);
   SetTimer(hWndMain, 1, (3*60+15)*1000, 0); //Autosave
@@ -760,7 +783,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			
       tabList->push_back(TabObject(gdi_main->getTabs().get(TCmpTab), "Tävling"));
       tabList->push_back(TabObject(gdi_main->getTabs().get(TRunnerTab), "Deltagare"));
-      tabList->push_back(TabObject(gdi_main->getTabs().get(TTeamTab), "Lag"));
+      tabList->push_back(TabObject(gdi_main->getTabs().get(TTeamTab), "Lag(flera)"));
       tabList->push_back(TabObject(gdi_main->getTabs().get(TListTab), "Listor"));
       {
         TabAuto *ta = (TabAuto *)gdi_main->getTabs().get(TAutoTab);
@@ -849,7 +872,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         
         if(gdi_main) {
           if (gEvent->hasClientChanged()) {
-            gdi_main->makeEvent("Connections", 0);
+            gdi_main->makeEvent("Connections", "verify_connection", 0, 0, false);
             gEvent->validateClients();
           }
         }
@@ -879,11 +902,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
 						if (it->id==id) {
               try {
+                gdi_main->setWaitCursor(true);
 							  it->loadPage(*gdi_main);
               }
               catch(std::exception &ex) {
-                MessageBox(hWnd, ex.what(), "Ett fel inträffade", MB_OK);
+                gdi_main->alert(ex.what());
               }
+              gdi_main->setWaitCursor(false);
 						}
 					}
 				}
@@ -953,14 +978,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
   				gEvent->save();
         }
         catch(std::exception &ex) {
-          MessageBox(hWnd, ex.what(), "Fel när tävlingen skulle sparas", MB_OK);
+          MessageBox(hWnd, lang.tl(ex.what()).c_str(), "Fel när tävlingen skulle sparas", MB_OK);
         }
 
         try {
           gEvent->saveRunnerDatabase("database", true);
         }
         catch(std::exception &ex) {
-          MessageBox(hWnd, ex.what(), "Fel när löpardatabas skulle sparas", MB_OK);
+          MessageBox(hWnd, lang.tl(ex.what()).c_str(), "Fel när löpardatabas skulle sparas", MB_OK);
         }
 
         if (gEvent)
@@ -1082,6 +1107,9 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			//gdi.refresh();__NO NO NO recursive
 			//gdi.Up
 			break;
+    case WM_KEYDOWN:
+      //gdi->keyCommand(;
+      break;
 
 		case WM_VSCROLL:
 		{
@@ -1090,17 +1118,20 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
 			int yInc;
       int yPos=gdi->GetOffsetY();
+      RECT rc;
+      GetClientRect(hWnd, &rc);
+      int pagestep = max(50, int(0.9*rc.bottom));
 
 			switch(nScrollCode)
 			{
 				// User clicked shaft left of the scroll box. 
 				case SB_PAGEUP: 
-					 yInc = -80; 
+					 yInc = -pagestep; 
 					 break; 
  
 				// User clicked shaft right of the scroll box. 
 				case SB_PAGEDOWN: 
-					 yInc = 80; 
+					 yInc = pagestep; 
 					 break; 
  
 				// User clicked the left arrow. 
@@ -1114,10 +1145,20 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 					 break; 
  
 				// User dragged the scroll box. 
-				case SB_THUMBTRACK: 
-          yInc = HIWORD(wParam) - yPos; 
+        case SB_THUMBTRACK: {
+            // Initialize SCROLLINFO structure
+            SCROLLINFO si;
+            ZeroMemory(&si, sizeof(si));
+            si.cbSize = sizeof(si);
+            si.fMask = SIF_TRACKPOS;
+
+            if (!GetScrollInfo(hWnd, SB_VERT, &si) )
+                return 1; // GetScrollInfo failed
+
+            yInc = si.nTrackPos - yPos; 
           break; 
- 
+        }
+        
 				default: 
 				yInc = 0;  
 			} 
@@ -1158,10 +1199,21 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 					 break; 
  
 				// User dragged the scroll box. 
-				case SB_THUMBTRACK: 
-          xInc = HIWORD(wParam) - xPos; 
+				case SB_THUMBTRACK:  {
+            // Initialize SCROLLINFO structure
+            SCROLLINFO si;
+            ZeroMemory(&si, sizeof(si));
+            si.cbSize = sizeof(si);
+            si.fMask = SIF_TRACKPOS;
+
+            if (!GetScrollInfo(hWnd, SB_HORZ, &si) )
+                return 1; // GetScrollInfo failed
+
+            xInc = si.nTrackPos - xPos; 
           break; 
- 
+        }
+          //xInc = HIWORD(wParam) - xPos; 
+          //break;  
 				default: 
 				  xInc = 0;  
 			} 
@@ -1205,20 +1257,39 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
       break;
 
 		case WM_TIMER:
-			/*if (wParam==1)	{
-				gdi_main->removeString("AutoBUInfo");
+      if (wParam == 1001) {
+        double autoScroll, pos;
+        gdi->getAutoScroll(autoScroll, pos);
 
-				if (!gEvent->empty()) {
-					RECT rc;
-					GetClientRect(hWnd, &rc);
-					gEvent->save();
-					gdi_main->addInfoBox("", "Tävlingsdata har sparats.", 10);
-				}
-			}
-			else if (wParam==2) {
-				gdi_main->CheckInterfaceTimeouts(GetTickCount());
-			}*/
-      MessageBox(hWnd, "Runtime exception", 0, MB_OK);
+       	SCROLLINFO si;
+      	si.cbSize = sizeof(si);
+	      si.fMask = SIF_ALL;			
+
+        GetScrollInfo(hWnd, SB_VERT, &si);
+        int dir = gdi->getAutoScrollDir();
+        int dy = 0;
+        if ((dir<0 && si.nPos <= si.nMin) || 
+            (dir>0 && (si.nPos + int(si.nPage)) >= si.nMax)) {
+          autoScroll = -autoScroll;
+          gdi->setAutoScroll(-1); // Mirror
+          
+          double nextPos = pos + autoScroll;
+          dy = int(nextPos - si.nPos);
+          gdi->storeAutoPos(nextPos);
+          
+          //gdi->setData("AutoScroll", -int(data));
+        }
+        else {
+          double nextPos = pos + autoScroll;
+          dy = int(nextPos - si.nPos);
+          gdi->storeAutoPos(nextPos);
+          //gdi->setData("Discrete", DWORD(nextPos*1e3));
+        }
+
+        scrollVertical(gdi, dy, hWnd);
+      }
+      else
+        MessageBox(hWnd, "Runtime exception", 0, MB_OK);
 			break;
 
     case WM_ACTIVATE: {
@@ -1261,6 +1332,7 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
     case WM_DESTROY:
       if (ix > 0) {
+        gdi->makeEvent("CloseWindow", "meos", 0, 0, false);
         gdi_extra[ix] = 0;
         delete gdi;
 
@@ -1295,49 +1367,9 @@ LRESULT CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return FALSE;
 }
 
-bool ExpandDirectory(const char *file, const char *filetype)
-{
-	WIN32_FIND_DATA fd;
-	
-	char dir[MAX_PATH];
-	//char buff[MAX_PATH];
-	char FullPath[MAX_PATH];
-	
-	strcpy_s(dir, MAX_PATH, file);
-
-	if(dir[strlen(file)-1]!='\\')
-		strcat_s(dir, MAX_PATH, "\\");
-	
-	strcpy_s(FullPath, MAX_PATH, dir);
-	
-	strcat_s(dir, MAX_PATH, filetype);
-	
-	HANDLE h=FindFirstFile(dir, &fd);
-	
-	if(h==INVALID_HANDLE_VALUE)
-		return false;
-	
-	bool more=true;//=FindNextFile(h, &fd);
-	
-	while(more)
-	{
-		if(fd.cFileName[0]!='.') //Avoid .. and .
-		{
-			char FullPathFile[MAX_PATH];
-			strcpy_s(FullPathFile, MAX_PATH, FullPath);
-			strcat_s(FullPathFile, MAX_PATH, fd.cFileName);
-
-		}
-		more=FindNextFile(h, &fd)!=0;
-	}
-	
-	FindClose(h);
-	
-	return true;
-}
 
 namespace setup {
-const int nFiles=10;
+const int nFiles=14;
 const string fileList[nFiles]={"baseclass.xml",
                                "family.mwd", 
                                "given.mwd", 
@@ -1347,7 +1379,11 @@ const string fileList[nFiles]={"baseclass.xml",
                                "database.persons",
                                "itest.meos",
                                "stest.meos",
-                               "pctest.meos"};
+                               "pctest.meos",
+                               "ind_finalresult.lxml",
+                               "ind_totalresult.lxml",
+                               "ind_courseresult.lxml",
+                               "classcourse.lxml"};
 }
 
 void Setup(bool overwrite)

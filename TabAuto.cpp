@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,6 +37,8 @@
 #include "TabAuto.h"
 #include "meos_util.h"
 #include <shellapi.h>
+
+#include "gdiconstants.h"
 
 static TabAuto *tabAuto = 0;
 static long currentRevision = 0;
@@ -110,7 +112,7 @@ void tabAutoSync(const vector<gdioutput *> &gdi, pEvent oe)
       if(doSync) {
         for (size_t k = 0; k<gdi.size(); k++) {
           if (gdi[k]) 
-            gdi[k]->makeEvent("DataUpdate", 0);
+            gdi[k]->makeEvent("DataUpdate", "autosync", 0, 0, false);
         }
       }
 
@@ -351,23 +353,29 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
       gdi.addButton("SelectAll", "Välj allt", AutomaticCB, "").setExtra("Classes");
       gdi.popX();
       gdi.addButton("SelectNone", "Välj inget", AutomaticCB, "").setExtra("Classes");
-      gdi.refresh();
     }
     else {
       gdi.fillDown();
       gdi.addString("", 1, "Lista av typ 'X'#" + prm->listInfo.getName());
       gdi.addCheckbox("OnlyChanged", "Skriv endast ut ändade sidor", 0, prm->po.onlyChanged);
     }
+    gdi.refresh();
 #endif
 	}
   else if (bu.id == "BrowseFile") {
     static int index = 0;
-    string file = gdi.browseForSave("Webbdokument¤*.html;*.htm", "html", index);
+    vector< pair<string, string> > ext;
+    ext.push_back(make_pair("Webbdokument", "*.html;*.htm"));
+
+    string file = gdi.browseForSave(ext, "html", index);
     if (!file.empty())
       gdi.setText("ExportFile", file);
   }
   else if (bu.id == "BrowseScript") {
-    string file = gdi.browseForOpen("Script¤*.bat;*.exe;*.js", "bat");
+    vector< pair<string, string> > ext;
+    ext.push_back(make_pair("Skript", "*.bat;*.exe;*.js"));
+
+    string file = gdi.browseForOpen(ext, "bat");
     if (!file.empty())
       gdi.setText("ExportScript", file);
   }
@@ -513,6 +521,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     gdi.addButton("GenerateCMP", "Generera testtävling", AutomaticCB);		
     gdi.fillDown();
     gdi.popX();
+    gdi.refresh();
 	}
 	else if (bu.id=="StartResult") {
 #ifndef MEOSDB
@@ -576,7 +585,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
     //Try exporting.
 #ifndef MEOSDB
-    oe->exportIOFSplits(file.c_str(), true, set<int>());
+    oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, set<int>());
 #endif
 
 		SplitsMachine *sm=dynamic_cast<SplitsMachine*>((AutoMachine*)bu.getExtra());
@@ -688,7 +697,10 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 	}
   else if( bu.id == "BrowseSplits") {
     int index=0;
-    string wf=gdi.browseForSave("Sträcktider¤*.xml¤", "xml", index);
+    vector< pair<string, string> > ext;
+    ext.push_back(make_pair("Sträcktider", "*.xml"));
+
+    string wf = gdi.browseForSave(ext, "xml", index);
       
 		if(!wf.empty())
 		  gdi.setText("FileName", wf);
@@ -963,7 +975,7 @@ void SplitsMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 #ifndef MEOSDB
   if ((interval>0 && ast==SyncTimer) || (interval==0 && ast==SyncDataUp)) {
     if(!file.empty())
-      oe->exportIOFSplits(file.c_str(), true, classes, leg);
+      oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, classes, leg);
   }
 #endif
 }

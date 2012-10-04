@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,15 +36,50 @@
 #include "meos.h"
 #include "meos_util.h"
 #include "localizer.h"
+#include "gdifonts.h"
+#include "oEventDraw.h"
 
 int ClassInfo::sSortOrder=0;
 
+DrawInfo::DrawInfo() {
+  vacancyFactor = 0.00;
+  extraFactor = 0.1;
+  minVacancy = 0;
+  maxVacancy = 10;
+  baseInterval = 120;
+  minClassInterval = 120;
+  maxClassInterval = 180;
+  nFields = 10;
+  firstStart = 3600;
+  maxCommonControl = 3;
+
+  // Statistics output from optimize start order
+  numDistinctInit = -1;
+  numRunnerSameInitMax = -1;
+  minimalStartDepth = -1;
+}
+
 bool ClassInfo::operator <(ClassInfo &ci)
 {
-	if(sSortOrder==0)
-		return nRunners>ci.nRunners;
-	else
+  if(sSortOrder==0) {
+    return sortFactor > ci.sortFactor;
+  }
+  else if (sSortOrder == 2) {
+    return pc->getSortIndex() < ci.pc->getSortIndex();    
+  }
+  else if (sSortOrder == 3) {
+    if (unique != ci.unique) {
+      if (ci.nRunnersGroup != nRunnersGroup)
+        return nRunnersGroup > ci.nRunnersGroup;
+      else
+        return unique < ci.unique;
+    }
+    else
+      return firstStart<ci.firstStart;
+  }
+  else
 		return firstStart<ci.firstStart;
+  
 }
 
 struct ClassBlockInfo{
@@ -62,12 +97,14 @@ bool ClassBlockInfo::operator <(ClassBlockInfo &ci)
 	return Depth<ci.Depth;
 }
 
-bool isFree(vector< vector<int> > &StartField, int nFields, 
+bool isFree(vector< vector<pair<int, int> > > &StartField, int nFields, 
             int FirstPos, int PosInterval, ClassInfo &cInfo)
 {
   int Type = cInfo.unique;
-  int nEntries = cInfo.nRunners;
+  int courseId = cInfo.courseId;
 
+  int nEntries = cInfo.nRunners;
+  bool disallowNeighbors = false;
   // Adjust first pos to make room for extra (before first start)
   if (cInfo.nExtra>0) {
     int newFirstPos = FirstPos - cInfo.nExtra * PosInterval;
@@ -80,24 +117,37 @@ bool isFree(vector< vector<int> > &StartField, int nFields,
 
 	//Check if free at all...
 	for(int k = 0; k < nEntries; k++){
-		bool HasFree=false;
+		bool hasFree=false;
 		for(int f=0;f<nFields;f++){
-			int t = StartField[f][FirstPos+k*PosInterval];
+      size_t ix = FirstPos+k*PosInterval;
+      int t = StartField[f][ix].first;
+
+      if (disallowNeighbors) {
+        int prevT = -1, nextT = -1;
+        if (PosInterval > 1 && ix+1 < StartField[f].size())
+          nextT = StartField[f][ix + 1].second;
+        if (PosInterval > 1 && ix>0)
+          prevT = StartField[f][ix - 1].second;
+        
+        if ((nextT > 0 && nextT == courseId) || (prevT > 0 && prevT == courseId))
+          return false;
+      }
 			if(t == 0)
-				HasFree=true;
+				hasFree=true;
 			else if(t == Type)
 				return false;//Type of course occupied. Cannot put it here;
 		}
 
-		if(!HasFree) return false;//No free start position.
+		if(!hasFree) return false;//No free start position.
 	}
 
 	return true;
 }
 
-bool insertStart(vector< vector<int> > &StartField, int nFields, ClassInfo &cInfo)
+bool insertStart(vector< vector< pair<int, int> > > &StartField, int nFields, ClassInfo &cInfo)
 {
   int Type = cInfo.unique;
+  int courseId = cInfo.courseId;
   int nEntries = cInfo.nRunners;
   int FirstPos = cInfo.firstStart;
   int PosInterval = cInfo.interval;
@@ -116,8 +166,9 @@ bool insertStart(vector< vector<int> > &StartField, int nFields, ClassInfo &cInf
 		bool HasFree=false;	
 
 		for (int f=0;f<nFields && !HasFree;f++) {
-			if (StartField[f][FirstPos+k*PosInterval]==0) {
-				StartField[f][FirstPos+k*PosInterval]=Type;
+      if (StartField[f][FirstPos+k*PosInterval].first == 0) {
+        StartField[f][FirstPos+k*PosInterval].first = Type;
+        StartField[f][FirstPos+k*PosInterval].second = courseId;
 				HasFree=true;
 			}
 		}
@@ -138,17 +189,19 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
     int nControls;
     int alternator;
     double badness;
-    StartParam() : nControls(1), alternator(1), badness(1000) {}
+    int last;
+    StartParam() : nControls(1), alternator(1), badness(1000), last(90000000) {}
   };
 
   StartParam opt;
   bool found = false;
-  int nCtrl = 1;
-
+  int nCtrl = 1;//max(1, di.maxCommonControl-2);
+  const int maxControlDiff = di.maxCommonControl;
   while (!found) {
 
-    for (int alt = 1; alt <= 5 && !found; alt++) {
-      vector< vector<int> > startField(di.nFields);
+    StartParam optInner;
+    for (int alt = 0; alt <= 20 && !found; alt++) {
+      vector< vector<pair<int, int> > > startField(di.nFields);
       optimizeStartOrder(startField, di, cInfo, nCtrl, alt);
 
 	    int overShoot = 0;
@@ -166,35 +219,65 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
       double avgShoot = double(overSum)/cInfo.size();
       double badness = overShoot==0 ? 0 : overShoot / avgShoot;
 
-      if (badness<opt.badness) {
-        opt.badness = badness;
-        opt.alternator = alt;
-        opt.nControls = nCtrl;
-      }
+      if (badness<optInner.badness) {
+        optInner.badness = badness;
+        optInner.alternator = alt;
+        optInner.nControls = nCtrl;
 
-      if (badness < 5.0) {
-        found = true;
+        //Find last starter
+        optInner.last = 0;
+        for (int k=0;k<di.nFields;k++) {
+          for (size_t j=0;j<startField[k].size(); j++)
+            if(startField[k][j].first)
+				      optInner.last = max(optInner.last, int(j));
+	      }
       }
+    }
+
+    if (optInner.last < opt.last)
+      opt = optInner;
+
+    if (opt.badness < 2.0) {
+      found = true;
     }
 
     if (!found) {
       nCtrl++;
     }
 
-    if (nCtrl>5) //We need some limit
+    if (nCtrl>maxControlDiff) //We need some limit
       found = true;
   }
 
-  vector< vector<int> > startField(di.nFields);
+  vector< vector<pair<int, int> > > startField(di.nFields);
   optimizeStartOrder(startField, di, cInfo, opt.nControls, opt.alternator);
 
+  gdi.addString("", 0, "Identifierar X unika inledningar på banorna.#" + itos(di.numDistinctInit));
+  gdi.addString("", 0, "Största gruppen med samma inledning har X platser.#" + itos(di.numRunnerSameInitMax));
+  gdi.addString("", 0, "Antal löpare på vanligaste banan X.#" + itos(di.numRunnerSameCourseMax));
+  gdi.addString("", 0, "Kortast teoretiska startdjup utan krockar är X minuter.#" + itos(di.minimalStartDepth/60));
+  gdi.dropLine();
   //Find last starter
-  int last = 0;
-  for (int k=0;k<di.nFields;k++) {
+  int last = opt.last;
+  /*for (int k=0;k<di.nFields;k++) {
     for (size_t j=0;j<startField[k].size(); j++)
 			if(startField[k][j])
 				last = max(last, int(j));
+	}*/
+
+
+	int laststart=0;
+  for (size_t k=0;k<cInfo.size();k++) {
+    const ClassInfo &ci = cInfo[k];
+		laststart=max(laststart, ci.firstStart+(ci.nRunners-1)*ci.interval);
 	}
+
+  gdi.addString("", 0, "Faktiskt startdjup: X minuter.#" + itos(((last+1) * di.baseInterval)/60));
+	
+  gdi.addString("", 1, string("Sista start (nu tilldelad): X.#") +
+      oe->getAbsTime(laststart*di.baseInterval+di.firstStart));
+	  
+  gdi.dropLine();
 
   int nr;
 	int T=0;
@@ -206,7 +289,7 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
 	while (T <= last) {
 		nr=0;
 		for(size_t k=0;k<startField.size();k++){
-			if(startField[k][T])
+      if(startField[k][T].first)
 				nr++;
 		}
 		T++;
@@ -223,9 +306,34 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
 	gdi.dropLine();
 }
 
+int optimalLayout(int interval, vector< pair<int, int> > &classes) {
+  sort(classes.begin(), classes.end());
 
+  vector<int> chaining(interval, 0);
 
-void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di, 
+  for (int k = int(classes.size())-1 ; k >= 0; k--) {
+    int ix = 0;
+    // Find free position
+    for (int i = 1; i<interval; i++) {
+      if (chaining[i] < chaining[ix])
+        ix = i;
+    }
+    int nr = classes[k].first;
+    if (chaining[ix] > 0)
+      nr += classes[k].second;
+
+    chaining[ix] += 1 + interval*(nr-1);
+  }
+
+  int last = chaining[0];
+  for (int i = 1; i<interval; i++) {
+    last = max(chaining[i], last);
+  }
+
+  return last;
+}
+
+void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, DrawInfo &di, 
                                 vector<ClassInfo> &cInfo, int useNControls, int alteration)
 {
 
@@ -235,12 +343,15 @@ void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di,
   map<int, ClassInfo> otherClasses;
 	cInfo.clear();
 	oClassList::iterator c_it;
+  map<int, int> runnerPerGroup;
+  map<int, int> runnerPerCourse;
+  int nRunnersTot = 0;
 	for (c_it=Classes.begin(); c_it != Classes.end(); ++c_it) {
     bool drawClass = di.classes.count(c_it->getId())>0;
     ClassInfo *cPtr = 0;
     
     if (!drawClass) {
-      otherClasses[c_it->getId()] = ClassInfo(c_it->getId());
+      otherClasses[c_it->getId()] = ClassInfo(&*c_it);
       cPtr = &otherClasses[c_it->getId()];
     }
     else
@@ -263,46 +374,87 @@ void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di,
     if (!drawClass) 
       continue;
 
-    if (ci.nVacant == -1) {
-      int nr = c_it->getNumRunners();
+    int nr = c_it->getNumRunners(true);
+    if (ci.nVacant == -1 || !ci.nVacantSpecified) {
       // Auto initialize
       int nVacancies = int(nr * di.vacancyFactor + 0.5);
       nVacancies = max(nVacancies, di.minVacancy);
       nVacancies = min(nVacancies, di.maxVacancy);
       nVacancies = max(nVacancies, 0);
       
-      ci.nExtra = max(int(nr * di.extraFactor + 0.5), 1);
-
       if (di.vacancyFactor == 0)
         nVacancies = 0;
 
+      ci.nVacant = nVacancies;
+    }
+    
+    if (!ci.nExtraSpecified) {
+      // Auto initialize
+      ci.nExtra = max(int(nr * di.extraFactor + 0.5), 1);
+
       if (di.extraFactor == 0)
         ci.nExtra = 0;
-
-      ci.nVacant = nVacancies;
-		  ci.nRunners = nr + nVacancies;
     }
-    else {
-      ci.nRunners = c_it->getNumRunners() + ci.nVacant;
-    }
-
-		if(ci.nRunners>0)
+    
+    ci.nRunners = nr + ci.nVacant;
+    
+    if(ci.nRunners>0) {
+      nRunnersTot += ci.nRunners + ci.nExtra;
 			cInfo.push_back(ci);
+      runnerPerGroup[ci.unique] += ci.nRunners + ci.nExtra;
+      runnerPerCourse[ci.courseId] += ci.nRunners + ci.nExtra;
+    }
 	}
+  
+  int maxGroup = 0;
+  int maxCourse = 0;
+  int maxNRunner = 0;
+  int a = 1 + (alteration % 7);
+  int b = (alteration % 3);
+  int c = alteration % 5;
 
+  for (size_t k = 0; k<cInfo.size(); k++) {
+    maxNRunner = max(maxNRunner, cInfo[k].nRunners);
+    cInfo[k].nRunnersGroup = runnerPerGroup[cInfo[k].unique];
+    cInfo[k].nRunnersCourse = runnerPerCourse[cInfo[k].courseId];
+    maxGroup = max(maxGroup, cInfo[k].nRunnersGroup);
+    maxCourse = max(maxCourse, cInfo[k].nRunnersCourse);
+    cInfo[k].sortFactor = cInfo[k].nRunners * a + cInfo[k].nRunnersGroup * b + cInfo[k].nRunnersCourse * c;
+  }
+
+  di.numDistinctInit = runnerPerGroup.size();
+  di.numRunnerSameInitMax = maxGroup;
+  di.numRunnerSameCourseMax = maxCourse;
+  // Calculate the theoretical best end position to use.
+  int bestEndPos = 0;
+
+  for (map<int, int>::iterator it = runnerPerGroup.begin(); it != runnerPerGroup.end(); ++it) {
+    vector< pair<int, int> > classes;
+    for (size_t k = 0; k<cInfo.size(); k++) {
+      if (cInfo[k].unique == it->first)
+        classes.push_back(make_pair(cInfo[k].nRunners, cInfo[k].nExtra));
+    }
+    int optTime = optimalLayout(di.minClassInterval/di.baseInterval, classes);
+    bestEndPos = max(optTime, bestEndPos);
+  }
+
+  if (nRunnersTot > 0)
+    bestEndPos = max(bestEndPos, nRunnersTot / di.nFields);
+
+  bestEndPos = max(bestEndPos, maxCourse * 2);
+
+  di.minimalStartDepth = bestEndPos * di.baseInterval;
+
+  ClassInfo::sSortOrder = 0;
   sort(cInfo.begin(), cInfo.end());
 
-  int maxSize=cInfo.empty() ? 0 : di.minClassInterval*cInfo[0].nRunners;
+  int maxSize = di.minClassInterval * maxNRunner;
 
   // Special case for constant time start
   if (di.baseInterval==0) {
     di.baseInterval = 1;
     di.minClassInterval = 0;
   }
-
-
-  // Calculate the theoretical best end position to use.
-  int bestEndPos = maxSize / di.baseInterval;
 
   // Calculate an estimated maximal class intervall
   for (size_t k = 0; k < cInfo.size(); k++) {
@@ -311,11 +463,14 @@ void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di,
 		if(quotient*di.baseInterval > di.maxClassInterval)
 			quotient=di.maxClassInterval/di.baseInterval;
 
-		cInfo[k].interval=quotient;
+    if (cInfo[k].nRunnersGroup >= maxGroup)
+      quotient = di.minClassInterval / di.baseInterval; 
+
+		cInfo[k].interval = quotient;
 	}
 
 	for(int m=0;m < di.nFields;m++)
-		StartField[m].resize(3000, 0);
+		StartField[m].resize(3000);
 
 	int alternator = 0;
 
@@ -335,11 +490,13 @@ void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di,
       ClassInfo &ci = otherClasses[it->getClassId()];
       int k = 0;
       while(true) {
-        if (k==StartField.size())
-          StartField.push_back(vector<int>(3000));
-
-        if (StartField[k][relPos]==0) {
-          StartField[k][relPos] = ci.unique;
+        if (k==StartField.size()) {
+          StartField.push_back(vector< pair<int, int> >());
+          StartField.back().resize(3000);
+        }
+        if (StartField[k][relPos].first==0) {
+          StartField[k][relPos].first = ci.unique;
+          StartField[k][relPos].second = ci.courseId;
           break;
         }
         k++;
@@ -376,6 +533,7 @@ void oEvent::optimizeStartOrder(vector< vector<int> > &StartField, DrawInfo &di,
 		  for (int i = di.minClassInterval/di.baseInterval; i<=cInfo[k].interval; i++) {
   			
         int startpos = alternator % max(1, (bestEndPos - cInfo[k].nRunners * i)/3);
+        startpos = 0;
         int ipos = startpos;
         int t = 0;
 
@@ -437,10 +595,10 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
     throw std::exception("Klass saknas");
 
   if (Vacances>0 && pc->getClassType()==oClassRelay)
-    throw std::exception("Vakanser stöds ej i stafett");
+    throw std::exception("Vakanser stöds ej i stafett.");
 
   if (Vacances>0 && leg>0)
-    throw std::exception("Det går endast att sätta in vakanser på sträcka 1");
+    throw std::exception("Det går endast att sätta in vakanser på sträcka 1.");
   
   vector<pRunner> runners;
   runners.reserve(Runners.size());
@@ -833,7 +991,8 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
   const double extraFactor = 0.15;
   int drawn = 0;
 
-  int baseInterval = convertAbsoluteTimeMS(minIntervall)/2;
+  //int baseInterval = convertAbsoluteTimeMS(minIntervall)/2;
+  int baseInterval = convertAbsoluteTimeMS(minIntervall);
 
   if (baseInterval == 0) {
     gdi.fillDown();
@@ -852,7 +1011,6 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     }
     return;
   }
-
 
   if (baseInterval<1 || baseInterval>60*60)
     throw std::exception("Felaktigt tidsformat för intervall");
@@ -891,6 +1049,10 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     if (it->isVacant() && notDrawn.count(it->getClassId())==1)
       continue;
     pClass pc = it->Class;
+
+    if (pc && pc->hasFreeStart())
+      continue;
+
     if (pc)
       ++starts[pc->getStart()];
 
@@ -916,6 +1078,8 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     // Find largest class in start;
     for (oClassList::iterator it = Classes.begin(); it!=Classes.end(); ++it) {
       if (it->getStart() != start)
+        continue;
+      if (it->hasFreeStart())
         continue;
 
       maxRunners = max(maxRunners, runnersPerClass[&*it]);
@@ -945,7 +1109,7 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     di.extraFactor = extraFactor;
     di.firstStart = iFirstStart;
     di.minClassInterval = baseInterval * 2;
-    di.maxClassInterval = di.minClassInterval * 4;
+    di.maxClassInterval = di.minClassInterval * 2;
 
     di.minVacancy = 1;
     di.maxVacancy = 100;
@@ -958,8 +1122,10 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
         continue;
       if (notDrawn.count(it->getId())==0)
         continue; // Only not drawn classes
+      if (it->hasFreeStart())
+      continue;
 
-      di.classes[it->getId()] = ClassInfo(it->getId());
+      di.classes[it->getId()] = ClassInfo(&*it);
     }
 
     if (di.classes.size()==0)
@@ -971,6 +1137,7 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     gdi.dropLine();
     vector<ClassInfo> cInfo;
     optimizeStartOrder(gdi, di, cInfo);
+
 
 	  int laststart=0;
     for (size_t k=0;k<cInfo.size();k++) {
@@ -985,6 +1152,13 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
 
     for (size_t k=0;k<cInfo.size();k++) {
       const ClassInfo &ci = cInfo[k];
+
+      if (getClass(ci.classId)->getClassType() == oClassRelay) {
+        gdi.addString("", 0, "Hoppar över stafettklass: X#" +
+                    getClass(ci.classId)->getName()).setColor(colorRed);
+        continue;
+      }
+
       gdi.addString("", 0, "Lottar: X#" + getClass(ci.classId)->getName());
       
       drawList(ci.classId, leg, di.firstStart + di.baseInterval * ci.firstStart,
@@ -999,6 +1173,8 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
   // Classes that need completion
   for (oClassList::iterator it = Classes.begin(); it!=Classes.end(); ++it) {
     if (needsCompletion.count(it->getId())==0)
+      continue;
+    if (it->hasFreeStart())
       continue;
 
     gdi.addStringUT(0, lang.tl("Lottar efteranmälda") + ": " + it->getName());
@@ -1021,3 +1197,84 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
   gdi.dropLine();
   gdi.refreshFast();
 }
+
+void oEvent::drawPersuitList(int classId, int firstTime, int restartTime, 
+                             int maxTime, int interval, bool pairwise, bool reverse, double scale) {
+  if (classId<=0)
+    return;
+  vector<pRunner> runner;
+  getRunners(classId, runner);
+
+  if (runner.empty())
+    return;
+
+  vector< pair<int, int> > times(runner.size());
+
+  for (size_t k = 0; k<runner.size(); k++) {
+    times[k].second = k;
+    if (runner[k]->inputStatus == StatusOK && runner[k]->inputTime>0) {
+      if (scale != 1.0)
+        times[k].first = int(floor(double(runner[k]->inputTime) * scale + 0.5));
+      else
+        times[k].first = runner[k]->inputTime;
+    }
+    else {
+      times[k].first = 3600 * 24 * 7 + runner[k]->inputStatus;
+      if (runner[k]->isVacant())
+        times[k].first += 10; // Vacansies last
+    }
+  }
+  // Sorted by name in input
+  stable_sort(times.begin(), times.end());
+
+  int delta = times[0].first;
+  
+  if (delta >= 3600*24*7)
+    delta = 0;
+
+  int reverseDelta = 0;
+  if (reverse) {
+ 
+    for (size_t k = 0; k<times.size(); k++) {
+      if ((times[k].first - delta) < maxTime)
+        reverseDelta = times[k].first;
+    }
+  }
+  int odd = 0;
+  int breakIndex = -1;
+  for (size_t k = 0; k<times.size(); k++) {
+    pRunner r = runner[times[k].second];
+
+    if ((times[k].first - delta) < maxTime && breakIndex == -1) {
+      if (!reverse)
+        r->setStartTime(firstTime + times[k].first - delta);
+      else
+        r->setStartTime(firstTime - times[k].first + reverseDelta);
+    }
+    else if (!reverse) {
+      if (breakIndex == -1)
+        breakIndex = k;
+
+      if (!pairwise)
+        r->setStartTime(restartTime + (k - breakIndex) * interval);
+      else
+        r->setStartTime(restartTime + ((k - breakIndex)/2) * interval);
+    }
+    else {
+      if (breakIndex == -1) {
+        breakIndex = times.size() - 1;
+        odd = times.size() % 2;
+      }
+
+      if (!pairwise)
+        r->setStartTime(restartTime + (breakIndex - k) * interval);
+      else
+        r->setStartTime(restartTime + ((breakIndex - k + odd)/2) * interval);
+
+    }
+
+    r->synchronize(true);
+  }
+  
+}
+

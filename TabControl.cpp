@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@
 #include "csvparser.h"
 #include "SportIdent.h"
 #include "meos_util.h"
+#include "gdifonts.h"
 
 #include <cassert>
 
@@ -74,7 +75,7 @@ void TabControl::selectControl(gdioutput &gdi,  pControl pc)
     else {
       gdi.selectItemByData("Controls", pc->getId());
 		  gdi.selectItemByData("Status", pc->getStatus());
-
+      oe->setupMissedControlTime();
       const int numVisit = pc->getNumVisitors();
       string info;
       if (numVisit > 0) {

@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 ************************************************************************/
 
 #include <vector>
+#include <sstream>
 class xmlobject;
 
 typedef vector<xmlobject> xmlList;
@@ -68,8 +69,18 @@ protected:
 	string tagStack[32];
 	int tagStackPointer;
 
-  ofstream fout;
+  bool toString;
+  ofstream foutFile;
+  ostringstream foutString;
+
 	ifstream fin;
+
+  std::ostream &fOut() {
+    if (toString)
+      return foutString;
+    else 
+      return foutFile;
+  }
 
 	int lineNumber;
 	string errorMessage;
@@ -80,6 +91,9 @@ protected:
   vector<char> xbf;
   
   bool processTag(char *start, char *end);
+
+  bool checkUTF(const char *ptr) const;
+  bool parse(int maxobj);
 
   void convertString(const char *in, char *out, int maxlen) const;
 
@@ -101,15 +115,27 @@ public:
 	const xmlobject getObject(const char *pname) const;
 	const char *getError();
 	
-  bool read(const char *file, int maxobj = 0);
-	
-	bool write(const char *tag, const char *Property, 
-             const string &Value);
-  bool write(const char *tag, const char *Property, 
-             const string &PropValue, const string &Value);
-	bool write(const char *tag, const string &Value);
+  bool read(const string &file, int maxobj = 0);
+	bool readMemory(const string &mem, int maxobj);
+
+  bool write(const char *tag, const char *prop, 
+              const string &value);
   bool write(const char *tag); // Empty case
-	bool write(const char *tag, int);
+  bool write(const char *tag, const char *prop, 
+             const char *value);
+  bool write(const char *tag, const char *prop, 
+             const bool value);
+  bool write(const char *tag, const char *prop, 
+             const string &propValue, const string &value);
+  bool write(const char *tag, const char *prop, 
+             bool propValue, const string &value);
+  bool write(const char *tag, const char *prop, 
+             const char *propValue, const string &value);
+
+  bool write(const char *tag, const string &value);
+  bool write(const char *tag, int value);
+
+  bool writeBool(const char *tag, bool value);
   bool write64(const char *tag, __int64);
   bool writeDWORD(const char *tag, DWORD);
 
@@ -122,6 +148,9 @@ public:
 	bool closeOut();
 	bool openOutput(const char *file, bool useCutMode);
   bool openOutputT(const char *file, bool useCutMode, const string &type);
+  
+  void openMemoryOutput(bool useCutMode);
+  void getMemoryOutput(string &res);
 
   xmlparser();
 	virtual ~xmlparser();
@@ -155,6 +184,8 @@ public:
 		return 0;
 	}
 	
+  bool getObjectBool(const char *pname) const;
+
 	string &getObjectString(const char *pname, string &out) const;
 	char *getObjectString(const char *pname, char *out, int maxlen) const;
 		

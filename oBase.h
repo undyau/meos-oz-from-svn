@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -44,9 +44,18 @@ enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3,
                    StatusDNF=4, StatusDQ=5, StatusMAX=6, 
                    StatusUnknown=0};
 
-enum SortOrder {ClassStartTime, ClassResult, SortByName, 
-                SortByFinishTime, SortByClassFinishTime, SortByStartTime, 
-                SortByPoints, ClassTotalResult};
+enum SortOrder {ClassStartTime,
+                ClassResult,
+                ClassCourseResult,
+                ClassTotalResult, 
+                ClassFinishTime, 
+                ClassStartTimeClub,
+                ClassPoints, 
+                SortByName, 
+                SortByFinishTime, 
+                SortByStartTime, 
+                CourseResult,
+                SortEnumLastItem};
 
 class oBase  
 {
@@ -124,6 +133,8 @@ public:
 	friend class MeosSQL;
 	friend class oEvent;
 	friend class oDataInterface;
+  friend class oDataContainer;
+  friend class MetaListContainer;
 };
 
 typedef oBase * pBase;

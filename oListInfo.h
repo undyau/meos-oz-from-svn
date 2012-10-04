@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,19 +38,33 @@ enum EPostType
   lClubName,
   lClassName,
   lClassStartName,
-  lClassStart,
+  lClassStartTime,
   lClassLength,
   lClassResultFraction,
+  lCourseLength,
+  lCourseName,
+  lCourseClimb,
   lRunnerName,  
+  lRunnerGivenName,  
+  lRunnerFamilyName,  
   lRunnerCompleteName,  
-  lPatrolNameNames,
+  lPatrolNameNames, // Single runner's name or both names in a patrol
+  lPatrolClubNameNames, // Single runner's club or combination of patrol clubs
   lRunnerFinish,
   lRunnerTime,
   lRunnerTimeStatus,
+  lRunnerTotalTime,
+  lRunnerTotalTimeStatus,
+  lRunnerTotalPlace,
+  lRunnerPlaceDiff,
+  lRunnerClassCoursePlace,
+  lRunnerTotalTimeAfter,
+  lRunnerClassCourseTimeAfter,
+  lRunnerTimeAfterDiff,
   lRunnerTempTimeStatus,
+  lRunnerTempTimeAfter,
   lRunnerTimeAfter,
   lRunnerMissedTime,
-  lRunnerTempTimeAfter,
   lRunnerPlace,
   lRunnerStart,
   lRunnerClub,
@@ -62,6 +76,7 @@ enum EPostType
   lRunnerRogainingPoint,
   lRunnerUMMasterPoint,
   lRunnerTimePlaceFixed,
+  lRunnerLegNumberAlpha,
   lTeamName,
   lTeamStart,
   lTeamTimeStatus,
@@ -83,6 +98,7 @@ enum EPostType
   lTotalCounter,
   lSubCounter,
   lSubSubCounter,
+  lLastItem
 };
 
 enum EStdListType
@@ -124,6 +140,8 @@ enum EStdListType
   EFixedResultFinishPerClass,
   EFixedResultFinish,
   EFixedMinuteStartlist,
+  EFixedTimeLine,
+  EFirstLoadedList = 1000
 };
 
 enum EFilterList
@@ -134,27 +152,40 @@ enum EFilterList
   EFilterExcludeDNS,
   EFilterVacant,
   EFilterHasNoCard,
-  _EFilterMax=EFilterHasNoCard
+  _EFilterMax
 };
+
+enum gdiFonts;
 
 struct oPrintPost
 {
   oPrintPost();
   oPrintPost(EPostType type_, const string &format_, 
                        int style_, int dx_, int dy_, int index_=0);
+  
+  static string encodeFont(const string &face, int factor);
 
   EPostType type;
   string text;
+  string fontFace;
   int format;  
   int dx;
   int dy;
   int index;
-
+  gdiFonts getFont() const {return gdiFonts(format & 0xFF);}
+  oPrintPost &setFontFace(const string &font, int factor) {
+    fontFace = encodeFont(font, factor);
+    return *this;
+  }
   int fixedWidth;
 };
 
 class gdioutput;
+enum gdiFonts;
 typedef int (*GUICALLBACK)(gdioutput *gdi, int type, void *data);
+class xmlparser;
+class xmlobject;
+class MetaListContainer;
 
 struct oListParam {
   oListParam();
@@ -170,29 +201,49 @@ struct oListParam {
   bool showSplitTimes;
   bool splitAnalysis;
   string title; 
+  string name;
+  mutable string defaultName; // Initialized when generating list
   // Generate a large-size list (supported as input when supportLarge is true)
   bool useLargeSize;
+  bool saved;
 
+  void updateDefaultName(const string &name) const {defaultName = name;}
   void setCustomTitle(const string &t) {title = t;}
   void getCustomTitle(char *t) const; // 256 size buffer required. Get title if set
   const string &getCustomTitle(const string &t) const; 
+  const string &getDefaultName() const {return defaultName;}
+  void setName(const string &n) {name = n;}
+  const string &getName() const {return name;}
 
-
+  void serialize(xmlparser &xml, const MetaListContainer &container) const;
+  void deserialize(const xmlobject &xml, const MetaListContainer &container);
 };
 
 class oListInfo {
 public:
-  enum EBaseType {EBaseTypeRunner, EBaseTypeTeam, 
-                EBaseTypeClub, EBaseTypePunches, EBaseTypeNone};
+  enum EBaseType {EBaseTypeRunner, 
+                  EBaseTypeTeam, 
+                  EBaseTypeClub, 
+                  EBaseTypePunches, 
+                  EBaseTypeNone,
+                  EBasedTypeLast_};
  
+  static bool addRunners(EBaseType t) {return t == EBaseTypeRunner || t == EBaseTypeClub;}
+  static bool addTeams(EBaseType t) {return t == EBaseTypeTeam || t == EBaseTypeClub;}
+  static bool addPatrols(EBaseType t) {return t == EBaseTypeTeam || t == EBaseTypeClub;}
+
   const string &getName() const {return Name;}
 protected:
   string Name;
   EBaseType listType;
   EBaseType listSubType;
   SortOrder sortOrder;
+ 
   bool calcResults;
+  bool calcCourseClassResults;
+  bool calcTotalResults;
   bool rogainingResults;
+
   oListParam lp;
 
   list<oPrintPost> Head;
@@ -220,10 +271,22 @@ public:
   void setCallback(GUICALLBACK cb) {lp.cb=cb;}
   int getLegNumber() const {return lp.legNumber;}
   EStdListType getListCode() const {return lp.listCode;}
-  void addHead(const oPrintPost &pp) {Head.push_back(pp);}
-  void addSubHead(const oPrintPost &pp) {subHead.push_back(pp);}
-  void addListPost(const oPrintPost &pp) {listPost.push_back(pp);}
-  void addSubListPost(const oPrintPost &pp) {subListPost.push_back(pp);}
+  oPrintPost &addHead(const oPrintPost &pp) {
+    Head.push_back(pp);
+    return Head.back();
+  }
+  oPrintPost &addSubHead(const oPrintPost &pp) {
+    subHead.push_back(pp);
+    return subHead.back();
+  }
+  oPrintPost &addListPost(const oPrintPost &pp) {
+    listPost.push_back(pp);
+    return listPost.back();
+  }
+  oPrintPost &addSubListPost(const oPrintPost &pp) {
+    subListPost.push_back(pp);
+    return subListPost.back();
+  }
   inline bool filter(EFilterList i) const {return listPostFilter[i]!=0;}
   void setFilter(EFilterList i) {listPostFilter[i]=1;}
 
@@ -231,8 +294,16 @@ public:
   ~oListInfo(void);
 
   friend class oEvent;
+  friend class MetaList;
+  friend class MetaListContainer;
 
   int getMaxCharWidth(const oEvent *oe, EPostType type, 
-                      const string &format, bool large = false,
-                      int minSize = 0);
+                      const string &format, gdiFonts font,
+                      const char *fontFace = 0,
+                      bool large = false, int minSize = 0);
+
+
+  const oListParam &getParam() const {return lp;}
+  oListParam &getParam() {return lp;}
+
 };

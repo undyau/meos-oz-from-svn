@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,6 +23,8 @@
 #include "tabbase.h"
 #include "oListInfo.h"
 
+class ListEditor;
+
 class TabList :
 	public TabBase
 {
@@ -37,7 +39,9 @@ protected:
   int offsetX;
   set<int> lastClassSelection;
 
+  bool hideButtons;
   bool ownWindow;
+  ListEditor *listEditor;
 public:
 	bool loadPage(gdioutput &gdi);
   int listCB(gdioutput &gdi, int type, void *data);

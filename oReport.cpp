@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,6 +29,8 @@
 
 #include "oEvent.h"
 #include "gdioutput.h"
+#include "gdifonts.h"
+
 #include "oDataContainer.h"
 
 #include "random.h"
@@ -81,7 +83,7 @@ void oEvent::generateCompetitionReport(gdioutput &gdi)
   vector<ClassMetaType> types;
   types.push_back(ctElite);
   cfee = getDCI().getInt("EliteFee");
-  generateStatisticsPart(gdi, types, 0, cfee, 90, entries, started, fee);
+  generateStatisticsPart(gdi, types, set<int>(), cfee, false, 90, entries, started, fee);
   entries_sum += entries;
   started_sum +=  started;
   fee_sum += fee;
@@ -91,7 +93,7 @@ void oEvent::generateCompetitionReport(gdioutput &gdi)
   types.push_back(ctNormal);
   types.push_back(ctExercise);
   cfee = getDCI().getInt("EntryFee");
-  generateStatisticsPart(gdi, types, 0, cfee, 90, entries, started, fee);
+  generateStatisticsPart(gdi, types, set<int>(), cfee, false, 90, entries, started, fee);
   entries_sum += entries;
   started_sum +=  started;
   fee_sum += fee;
@@ -100,7 +102,7 @@ void oEvent::generateCompetitionReport(gdioutput &gdi)
   types.clear();
   types.push_back(ctYouth);
   cfee = getDCI().getInt("YouthFee");
-  generateStatisticsPart(gdi, types, 0, cfee, 50, entries, started, fee);
+  generateStatisticsPart(gdi, types, set<int>(), cfee, true, 50, entries, started, fee);
   entries_sum_y += entries;
   started_sum_y +=  started;
   fee_sum_y += fee;
@@ -109,15 +111,36 @@ void oEvent::generateCompetitionReport(gdioutput &gdi)
   types.push_back(ctOpen);
   
   gdi.addString("", boldText, "Öppna klasser, vuxna");
+  set<int> adultFee;
+  set<int> youthFee;
+
   cfee = getDCI().getInt("EntryFee");
-  generateStatisticsPart(gdi, types, cfee, cfee, 90, entries, started, fee);
+  if (cfee > 0)
+    adultFee.insert(cfee);
+
+  for(it=Classes.begin(); it!=Classes.end(); ++it) {
+    if (!it->isRemoved() && it->interpretClassType() == ctOpen) {
+      int af = it->getDCI().getInt("ClassFee");
+      if (af > 0)
+        adultFee.insert(af);
+      int yf = it->getDCI().getInt("ClassFeeRed");
+      if (yf > 0)
+        youthFee.insert(yf);
+    }
+  }
+
+  generateStatisticsPart(gdi, types, adultFee, cfee, false, 90, entries, started, fee);
   entries_sum += entries;
   started_sum +=  started;
   fee_sum += fee;
 
   gdi.addString("", boldText, "Öppna klasser, ungdom");
+
   cfee = getDCI().getInt("YouthFee");
-  generateStatisticsPart(gdi, types, cfee, cfee, 50, entries, started, fee);
+  if (cfee > 0)
+    youthFee.insert(cfee);
+
+  generateStatisticsPart(gdi, types, youthFee, cfee, true, 50, entries, started, fee);
   entries_sum_y += entries;
   started_sum_y +=  started;
   fee_sum_y += fee;
@@ -192,9 +215,9 @@ void oEvent::generateCompetitionReport(gdioutput &gdi)
   } 
 }
 
-void oEvent::generateStatisticsPart(gdioutput &gdi, const vector<ClassMetaType> &type, int feeLock, 
-                                    int actualFee, int baseFee, 
-                                    int &entries_sum, int &started_sum, int &fee_sum) const
+void oEvent::generateStatisticsPart(gdioutput &gdi, const vector<ClassMetaType> &type,
+                                    const set<int> &feeLock, int actualFee, bool useReducedFee, 
+                                    int baseFee, int &entries_sum, int &started_sum, int &fee_sum) const
 {
   entries_sum=0;
   started_sum=0;
@@ -217,10 +240,31 @@ void oEvent::generateStatisticsPart(gdioutput &gdi, const vector<ClassMetaType> 
   for(it=Classes.begin(); it!=Classes.end(); ++it) {
     if (it->isRemoved())
       continue;
+    //int lowAge = it->getDCI().getInt("LowAge");
+/*    int highAge = it->getDCI().getInt("HighAge");
+
+    if (ageSpan.second > 0 && (highAge == 0 || highAge > ageSpan.second))
+      continue;
+
+    if (ageSpan.first > 0 && (highAge != 0 && highAge < ageSpan.first))
+      continue;
+*/
     if (count(type.begin(), type.end(), it->interpretClassType())==1) {
       it->getStatistics(feeLock, entries, started);
       gdi.addStringUT(yp, xp+dx[0], fontMedium, it->getName());
-      gdi.addStringUT(yp, xp+dx[1], textRight|fontMedium, itos(actualFee));
+      
+      int afee = it->getDCI().getInt("ClassFee");
+      int redfee = it->getDCI().getInt("ClassFeeRed");
+
+      int f = actualFee;
+
+      if (afee > 0)
+        f = afee;
+      
+      if (useReducedFee && redfee > 0)
+        f = redfee;
+
+      gdi.addStringUT(yp, xp+dx[1], textRight|fontMedium, itos(f));
       gdi.addStringUT(yp, xp+dx[2], textRight|fontMedium, itos(baseFee));
       gdi.addStringUT(yp, xp+dx[3], textRight|fontMedium, itos(entries));
       gdi.addStringUT(yp, xp+dx[4], textRight|fontMedium, itos(baseFee*entries));
@@ -314,7 +358,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 	int x=gdi.getCX();
 	int lh=gdi.getLineHeight();
  
-	gdi.addStringUT(2, lang.tl("Rapport inför") +": " + getName());
+  gdi.addStringUT(2, lang.tl("Rapport inför: ") + getName());
 	
 	gdi.addStringUT(1, getDate());
 	gdi.dropLine();
@@ -344,6 +388,9 @@ void oEvent::generatePreReport(gdioutput &gdi)
       StartTypes st = pc->getStartType(r_it->tLeg);
       
       if (st != STTime && st != STDrawn)
+        needStartTime = false;
+
+      if (pc->hasFreeStart())
         needStartTime = false;
     }
 		if( r_it->getClubId() != lVacId) {
@@ -520,7 +567,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 	}
 
 	gdi.dropLine();
-	gdi.addStringUT(1, "Lag");
+	gdi.addStringUT(1, "Lag(flera)");
 	
 	for (t_it=Teams.begin(); t_it != Teams.end(); ++t_it){		
 		pClass pc=getClass(t_it->getClassId());

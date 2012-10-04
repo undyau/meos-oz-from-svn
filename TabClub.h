@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,13 +28,24 @@ class TabClub :
 {
   int clubCB(gdioutput &gdi, int type, void *data);
 
-  string entryLimit;
+  string firstDate;
+  string lastDate;
+  bool filterAge;
+  bool onlyNoFee;
+  bool useManualFee;
+  int highAge;
+  int lowAge;
   int baseFee;
-  int highFee;
+  string typeS;
 
   int ClubId;
+
+  void readFeeFilter(gdioutput &gdi);
+
 public:
   void selectClub(gdioutput &gdi,  pClub pc);
+
+  void importAcceptedInvoice(gdioutput &gdi, const string &file);
 
 	bool loadPage(gdioutput &gdi);
 	TabClub(oEvent *oe);

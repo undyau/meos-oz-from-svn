@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@
 #include "oEvent.h"
 #include "xmlparser.h"
 #include "gdioutput.h"
+#include "gdifonts.h"
+
 #include "csvparser.h"
 #include "SportIdent.h"
 #include "meos_util.h"
@@ -174,7 +176,7 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
     watchEvents = false;
   }
   else if (bu.id == "Window") {
-    oe->setupTimeLineEvents();
+    oe->setupTimeLineEvents(0);
 
     gdioutput *gdi_new = createExtraWindow(MakeDash("MeOS - Speakerstöd"), gdi.getWidth() + 64 + gdi.scaleLength(120));
     if (gdi_new) {
@@ -273,14 +275,14 @@ void TabSpeaker::drawTimeLine(gdioutput &gdi) {
 void TabSpeaker::updateTimeLine(gdioutput &gdi) {
   gdi.restore("TimeLine", false);
 
-  int nextEvent = oe->getTimeLineEvents(classesToWatch, events, shownEvents);
+  int nextEvent = oe->getTimeLineEvents(classesToWatch, events, shownEvents, 0);
   int timeOut = nextEvent - oe->getComputerTime();
   if (timeOut > 0)
   gdi.addTimeout(timeOut, tabSpeakerCB);
   bool showClass = classesToWatch.size()>1;
 
   oListInfo li;  
-  const int classWidth = gdi.scaleLength(li.getMaxCharWidth(oe, lClassName, "", false));
+  const int classWidth = gdi.scaleLength(li.getMaxCharWidth(oe, lClassName, "", normalText, false));
   const int timeWidth = gdi.scaleLength(60);
   const int totWidth = gdi.scaleLength(450);
   const int extraWidth = gdi.scaleLength(200);
@@ -323,9 +325,9 @@ void TabSpeaker::updateTimeLine(gdioutput &gdi) {
       }
 
       if (r) {
-        int bib = r->getBib();
-        if (bib > 0) 
-          msg = itos(bib) + ", ";
+        string bib = r->getBib();
+        if (!bib.empty()) 
+          msg = bib + ", ";
         else
           msg = "";
         msg += r->getCompleteIdentification();

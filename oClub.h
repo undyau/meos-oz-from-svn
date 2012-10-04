@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -47,13 +47,11 @@ protected:
 	string name;
   vector<string> altNames;
   string tPrettyName;
-	BYTE oData[200];
+	BYTE oData[384];
 
   int tNumRunners;
   int tFee;
   int tPaid;
-
-  void addTableRow(Table &table) const;
 
   bool inputData(int id, const string &input, int inputId, 
                         string &output, bool noUpdate);
@@ -68,6 +66,8 @@ protected:
   void internalSetName(const string &n);
 
 public:
+  static void buildTableCol(oEvent *oe, Table *t);
+  void addTableRow(Table &table) const;
 
   void remove();
   bool canRemove() const;
@@ -92,6 +92,7 @@ public:
   void set(const xmlobject &xo);
 	bool write(xmlparser &xml);
 
+  bool isVacant() const;
 	oClub(oEvent *poe);
 	oClub(oEvent *poe, int id);
   virtual ~oClub();

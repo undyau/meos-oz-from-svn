@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include "oEvent.h"
 #include "meos_util.h"
 #include "Table.h"
+#include "gdifonts.h"
 
 extern gdioutput *gdi_main;
 static bool bPrint;
@@ -162,7 +163,7 @@ void gdioutput::printPage(PrinterObject &po, int StartY, int &EndY, bool calcula
       else if (text.format==pageReserveHeight) 
         continue;
       else if (text.format==pagePageInfo) {
-        pageInfo=text;
+        *pageInfo = text;
         continue;
       }
 
@@ -219,9 +220,9 @@ void gdioutput::printPage(PrinterObject &po, int nPage, int nPageMax)
 
   char bf[512];
   if (printHeader) {
-    if(!pageInfo.text.empty())
+    if(!pageInfo->text.empty())
       sprintf_s(bf, "MeOS %s, %s, s. %d/%d", getLocalTime().c_str(),
-        pageInfo.text.c_str(), nPage, nPageMax);
+        pageInfo->text.c_str(), nPage, nPageMax);
     else
       sprintf_s(bf, "MeOS %s, s. %d/%d", getLocalTime().c_str(), nPage, nPageMax);
     
@@ -553,7 +554,7 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
     //Calculate checksum for this page to see if it has been already printed.
     globalCS=0;
     transformedPageText.clear();
-    pageInfo=TextInfo();
+    *pageInfo=TextInfo();
     printPage(po, StartY, EndY, true);
 		StartY=EndY;
 
@@ -563,7 +564,7 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
         pagesToPrint.push_back(list<TextInfo>());
 
         swap(pagesToPrint.back(), transformedPageText);
-        pagesToPrint.back().push_back(pageInfo);
+        pagesToPrint.back().push_back(*pageInfo);
 
         myPages.insert(globalCS);
         po.nPagesPrinted++;
@@ -599,7 +600,7 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
       }
       swap(pagesToPrint.front(), transformedPageText);
       pagesToPrint.pop_front();
-      swap(transformedPageText.back(), pageInfo);
+      swap(transformedPageText.back(), *pageInfo);
       transformedPageText.pop_back();
       
       printPage(po, page++, nPagesToPrint);

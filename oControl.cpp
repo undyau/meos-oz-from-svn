@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include <algorithm>
+
 #include "oControl.h"
 #include "oEvent.h"
 #include "gdioutput.h"
@@ -44,6 +46,7 @@ oControl::oControl(oEvent *poe): oBase(poe)
   tMissedTimeMax = 0;
   tMissedTimeTotal = 0;
   tNumVisitors = 0;
+  tMissedTimeMedian = 0;
 }
 
 oControl::oControl(oEvent *poe, int id): oBase(poe)
@@ -55,6 +58,7 @@ oControl::oControl(oEvent *poe, int id): oBase(poe)
   tMissedTimeMax = 0;
   tMissedTimeTotal = 0;
   tNumVisitors = 0;
+  tMissedTimeMedian = 0;
 }
 
 
@@ -490,9 +494,9 @@ string oControl::getInfo() const
   return getName();
 }
 
-void oControl::addUncheckedPunches(vector<int> &mp) const
+void oControl::addUncheckedPunches(vector<int> &mp, bool supportRogaining) const
 {
-  if(controlCompleted())
+  if(controlCompleted(supportRogaining))
     return;
 
   for (int k=0;k<nNumbers;k++)
@@ -514,9 +518,9 @@ int oControl::getMissingNumber() const
   return Numbers[0];//This should not happen
 }
 
-bool oControl::controlCompleted() const
+bool oControl::controlCompleted(bool supportRogaining) const
 {
-  if (Status==StatusOK) {
+  if (Status==StatusOK || ((Status == StatusRogaining) && !supportRogaining)) {
     //Check if any number is used.
     for (int k=0;k<nNumbers;k++)
       if(checkedNumbers[k])
@@ -542,8 +546,10 @@ void oEvent::setupMissedControlTime() {
     it->tMissedTimeMax = 0;
     it->tMissedTimeTotal = 0;
     it->tNumVisitors = 0;
+    it->tMissedTimeMedian = 0;
   }
 
+  map<int, vector<int> > lostPerControl;
   vector<int> delta;
   for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved())
@@ -564,7 +570,24 @@ void oEvent::setupMissedControlTime() {
 
           ctrl->tMissedTimeMax = max(ctrl->tMissedTimeMax, delta[i]);
         }
+
+        if (delta[i] >= 0)
+          lostPerControl[ctrl->getId()].push_back(delta[i]);
+
         ctrl->tNumVisitors++;
+      }
+    }
+  }
+
+  for (oControlList::iterator it = Controls.begin(); it != Controls.end(); ++it) {
+    if (!it->isRemoved()) {
+      int id = it->getId();
+
+      map<int, vector<int> >::iterator res = lostPerControl.find(id);
+      if (res != lostPerControl.end()) {
+        sort(res->second.begin(), res->second.end());
+        int avg = res->second[res->second.size() / 2];
+        it->tMissedTimeMedian = avg;
       }
     }
   }
@@ -574,7 +597,7 @@ bool oEvent::hasRogaining() const
 {
 	oControlList::const_iterator it;	
 	for (it=Controls.begin(); it != Controls.end(); ++it) {
-    if(!it->Removed && it->isRogaining())
+    if(!it->Removed && it->isRogaining(true))
 		  return true;
   }
   return false;
@@ -625,12 +648,17 @@ Table *oEvent::getControlTB()//Table mode
   if (tables.count("control") == 0) {
 	  Table *table=new Table(this, 20, "Kontroller", "controls");
 
-    table->addColumn("Id", 70, false);
+    table->addColumn("Id", 70, true);
     table->addColumn("Ändrad", 70, false);
 
 	  table->addColumn("Namn", 150, false);
     table->addColumn("Status", 70, false);
-    table->addColumn("Stämpelkoder", 100, false);
+    table->addColumn("Stämpelkoder", 100, true);
+    table->addColumn("Antal löpare", 70, true, true);
+    table->addColumn("Bomtid (max)", 70, true, true);
+    table->addColumn("Bomtid (medel)", 70, true, true);
+    table->addColumn("Bomtid (median)", 70, true, true);
+    
     oe->oControlData->buildTableCol(table);
     tables["control"] = table;
     table->addOwnership();
@@ -649,7 +677,8 @@ void oEvent::generateControlTableData(Table &table, oControl *addControl)
     return;
   }
 
-  synchronizeList(oLClassId);
+  synchronizeList(oLControlId);
+  setupMissedControlTime();
 	oControlList::iterator it;	
 
   for (it=Controls.begin(); it != Controls.end(); ++it){		
@@ -671,8 +700,14 @@ void oControl::addTableRow(Table &table) const {
   bool canEdit = getStatus() != oControl::StatusFinish && getStatus() != oControl::StatusStart;
   table.set(row++, it, TID_STATUS, getStatusS(), canEdit, cellSelection);
   table.set(row++, it, TID_CODES, codeNumbers(), true);
+
+  int nv = getNumVisitors();
+  table.set(row++, it, 50, itos(getNumVisitors()), false);
+  table.set(row++, it, 51, nv > 0 ? formatTime(getMissedTimeMax()) : "-", false);
+  table.set(row++, it, 52, nv > 0 ? formatTime(getMissedTimeTotal()/nv) : "-", false);
+  table.set(row++, it, 53, nv > 0 ? formatTime(getMissedTimeMedian()) : "-", false);
   	
-  oe->oControlData->fillTableCol(oData, it, table);
+  oe->oControlData->fillTableCol(oData, it, table, true);
 }
 
 bool oControl::inputData(int id, const string &input, 
@@ -681,12 +716,7 @@ bool oControl::inputData(int id, const string &input,
   synchronize(false);
     
   if(id>1000) {
-    bool b = oe->oControlData->inputData(this, oData, id, input, output, noUpdate);
-    if (b) {
-      synchronize(true);
-      oe->oControlData->inputData(this, oData, id, input, output, noUpdate);
-    }
-    return b;
+    return oe->oControlData->inputData(this, oData, id, input, inputId, output, noUpdate);
   }
   switch(id) {
     case TID_CONTROL:
@@ -712,6 +742,11 @@ bool oControl::inputData(int id, const string &input,
 
 void oControl::fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected)
 { 
+  if(id>1000) {
+    oe->oControlData->fillInput(oData, id, 0, out, selected);
+    return;
+  }
+
   if (id==TID_STATUS) {
     oe->fillControlStatus(out);
     selected = getStatus();

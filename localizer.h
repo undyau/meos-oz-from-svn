@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <vector>
 
 class LocalizerImpl;
+class oWordList;
 
 class Localizer {
 private:
@@ -49,6 +50,9 @@ public:
 
   void set(Localizer &li);
 
+  /** Get database with given names */
+  const oWordList &getGivenNames() const;
+ 
   Localizer();
   ~Localizer();
 };

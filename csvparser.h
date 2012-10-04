@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -56,13 +56,15 @@ protected:
   bool checkSimanLine(const oEvent &oe, const vector<char *> &sp, SICard &cards);
 
 public:
+  void parse(const string &file, list< vector<string> > &dataOutput);
+
 	bool openOutput(const char *file);
 	bool closeOutput();
 	bool OutputRow(vector<string> &out);
 	bool OutputRow(const string &row);
 
 	int nimport;
-	bool ImportOCAD_CSV(oEvent &event, const char *file);
+	bool ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses);
 	bool ImportOS_CSV(oEvent &event, const char *file);
 	bool ImportRAID(oEvent &event, const char *file);
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -40,15 +40,22 @@
 #include "meos_util.h"
 #include <cassert>
 #include "classconfiginfo.h"
+#include "metalist.h"
+#include "gdifonts.h"
+#include "listeditor.h"
 
 TabList::TabList(oEvent *poe):TabBase(poe)
 {
   ownWindow = false;
+  hideButtons = false;
   currentListType=EStdNone;
+  listEditor = 0;
 }
 
 TabList::~TabList(void)
 {
+  delete listEditor;
+  listEditor = 0;
 }
 
 int ListsCB(gdioutput *gdi, int type, void *data);
@@ -126,21 +133,39 @@ int ListsCB(gdioutput *gdi, int type, void *data)
 void TabList::generateList(gdioutput &gdi)
 {
   gdi.clearPage(false);
+  currentList.setCallback(ownWindow ? 0 : openRunnerTeamCB);
   oe->generateList(gdi, true, currentList);
   
-  gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), 
-                "Cancel", ownWindow ? "Sträng" : "Återgå", ListsCB, "", true, false);
-  gdi.addButton(gdi.getWidth()+20, 18+gdi.getButtonHeight(), gdi.scaleLength(120), 
-                "Print", "Skriv ut...", ListsCB, "Skriv ut listan.", true, false);
-  gdi.addButton(gdi.getWidth()+20, 21+2*gdi.getButtonHeight(), gdi.scaleLength(120),
-                "HTML", "Webb...", ListsCB, "Spara för webben.", true, false);
-  if (!ownWindow) {
-    gdi.addButton(gdi.getWidth()+20, 27+4*gdi.getButtonHeight(), gdi.scaleLength(120),
-                  "Automatic", "Automatisera", ListsCB, "Skriv ut eller exportera listan automatiskt.", true, false);
+  if (!hideButtons) {
+    gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), 
+                  "Cancel", ownWindow ? "Stäng" : "Återgå", ListsCB, "", true, false);
 
-    gdi.addButton(gdi.getWidth()+20, 24+3*gdi.getButtonHeight(), gdi.scaleLength(120),
-                  "Window", "Eget fönster", ListsCB, "Öppna i ett nytt fönster.", true, false);
+    gdi.addButton(gdi.getWidth()+20, 18+gdi.getButtonHeight(), gdi.scaleLength(120), 
+                  "Print", "Skriv ut...", ListsCB, "Skriv ut listan.", true, false);
+    gdi.addButton(gdi.getWidth()+20, 21+2*gdi.getButtonHeight(), gdi.scaleLength(120),
+                  "HTML", "Webb...", ListsCB, "Spara för webben.", true, false);
+    int baseY = 21+2*gdi.getButtonHeight();
+    if (!ownWindow) {
+      gdi.addButton(gdi.getWidth()+20, 27+4*gdi.getButtonHeight(), gdi.scaleLength(120),
+                    "Automatic", "Automatisera", ListsCB, "Skriv ut eller exportera listan automatiskt.", true, false);
+
+      gdi.addButton(gdi.getWidth()+20, 24+3*gdi.getButtonHeight(), gdi.scaleLength(120),
+                    "Window", "Eget fönster", ListsCB, "Öppna i ett nytt fönster.", true, false);
+      baseY = 27+4*gdi.getButtonHeight();
+    }
+        
+    gdi.addButton(gdi.getWidth()+20, baseY + 3 + gdi.getButtonHeight(), gdi.scaleLength(120),
+                  "AutoScroll", "Automatisk skroll", ListsCB, "Rulla upp och ner automatiskt", true, false);
+
+    gdi.addButton(gdi.getWidth()+20, baseY + 6 + 2*gdi.getButtonHeight(), gdi.scaleLength(120),
+                  "FullScreen", "Fullskärm", ListsCB, "Visa listan i fullskärm", true, false);
+
+    if (!currentList.getParam().saved && !oe->isReadOnly()) {
+      gdi.addButton(gdi.getWidth()+20, baseY + 9 + 3*gdi.getButtonHeight(),  gdi.scaleLength(120), 
+                    "Remember", "Kom ihåg listan", ListsCB, "Spara den här listan som en favoritlista", true, false);
+    }
   }
+  
   gdi.registerEvent("DataUpdate", ListsEventCB);
   gdi.setData("DataSync", 1);
   if (currentList.needPunchCheck())
@@ -170,22 +195,82 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 			gdi.print(oe);			
 		}
     else if (bi.id=="HTML")	{
-      string file=gdi.browseForSave("Webbdokument¤*.html;*.htm", "html", index);
+      vector< pair<string, string> > ext;
+      ext.push_back(make_pair("Strukturerat webbdokument (html)", "*.html;*.htm"));
+      ext.push_back(make_pair("Formaterat webbdokument (html)", "*.html;*.htm"));
+
+      string file=gdi.browseForSave(ext, "html", index);
 
       if(!file.empty()) {
-        gdi.writeTableHTML(file, oe->getName());
+        if (index == 1)
+          gdi.writeTableHTML(file, oe->getName());
+        else {
+          assert(index == 2);
+          gdi.writeHTML(file, oe->getName());
+        }
         gdi.openDoc(file.c_str());
       }
 		}
-    else if (bi.id == "Window") {
-      gdioutput *gdi_new = createExtraWindow(MakeDash("MeOS -" + currentList.getName()), gdi.getWidth() + 64 + gdi.scaleLength(120));
-      if (gdi_new) {
-        TabList &tl = dynamic_cast<TabList &>(*gdi_new->getTabs().get(TListTab));
-        tl.currentList = currentList;
-        tl.SelectedList = SelectedList;
-        tl.ownWindow = true;
-        tl.loadPage(*gdi_new);
+    else if (bi.id == "Window" || bi.id == "AutoScroll" || bi.id == "FullScreen") {  
+      gdioutput *gdi_new;
+      TabList *tl_new = this;
+      if (!ownWindow) {
+        gdi_new = createExtraWindow(MakeDash("MeOS -" + currentList.getName()), gdi.getWidth() + 64 + gdi.scaleLength(120));
+        if (gdi_new) {
+          TabList &tl = dynamic_cast<TabList &>(*gdi_new->getTabs().get(TListTab));
+          tl.currentList = currentList;
+          tl.SelectedList = SelectedList;
+          tl.ownWindow = true;
+          tl.loadPage(*gdi_new);
+          tl_new = &tl;
+        }
       }
+      else
+        gdi_new = &gdi;
+
+      if (gdi_new && bi.id == "AutoScroll" || bi.id == "FullScreen") {
+        tl_new->hideButtons = true;
+        
+        gdi_new->alert("help:fullscreen"); 
+        
+        if (bi.id == "FullScreen")
+          gdi_new->setFullScreen(true);
+
+        int h = gdi_new->setHighContrastMaxWidth();
+        tl_new->loadPage(*gdi_new);
+        double sec = 6.0;
+        double delta = h * 30. / (1000. * sec);
+        gdi_new->setAutoScroll(delta);
+      }
+    }
+    else if (bi.id == "Remember") {
+      oListParam &par = currentList.getParam();
+      string baseName = par.getDefaultName();
+      baseName = oe->getListContainer().makeUniqueParamName(baseName);
+      par.setName(baseName);
+      oe->synchronize(false);
+      oe->getListContainer().addListParam(currentList.getParam());
+      oe->synchronize(true);
+      gdi.removeControl(bi.id);
+    }
+    else if (bi.id == "ShowSaved") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("SavedInstance", &lbi)) {
+        oListParam &par = oe->getListContainer().getParam(lbi.data);
+        
+        oe->generateListInfo(par, gdi.getLineHeight(), currentList);
+        generateList(gdi);
+      }    
+    }
+    else if (bi.id == "RemoveSaved") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("SavedInstance", &lbi)) {
+        oe->synchronize(false);
+        oe->getListContainer().removeParam(lbi.data);
+        oe->synchronize(true);
+        loadPage(gdi);
+      }
+      return 0;
     }
     else if (bi.id == "Automatic") {
       PrintResultMachine prm(60*10, currentList);
@@ -267,6 +352,14 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       }
       else
         loadGeneralList(gdi);
+    }
+    else if (bi.id == "EditList") {
+      if (!listEditor)
+        listEditor = new ListEditor(oe);
+
+      gdi.clearPage(false);
+      listEditor->show(gdi);
+      gdi.refresh();
     }
     else if (bi.id=="ResultIndividual") {
       oe->sanityCheck(gdi, true);
@@ -351,7 +444,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       generateList(gdi);
       gdi.refresh();
     }
-		else if (bi.id=="PreReport") {
+    else if (bi.id=="PreReport") {
 			SelectedList=bi.id;
 			gdi.clearPage(false);
 			oe->generatePreReport(gdi);
@@ -654,8 +747,50 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
                     ListsCB, "Skriv ut listan.", true, false);
       gdi.refresh();
 		}
-		else if (bi.id=="ResultListFT_ONATT") {
-			string file=gdi.browseForSave("Webbdokument¤*.txt;*.csv", "txt", index);
+    else if (bi.id.substr(0, 7) == "Result:") {
+      oe->sanityCheck(gdi, true);
+      oListParam par;
+      par.listCode = oe->getListContainer().getType(bi.id.substr(7));
+      par.pageBreak = gdi.isChecked("PageBreak");
+      par.splitAnalysis = gdi.isChecked("SplitAnalysis");
+      par.legNumber = -1;
+      ClassConfigInfo cnf;
+      oe->getClassConfigurationInfo(cnf);
+      cnf.getIndividual(par.selection);
+      cnf.getPatrol(par.selection);
+      oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
+      currentList.setCallback(openRunnerTeamCB);
+      generateList(gdi);
+      gdi.refresh();
+    }
+    else if (bi.id == "CustomList") {
+      oe->sanityCheck(gdi, true);
+      oListParam par;
+      int index = bi.getExtraInt();
+      par.listCode = oe->getListContainer().getType(index);
+      par.pageBreak = gdi.isChecked("PageBreak");
+      par.splitAnalysis = gdi.isChecked("SplitAnalysis");
+      par.legNumber = -1;
+      ClassConfigInfo cnf;
+      oe->getClassConfigurationInfo(cnf);
+      
+      oListInfo::EBaseType type = oe->getListContainer().getList(index).getListType();
+      if (oListInfo::addRunners(type))
+        cnf.getIndividual(par.selection);
+      if (oListInfo::addPatrols(type))
+        cnf.getPatrol(par.selection);
+      if (oListInfo::addTeams(type))
+        cnf.getTeamClass(par.selection);
+
+      oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
+      currentList.setCallback(openRunnerTeamCB);
+      generateList(gdi);
+      gdi.refresh();
+    }
+		else if (bi.id == "ResultListFT_ONATT") {
+      vector< pair<string, string> > ext;
+      ext.push_back(make_pair("Semikolonseparerad", "*.csv;*.txt"));
+			string file=gdi.browseForSave(ext, "txt", index);
       throw std::exception("Not implemented");
 		}
     else if (bi.id == "SplitAnalysis") {
@@ -905,6 +1040,7 @@ void checkWidth(gdioutput &gdi) {
 bool TabList::loadPage(gdioutput &gdi)
 {
   oe->checkDB();
+  oe->synchronize();
 	gdi.selectTab(tabId);
 
 	gdi.clearPage(false);
@@ -918,6 +1054,10 @@ bool TabList::loadPage(gdioutput &gdi)
     return 0;
   }
 
+  // Make sure all lists are loaded
+  oListInfo li;
+  oe->getListType(EStdNone, li);
+    
   gdi.addString("", boldLarge, "Listor och sammanställningar");
 
   gdi.addString("", 10, "help:30750");
@@ -966,15 +1106,21 @@ bool TabList::loadPage(gdioutput &gdi)
     gdi.popX();
     gdi.addString("", 1, "Resultatlistor");
     gdi.fillRight();
-//    gdi.addButton("ResultIndividual", "Individuell", ListsCB);
-//    gdi.addButton("TeamResults", "Stafett", ListsCB);
-  
+
     if (cnf.hasIndividual()) {
 	    gdi.addButton("ResultIndividual", "Individuell", ListsCB);
       checkWidth(gdi);
       gdi.addButton("ResultClub", "Klubbresultat", ListsCB);
       checkWidth(gdi);
       gdi.addButton("ResultIndSplit", "Sträcktider", ListsCB);
+
+      if (cnf.isMultiStageEvent()) {
+        checkWidth(gdi);
+        gdi.addButton("Result:stageresult", "Etappresultat", ListsCB);
+
+        checkWidth(gdi);
+        gdi.addButton("Result:finalresult", "Slutresultat", ListsCB);
+      }
     }
     bool hasMulti = false;
     for (size_t k = 0; k<cnf.raceNStart.size(); k++) {
@@ -1015,6 +1161,43 @@ bool TabList::loadPage(gdioutput &gdi)
 	  gdi.fillDown();	
     gdi.popX();
     gdi.dropLine(3);
+  }
+
+  MetaListContainer &lc = oe->getListContainer();
+  int numExt = lc.getNumLists(MetaListContainer::ExternalList); 
+  if (numExt) {
+    gdi.addString("", 1, "Egna listor");
+
+	  gdi.fillRight();
+	  gdi.pushX();
+
+    for (int k = 0; k < lc.getNumLists(); k++) {
+      if (lc.isExternal(k)) {
+        MetaList &mc = lc.getList(k);
+        checkWidth(gdi);
+        gdi.addButton("CustomList", mc.getListName(), ListsCB).setExtra(k);
+      }
+    }
+    gdi.popX();
+    gdi.dropLine(3);
+    gdi.fillDown();	
+  }
+
+  vector< pair<string, size_t> > savedParams;
+  lc.getListParam(savedParams);
+  if (savedParams.size() > 0) {
+    gdi.addString("", 1, "Sparade listval");
+	  gdi.fillRight();
+	  gdi.pushX();
+
+    gdi.addSelection("SavedInstance", 250, 200, 0);
+    gdi.addItem("SavedInstance", savedParams);
+    gdi.selectFirstItem("SavedInstance");
+    gdi.addButton("ShowSaved", "Visa", ListsCB);
+    gdi.addButton("RemoveSaved", "Ta bort", ListsCB);
+    gdi.popX();
+    gdi.dropLine(3);
+    gdi.fillDown();	
   }
 
   gdi.addString("", 1, "Rapporter");
@@ -1062,6 +1245,7 @@ bool TabList::loadPage(gdioutput &gdi)
 	gdi.dropLine(3);
 
   gdi.addButton("GeneralList", "Alla listor...", ListsCB);
+  gdi.addButton("EditList", "Redigera lista", ListsCB);
 
 	//gdi.registerEvent("DataUpdate", ListsEventCB);	
 	gdi.refresh();

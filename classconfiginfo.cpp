@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ void ClassConfigInfo::clear() {
   rogainingClasses.clear();
   timeStart.clear();
   hasMultiCourse = false;
+  hasMultiEvent = false;
   hasRentedCard = false;
   classWithoutCourse.clear();
 
@@ -110,6 +111,10 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 {
   oClassList::const_iterator it;	
   cnf.clear();
+
+  cnf.hasMultiEvent = !getDCI().getString("PreEvent").empty() ||
+                      !getDCI().getString("PostEvent").empty();
+  
 	for (it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
       continue;

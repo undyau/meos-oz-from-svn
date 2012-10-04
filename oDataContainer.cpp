@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +28,8 @@
 #include "xmlparser.h"
 #include "Table.h"
 #include "meos_util.h"
+#include "Localizer.h"
+#include "meosException.h"
 
 oDataContainer::oDataContainer(int maxsize)
 {
@@ -39,10 +41,22 @@ oDataContainer::~oDataContainer(void)
 {
 }
 
+oDataInfo::oDataInfo() {
+  memset(Name, 0, sizeof(Name));
+	Index = 0;
+	Size = 0;
+	Type = 0;
+	SubType = 0;
+  tableIndex = 0;
+  memset(Description, 0, sizeof(Description));
+}
+
+oDataInfo::~oDataInfo() {
+}
+
 void oDataContainer::addVariableInt(const char *name, oIntSize isize, const char *description)
 {
 	oDataInfo odi;
-	memset(&odi, 0, sizeof(odi));
 	odi.Index=DataPointer;	
 	strcpy_s(odi.Name, name);
   strcpy_s(odi.Description, description);
@@ -63,15 +77,15 @@ void oDataContainer::addVariableInt(const char *name, oIntSize isize, const char
     throw std::exception("oDataContainer: Out of bounds.");
 }
 
-void oDataContainer::addVariableString(const char *name, int MaxChar, const char *descr)
+void oDataContainer::addVariableString(const char *name, int maxChar, const char *descr)
 {
 	oDataInfo odi;
-	memset(&odi, 0, sizeof(odi));
-	odi.Index=DataPointer;	
+	odi.Index = DataPointer;	
 	strcpy_s(odi.Name,name);
   strcpy_s(odi.Description,descr);
-	odi.Size=MaxChar+1;
-	odi.Type=oDTString;
+	odi.Size = maxChar+1;
+	odi.Type = oDTString;
+  odi.SubType = oSSString;
 
 	if(DataPointer+odi.Size<=DataMaxSize){
 		DataPointer+=odi.Size;
@@ -79,6 +93,15 @@ void oDataContainer::addVariableString(const char *name, int MaxChar, const char
 	}
   else 
     throw std::exception("oDataContainer: Out of bounds.");
+}
+
+void oDataContainer::addVariableEnum(const char *name, int maxChar, const char *descr, 
+                     const vector< pair<string, string> > enumValues) {
+  addVariableString(name, maxChar, descr);
+  oDataInfo &odi = Index[name];
+  odi.SubType = oSSEnum;
+  for (size_t k = 0; k<enumValues.size(); k++)
+    odi.enumDescription.push_back(enumValues[k]);
 }
 
 void oDataContainer::addVariable(oDataInfo &odi)
@@ -103,21 +126,14 @@ oDataInfo *oDataContainer::findVariable(const char *Name)
 
 const oDataInfo *oDataContainer::findVariable(const char *Name) const
 {
+  if (Name == 0)
+    return 0;
   map<string, oDataInfo>::const_iterator it=Index.find(Name);
 
   if(it==Index.end())
     return 0;
   else return &(it->second);
-/*	list<oDataInfo>::iterator it;
 
-	it=Index.begin();
-
-	while(it!=Index.end()){
-		if(strcmp(Name, it->Name)==0)
-			return &*it;
-		++it;
-	}
-*/
 	return 0;
 }
 
@@ -303,10 +319,16 @@ bool oDataContainer::write(const void *data, xmlparser &xml) const
     const oDataInfo &di=it->second;
     if(di.Type==oDTInt){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
-      if (di.SubType != oIS64) 
-			  xml.write(di.Name, *((int *)vd));
-      else 
-        xml.write64(di.Name, *((__int64 *)vd));
+      if (di.SubType != oIS64) {
+        int nr;
+        memcpy(&nr, vd, sizeof(int));
+			  xml.write(di.Name, nr);
+      }
+      else {
+        __int64 nr;
+        memcpy(&nr, vd, sizeof(__int64));
+        xml.write64(di.Name, nr);
+      }
 		}
 		else if(di.Type==oDTString){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
@@ -364,7 +386,7 @@ void oDataContainer::buildDataFields(gdioutput &gdi, const vector<string> &field
 		string Id=di.Name+string("_odc");
 
 		if(di.Type==oDTInt){
-      if (di.SubType == oISDate)
+      if (di.SubType == oISDate || di.SubType == oISTime)
         gdi.addInput(Id, "", 10, 0, string(di.Description) + ":");
       else
         gdi.addInput(Id, "", 6, 0, string(di.Description) + ":");
@@ -384,7 +406,9 @@ int oDataContainer::getDataAmountMeasure(const void *data) const
     const oDataInfo &di=it->second;
 		if (di.Type==oDTInt) {
     	LPBYTE vd=LPBYTE(data)+di.Index;				    
-			if (*((int *)vd)!=0)
+			int nr;
+      memcpy(&nr, vd, sizeof(int));
+      if (nr != 0)
         amount++;
 		}
 		else if (di.Type==oDTString) {
@@ -408,11 +432,25 @@ void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput
 		string Id=di.Name+string("_odc");
 		if(di.Type==oDTInt){
 			LPBYTE vd=LPBYTE(data)+di.Index;
-      int nr = *((int *)vd);
-      if (di.SubType == oISCurrency) {
-        gdi.setText(Id.c_str(), ob->getEvent()->formatCurrency(nr));
+      
+      if (di.SubType != oIS64) {
+        int nr;
+        memcpy(&nr, vd, sizeof(int));
+        if (di.SubType == oISCurrency) {
+          gdi.setText(Id.c_str(), ob->getEvent()->formatCurrency(nr));
+        }
+        else {
+          char bf[64];
+          formatNumber(nr, di, bf);
+          gdi.setText(Id.c_str(), bf);        
+        }
       }
-      else if (di.SubType != oISDate)
+      else {
+        __int64 nr;
+        memcpy(&nr, vd, sizeof(__int64));
+        gdi.setText(Id.c_str(), itos(nr));
+      }
+      /*if (di.SubType != oISDate)
         gdi.setText(Id.c_str(), nr);
       else {
         if (nr>0) {
@@ -423,7 +461,7 @@ void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput
         else {
           gdi.setText(Id.c_str(), "-");
         }
-      }
+      }*/
 		}
 		else if(di.Type==oDTString){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
@@ -455,6 +493,9 @@ bool oDataContainer::saveDataFields(const oBase *ob, void *data, gdioutput &gdi)
       }
       else if (di.SubType == oISDate) {
         no = convertDateYMS(gdi.getText(Id.c_str()));
+      }
+      else if (di.SubType == oISTime) {
+        no = convertAbsoluteTimeHMS(gdi.getText(Id.c_str()));
       }
       else {
         no = gdi.getTextNo(Id.c_str());
@@ -538,7 +579,7 @@ string oDataContainer::generateSQLDefinition() const
 	while (it!=Index.end()) {		
     const oDataInfo &di=it->second;
 		if(di.Type==oDTInt){
-      if(di.SubType==oIS32 || di.SubType==oISDate || di.SubType==oISCurrency)
+      if(di.SubType==oIS32 || di.SubType==oISDate || di.SubType==oISCurrency || di.SubType==oISTime)
 				sql+=C_INT(it->first);
 			else if(di.SubType==oIS16)
 				sql+=C_SMALLINT(it->first);
@@ -709,17 +750,58 @@ void oDataContainer::buildTableCol(Table *table)
 
 		if(di.Type==oDTInt){
       bool right = di.SubType == oISCurrency;
-      bool numeric = di.SubType != oISDate;
+      bool numeric = di.SubType != oISDate && di.SubType != oISTime;
       di.tableIndex = table->addColumn(di.Description, max(int(strlen(di.Description))*6, 70), numeric, right);
 		}
 		else if(di.Type==oDTString){
-      di.tableIndex = table->addColumn(di.Description, max(max(di.Size+1, int(strlen(di.Description)))*6, 70), false);
+      int w = max(max(di.Size+1, int(strlen(di.Description)))*6, 70);
+
+      for (size_t k = 0; k < di.enumDescription.size(); k++)
+        w = max<int>(w, lang.tl(di.enumDescription[k].second).length() * 6);
+
+      di.tableIndex = table->addColumn(di.Description, w, false);
 		}
 		++it;
 	}
 }
 
-int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &table) const
+bool oDataContainer::formatNumber(int nr, const oDataInfo &di, char bf[64]) const {
+  if (di.SubType == oISDate) {
+    if (nr>0) {
+      sprintf_s(bf, 64, "%d-%02d-%02d", nr/(100*100), (nr/100)%100, nr%100);
+    }
+    else {
+      bf[0] = '-';
+      bf[1] = 0;
+    }
+    return true;
+  }
+  else if (di.SubType == oISTime) {
+    if (nr>0 && nr<(30*24*3600)) {
+      if (nr < 24*3600)
+        sprintf_s(bf, 64, "%02d:%02d:%02d", nr/3600, (nr/60)%60, nr%60);
+      else {
+        int days = nr / (24*3600);
+        nr = nr % (24*3600);
+        sprintf_s(bf, 64, "%d+%02d:%02d:%02d", days, nr/3600, (nr/60)%60, nr%60);
+      }
+    }
+    else {
+      bf[0] = '-';
+      bf[1] = 0;
+    }
+    return true;
+  }
+  else {
+    if(nr) 
+      sprintf_s(bf, 64, "%d", nr);
+    else 
+      bf[0] = 0;
+    return true;
+  }
+}
+
+int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &table, bool canEdit) const
 {
 	map<string, oDataInfo>::const_iterator it;
   int nextIndex = 0;
@@ -728,35 +810,40 @@ int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &ta
 	oBase &ob = *(oBase *)&owner;
   while(it!=Index.end()){
     const oDataInfo &di=it->second;
-		//string Id=di.Name+string("_odc");
 		if (di.Type==oDTInt) {
 			LPBYTE vd=LPBYTE(data)+di.Index;
-      int &nr=*((int *)vd);
-      if (di.SubType == oISCurrency) {
-        table.set(di.tableIndex, ob, 1000+di.tableIndex, ob.getEvent()->formatCurrency(nr), true);
-      }
-      else if (di.SubType == oISDate) {
-        if (nr>0) {
-          sprintf_s(bf, "%d-%02d-%02d", nr/(100*100), (nr/100)%100, nr%100);
+      if (di.SubType != oIS64) {
+        int nr;
+        memcpy(&nr, vd, sizeof(int));
+        if (di.SubType == oISCurrency) {
+          table.set(di.tableIndex, ob, 1000+di.tableIndex, ob.getEvent()->formatCurrency(nr), canEdit);
         }
         else {
-          bf[0] = '-';
-          bf[1] = 0;
+          formatNumber(nr, di, bf);
+          table.set(di.tableIndex, ob, 1000+di.tableIndex, bf, canEdit);
         }
-        table.set(di.tableIndex, ob, 1000+di.tableIndex, bf, true);
       }
       else {
-        if(nr) 
-          sprintf_s(bf, "%d", nr);
-        else 
-          bf[0] = 0;
-        table.set(di.tableIndex, ob, 1000+di.tableIndex, bf, true);
+        __int64 nr;
+        memcpy(&nr, vd, sizeof(__int64));
+        table.set(di.tableIndex, ob, 1000+di.tableIndex, itos(nr), canEdit);
       }
 		}
 		else if (di.Type==oDTString) {
-			LPBYTE vd=LPBYTE(data)+di.Index;	
-      table.set(di.tableIndex, *((oBase*)&owner), 1000+di.tableIndex, (char *)vd, true);
-       
+			LPBYTE vd=LPBYTE(data)+di.Index;
+      if (di.SubType == oSSString || !canEdit) {
+        table.set(di.tableIndex, *((oBase*)&owner), 1000+di.tableIndex, (char *)vd, canEdit, cellEdit);
+      }
+      else {
+        string str((char *)vd);
+        for (size_t k = 0; k<di.enumDescription.size(); k++) {
+          if ( str == di.enumDescription[k].first ) {
+            str = lang.tl(di.enumDescription[k].second);
+            break;
+          }
+        }
+        table.set(di.tableIndex, *((oBase*)&owner), 1000+di.tableIndex, str, true, cellSelection);
+      }
 		}
     nextIndex = di.tableIndex + 1;   
 		++it;
@@ -764,7 +851,9 @@ int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &ta
   return nextIndex;
 }
 
-bool oDataContainer::inputData(oBase *ob, void *data, int id, const string &input, string &output, bool noUpdate)
+bool oDataContainer::inputData(oBase *ob, void *data, int id, 
+                               const string &input, int inputId, 
+                               string &output, bool noUpdate)
 {
   map<string, oDataInfo>::iterator it;
   it=Index.begin();
@@ -774,24 +863,86 @@ bool oDataContainer::inputData(oBase *ob, void *data, int id, const string &inpu
 
     if (di.tableIndex+1000==id) {
 		  if (di.Type==oDTInt) {
-			  LPBYTE vd=LPBYTE(data)+di.Index;
-        int k = *((int *)vd);
-        *((int *)vd)=atoi(input.c_str());
-        char bf[128];
-        int nr = *((int *)vd);
-        if (nr > 0)
-          sprintf_s(bf, "%d",  nr);
+        LPBYTE vd=LPBYTE(data)+di.Index;
+        
+        int no = 0;
+        if (di.SubType == oISCurrency) {
+          no = ob->getEvent()->interpretCurrency(input);
+        }
+        else if (di.SubType == oISDate) {
+          no = convertDateYMS(input);
+        }
+        else if (di.SubType == oISTime) {
+          no = convertAbsoluteTimeHMS(input);
+        }
+        else if (di.SubType == oIS64) {
+          __int64 no64 = _atoi64(input.c_str());
+          __int64 k64;
+          memcpy(&k64, vd, sizeof(__int64));
+          memcpy(vd, &no64, sizeof(__int64));
+          __int64 out64 = no64;
+          if (k64 != no64) {
+            ob->updateChanged();
+            if (noUpdate == false)
+              ob->synchronize(true);
+
+            memcpy(&out64, vd, sizeof(__int64));
+          }
+          output = itos(out64);
+          return k64 != no64;
+        }
         else
-          bf[0] = 0;
+          no = atoi(input.c_str());
+
+			  int k;
+        memcpy(&k, vd, sizeof(int));
+        memcpy(vd, &no, sizeof(int));
+        char bf[128];
+        int outN = no;
+
+        if (k != no) {
+          ob->updateChanged();
+          if (noUpdate == false)
+            ob->synchronize(true);
+
+          memcpy(&outN, vd, sizeof(int));
+        }
+
+        formatNumber(outN, di, bf);
         output = bf;
-        return k!=*((int *)vd);
+        return k != no;
       }
 		  else if (di.Type==oDTString) {
 			  LPBYTE vd=LPBYTE(data)+di.Index;	
+        const char *str = input.c_str();
         
-        if (strcmp((char *)vd, input.c_str())!=0) {
-		      strncpy_s((char *)vd, di.Size, input.c_str(), di.Size-1);
-		      output=(char *)vd;
+        if (di.SubType == oSSEnum) {
+          size_t ix = inputId-1;
+          if (ix < di.enumDescription.size()) {
+            str = di.enumDescription[ix].first.c_str();
+          }
+        }
+
+        if (strcmp((char *)vd, str)!=0) {
+		      strncpy_s((char *)vd, di.Size, str, di.Size-1);
+		      
+          ob->updateChanged();
+          if (noUpdate == false)
+            ob->synchronize(true);
+
+          if (di.SubType == oSSEnum) {
+            size_t ix = inputId-1;
+            if (ix < di.enumDescription.size()) {
+              output = lang.tl(di.enumDescription[ix].second); 
+              // This might be incorrect if data was changed on server,
+              // but this issue is minor, I think: conflicts have no resolution
+              // Anyway, the row will typically be reloaded
+            }
+            else
+              output=(char *)vd;
+          }
+          else
+            output=(char *)vd;
           return true;
         }
         else 
@@ -803,4 +954,48 @@ bool oDataContainer::inputData(oBase *ob, void *data, int id, const string &inpu
 		++it;
 	}
   return true;
+}
+
+void oDataContainer::fillInput(const void *data, int id, const char *name, 
+                               vector< pair<string, size_t> > &out, size_t &selected) const {
+
+
+  map<string, oDataInfo>::const_iterator it;
+  it = Index.begin();
+  const oDataInfo * info = findVariable(name);
+  
+  if (!info) {
+	  while (it!=Index.end()) {
+      const oDataInfo &di=it->second;
+      if (di.tableIndex+1000==id && di.Type == oDTString && di.SubType == oSSEnum) {
+        info = &di;
+        break;
+      }
+      ++it;
+    }
+  }
+
+  if (info && info->Type == oDTString && info->SubType == oSSEnum) {
+    char *vd = (char *)(LPBYTE(data)+info->Index);	
+          
+    selected = -1;
+    for (size_t k = 0; k < info->enumDescription.size(); ++k) {
+      out.push_back(make_pair(lang.tl(info->enumDescription[k].second), k+1));
+      if (info->enumDescription[k].first == string(vd))
+        selected = k+1;
+    }
+  }
+  else
+    throw meosException("Invalid enum");
+}
+
+bool oDataContainer::setEnum(void *data, const char *name, int selectedIndex) {
+  const oDataInfo * info = findVariable(name);
+  
+  if (info  && info->Type == oDTString && info->SubType == oSSEnum) {
+    if (size_t(selectedIndex - 1) < info->enumDescription.size()) {
+      return setString(data, name, info->enumDescription[selectedIndex-1].first);
+    }
+  }
+  throw meosException("Invalid enum");
 }

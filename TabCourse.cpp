@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@
 #include "gdioutput.h"
 #include "csvparser.h"
 #include "SportIdent.h"
+#include "gdifonts.h"
 
 #include "TabCourse.h"
 #include "TabCompetition.h"
@@ -169,46 +170,67 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
 			save(gdi);
 		}
     else if (bi.id=="BrowseCourse") {
-      string file=gdi.browseForOpen("OCAD, banexport¤*.csv;*.txt;*.xml¤", "csv");
+      vector< pair<string, string> > ext;
+      ext.push_back(make_pair("Alla banfiler", "*.xml;*.csv;*.txt"));
+      ext.push_back(make_pair("Banor, OCAD semikolonseparerat", "*.csv;*.txt"));
+      ext.push_back(make_pair("Banor, IOF (xml)", "*.xml"));
+
+      string file=gdi.browseForOpen(ext, "csv");
 
 			if(file.length()>0)
 				gdi.setText("FileName", file);
 		}
   	else if (bi.id=="ImportCourses")	{
-			gdi.clearPage(true);
-			gdi.addString("", 2, "Importera banor/klasser");
-			gdi.addString("", 0, "help:importcourse");
-			gdi.dropLine();
-
-			gdi.fillRight();
-			gdi.pushX();
-			gdi.addInput("FileName", "", 32, 0, "Filnamn");
-			gdi.dropLine();
-			gdi.fillDown();
-			gdi.addButton("BrowseCourse", "Bläddra...", CourseCB);
-			
-			gdi.popX();
-			gdi.pushX();
-			gdi.dropLine();
-			gdi.fillRight();
-			gdi.addButton("DoImportCourse", "Importera", CourseCB);
-			gdi.fillDown();					
-      gdi.addButton("Cancel", "Avbryt", CourseCB);
-			gdi.popX();
+      setupCourseImport(gdi, CourseCB);
 		}
 		else if (bi.id=="DoImportCourse") {
-			gdi.disableInput("DoImportCourses");
+      string filename = gdi.getText("FileName");
+      if (filename.empty())
+        return 0;
+      gdi.disableInput("DoImportCourse");
 			gdi.disableInput("Cancel");
-			gdi.disableInput("BrowseCourses");
+			gdi.disableInput("BrowseCourse");
+      gdi.disableInput("AddClasses");
 
-      runCourseImport(gdi, gdi.getText("FileName"), oe);
-
-			gdi.addButton("Cancel", "OK", CourseCB);			
+      try {
+        TabCourse::runCourseImport(gdi, filename, oe, gdi.isChecked("AddClasses"));
+      }
+      catch (std::exception &) {
+        gdi.enableInput("DoImportCourse");
+			  gdi.enableInput("Cancel");
+			  gdi.enableInput("BrowseCourse");
+        gdi.enableInput("AddClasses");
+        throw;
+      }
+			gdi.addButton("Cancel", "OK", CourseCB);
+      gdi.dropLine();
+      gdi.refresh();
     }  
 		else if(bi.id=="Add") {
-      if (courseId>0)
+      if (courseId>0) {
+        string ctrl = gdi.getText("Controls");
+        string name = gdi.getText("Name");
+        pCourse pc = oe->getCourse(courseId);
+        if (pc && !name.empty() && !ctrl.empty() &&  pc->getControlsUI() != ctrl) {
+          if (name == pc->getName()) {
+            // Make name unique if same name
+            int len = name.length();
+            if (len > 2 && (isdigit(name[len-1]) || isdigit(name[len-2]))) {
+              ++name[len-1]; // course 1 ->  course 2, course 1a -> course 1b
+            }
+            else
+              name += " 2";
+          }
+          if (gdi.ask("Vill du lägga till banan 'X' (Y)?#" + name + "#" + ctrl)) {
+            pc = oe->addCourse(name);
+            courseId = pc->getId();
+            gdi.setText("Name", name);
+            save(gdi);
+            return true;
+          }
+        }
         save(gdi);
-
+      }
       pCourse pc = oe->addCourse(oe->getAutoCourseName());
       pc->synchronize();
 			oe->fillCourses(gdi, "Courses");
@@ -315,7 +337,7 @@ bool TabCourse::loadPage(gdioutput &gdi)
 	oe->fillCourses(gdi, "Courses");
 
   gdi.dropLine(1);
-  gdi.addButton("ImportCourses", "Importera från OCAD...", CourseCB);
+  gdi.addButton("ImportCourses", "Importera från fil...", CourseCB);
 
 	gdi.newColumn();
 	gdi.fillDown();
@@ -347,9 +369,9 @@ bool TabCourse::loadPage(gdioutput &gdi)
   gdi.dropLine(0.5);
   gdi.fillRight();
   gdi.addSelection("Rogaining", 120, 80, CourseCB);
-  gdi.addItem("Rogaining", "Ingen rogaining", 0);
-  gdi.addItem("Rogaining", "Tidsgräns", 1);
-  gdi.addItem("Rogaining", "Poänggräns", 2);
+  gdi.addItem("Rogaining", lang.tl("Ingen rogaining"), 0);
+  gdi.addItem("Rogaining", lang.tl("Tidsgräns"), 1);
+  gdi.addItem("Rogaining", lang.tl("Poänggräns"), 2);
   
   gdi.setCX(gdi.getCX()+gdi.scaleLength(20));
   gdi.dropLine(-0.8);
@@ -380,4 +402,59 @@ bool TabCourse::loadPage(gdioutput &gdi)
 	gdi.refresh();
 
   return true;
+}
+
+void TabCourse::runCourseImport(gdioutput& gdi, const string &filename, 
+                                oEvent *oe, bool addClasses) {
+	csvparser csv;
+  if (csv.iscsv(filename.c_str())) {
+    gdi.fillRight();
+    gdi.pushX();
+	  gdi.addString("", 0, "Importerar OCAD csv-fil...");
+	  gdi.refreshFast();
+		
+	  if(csv.ImportOCAD_CSV(*oe, filename.c_str(), addClasses)) {
+      gdi.addString("", 1, "Klart.").setColor(colorGreen);
+	  }
+    else gdi.addString("", 0, "Operationen misslyckades.").setColor(colorRed);
+    gdi.popX();
+    gdi.dropLine(2.5);
+    gdi.fillDown();
+  }
+  else {
+    oe->importXML_EntryData(gdi, filename.c_str(), addClasses);
+  }
+
+  gdi.setWindowTitle(oe->getTitleName());
+  oe->updateTabs();
+	gdi.refresh();
+}
+
+void TabCourse::setupCourseImport(gdioutput& gdi, GUICALLBACK cb) {
+
+	gdi.clearPage(true);
+	gdi.addString("", 2, "Importera banor/klasser");
+	gdi.addString("", 0, "help:importcourse");
+	gdi.dropLine();
+
+	gdi.fillRight();
+	gdi.pushX();
+  gdi.addInput("FileName", "", 32, 0, "Filnamn:");
+	gdi.dropLine();
+	gdi.fillDown();
+	gdi.addButton("BrowseCourse", "Bläddra...", CourseCB);
+	
+  gdi.dropLine(0.5);
+	gdi.popX();
+	
+  gdi.fillDown();
+  gdi.addCheckbox("AddClasses", "Lägg till klasser", 0, true);
+
+	gdi.dropLine();
+	gdi.fillRight();
+  gdi.addButton("DoImportCourse", "Importera", cb).setDefault();
+	gdi.fillDown();					
+  gdi.addButton("Cancel", "Avbryt", cb).setCancel();
+  gdi.setInputFocus("FileName");
+  gdi.popX();
 }

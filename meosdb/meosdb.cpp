@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,7 +25,12 @@
 //
 
 #include "stdafx.h"
-#include "meosdb.h"
+
+#ifdef c
+  #include "meosdb.h"
+#else
+  #define MEOSDB_API
+#endif
 
 #include <mysql++.h>
 
@@ -47,8 +52,10 @@ using namespace std;
 
 #include <typeinfo.h>
 
-HINSTANCE hInst=0;
-Localizer lang;
+#ifdef BUILD_DB_DLL
+  HINSTANCE hInst=0;
+  Localizer lang;
+#endif
 
 extern "C"{
 
@@ -203,6 +210,8 @@ bool MEOSDB_API msReConnect()
 
 } //Extern "C"
 
+#ifdef BUILD_DB_DLL
+
 bool getUserFile(char *file, const char *in)
 {
 	throw 0;
@@ -227,3 +236,5 @@ int __cdecl GetRandomNumber(int)
 	throw 0;
 	return 0;
 }
+
+#endif

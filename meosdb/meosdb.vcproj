@@ -233,6 +233,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\metalist.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\mysqldaemon.cpp"
 				>
 			</File>

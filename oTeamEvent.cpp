@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -189,16 +189,17 @@ bool oEvent::writeTeams(xmlparser &xml)
 	return true;
 }
 
-pTeam oEvent::findTeam(const string &s, int lastId) const
+pTeam oEvent::findTeam(const string &s, int lastId, stdext::hash_set<int> &filter) const
 {
-  int len=s.length();
+  string trm = trim(s);
+  int len = trm.length();
+  char s_lc[1024];
+  strcpy_s(s_lc, trm.c_str());
+  CharLowerBuff(s_lc, len);
 
-  if(!len)
-    return 0;
-
-  int sn=atoi(s.c_str());
+  int sn = atoi(s.c_str());
   oTeamList::const_iterator it;
-
+/*
   if (sn>0) {  
     for (it=Teams.begin(); it != Teams.end(); ++it) {
       if (it->skip())
@@ -212,50 +213,62 @@ pTeam oEvent::findTeam(const string &s, int lastId) const
           return pTeam(&*it);
     }
   }
-
+*/
   oTeamList::const_iterator itstart=Teams.begin();
 
-  char s_lc[1024];
-  strcpy_s(s_lc, s.c_str());
-  CharLowerBuff(s_lc, len);
 
-  if(lastId) 
+  if(lastId) {
     for (; itstart != Teams.end(); ++itstart) 
       if(itstart->Id==lastId) {
         ++itstart;
         break;  
       }
-  
+  }
+
+  pTeam ret = 0;
   for (it=itstart; it != Teams.end(); ++it) {
-    if (it->skip())
-      continue;
+    pTeam t = pTeam(&*it);
 
-    pTeam t=it->matchTeam(s_lc);
-    if(t) 
-      return t;
+    if (!t->skip() && t->matchTeam(sn, s_lc)) {
+      filter.insert(t->Id);
+      if (ret == 0)
+        ret = t;
+    }
   }
+
   for (it=Teams.begin(); it != itstart; ++it) {
-    if (it->skip())
-      continue;
+    pTeam t = pTeam(&*it);
 
-    pTeam t=it->matchTeam(s_lc);
-    if(t) 
-      return t;
+    if (!t->skip() && t->matchTeam(sn, s_lc)) {
+      filter.insert(t->Id);
+      if (ret == 0)
+        ret = t;
+    }  
   }
 
-  return 0;
+  return ret;
 }
 
-pTeam oTeam::matchTeam(const char *s_lc) const
+bool oTeam::matchTeam(int number, const char *s_lc) const
 {  
+  if (number) {
+    if(matchNumber(StartNo, s_lc ))
+        return true;
+
+    for(size_t k = 0; k < Runners.size(); k++) {
+      if(Runners[k] && matchNumber(Runners[k]->CardNo, s_lc))
+        return true;
+    }
+  }
+
   if(filterMatchString(Name, s_lc))
-    return pTeam(this);
+    return true;
 
   for(size_t k=0;k<Runners.size();k++)
     if(Runners[k] && filterMatchString(Runners[k]->Name, s_lc))
-      return pTeam(this);
+      return true;
 
-  return 0;
+  return false;
 }
 
 
@@ -265,6 +278,7 @@ void oEvent::fillPredefinedCmp(gdioutput &gdi, const string &name)
   gdi.clearList(name);
   gdi.addItem(name, lang.tl("Endast en bana"), PNoMulti);
   gdi.addItem(name, lang.tl("Utan inställningar"), PNoSettings);
+  gdi.addItem(name, lang.tl("En gafflad sträcka"), PForking);
   gdi.addItem(name, lang.tl("Banpool, gemensam start"), PPool);
   gdi.addItem(name, lang.tl("Banpool, lottad startlista"), PPoolDrawn);
   gdi.addItem(name, lang.tl("Prolog + jaktstart"), PHunting);  
@@ -290,6 +304,10 @@ void oEvent::setupRelayInfo(PredefinedTypes type, bool &useNLeg, bool &useStart)
       break;
 
     case PPool:
+      useStart = true;
+      break;
+
+    case PForking:
       useStart = true;
       break;
 
@@ -350,13 +368,14 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
       break;
 
     case PPool:
+    case PForking:
       cls.setNumStages(1);
       cls.setLegType(0, LTNormal);
       cls.setStartType(0, STTime);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
-      cls.setCoursePool(true);
+      cls.setCoursePool(type == PPool);
 
       if (crs) {
         cls.addStageCourse(0, crsId);
@@ -530,7 +549,7 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
       t=convertAbsoluteTimeHMS(start)+3600;
       cls.setStartData(1, formatTimeHMS(t));
       cls.setRestartTime(1, formatTimeHMS(t+1800));
-      cls.setRopeTime(1, formatTimeHMS(t-900));
+      cls.setRopeTime(1, formatTimeHMS(t+1800));
       cls.setLegRunner(1, 0);
       cls.setCoursePool(false);
       break;

@@ -25,6 +25,8 @@
 #include "oEvent.h"
 #include <algorithm>
 #include "gdioutput.h"
+#include "gdifonts.h"
+
 #include "meos_util.h"
 
 #include "io.h"
@@ -951,7 +953,7 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
         lastType = Name;
       else lastType = Unknown;
     }
-    else if(isClass[k] && !(k = 1 && lastType == Name)) {
+    else if(isClass[k] && !(k == 1 && lastType == Name)) {
       while(k<words.size() && isClass[k])
         cls+=string(words[k])+" ", used[k]=true, k++;
       lastType = Class;
@@ -960,7 +962,7 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
       while(k<words.size() && isClub[k])
         clb+=string(words[k])+" ", used[k]=true, k++;
       if (k==words.size())
-        lastType = Club;
+      lastType = Club;
     }
     else if(isNameV[k] && allowName) {
       while(k<words.size() && isNameV[k]) {

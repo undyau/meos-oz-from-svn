@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -74,6 +74,8 @@ public:
   // a non-zero fee is changed only if resetFee is true
   void addClassDefaultFee(bool resetFees);
 
+  bool hasInputData() const {return inputTime > 0 || inputStatus != StatusOK || inputPoints > 0;}
+
   // Time
   void setInputTime(const string &time);
   string getInputTimeS() const;
@@ -106,6 +108,8 @@ public:
   virtual void fillSpeakerObject(int leg, int controlId, 
                                  oSpeakerObject &spk) const = 0;
 
+  virtual int getBirthAge() const;
+
   virtual void setName(const string &n);
 	virtual const string &getName() const {return Name;}
 
@@ -114,6 +118,12 @@ public:
 
   virtual void setStartTime(int t);
   virtual void setStartTimeS(const string &t);
+
+  const pClub getClubRef() const {return Club;}
+  pClub getClubRef() {return Club;}
+
+  const pClass getClassRef() const {return Class;}
+  pClass getClassRef() {return Class;}
 
   virtual const string &getClub() const {if(Club) return Club->name; else return _EmptyString;}
 	virtual int getClubId() const {if(Club) return Club->Id; else return 0;}
@@ -128,8 +138,8 @@ public:
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.
-  virtual int getBib() const = 0;
-  virtual void setBib(int bib, bool updateStartNo) = 0;
+  virtual string getBib() const = 0;
+  virtual void setBib(const string &bib, bool updateStartNo) = 0;
 
 	virtual int getStartTime() const {return StartTime;}
 	virtual int getFinishTime() const {return FinishTime;}
@@ -138,22 +148,38 @@ public:
   virtual string getStartTimeCompact() const;
 	virtual string getFinishTimeS() const;
 
+  virtual	string getTotalRunningTimeS() const;
   virtual	string getRunningTimeS() const;
   virtual int getRunningTime() const {return max(FinishTime-StartTime, 0);}
+
+  /// Get total running time (including earlier stages / races)
+  virtual int getTotalRunningTime() const;
 
   virtual int getPrelRunningTime() const;
 	virtual string getPrelRunningTimeS() const;
   
 	virtual string getPlaceS() const;
 	virtual string getPrintPlaceS() const;
-	virtual int getPlace() const = 0;
+
+  virtual string getTotalPlaceS() const;
+	virtual string getPrintTotalPlaceS() const;
+  
+  virtual int getPlace() const = 0;
+  virtual int getTotalPlace() const = 0;
 
   virtual RunnerStatus getStatus() const {return Status;}
   inline bool statusOK() const {return Status==StatusOK;}
 	virtual void setStatus(RunnerStatus st);
 
+  /// Get total status for this running (including team/earlier races)
+  virtual RunnerStatus getTotalStatus() const;
+
   virtual const string &getStatusS() const;
 	virtual string getIOFStatusS() const;
+
+  virtual const string &getTotalStatusS() const;
+	virtual string getIOFTotalStatusS() const;
+
 
   void setSpeakerPriority(int pri);
   virtual int getSpeakerPriority() const;
@@ -162,6 +188,39 @@ public:
   virtual ~oAbstractRunner() {};
 
   friend class oListInfo;
+};
+
+struct RunnerDBEntry;
+
+struct SplitData {
+  enum SplitStatus {OK, Missing, NoTime};
+  int time;
+  SplitStatus status;
+  SplitData() {};
+  SplitData(int t, SplitStatus s) : time(t), status(s) {};
+
+  void setPunchTime(int t) {
+    time = t;
+    status = OK;
+  }
+
+  void setPunched() {
+    time = -1;
+    status = NoTime;
+  }
+
+  void setNotPunched() {
+    time = -1;
+    status = Missing;
+  }
+
+  bool hasTime() const {
+    return time > 0 && status == OK;
+  }
+
+  bool isMissing() const {
+    return status == Missing;
+  }
 };
 
 class oRunner : public oAbstractRunner
@@ -178,6 +237,7 @@ protected:
 
   //Can be changed by apply
 	mutable int tPlace;
+  mutable int tCoursePlace;
 	mutable int tTotalPlace;
   mutable int tLeg;
 	mutable pTeam tInTeam;
@@ -196,13 +256,13 @@ protected:
 	map<int, int> Priority;
 	int cPriority;
 
-	BYTE oData[52];
+	BYTE oData[128];
   bool storeTimes(); // Returns true if best times were updated
   // Adjust times for fixed time controls
   void doAdjustTimes(pCourse course);
 
   vector<int> adjustTimes;
-  vector<int> splitTimes;
+  vector<SplitData> splitTimes;
   
   vector<int> tLegTimes;
   vector<int> tLegPlaces;
@@ -241,6 +301,8 @@ protected:
   void setupRunnerStatistics() const;
 public:
 
+  int getBirthAge() const;
+
   // Multi day data input
   void setInputData(const oRunner &source);
 
@@ -253,6 +315,13 @@ public:
   pTeam getTeam() const {return tInTeam;}
   /// Get total running time for multi/team runner at the given time
   int getTotalRunningTime(int time) const;
+  
+  // Get total running time at finish time (@override)
+  int getTotalRunningTime() const;
+
+  //Get total running time after leg 
+  int getRaceRunningTime(int leg) const;
+ 
 
   // Get the complete name, including team and club.
   string getCompleteIdentification() const;
@@ -288,6 +357,9 @@ public:
   /** Flag as temporary */
   void setTemporary() {isTemporaryObject=true;}
 
+  /** Init from dbrunner */
+  void init(const RunnerDBEntry &entry);
+
   /** Use db to pdate runner */
   bool updateFromDB(const string &name, int clubId, int classId, 
                     int cardNo, int birthYear);    
@@ -305,13 +377,13 @@ public:
   void setClub(const string &Name);
   pClub setClubId(int clubId);
 
-  int getBib() const;
+  string getBib() const;
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.
   // Need not be so for teams. Course depends on start number,
   // which should be more stable.
-  void setBib(int bib, bool updateStartNo);
+  void setBib(const string &bib, bool updateStartNo);
   void setStartNo(int no);
 
   pRunner nextNeedReadout() const;
@@ -322,6 +394,8 @@ public:
   void setFinishTime(int t);  
   int getTimeAfter(int leg) const;
   int getTimeAfter() const;
+  int getTimeAfterCourse() const;
+  
   bool skip() const {return isRemoved() || tDuplicateLeg!=0;}
 
   pRunner getMultiRunner(int race) const;
@@ -330,16 +404,15 @@ public:
   int getRaceNo() const {return tDuplicateLeg;}
   string getNameAndRace() const;
 
-  //Get total running time after leg 
-  int getRaceRunningTime(int leg) const;
- 
   void fillSpeakerObject(int leg, int controlId, 
                          oSpeakerObject &spk) const;
 
   bool needNoCard() const;
   int getPlace() const;
+  int getCoursePlace() const;
+  int getTotalPlace() const;
 
-  const vector<int> &getSplitTimes() const {return splitTimes;}
+  const vector<SplitData> &getSplitTimes() const {return splitTimes;}
 
   void getSplitAnalysis(vector<int> &deltaTimes) const;
   void getLegPlaces(vector<int> &places) const;
@@ -409,8 +482,9 @@ public:
 	oRunner(oEvent *poe);
   oRunner(oEvent *poe, int id);
 	
-  void setSex(const string &sex);
-  string getSex() const;
+  void setSex(PersonSex sex);
+  PersonSex getSex() const;
+
   void setBirthYear(int year);
   int getBirthYear() const;
   void setNationality(const string &nat);

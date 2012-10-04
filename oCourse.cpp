@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -171,8 +171,9 @@ vector<string> oCourse::getCourseReadable(int limit) const
   
   vector<pControl> rg;
   bool needFinish = false;
+  bool rogaining = hasRogaining();
 	for (m=0; m<nControls; m++) {
-    if (Controls[m]->isRogaining())
+    if (Controls[m]->isRogaining(rogaining))
       rg.push_back(Controls[m]);
     else {
 		  str += Controls[m]->getLongString() + "-";
@@ -186,14 +187,6 @@ vector<string> oCourse::getCourseReadable(int limit) const
 
   if (needFinish)
     str += "M";
-/*
-
-	if ( m < nControls) {
-		//if(Controls[m]->Id)
-			str+=Controls[m]->getLongString()+"-M";
-		//else
-		//	str+=Controls[m]->getLongString();
-	}*/
 
   if (!str.empty()) {
     if (str.length()<5 && !res.empty())
@@ -292,7 +285,7 @@ oControl *oCourse::getControl(int index)
 bool oCourse::fillCourse(gdioutput &gdi, const string &name)
 {
 	oPunchList::iterator it;	
-
+  bool rogaining = hasRogaining();
 	gdi.clearList(name);
 	int offset = 1;
 	gdi.addItem(name, lang.tl("Start"), -1);
@@ -301,7 +294,7 @@ bool oCourse::fillCourse(gdioutput &gdi, const string &name)
 		int multi = Controls[k]->getNumMulti();
     int submulti = 0;
     char bf[64];
-    if (Controls[k]->isRogaining()) {
+    if (Controls[k]->isRogaining(rogaining)) {
       sprintf_s(bf, 64, "R\t%s", c.c_str());
       offset--;
     }
@@ -374,6 +367,9 @@ void oCourse::setName(const string &n)
 
 void oCourse::setLength(int le)
 {
+  if (le<0 || le > 1000000)
+    le = 0;
+
 	if(Length!=le){
 		Length=le;
 		updateChanged();
@@ -520,9 +516,13 @@ void oEvent::calculateNumRemainingMaps()
 }
 
 int oCourse::getIdSum(int nC) {
-  int id = getId();
+  
+  int id = 0;
   for (int k = 0; k<min(nC, nControls); k++)
-    id = 13 * id + (Controls[k] ? Controls[k]->getId() : 0);
+    id = 31 * id + (Controls[k] ? Controls[k]->getId() : 0);
+
+  if (id == 0)
+    return getId();
 
   return id;
 }
@@ -567,8 +567,10 @@ string oCourse::getControlOrdinal(int controlIndex) const
   if (controlIndex == nControls)
     return lang.tl("Mål");
   int o = 1;
+  bool rogaining = hasRogaining();
+
   for (int k = 0; k<controlIndex && k<nControls; k++) {
-    if (Controls[k] && !Controls[k]->isRogaining())
+    if (Controls[k] && !Controls[k]->isRogaining(rogaining))
       o++;
   }
   return itos(o);
@@ -606,6 +608,10 @@ int oCourse::getMaximumRogainingTime() const
   return getDCI().getInt("RTimeLimit");
 }
 
+bool oCourse::hasRogaining() const {
+  return getMaximumRogainingTime() > 0 || getMinimumRogainingPoints() > 0;
+}
+
 string oCourse::getCourseProblems() const 
 {
   int max_time = getMaximumRogainingTime();
@@ -613,7 +619,7 @@ string oCourse::getCourseProblems() const
 
   if (max_time > 0) {
     for (int k = 0; k<nControls; k++) {
-      if (Controls[k]->isRogaining())
+      if (Controls[k]->isRogaining(true))
         return "";
     }
     return "Banan saknar rogainingkontroller.";
@@ -621,7 +627,7 @@ string oCourse::getCourseProblems() const
   else if (min_point > 0) {
     int max_p = 0;
     for (int k = 0; k<nControls; k++) {
-      if (Controls[k]->isRogaining())
+      if (Controls[k]->isRogaining(true))
         max_p += Controls[k]->getRogainingPoints();
     }
    

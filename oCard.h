@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -62,6 +62,8 @@ public:
   void remove();
   bool canRemove() const;
 
+  pair<int, int> getTimeRange() const;
+  
   oDataInterface getDI(void);
   oDataConstInterface getDCI(void) const;
 
@@ -79,9 +81,14 @@ public:
   bool setPunchTime(const pPunch punch, string time);
 	bool isCardRead(const SICard &card) const;
 	void setReadId(const SICard &card);
+  // Get SI-Card from oCard (just punches)
+  void getSICard(SICard &card) const;
+
 	void deletePunch(pPunch pp);
 	void insertPunchAfter(int pos, int type, int time);
-	bool fillPunches(gdioutput &gdi, string name, oCourse *crs);
+
+  bool fillPunches(gdioutput &gdi, string name, oCourse *crs);
+
 	void addPunch(int type, int time, int matchControlId);
 	oPunch *getPunchByType(int type) const;
 
@@ -91,7 +98,6 @@ public:
 
   // Return split time to previous matched control
   string getRogainingSplit(int ix, int startTime) const;
-
 
   string getCardNo() const;
 	void setCardNo(int c);

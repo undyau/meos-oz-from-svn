@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ private:
   bool results;
   bool starttimes;
 public:
-  vector <vector<int>> timeStart;
+  vector < vector<int> > timeStart;
   vector<int> individual;
   vector<int> relay;
   vector<int> patrol;
@@ -46,6 +46,8 @@ public:
   // True if predefined forking
   bool hasMultiCourse;
 
+  bool hasMultiEvent;
+
   // True if there are rented cards
   bool hasRentedCard;
 
@@ -59,6 +61,8 @@ public:
   bool hasRogaining() const {return rogainingClasses.size()>0;}
   bool empty() const;
 
+  // Return true of this is an event in a sequence of events.
+  bool isMultiStageEvent() const {return hasMultiEvent;}
   void getIndividual(set<int> &sel) const;
   void getRelay(set<int> &sel) const;
   void getPatrol(set<int> &sel) const;

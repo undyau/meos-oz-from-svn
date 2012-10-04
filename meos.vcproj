@@ -52,7 +52,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="2"
 				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories=""
+				AdditionalIncludeDirectories="&quot;meosdb/mysql++&quot;;&quot;meosdb/mysql50&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
 				StringPooling="true"
 				RuntimeLibrary="2"
@@ -79,7 +79,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="Msimg32.lib comctl32.lib odbc32.lib odbccp32.lib winmm.lib ws2_32.lib wininet.lib zlibstat.lib"
+				AdditionalDependencies="Msimg32.lib comctl32.lib odbc32.lib odbccp32.lib winmm.lib ws2_32.lib wininet.lib zlibstat.lib mysqlpp.lib"
 				OutputFile=".\Release/meos.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
@@ -148,7 +148,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories=""
+				AdditionalIncludeDirectories="&quot;meosdb/mysql++&quot;;&quot;meosdb/mysql50&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -179,7 +179,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="Msimg32.lib comctl32.lib odbc32.lib odbccp32.lib winmm.lib ws2_32.lib wininet.lib zlibstat.lib"
+				AdditionalDependencies="Msimg32.lib comctl32.lib odbc32.lib odbccp32.lib winmm.lib ws2_32.lib wininet.lib zlibstat.lib mysqlpp.lib"
 				OutputFile=".\Debug/meos.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
@@ -325,10 +325,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\classconfiginfo.h"
-				>
-			</File>
-			<File
 				RelativePath="csvparser.cpp"
 				>
 				<FileConfiguration
@@ -405,6 +401,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\iof30interface.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\listeditor.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\localizer.cpp"
 				>
 			</File>
@@ -466,6 +470,14 @@
 			</File>
 			<File
 				RelativePath=".\meos_util.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\meosdb\meosdb.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\meosdb\MeosSQL.cpp"
 				>
 			</File>
 			<File
@@ -1009,6 +1021,10 @@
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
+				RelativePath=".\classconfiginfo.h"
+				>
+			</File>
+			<File
 				RelativePath="csvparser.h"
 				>
 			</File>
@@ -1017,11 +1033,31 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gdiconstants.h"
+				>
+			</File>
+			<File
+				RelativePath=".\gdiimpl.h"
+				>
+			</File>
+			<File
 				RelativePath="gdioutput.h"
 				>
 			</File>
 			<File
+				RelativePath=".\gdistructures.h"
+				>
+			</File>
+			<File
 				RelativePath=".\HTMLWriter.h"
+				>
+			</File>
+			<File
+				RelativePath=".\iof30interface.h"
+				>
+			</File>
+			<File
+				RelativePath=".\listeditor.h"
 				>
 			</File>
 			<File
@@ -1034,6 +1070,10 @@
 			</File>
 			<File
 				RelativePath=".\meos_util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\meosexception.h"
 				>
 			</File>
 			<File
@@ -1070,6 +1110,10 @@
 			</File>
 			<File
 				RelativePath="oEvent.h"
+				>
+			</File>
+			<File
+				RelativePath=".\oEventDraw.h"
 				>
 			</File>
 			<File

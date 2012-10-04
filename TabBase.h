@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -136,6 +136,8 @@ class FixedTabs {
 public:
   
   bool hasSpeaker() const {return speakerTab != 0;}
+  bool hasClass() const {return classTab != 0;}
+  
   TabBase *get(TabType tag);
 
   FixedTabs();

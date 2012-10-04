@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@ class TabRunner :
 private:
   void addToolbar(gdioutput &gdi);
 
+  const string &getSearchString() const;
+
   void setCardNo(gdioutput &gdi, int cardNo);
 
   void enableControlButtons(gdioutput &gdi, bool enable, bool vacant);
@@ -37,19 +39,30 @@ private:
   void cellAction(gdioutput &gdi, DWORD id, oBase *obj);
 
   void selectRunner(gdioutput &gdi, pRunner r);
+  
+  string lastSearchExpr;
+  stdext::hash_set<int> lastFilter;
+  DWORD timeToFill;
+  int inputId;
+  int searchCB(gdioutput &gdi, int type, void *data);
+  
   int runnerCB(gdioutput &gdi, int type, void *data);
   int punchesCB(gdioutput &gdi, int type, void *data);
   int vacancyCB(gdioutput &gdi, int type, void *data);
 
   int currentMode;
-  //bool tableMode;
-  //bool formMode;
-  pRunner save(gdioutput &gdi, int runnerId);
+  pRunner save(gdioutput &gdi, int runnerId, bool dontReloadRunners);
   void listRunners(gdioutput &gdi, const vector<pRunner> &r, bool filterVacant) const;
+
+  void fillRunnerList(gdioutput &gdi);
 
   int cardModeStartY;
   int lastRace;
+  string lastFee;
   int runnerId;
+  bool ownWindow;
+  bool listenToPunches;
+  vector<int> runnersToReport;
 
   vector<pRunner> unknown_dns;
   vector<pRunner> known_dns;
@@ -59,8 +72,12 @@ private:
 
   PrinterObject splitPrinter;
 
+  void showRunnerReport(gdioutput &gdi);
+  void runnerReport(gdioutput &gdi, int id);
+
   void showVacancyList(gdioutput &gdi, const string &method="", int classId=0);
   void showCardsList(gdioutput &gdi);
+
 public:
   void showInForestList(gdioutput &gdi);
   
@@ -70,6 +87,7 @@ public:
 	TabRunner(oEvent *oe);
 	~TabRunner(void);
 
+  friend int runnerSearchCB(gdioutput *gdi, int type, void *data);
   friend int RunnerCB(gdioutput *gdi, int type, void *data);
   friend int PunchesCB(gdioutput *gdi, int type, void *data);
   friend int VacancyCB(gdioutput *gdi, int type, void *data);

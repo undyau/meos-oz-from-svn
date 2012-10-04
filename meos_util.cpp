@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -172,6 +172,8 @@ int convertDateYMS(const string &m, SYSTEMTIME &st)
   int len=m.length();
   for (int k=0;k<len;k++) {
     BYTE b=m[k];
+    if (b == 'T')
+      break;
     if ( !(b=='-' || b==' ' || (b>='0' && b<='9')) )
       return -1;
   }
@@ -216,44 +218,6 @@ int convertDateYMS(const string &m)
 {
   SYSTEMTIME st;
   return convertDateYMS(m, st);
-  /*
-	if(m.length()==0)
-		return -1;
-
-  int len=m.length();
-  for (int k=0;k<len;k++) {
-    BYTE b=m[k];
-    if ( !(b=='-' || b==' ' || (b>='0' && b<='9')) )
-      return -1;
-  }
-
-	int year=atoi(m.c_str());
-	if(year<1000 || year>3000)
-		return -1;
-
-	int month=0;
-	int day=0;
-	int kp=m.find_first_of('-');
-	
-  if (kp!=string::npos) {
-		string mtext=m.substr(kp+1);
-		month=atoi(mtext.c_str());
-
-		if(month<1 || month>12)
-			month=0;
-
-		kp=mtext.find_last_of('-');
-
-    if (kp!=string::npos) {
-			day=atoi(mtext.substr(kp+1).c_str());
-			if(day<1 || day>31)
-				day=0;
-		}
-	}
-	int t=year*100*100+month*100+day;
-	if(t<0)	return 0;
-
-	return t;*/
 }
 
 
@@ -269,9 +233,24 @@ int convertAbsoluteTimeHMS(const string &m)
 	if(len==0 || m[0]=='-')
 		return -1;
 
+  int plusIndex = -1;
   for (int k=0;k<len;k++) {
     BYTE b=m[k];
-    if ( !(myIsSpace(b) || b==':' || (b>='0' && b<='9')) )
+    if ( !(myIsSpace(b) || b==':' || (b>='0' && b<='9')) ) {
+      if (b=='+' && plusIndex ==-1 && k>0)
+        plusIndex = k;
+      else
+        return -1;
+    }
+  }
+
+  if (plusIndex>0) {
+    int t = convertAbsoluteTimeHMS(m.substr(plusIndex+1));
+    int d = atoi(m.c_str());
+
+    if (d>0 && t>=0)
+      return d*24*3600 + t;
+    else
       return -1;
   }
 
@@ -304,6 +283,63 @@ int convertAbsoluteTimeHMS(const string &m)
 
 	return t;
 }
+
+
+//Absolute time string to absolute time int
+int convertAbsoluteTimeISO(const string &m) 
+{
+  int len = m.length();
+  
+	if(len==0 || m[0]=='-')
+		return -1;
+
+  string hStr, mStr, sStr;
+
+  string tmp =  trim(m);
+
+  if (tmp.length() < 3)
+    return -1;
+
+  hStr = tmp.substr(0, 2);
+  if (!(tmp[2] >= '0' && tmp[2]<='9'))
+    tmp = tmp.substr(3);
+  else
+    tmp = tmp.substr(2);
+
+  if (tmp.length() < 3)
+    return -1;
+
+  mStr = tmp.substr(0, 2);
+
+  if (!(tmp[2] >= '0' && tmp[2]<='9'))
+    tmp = tmp.substr(3);
+  else
+    tmp = tmp.substr(2);
+
+  if (tmp.length() < 3)
+    return -1;
+
+  sStr = tmp.substr(0, 2);
+
+	int hour = atoi(hStr.c_str());
+	if(hour<0 || hour>23)
+		return -1;
+
+  int minute = atoi(mStr.c_str());
+
+	if(minute<0 || minute>60)
+		return -1;
+
+  int second = atoi(sStr.c_str());
+
+	if(second<0 || second>60)
+		return -1;
+
+  int t = hour*3600 + minute*60 + second;
+
+	return t;
+}
+
 
 // Parse +-MM:SS or +-HH:MM:SS
 int convertAbsoluteTimeMS(const string &m)
@@ -390,7 +426,7 @@ string formatTime(int rt)
 
 string formatTimeHMS(int rt)
 {
-  if(rt>0) {
+  if(rt>=0) {
 		char bf[16];
 	  sprintf_s(bf, 16, "%02d:%02d:%02d", rt/3600,(rt/60)%60, rt%60);
 
@@ -493,6 +529,8 @@ string itos(__int64 i)
 
 bool filterMatchString(const string &c, const char *filt_lc)
 {
+  if (filt_lc[0] == 0)
+    return true;
   char key[2048];
   strcpy_s(key, c.c_str());
   CharLowerBuff(key, c.length());
@@ -864,8 +902,9 @@ int getNumberSuffix(const string &str)
 
 int extractAnyNumber(const string &str, string &prefix, string &suffix) 
 {
+  const unsigned char *ptr = (const unsigned char*)str.c_str();
   for (size_t k = 0; k<str.length(); k++) {
-    if (isdigit(str[k])) {
+    if (isdigit(ptr[k])) {
       prefix = str.substr(0, k);
       int num = atoi(str.c_str() + k);
       while(k<str.length() && isdigit(str[++k]));
@@ -1120,4 +1159,88 @@ bool isNumber(const string &s) {
     if (!isdigit(s[k]))
       return false;
   return true;
+}
+
+bool expandDirectory(const char *file, const char *filetype, vector<string> &res)
+{
+	WIN32_FIND_DATA fd;
+	
+	char dir[MAX_PATH];
+	char fullPath[MAX_PATH];
+	
+  if (file[0] == '.') {
+    GetCurrentDirectory(MAX_PATH, dir);
+    strcat_s(dir, file+1);
+  }
+	else
+    strcpy_s(dir, MAX_PATH, file);
+
+	if(dir[strlen(dir)-1]!='\\')
+		strcat_s(dir, MAX_PATH, "\\");
+	
+	strcpy_s(fullPath, MAX_PATH, dir);
+	strcat_s(dir, MAX_PATH, filetype);
+	
+	HANDLE h=FindFirstFile(dir, &fd);
+	
+	if (h == INVALID_HANDLE_VALUE)
+		return false;
+	
+	bool more = true;
+
+	while (more)	{
+    if (fd.cFileName[0] != '.') {
+      //Avoid .. and . 
+			char fullPathFile[MAX_PATH];
+			strcpy_s(fullPathFile, MAX_PATH, fullPath);
+			strcat_s(fullPathFile, MAX_PATH, fd.cFileName);
+      res.push_back(fullPathFile);
+		}
+		more=FindNextFile(h, &fd)!=0;
+	}
+	
+	FindClose(h);
+	return true;
+}
+
+string encodeSex(PersonSex sex) {
+  if (sex == sFemale)
+    return "F";
+  else if (sex == sMale)
+    return "M";
+  else if (sex == sBoth)
+    return "B";
+  else
+    return "";
+}
+
+PersonSex interpretSex(const string &sex) {
+  if (sex == "F")
+    return sFemale;
+  else if (sex == "M")
+    return sMale;
+  else if (sex == "B")
+    return sBoth;
+  if (sex == "K" || sex == "W")
+    return sFemale;
+  else
+    return sUnknown;
+}
+
+bool matchNumber(int a, const char *b) {
+  if (a == 0 && b[0])
+    return false;
+  
+  char bf[32];
+  _itoa_s(a, bf, 10);
+
+  // Check matching substring
+  for (int k = 0; k < 12; k++) {
+    if (b[k] == 0)
+      return true;
+    if (bf[k] != b[k])
+      return false;
+  }
+
+  return false;
 }

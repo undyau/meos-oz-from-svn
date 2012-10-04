@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -185,9 +185,11 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
  
   int matchPunch=0;
   int punchRemain=1;
-  if(crs)
+  bool hasRogaining = false;
+  if(crs) {
     ctrl=crs->getControl(matchPunch);
-
+    hasRogaining = crs->hasRogaining();
+  }
   if(ctrl)
     punchRemain=ctrl->getNumMulti();
 
@@ -213,7 +215,7 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
 			  HasStart=true;
       else if(it->isUsed && !it->isFinish() &&  !it->isCheck()) {
         while(ctrl && it->tMatchControlId!=ctrl->getId()) {
-          if (ctrl->getStatus() == oControl::StatusRogaining) {
+          if (ctrl->isRogaining(hasRogaining)) {
             if (rogainingIndex.count(matchPunch) == 1)
               gdi.addItem(name, rogainingIndex[matchPunch]->getString(), 
                           int(rogainingIndex[matchPunch]));
@@ -241,7 +243,7 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
             ctrl = crs ? crs->getControl(++matchPunch):0;
 
             // Match rogaining here
-            while (ctrl && ctrl->getStatus() == oControl::StatusRogaining) {
+            while (ctrl && ctrl->isRogaining(hasRogaining)) {
               if (rogainingIndex.count(matchPunch) == 1)
                 gdi.addItem(name, rogainingIndex[matchPunch]->getString(), 
                             int(rogainingIndex[matchPunch]));
@@ -285,6 +287,7 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
 	}
 	return true;
 }
+
 
 void oCard::insertPunchAfter(int pos, int type, int time)
 {
@@ -393,6 +396,17 @@ bool oCard::isCardRead(const SICard &card) const
 		return true;
 	else return false;
 }
+
+void oCard::getSICard(SICard &card) const {
+  card.clear(0);
+  card.CardNumber = CardNo;
+  oPunchList::const_iterator it;
+  for (it = Punches.begin(); it != Punches.end(); ++it) {
+    if (it->Type>30)
+      card.Punch[card.nPunch++].Code = it->Type;
+  }
+}
+
 
 pRunner oCard::getOwner() const {
   return tOwner && !tOwner->isRemoved() ? tOwner : 0;
@@ -587,4 +601,15 @@ void oCard::remove()
 bool oCard::canRemove() const 
 {
   return getOwner() == 0;
+}
+
+pair<int, int> oCard::getTimeRange() const {
+  pair<int, int> t(24*3600, 0);
+  for(oPunchList::const_iterator it = Punches.begin(); it != Punches.end(); ++it) {
+    if (it->Time > 0) {
+      t.first = min(t.first, it->Time);
+      t.second = max(t.second, it->Time);
+    }
+  }
+  return t;
 }

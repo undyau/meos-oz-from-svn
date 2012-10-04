@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -43,6 +43,28 @@ typedef bool (__cdecl* OPENDB_FCN)(void);
 typedef int (__cdecl* SYNCHRONIZE_FCN)(oBase *obj);
 
 
+#ifndef BUILD_DB_DLL
+
+extern "C"{
+
+#define MEOSDB_API
+int MEOSDB_API getMeosVersion();
+bool MEOSDB_API msSynchronizeList(oEvent *oe, int lid);
+int MEOSDB_API msSynchronizeUpdate(oBase *obj);
+int MEOSDB_API msSynchronizeRead(oBase *obj);
+int MEOSDB_API msRemove(oBase *obj);
+int MEOSDB_API msMonitor(oEvent *oe);
+int MEOSDB_API msUploadRunnerDB(oEvent *oe);
+int MEOSDB_API msOpenDatabase(oEvent *oe);
+int MEOSDB_API msDropDatabase(oEvent *oe);
+int MEOSDB_API msConnectToServer(oEvent *oe);
+bool MEOSDB_API msGetErrorState(char *msgBuff);
+bool MEOSDB_API msResetConnection();
+bool MEOSDB_API msReConnect();
+}
+
+#endif
+
 bool oEvent::connectToServer()
 {
   if (isThreadReconnecting())
@@ -51,6 +73,7 @@ bool oEvent::connectToServer()
 	if(msOpenDatabase)
 		return true;
 
+#ifdef BUILD_DB_DLL
 	hMod=LoadLibrary("meosdb.dll");
 
 	msOpenDatabase = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msOpenDatabase");	
@@ -76,7 +99,20 @@ bool oEvent::connectToServer()
     hMod=0;
 		return false;//SOME_ERROR_CODE;
 	}
-
+#else
+  msOpenDatabase = (SYNCHRONIZE_FCN)::msOpenDatabase;
+  msConnectToServer = (SYNCHRONIZE_FCN)::msConnectToServer;	
+  msSynchronizeUpdate = (SYNCHRONIZE_FCN)::msSynchronizeUpdate;
+  msSynchronizeRead = (SYNCHRONIZE_FCN)::msSynchronizeRead;
+  msSynchronizeList = (SYNCHRONIZELIST_FCN)::msSynchronizeList;
+  msRemove = (SYNCHRONIZE_FCN)::msRemove;
+  msMonitor = (SYNCHRONIZE_FCN)::msMonitor;
+  msDropDatabase = (SYNCHRONIZE_FCN)::msDropDatabase;
+  msUploadRunnerDB = (SYNCHRONIZE_FCN)::msUploadRunnerDB;
+  msGetErrorState = (ERRORMESG_FCN)::msGetErrorState;
+  msResetConnection = (OPENDB_FCN)::msResetConnection;
+  msReConnect = (OPENDB_FCN)::msReConnect;
+#endif
 	return true;
 }
 
@@ -411,7 +447,7 @@ bool oEvent::connectToMySQL(const string &server, const string &user, const stri
   if (!msConnectToServer(this)) {
     char bf[256];
     msGetErrorState(bf);
-    MessageBox(NULL, bf, "Error", MB_OK);
+    MessageBox(NULL, lang.tl(bf).c_str(), "Error", MB_OK);
     return false;
   }
 
@@ -437,15 +473,26 @@ bool oEvent::uploadSynchronize()
 	if (!msSynchronizeUpdate)
 		throw std::exception("Internt fel. Starta om MeOS");
 
-	if( !msOpenDatabase(this) )
-		throw std::exception("Kunde inte öppna databasen.");
+	if( !msOpenDatabase(this) ){
+    char bf[256];
+    msGetErrorState(bf);
+    string error = string("Kunde inte öppna databasen (X).#") + bf; 
+    throw std::exception(error.c_str());
+  }
 
-	if( !msSynchronizeUpdate(this) )
-		throw std::exception("Kunde inte ladda upp tävlingen.");
+  if( !msSynchronizeUpdate(this) ) {
+    char bf[256];
+    msGetErrorState(bf);
+    string error = string("Kunde inte ladda upp tävlingen (X).#") + bf; 
+    throw std::exception(error.c_str());
+  }
 
-  if( !msUploadRunnerDB(this) )
-  	throw std::exception("Kunde inte ladda upp löpardatabasen.");
-
+  if( !msUploadRunnerDB(this) ) {
+    char bf[256];
+    msGetErrorState(bf);
+    string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf; 
+    throw std::exception(error.c_str());
+  }
 
 	HasDBConnection=true;
   autoSequence=false;
@@ -510,7 +557,21 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
   
   openRunnerDatabase(CurrentNameId);
 
-  msSynchronizeRead(this);
+  int ret = msSynchronizeRead(this); 
+  if (ret == 0) {
+    char bf[256];
+    msGetErrorState(bf);
+
+    string err = string("Kunde inte öppna tävlingen (X)#") + bf;
+    throw std::exception(err.c_str());
+  }
+  else if (ret == 1) {
+    // Warning
+    char bf[256];
+    msGetErrorState(bf);
+    string info = "Databasvarning: X#" + lang.tl(bf);
+    gdibase.addInfoBox("sqlerror", info, 15000);
+  }
 
   // Cache database locally
   saveRunnerDatabase(CurrentNameId, false);

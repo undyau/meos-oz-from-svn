@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -329,7 +329,7 @@ int oTeam::getLegToUse(int leg) const {
     LegTypes lt = Class->getLegType(leg);
     while (leg>=0 && lt == LTParallelOptional && !Runners[leg]) {
       if (leg == 0)
-        return oleg; //Suiatbel leg not found
+        return oleg; //Suitable leg not found
       leg--;
       lt = Class->getLegType(leg);
     }
@@ -685,10 +685,11 @@ bool oTeam::apply(bool sync)
 
 bool oTeam::apply(bool sync, pRunner source) 
 {
-  int lastStartTime=0;
+  int lastStartTime = 0;
+  RunnerStatus lastStatus = StatusUnknown;
   if(Class && Runners.size()!=size_t(Class->getNumStages()))
     Runners.resize(Class->getNumStages());
-  const int bib = getBib();
+  const string bib = getBib();
   tNumRestarts = 0;
   vector<int> availableStartTimes;
 	for (size_t i=0;i<Runners.size(); i++) {
@@ -739,7 +740,7 @@ bool oTeam::apply(bool sync, pRunner source)
 			Runners[i]->tInTeam=this;
 			Runners[i]->tLeg=i;
       Runners[i]->setStartNo(StartNo);
-      if (bib && Runners[i]->isChanged())
+      if (!bib.empty() && Runners[i]->isChanged())
         Runners[i]->setBib(bib, false);
 
       if(Runners[i]->Class!=Class) {
@@ -752,8 +753,14 @@ bool oTeam::apply(bool sync, pRunner source)
         pClass pc=Class;
 
         //Ignored runners need no SI-card (used by SI assign function)
-        if(pc->getLegType(i)==LTIgnore)
+        if(pc->getLegType(i)==LTIgnore) {
           Runners[i]->tNeedNoCard=true;
+          if (lastStatus != StatusUnknown) {
+            Runners[i]->setStatus(max(Runners[i]->Status, lastStatus));
+          }
+        }
+        else
+          lastStatus = Runners[i]->getStatus();
   
         StartTypes st = pc->getStartType(i);
         LegTypes lt = pc->getLegType(i);
@@ -814,7 +821,7 @@ bool oTeam::apply(bool sync, pRunner source)
                       if (tft>0 && tlt != LTIgnore) 
                         ft = ft>0 ? min(tft, ft) : tft;
                     }
-                  }                
+                  }              
                 }
                 else 
                   ft = getBestStartTime(availableStartTimes);
@@ -825,19 +832,20 @@ bool oTeam::apply(bool sync, pRunner source)
                 int restart=pc->getRestartTime(i);
                 int rope=pc->getRopeTime(i);
 
-                if (restart>0 && rope>0 && (ft==0 || ft>rope)) {
+                if ((restart>0 && rope>0 && (ft==0 || ft>rope)) || (ft == 0 && restart>0)) {
                   ft=restart; //Runner in restart
                   tNumRestarts++;
                 }
 
-                Runners[i]->setStartTime(ft);
+                if (ft > 0)
+                  Runners[i]->setStartTime(ft);
                 Runners[i]->tUseStartPunch=false;
                 lastStartTime=ft;
               }
-              else {//The else below should only be run by mistake 
-                Runners[i]->setStartTime(0);
+              else {//The else below should only be run by mistake (for an incomplete team)
+                Runners[i]->setStartTime(Class->getRestartTime(i));
                 Runners[i]->tUseStartPunch=false;
-                Runners[i]->setStatus(StatusDNS);
+                //Runners[i]->setStatus(StatusDNS);
               }
             break;
 
@@ -1085,16 +1093,17 @@ string oTeam::getLegStartTimeCompact(int leg) const
 	else return "-";
 }
 
-int oTeam::getBib() const
+string oTeam::getBib() const
 {
-  return getDCI().getInt("Bib");
+  return getDCI().getString("Bib");
 }
 
-void oTeam::setBib(int bib, bool updateStartNo)
+void oTeam::setBib(const string &bib, bool updateStartNo)
 {
-  getDI().setInt("Bib", bib);
-  if (updateStartNo)
-    setStartNo(bib);
+  getDI().setString("Bib", bib);
+  if (updateStartNo) {
+    setStartNo(atoi(bib.c_str()));
+  }
 }
 
 oDataInterface oTeam::getDI(void) 
@@ -1143,7 +1152,9 @@ string oTeam::getDisplayName() const {
   ClassType ct = Class->getClassType();
   if (ct == oClassIndividRelay || ct == oClassPatrol) {
     if (Club) {
-      return getDisplayClub();
+      string cname = getDisplayClub();
+      if (!cname.empty())
+        return cname;
     }
   }
   return Name;
@@ -1186,4 +1197,26 @@ RunnerStatus oTeam::getTotalStatus() const {
     return StatusDNS;
 
   return max(Status, inputStatus);
+}
+
+int oTeam::getTotalPlace() const {
+  throw std::exception("Not implemented");
+}
+
+void oEvent::getTeams(int classId, vector<pTeam> &t, bool sort) {
+  if (sort) {
+    synchronizeList(oLTeamId);
+    //sortTeams(SortByName);
+  }
+  t.clear();
+  if (Classes.size() > 0)
+    t.reserve((Teams.size()*min<size_t>(Classes.size(), 4)) / Classes.size());
+
+  for (oTeamList::iterator it = Teams.begin(); it != Teams.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
+    if (classId == 0 || it->getClassId() == classId)
+      t.push_back(&*it);
+  }
 }

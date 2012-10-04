@@ -4,10 +4,10 @@
 #include <map>
 #include "inthashmap.h"
 #include "oclub.h"
-
+#include <hash_set>
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -76,10 +76,19 @@ struct RunnerDBEntry {
 
 typedef vector<RunnerDBEntry> RunnerDBVector;
 
+class oDBRunnerEntry;
+class oClass;
+
 class RunnerDB {
 private:
   oEvent *oe;
+
+  Table *runnerTable;
+  Table *clubTable;
+
   bool check(const RunnerDBEntry &rde) const;
+
+  intkeymap<oClass *> runnerInEvent;
 
   /** Init name hash lazy */
   void setupNameHash() const; 
@@ -88,6 +97,7 @@ private:
 
   vector<RunnerDBEntry> rdb;
   vector<oClub> cdb;
+  vector<oDBRunnerEntry> oRDB;
 
   // Runner card hash
   inthashmap rhash;
@@ -114,7 +124,22 @@ private:
 
   /** Time when database was updated. The format is HH:MM:SS */
   int dataTime;
+
+  void fillClubs(vector< pair<string, size_t> > &out) const;
+
 public:
+
+  void generateRunnerTableData(Table &table, oDBRunnerEntry *addEntry);
+  void generateClubTableData(Table &table, oClub *addEntry);
+  
+  Table *getRunnerTB();
+  Table *getClubTB();
+
+  void hasEnteredCompetition(__int64 extId);
+  void hasEnteredCompetitionIx(int index);
+
+  void releaseTables();
+
   /** Get the date, YYYY-MM-DD HH:MM:SS when database was updated */
   string getDataDate() const;
   /** Set the date YYYY-MM-DD HH:MM:SS when database was updated */
@@ -137,6 +162,7 @@ public:
   RunnerDBEntry *addRunner(const char *name, __int64 extId, 
                            int club, int card);
   
+  RunnerDBEntry *getRunnerByIndex(size_t index) const;
   RunnerDBEntry *getRunnerById(int extId) const;
   RunnerDBEntry *getRunnerByCard(int card) const;
   RunnerDBEntry *getRunnerByName(const string &name, int clubId, 
@@ -160,4 +186,35 @@ public:
   void getAllNames(vector<string> &givenName, vector<string> &familyName);
   RunnerDB(oEvent *);
   ~RunnerDB(void);
+  friend class oDBRunnerEntry;
+};
+
+class oDBRunnerEntry : public oBase {
+private: 
+  RunnerDB *db;
+  int index;
+
+public:
+
+  int getIndex() const {return index;}
+  void init(RunnerDB *db_, int index_) {db=db_, index=index_; Id = index;}
+
+  const RunnerDBEntry &getRunner() const;
+
+  void addTableRow(Table &table) const;
+  bool inputData(int id, const string &input, 
+                 int inputId, string &output, bool noUpdate);
+  void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
+
+  oDBRunnerEntry(oEvent *oe);
+  virtual ~oDBRunnerEntry();
+
+  void remove();
+  bool canRemove() const;
+
+  string getInfo() const {return "Database Runner";}
+
+  // Null implementations
+  oDataInterface getDI();
+  oDataConstInterface getDCI() const;
 };

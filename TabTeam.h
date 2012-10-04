@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,12 @@ class TabTeam :
 {
 private:
   bool save(gdioutput &gdi);
+  
+  string lastSearchExpr;
+  stdext::hash_set<int> lastFilter;
+  DWORD timeToFill;
+  int inputId;
+  int searchCB(gdioutput &gdi, int type, void *data);
 
   int teamId;
   int classId;
@@ -37,11 +43,18 @@ private:
 
   int shownRunners;
   int shownDistinctRunners;
+  const string &getSearchString() const;
+
+  void fillTeamList(gdioutput &gdi);
+
 public:
+
   int teamCB(gdioutput &gdi, int type, void *data);
   
   bool loadPage(gdioutput &gdi, int id);
 	bool loadPage(gdioutput &gdi);
 	TabTeam(oEvent *oe);
 	~TabTeam(void);
+  friend int teamSearchCB(gdioutput *gdi, int type, void *data);
+
 };

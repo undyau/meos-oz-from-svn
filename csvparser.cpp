@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include "SportIdent.h"
 #include "meos_util.h"
 #include "localizer.h"
+#include "meosexception.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -321,7 +322,7 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 			DI.setString("Nationality", sp[OEnat]);
       
       if (sp.size()>OEbib)
-        pr->setBib(atoi(sp[OEbib]), false);
+        pr->setBib(sp[OEbib], false);
 
 			if (sp.size()>=38) {//ECO
 				DI.setInt("Fee", atoi(sp[OEfee]));
@@ -448,8 +449,7 @@ int csvparser::split(char *line, vector<char *> &split_vector)
 	return 0;
 }
 
-bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file)
-{
+bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses) {
 	fin.open(file);
 
 	if(!fin.good())
@@ -548,8 +548,8 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file)
         if (legLengths.size() == pc->getNumControls()+1)
           pc->setLegLengths(legLengths);
 
-        if(!Class.empty()) {
-          pClass cls = event.getClass(Class);
+        if(!Class.empty() && addClasses) {
+          pClass cls = event.getBestClassMatch(Class);
           if (!cls)
 					  cls = event.addClass(Class);
           
@@ -822,4 +822,29 @@ bool csvparser::importCards(const oEvent &oe, const char *file, vector<SICard> &
 	fin.close();
 
 	return true;
+}
+
+
+void csvparser::parse(const string &file, list< vector<string> > &data) {
+	data.clear();
+
+  fin.open(file.c_str());
+  char bf[1024];
+	if(!fin.good())
+    throw meosException("Failed to read file");
+
+	while(!fin.eof()) {	
+		fin.getline(bf, 1024);
+		vector<char *> sp;
+		split(bf, sp);
+
+    if (!sp.empty()) {
+      data.push_back(vector<string>());
+      data.back().resize(sp.size());
+      for (size_t k = 0; k < sp.size(); k++) {
+        data.back()[k] = sp[k];
+      }
+    }
+	}
+	fin.close();
 }

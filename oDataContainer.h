@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,8 +29,7 @@
 
 class Table;
 
-struct oDataInfo
-{
+struct oDataInfo {
 	char Name[20];
 	int Index;
 	int Size;
@@ -38,6 +37,10 @@ struct oDataInfo
 	int SubType;
   int tableIndex;
   char Description[48];
+  vector< pair<string, string> > enumDescription;
+
+  oDataInfo();
+  ~oDataInfo();
 };
 
 struct oVariableInt
@@ -73,6 +76,7 @@ protected:
 
   oDataInfo *findVariable(const char *Name);
 	const oDataInfo *findVariable(const char *Name) const;
+  bool formatNumber(int nr, const oDataInfo &di, char bf[64]) const;
 
 	void addVariable(oDataInfo &odi);
 	static string C_INT(const string & name);
@@ -84,8 +88,8 @@ protected:
 	static string C_STRING(const string & name, int len);
 	static string SQL_quote(const char *in);
 public:	
-	enum oIntSize{oISCurrency = 30, oISDate = 31, oIS64=64, oIS32=32, oIS16=16, oIS8=8, oIS16U=17, oIS8U=9};
-
+	enum oIntSize{oISTime = 29, oISCurrency = 30, oISDate = 31, oIS64=64, oIS32=32, oIS16=16, oIS8=8, oIS16U=17, oIS8U=9};
+  enum oStringSubType {oSSString = 0, oSSEnum = 1};
 	string generateSQLDefinition() const;
 	string generateSQLSet(const void *data) const;
 	void getVariableInt(const void *data, list<oVariableInt> &var) const;
@@ -99,6 +103,8 @@ public:
 	void addVariableDate(const char *name,  const char *descr){addVariableInt(name, oISDate, descr);}
   void addVariableCurrency(const char *name,  const char *descr){addVariableInt(name, oISCurrency, descr);}
 	void addVariableString(const char *name, int MaxChar, const char *descr);
+  void addVariableEnum(const char *name, int maxChar, const char *descr, 
+                                  const vector< pair<string, string> > enumValues);
 
 	void initData(void *data, int datasize);
 
@@ -126,9 +132,14 @@ public:
 	void fillDataFields(const oBase *ob, const void *data, gdioutput &gdi) const;
 	bool saveDataFields(const oBase *ob, void *data, gdioutput &gdi);
 
-  int fillTableCol(const void *data, const oBase &owner, Table &table) const;
+  int fillTableCol(const void *data, const oBase &owner, Table &table, bool canEdit) const;
   void buildTableCol(Table *table);
-	bool inputData(oBase *ob, void *data, int id, const string &input, string &output, bool noUpdate);
+	bool inputData(oBase *ob, void *data, int id, const string &input, int inputId, string &output, bool noUpdate);
+
+  // Use id (table internal) or name
+  void fillInput(const void *data, int id, const char *name, vector< pair<string, size_t> > &out, size_t &selected) const;
+
+  bool setEnum(void *data, const char *name, int selectedIndex);
 
   oDataContainer(int maxsize);
 	virtual ~oDataContainer(void);
@@ -229,6 +240,18 @@ public:
 	inline void set(const xmlobject &xo)
 		{oDC->set(Data, xo);}
 
+  void fillInput(const char *name, vector< pair<string, size_t> > &out, size_t &selected) const {
+    oDC->fillInput(Data, -1, name, out, selected);
+  }
+
+  bool setEnum(const char *name, int selectedIndex) {
+    if (oDC->setEnum(Data, name, selectedIndex) ) {
+			oB->updateChanged();
+			return true;
+		}
+		else return false;
+  }
+
   int getDataAmountMeasure() const
     {return oDC->getDataAmountMeasure(Data);}
 	
@@ -256,6 +279,18 @@ public:
   inline string getDate(const char *Name) const
 		{return oDC->getDate(Data, Name);}
 
+	inline int getInt(const string &name) const
+    {return oDC->getInt(Data, name.c_str());}
+
+  inline __int64 getInt64(const string &name) const
+		{return oDC->getInt64(Data, name.c_str());}
+
+	inline string getString(const string &name) const
+		{return oDC->getString(Data, name.c_str());}
+
+  inline string getDate(const string &name) const
+		{return oDC->getDate(Data, name.c_str());}
+
 	inline void buildDataFields(gdioutput &gdi) const
 		{oDC->buildDataFields(gdi);}
 
@@ -279,6 +314,10 @@ public:
 
   int getDataAmountMeasure() const
     {return oDC->getDataAmountMeasure(Data);}
+
+  void fillInput(const char *name, vector< pair<string, size_t> > &out, size_t &selected) const {
+    oDC->fillInput(Data, -1, name, out, selected);
+  }
 
 	oDataConstInterface(const oDataContainer *odc, const void *data, const oBase *ob);
 	~oDataConstInterface(void);

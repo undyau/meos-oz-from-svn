@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,25 +22,63 @@
 ************************************************************************/
 
 #include "tabbase.h"
+#include "oEventDraw.h"
 
 class TabClass :
 	public TabBase
 {
+  struct PursuitSettings {
+    bool use;
+    int firstTime;
+    int maxTime;
+
+    PursuitSettings(oClass &c) {
+      firstTime = 3600;
+      use = c.interpretClassType() != ctOpen;
+      maxTime = 3600;
+    }
+  };
+
+  map<int, PursuitSettings> pSettings;
+
+  enum DrawMethod {
+    NOMethod = -1,
+
+    DMRandom = 1,
+    DMSOFT = 2,
+    DMClumped = 3,
+
+    DMPursuit = 11,
+    DMReversePursuit = 12,
+    DMSeeded = 13
+  };
+
   bool EditChanged;
   int ClassId;
   int currentStage;
   string storedNStage;
   string storedStart;
+  oEvent::PredefinedTypes storedPredefined;
+
   bool checkClassSelected(const gdioutput &gdi) const;
-  void save(gdioutput &gdi);
+  void save(gdioutput &gdi, bool skipReload);
   void legSetup(gdioutput &gdi); 
   vector<ClassInfo> cInfo;
-  oEvent::DrawInfo drawInfo;
+
+  map<int, ClassInfo> cInfoCache;
+
+  DrawInfo drawInfo;
+  void setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMethod defaultMethod);
+  void drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oClass &cls);
+
+  void pursuitDialog(gdioutput &gdi);
 
   bool tableMode;
-
+  DrawMethod lastDrawMethod;
   // Generate a table with class settings
   void showClassSettings(gdioutput &gdi);
+
+  void visualizeField(gdioutput &gdi);
 
   // Read input from the table with class settings
   void readClassSettings(gdioutput &gdi);
@@ -48,7 +86,14 @@ class TabClass :
   // Prepare for drawing by declaring starts and blocks
   void prepareForDrawing(gdioutput &gdi);
 
+
+  gdioutput *gdiVisualize;
+
 public:
+  void clear();
+
+  void closeWindow(gdioutput &gdi);
+
   void multiCourse(gdioutput &gdi, int nLeg);
 	bool loadPage(gdioutput &gdi);
   void selectClass(gdioutput &gdi, int cid);

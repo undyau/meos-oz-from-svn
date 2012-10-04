@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #define TableXMargin 40
 #define TableYMargin 30
 
-enum CellType {cellEdit, cellSelection, cellAction};
+enum CellType {cellEdit, cellSelection, cellAction, cellCombo};
 enum KeyCommandCode;
 
 struct TableUpdateInfo {
@@ -45,6 +45,7 @@ class TableCell
 {
   string contents;
   RECT absPos;
+  
   DWORD id;
   oBase *owner;
   bool canEdit;
@@ -58,6 +59,9 @@ class TableCell
 class TableRow
 {
 protected:
+  string key;
+  int intKey;
+
 	vector<TableCell> cells;
   int id;
 
@@ -89,6 +93,8 @@ public:
     id = t.id;
 	}
 	friend class Table;
+  friend struct TableSortIndex;
+
 };
 
 class gdioutput;
@@ -105,16 +111,7 @@ struct RowInfo
   string filter;
 };
 
-struct TableSortIndex
-{
-  TableSortIndex() {}
-  TableSortIndex(int ix, const string &k) : index(ix), key(k) {}
-  int index;
-  //int ypos;
-  string key;
-  bool operator<(const TableSortIndex &t) const {return key<t.key;}
-  bool operator<=(const TableSortIndex &t) const {return key<=t.key;}
-};
+struct TableSortIndex;
 
 class Table
 {
@@ -123,7 +120,10 @@ protected:
 
   int t_xpos;
   int t_ypos;
+  int t_maxX;
+  int t_maxY;
 
+  bool clearOnHide;
   bool commandLock;
   string tableName;
   string internalName;
@@ -206,7 +206,6 @@ protected:
 
   oEvent *oe;
 
-  void clearCellSelection(gdioutput *gdi);
   void clearSelectionBitmap(gdioutput *gdi, HDC hDC);
   void restoreSelection(gdioutput &gdi, HDC hDC);
 
@@ -233,9 +232,20 @@ protected:
   int selectionCol;
 
   void getRowRect(int row, RECT &rc) const;
-public:
 
+  bool compareRow(int indexA, int indexB) const;
+public:
+  void clear();
+  void setClearOnHide(bool coh) {clearOnHide = coh;}
+  int getNumDataRows() const;
+
+  void clearCellSelection(gdioutput *gdi);
+
+  /// Return translated table name
   const string& getTableName() const {return tableName;}
+  /// Get the internal identifier of the table
+  const string& getInternalName() const {return internalName;}
+  
   bool hasAutoSelect() const {return  doAutoSelectColumns;}
 
   void updateDimension(gdioutput &gdi);
@@ -261,7 +271,7 @@ public:
 
   void insertRow(gdioutput &gdi); // Insert a new row in the table
   bool deleteSelection(gdioutput &gdi);
-  void setPosition(int x, int y) {t_xpos = x, t_ypos = y;}
+  void setPosition(int x, int y, int maxX, int maxY) {t_xpos = x, t_ypos = y; t_maxX = maxX, t_maxY = maxY;}
   void exportClipboard(gdioutput &gdi);
   void importClipboard(gdioutput &gdi);
   
@@ -319,11 +329,22 @@ public:
 	Table(oEvent *oe_, int rowHeight, 
         const string &name, const string &tname);
 	~Table(void);
+
+  friend struct TableSortIndex;
 };
 
+struct TableSortIndex {
+  //TableSortIndex(const Table &t) : table(&t) {}
+  const static Table *table;
+  int index;
+  bool operator<(const TableSortIndex &t) const {return table->compareRow(index,t.index);}
+  //{return table->Data[index].key < table->Data[t.index].key;}
+  //bool operator<=(const TableSortIndex &t) const {return table->Data[index].key <= table->Data[t.index].key;}
+};
 
 enum {TID_CLASSNAME, TID_COURSE, TID_NUM, TID_ID, TID_MODIFIED,
 TID_RUNNER, TID_CLUB, TID_START, TID_TIME,
 TID_FINISH, TID_STATUS, TID_RUNNINGTIME, TID_PLACE, 
 TID_CARD, TID_TEAM, TID_LEG, TID_CONTROL, TID_CODES, TID_FEE, TID_PAID,
-TID_INPUTTIME, TID_INPUTSTATUS, TID_INPUTPOINTS, TID_INPUTPLACE};
+TID_INPUTTIME, TID_INPUTSTATUS, TID_INPUTPOINTS, TID_INPUTPLACE,
+TID_NAME, TID_NATIONAL, TID_SEX, TID_YEAR, TID_INDEX, TID_ENTER, TID_STARTNO};

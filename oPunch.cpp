@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -75,13 +75,16 @@ string oPunch::getString() const
   const char *ct;
 	string time(getTime());
   ct=time.c_str();
+  
+  string typeS = getType();
+  const char *tp = typeS.c_str();
 
 	if(Type==oPunch::PunchStart)
-		sprintf_s(bf, "Start\t%s", ct);
+		sprintf_s(bf, "%s\t%s", tp, ct);
 	else if(Type==oPunch::PunchFinish)
-		sprintf_s(bf, "Mål\t%s", ct);
+		sprintf_s(bf, "%s\t%s", tp, ct);
 	else if(Type==oPunch::PunchCheck)
-		sprintf_s(bf, "Check\t%s", ct);
+		sprintf_s(bf, "%s\t%s", tp, ct);
 	else
 	{
 		if(isUsed)
@@ -95,22 +98,16 @@ string oPunch::getString() const
 
 string oPunch::getSimpleString() const
 {
-	char bf[32];
-	const char *ct;
 	string time(getTime());
-  ct=time.c_str();
 
   if(Type==oPunch::PunchStart)
-		sprintf_s(bf, "Starten (%s)", ct);
+    return lang.tl("starten (X)#" + time);
 	else if(Type==oPunch::PunchFinish)
-		sprintf_s(bf, "Målet (%s)", ct);
+    return lang.tl("målet (X)#" + time);
 	else if(Type==oPunch::PunchCheck)
-		sprintf_s(bf, "Check (%s)", ct);
-	else {
-		sprintf_s(bf, "Kontroll %d (%s)", Type, ct);
-	}
-
-	return bf;
+    return lang.tl("check (X)#" + time);
+	else 
+    return lang.tl("kontroll X (Y)#" + itos(Type) + "#" + time);
 }
 
 string oPunch::getTime() const
@@ -129,6 +126,8 @@ int oPunch::getAdjustedTime() const
 void oPunch::setTime(string t)
 {
   int tt = oe->getRelativeTime(t)-tTimeAdjust;
+  if (tt < 0)
+    tt = 0;
   if (tt != Time) {
 	  Time = tt;
     updateChanged();

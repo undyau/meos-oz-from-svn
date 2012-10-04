@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <vector>
 #include "meos_util.h"
 #include "random.h"
+#include "oFreeImport.h"
 
 class LocalizerImpl
 {
@@ -33,8 +34,11 @@ class LocalizerImpl
   map<string, string> table;
   map<string, string> unknown;
   void loadTable(const vector<string> &raw, const string &language);
+  mutable oWordList *givenNames;
 
 public:
+
+  const oWordList &getGivenNames() const;
 
   void translateAll(const LocalizerImpl &all);
 
@@ -49,8 +53,6 @@ public:
   LocalizerImpl(void);
   ~LocalizerImpl(void);
 };
-
-
 
 Localizer::Localizer(void)
 {
@@ -95,12 +97,19 @@ vector<string> Localizer::getLangResource() const {
   return v;
 }
 
+const oWordList &Localizer::getGivenNames() const {
+  return impl->getGivenNames();
+}
+
 LocalizerImpl::LocalizerImpl(void)
 {
+  givenNames = 0;
 }
 
 LocalizerImpl::~LocalizerImpl(void)
 {
+  if (givenNames)
+    delete givenNames;
 }
 
 const string &Localizer::tl(const string &str) {
@@ -132,9 +141,10 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
     return value[i];
   }
 
-  if (str[0]==',' || str[0]==' ' || str[0]=='.'  || str[0]==':'  || str[0]==';') {
+  if (str[0]==',' || str[0]==' ' || str[0]=='.'  
+       || str[0]==':'  || str[0]==';' || str[0]=='<' || str[0]=='>') {
     unsigned k=1;
-    while(str[k] && (str[k]==' ' || str[k]=='.' || str[k]==':'))
+    while(str[k] && (str[k]==' ' || str[k]=='.' || str[k]==':' || str[k]=='<' || str[k]=='>'))
       k++;
     
     if (k<str.length()) {
@@ -185,13 +195,16 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 
 
   char last = str[len-1];
-  if (last != ':' && last!='.' && last!=' ' && last != ',' && last != ';') {
+  if (last != ':' && last != '.' && last != ' ' && last != ',' && 
+      last != ';' && last != '<' && last != '>') {
 #ifdef _DEBUG
-    if (str.length()>2)
+    if (str.length()>1)
       unknown[str] = "";
 #endif
     found = false;
-    return str;
+    i = (i + 1)%bsize;
+    value[i] = str;
+    return value[i];
   }
 
   string suffix;
@@ -199,7 +212,8 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 
   while(pos>0) {
     char last = str[pos];
-    if (last != ':' && last != ' ' && last != ',' && last != '.' && last != ';')
+    if (last != ':' && last != ' ' && last != ',' && last != '.' && 
+        last != ';' && last != '<' && last != '>')
       break;
   
     pos = str.find_last_not_of(last, pos);
@@ -216,11 +230,14 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
     return value[i];
   }
 #ifdef _DEBUG
-  unknown[key] = "";
+  if (key.length() > 1)
+    unknown[key] = "";
 #endif
 
   found = false;
-  return str;
+  i = (i + 1)%bsize;
+  value[i] = str;
+  return value[i];
 }
 const string newline = "\n";
 
@@ -248,6 +265,19 @@ void LocalizerImpl::saveUnknown(const string &file)
       fout << key << " = " << value << endl;
     }
   }
+}
+
+
+const oWordList &LocalizerImpl::getGivenNames() const {
+  if (givenNames == 0) {
+    char bf[260];
+    getUserFile(bf, "given.mwd");
+    givenNames = new oWordList();
+    try {
+      givenNames->load(bf);
+    } catch(std::exception &) {}
+  }
+  return *givenNames;
 }
 
 #ifndef MEOSDB
@@ -353,10 +383,10 @@ void LocalizerImpl::loadTable(const string &file, const string &language)
     return;
 
   int line=0;
-  char bf[1024];
+  char bf[8*1024];
   while (!fin.eof()) {
     line++;
-    fin.getline(bf, 1024);
+    fin.getline(bf, 8*1024);
   }
 
   fin.seekg(0);
@@ -367,7 +397,7 @@ void LocalizerImpl::loadTable(const string &file, const string &language)
   raw.reserve(line);
   while (!fin.eof()) {
     bf[0] = 0;
-    fin.getline(bf, 1024);
+    fin.getline(bf, 8*1024);
     if (bf[0]!=0 && bf[0]!='#')
       raw.push_back(bf);
   }

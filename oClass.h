@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@
 class oClass;
 typedef oClass* pClass;
 class oDataInterface;
+
+enum PersonSex;
 
 enum StartTypes {   
   STTime=0,
@@ -106,6 +108,9 @@ enum ClassMetaType {ctElite, ctNormal, ctYouth, ctTraining,
 class Table;
 class oClass : public oBase
 {
+public:
+  enum ClassStatus {Normal, Invalid, InvalidRefund};
+
 protected:
 	string Name;
 	pCourse Course;
@@ -115,7 +120,16 @@ protected:
 
   //First: best time on leg
   //Second: Total leader time (total leader)
-  vector< pair<int, int> > tLeaderTime;
+  struct LeaderInfo {
+    LeaderInfo() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0;}
+    void reset() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0;}
+    int bestTimeOnLeg;
+    int totalLeaderTime;
+    int inputTime;
+  };
+
+  vector<LeaderInfo> tLeaderTime;
+  map<int, int> tBestTimePerCourse;
 
   int tSplitRevision;
   map<int, vector<int> > tSplitAnalysisData;
@@ -123,6 +137,10 @@ protected:
   map<int, vector<int> > tCourseAccLegLeaderTime;
   mutable vector<int> tFirstStart;
   mutable vector<int> tLastStart;
+
+  mutable ClassStatus tStatus;
+  mutable int tStatusRevision;
+
   // A map with places for given times on given legs
   inthashmap *tLegTimeToPlace;
   inthashmap *tLegAccTimeToPlace;
@@ -136,8 +154,12 @@ protected:
 
   // Sort classes for this index
   int tSortIndex;
+  int tMaxTime;
 
-  BYTE oData[128];
+  // True when courses was changed on this client. Used to update course pool  bindings
+  bool tCoursesChanged;
+
+  BYTE oData[256];
 
   //Multicourse data
 	string codeMultiCourse() const;
@@ -173,15 +195,21 @@ protected:
       Use oEvent::analyseClassResultStatus to setup */
   mutable vector<ClassResultInfo> tResultInfo;
 
+  /** Get/calculate sort index from candidate */
+  int getSortIndex(int candidate);
+
 public:
+  ClassStatus getClassStatus() const;
+
   ClassMetaType interpretClassType() const;
+
+  int getMaximumRunnerTime() const;
 
   void remove();
   bool canRemove() const;
 
   /// Return first and last start of runners in class
   void getStartRange(int leg, int &firstStart, int &lastStart) const;
-
 
   /** Return true if pure rogaining class, with time limit (sort results by points) */
   bool isRogaining() const;
@@ -192,8 +220,8 @@ public:
   /** Get accumulated leg place */
   int getAccLegPlace(int courseId, int controlNo, int time) const; 
 
-  /** Get sort index from candidate */
-  int getSortIndex(int candidate);
+  /** Get cached sort index */
+  int getSortIndex() const {return tSortIndex;};
 
   /// Guess type from class name
   void assignTypeFromName();
@@ -202,9 +230,12 @@ public:
 
   bool wasSQLChanged() const {return sqlChanged;}
   
-  void getStatistics(int feeLock, int &entries, int &started) const; 
-  
+  void getStatistics(const set<int> &feeLock, int &entries, int &started) const; 
+
+  int getBestInputTime(int leg) const;
   int getBestLegTime(int leg) const;
+  int getBestTimeCourse(int courseId) const;
+  
   int getTotalLegLeaderTime(int leg) const;
 
   string getInfo() const;
@@ -214,6 +245,8 @@ public:
   void setCoursePool(bool p);
   // Get the best matching course from a pool
   pCourse selectCourseFromPool(int leg, const SICard &card) const;
+  // Update changed course pool
+  void updateChangedCoursePool();
 
   void resetLeaderTime();
 
@@ -235,14 +268,27 @@ public:
   int getLegRunner(int leg) const;
   // Get the index of this leg for its runner.
   int getLegRunnerIndex(int leg) const;
-
+  // Set the runner index for the specified leg. (Used when several legs are run be the same person)
   void setLegRunner(int leg, int runnerNo);
   
-  //Get number of races run by the runner of given leg
+  // Get number of races run by the runner of given leg
   int getNumMultiRunners(int leg) const;
+
+  // Get number of legs, not counting parallel legs
+  int getNumLegNoParallel() const;
+
+  // Split a linear leg index into non-parallel leg number and order 
+  // number on the leg (zero-indexed). Returns true if the legNumber is parallel
+  bool splitLegNumberParallel(int leg, int &legNumber, int &legOrder) const;
+
+  // The inverse of splitLegNumberParallel. Return -1 on invalid input.
+  int getLegNumberLinear(int legNumber, int legOrder) const;
 
   //Get the number of parallel runners on a given leg (before and after)
   int getNumParallel(int leg) const;
+
+  /// Get a string 1, 2a, etc describing the number of the leg
+  string getLegNumber(int leg) const;
 
   // Return the number of distinct runners for one
   // "team" in this class.
@@ -259,12 +305,11 @@ public:
   void setNoTiming(bool noResult);
   bool getNoTiming() const; 
 
+  void setFreeStart(bool freeStart);
+  bool hasFreeStart() const; 
 
 	string getClassResultStatus() const;
 
-	//void SetClassStartTime(const string &t);
-	//string GetClassStartTimeS();
-	//int GetClassStartTime();
 	bool isCourseUsed(int Id) const;
   string getLength(int leg) const;
 
@@ -282,8 +327,9 @@ public:
 	oDataInterface getDI(void);
   oDataConstInterface getDCI(void) const;
 
-  //Get number of runners running this class
-	int getNumRunners() const;
+  // Get total number of runners running this class.
+  // Use checkFirstLeg to only check the number of runners running leg 1.
+	int getNumRunners(bool checkFirstLeg) const;
 
   //Get remaining maps for class (or int::minvalue) 
   int getNumRemainingMaps(bool recalculate) const;
@@ -302,20 +348,24 @@ public:
   static void fillLegTypes(gdioutput &gdi, const string &name);
 
 	pCourse getCourse() const {return Course;}
+  void getCourses(int leg, vector<pCourse> &courses) const;
+  
   pCourse getCourse(int leg, unsigned fork=0) const;
 	int getCourseId() const {if(Course) return Course->getId(); else return 0;}
 	void setCourse(pCourse c);
 
-	bool addStageCourse(int Stage, int CourseId);
-	bool removeStageCourse(int Stage, int CourseId, int position);
+	bool addStageCourse(int stage, int courseId);
+	void clearStageCourses(int stage);
+
+  bool removeStageCourse(int stage, int courseId, int position);
 
   void getAgeLimit(int &low, int &high) const;
   void setAgeLimit(int low, int high);
   
   int getExpectedAge() const;
 
-  string getSex() const;
-  void setSex(const string &sex);
+  PersonSex getSex() const;
+  void setSex(PersonSex sex);
   
   string getStart() const;
   void setStart(const string &start);
@@ -333,8 +383,8 @@ public:
   // a non-zero fee is changed only if resetFee is true
   void addClassDefaultFee(bool resetFee);
 
-  // Get entry fee depending on date
-  int getEntryFee(const string &date) const;
+  // Get entry fee depending on date and age
+  int getEntryFee(const string &date, int age) const;
 
 	oClass(oEvent *poe);
 	oClass(oEvent *poe, int id);

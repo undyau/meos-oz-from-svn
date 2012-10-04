@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,17 +35,49 @@
 #include <cassert>
 #include "meos_util.h"
 #include "Table.h"
+#include "gdifonts.h"
+#include "meosexception.h"
 
 #include "TabClub.h"
+#include "csvparser.h"
 
 TabClub::TabClub(oEvent *poe):TabBase(poe)
 {
   baseFee = 0;
-  highFee = 0;
+  lowAge = 0;
+  highAge = 0;
+  filterAge = false;
+  onlyNoFee = false;
+  useManualFee = false;
 }
 
 TabClub::~TabClub(void)
 { 
+}
+
+void TabClub::readFeeFilter(gdioutput &gdi) {
+  baseFee = oe->interpretCurrency(gdi.getText("BaseFee"));
+  firstDate = gdi.getText("FirstDate");
+  lastDate = gdi.getText("LastDate");
+  filterAge = gdi.isChecked("FilterAge");
+  useManualFee = gdi.isChecked("DefaultFees");
+  if (filterAge) {
+    highAge = gdi.getTextNo("HighLimit");
+    lowAge = gdi.getTextNo("LowLimit");
+  }
+
+  onlyNoFee = gdi.isChecked("OnlyNoFee");
+
+  ListBoxInfo lbi;
+  gdi.getSelectedItem("ClassType", &lbi);
+
+  if (lbi.data == -5)
+    typeS = "*";
+  else if (lbi.data > 0)
+    typeS = "::" + itos(lbi.data);
+  else
+    typeS = lbi.text;
+
 }
 
 void TabClub::selectClub(gdioutput &gdi,  pClub pc)
@@ -57,6 +89,18 @@ void TabClub::selectClub(gdioutput &gdi,  pClub pc)
 	else{
     ClubId = 0;
 	}
+}
+
+void manualFees(gdioutput &gdi, bool on) {
+  gdi.setInputStatus("BaseFee", on);
+  gdi.setInputStatus("FirstDate", on);
+  gdi.setInputStatus("LastDate", on);
+}
+
+void ageFilter(gdioutput &gdi, bool on, bool use) {
+  gdi.setInputStatus("HighLimit", on & use);
+  gdi.setInputStatus("LowLimit", on & use);
+  gdi.setInputStatus("FilterAge", use);
 }
 
 int ClubsCB(gdioutput *gdi, int type, void *data)
@@ -78,7 +122,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       pClub pc=oe->getClub(lbi.data);
       if (pc) {
         gdi.clearPage(true);
-        oe->calculateResults(false);
+        oe->calculateResults(oEvent::RTClassResult);
         oe->sortRunners(ClassStartTime);
         int pay, paid;
         pc->generateInvoice(gdi, pc->getId(), pay, paid);
@@ -92,9 +136,54 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 		}
     else if (bi.id=="AllInvoice") {
       gdi.clearPage(false);
-      oe->printInvoices(gdi, false);
+      gdi.addString("", boldLarge, "Skapa fakturor");
+      
+      gdi.addSelection("Type", 300, 100, 0, "Val av export:");
+
+      gdi.addItem("Type", "Skriv ut alla", oEvent::IPTAllPrint);
+      gdi.addItem("Type", "Exportera alla till HTML", oEvent::IPTAllHTML);
+
+      gdi.addItem("Type", "Skriv ut dem utan e-post", oEvent::IPTNoMailPrint);
+      gdi.addItem("Type", "Skriv ut ej accepterade elektroniska", oEvent::IPTNonAcceptedPrint);
+#ifdef _DEBUG
+      gdi.addItem("Type", "Exportera elektroniska fakturor", oEvent::IPTElectronincHTML);
+#endif
+      gdi.selectFirstItem("Type");
+      gdi.fillRight();
+      gdi.pushX();
+      gdi.addButton("DoAllInvoice", "Skapa fakturor", ClubsCB);
+#ifdef _DEBUG
+      gdi.addButton("ImportAnswer", "Hämta svar om elektroniska fakturor", ClubsCB);
+#endif
+      gdi.addButton("Cancel", "Avbryt", ClubsCB);
       gdi.refresh();
-	  gdi.print(oe, 0, false, false);
+    }
+    else if (bi.id=="DoAllInvoice") {
+      ListBoxInfo lbi;
+      gdi.getSelectedItem("Type", &lbi);
+      string path;
+      if (lbi.data > 10)
+        path = gdi.browseForFolder(path);
+      gdi.clearPage(false);
+
+      oe->printInvoices(gdi, oEvent::InvoicePrintType(lbi.data), path, false);
+      gdi.refresh();
+	    gdi.print(oe, 0, false, false);
+    }
+    else if (bi.id=="ImportAnswer") {
+      vector< pair<string, string> > ft;
+      ft.push_back(make_pair("Textfiler", "*.txt"));
+      string file = gdi.browseForOpen(ft, "txt");
+      if (!file.empty()) {
+        gdi.clearPage(true);
+        try {
+          importAcceptedInvoice(gdi, file);
+        }
+        catch (std::exception &ex) {
+          gdi.addString("", 0, ex.what()).setColor(colorRed);
+        }
+        gdi.addButton("Cancel", "OK", ClubsCB);
+      }
     }
     else if (bi.id=="UpdateAll") {
       oe->updateClubsFromDB();
@@ -120,7 +209,8 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 		}    
     else if (bi.id=="Summary") {
       gdi.clearPage(false);
-      oe->printInvoices(gdi, true);
+      string nn;
+      oe->printInvoices(gdi, oEvent::IPTAllPrint, nn, true);
       gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), "Cancel", 
                     "Återgå", ClubsCB, "", true, false);
       gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120), "Print",
@@ -179,63 +269,160 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.addString("", boldLarge, "Tilldela avgifter");
       
       gdi.dropLine();
+      gdi.addString("", 10, "help:assignfee");
+      gdi.dropLine();
       gdi.pushX();
-      gdi.fillRight();
 
-      gdi.addSelection("ClassType", 150, 300, 0, "Klasstyp");
-      oe->fillClassTypes(gdi, "ClassType");
+      gdi.addSelection("ClassType", 150, 300, 0, "Klass / klasstyp:");
+      vector< pair<string, size_t> > types;
+      vector< pair<string, size_t> > classes;
+
+      oe->fillClassTypes(types);
+      oe->fillClasses(classes, oEvent::extraNone, oEvent::filterNone);
+      types.insert(types.end(), classes.begin(), classes.end());
+      gdi.addItem("ClassType", types);
       gdi.addItem("ClassType", lang.tl("Alla typer"), -5);
+
       gdi.selectItemByData("ClassType", -5);
 
-      gdi.addInput("BaseFee", oe->formatCurrency(baseFee), 8, 0, "Ordinarie avgift");
-      gdi.addInput("HighFee", oe->formatCurrency(highFee), 8, 0, "Förhöjd avgift");
+      gdi.fillRight();
+      gdi.dropLine(2);
+      gdi.addCheckbox("DefaultFees", "Manuella avgifter:", ClubsCB, useManualFee);
+
+      gdi.dropLine(-1);
+      
+      int px = gdi.getCX();
+      gdi.addInput("BaseFee", oe->formatCurrency(baseFee), 8, 0, "Avgift:");
+      gdi.addInput("FirstDate", firstDate, 10, 0, "Undre datumgräns:", "ÅÅÅÅ-MM-DD");
+      gdi.addInput("LastDate", lastDate, 10, 0, "Övre datumgräns:", "ÅÅÅÅ-MM-DD");
+
+      manualFees(gdi, useManualFee);
+
+      gdi.setCX(px);
+      gdi.dropLine(4);
+      gdi.fillRight();
+      gdi.addCheckbox("FilterAge", "Åldersfilter:", ClubsCB, filterAge);
+
+      gdi.dropLine(-1);
+      gdi.addInput("LowLimit", lowAge > 0 ? itos(lowAge) : "", 5, 0, "Undre gräns (år):");
+      gdi.addInput("HighLimit", highAge > 0 ? itos(highAge) : "", 5, 0, "Övre gräns (år):");
+      ageFilter(gdi, filterAge, useManualFee);
 
       gdi.popX();
       gdi.fillDown();
       gdi.dropLine(3);
 
-      gdi.addInput("LastDate", entryLimit, 16, 0, "Sista datum för ordinarie anmälan (ÅÅÅÅ-MM-DD):");
-    
-      gdi.addCheckbox("ResetFees", "Nollställ avgifter", ClubsCB, false);
+      gdi.addCheckbox("OnlyNoFee", "Tilldela endast avgift till deltagare utan avgift", ClubsCB, onlyNoFee);
       
       gdi.pushX();
       gdi.fillRight();
-      gdi.addButton("DoFees", "Tilldela", ClubsCB);
+      gdi.addButton("ShowFiltered", "Visa valda deltagare", ClubsCB);
+
+      gdi.addButton("DoFees", "Tilldela avgifter", ClubsCB);
+      gdi.addButton("ClearFees", "Nollställ avgifter", ClubsCB);
+
       gdi.addButton("Cancel", "Återgå", ClubsCB);
       gdi.popX();
       gdi.fillDown();
       gdi.dropLine(2);
       gdi.refresh();
 		}
-    else if (bi.id == "ResetFees") {
-      bool reset = gdi.isChecked("ResetFees");
-      gdi.setInputStatus("BaseFee", !reset);
-      gdi.setInputStatus("HighFee", !reset);
-      gdi.setInputStatus("LastDate", !reset);
+    else if (bi.id == "FilterAge") {
+      ageFilter(gdi, gdi.isChecked(bi.id), gdi.isChecked("DefaultFees"));
     }
-  	else if (bi.id=="DoFees") {
-      baseFee = oe->interpretCurrency(gdi.getText("BaseFee"));
-      highFee = oe->interpretCurrency(gdi.getText("HighFee"));
-      entryLimit = gdi.getText("LastDate");
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("ClassType", &lbi);
-      //string type = gdi.getText("ClassType");
-      string typeS;
-      if (lbi.data == -5)
-        typeS = "*";
-      else
-        typeS = lbi.text;
+    else if (bi.id == "DefaultFees") {
+      manualFees(gdi, gdi.isChecked(bi.id));
+      ageFilter(gdi, gdi.isChecked("FilterAge"), gdi.isChecked(bi.id));
+    }
+  	else if (bi.id == "DoFees" || bi.id == "ClearFees" || 
+             bi.id == "ShowFiltered" || bi.id == "ResetFees") {
 
-      bool reset = gdi.isChecked("ResetFees");
+      readFeeFilter(gdi);
+      int op;
+
+      if (bi.id == "DoFees") { 
+        if (useManualFee)
+          op = 0;
+        else
+          op = 2;
+      }
+      else if (bi.id == "ClearFees")
+        op = 1;
+      else if (bi.id == "ResetFees")
+        op = 2;
+      else 
+        op = 3;
+
+      gdi.restore("FeeList", false);
+      gdi.setRestorePoint("FeeList");
+      gdi.fillDown();
+
+      vector<pRunner> filtered;
+
+      oe->sortRunners(ClassStartTimeClub);
+      string fdate, ldate;
+      int lage = 0, hage = 0;
+      
+      if (useManualFee) {
+        fdate = firstDate;
+        ldate = lastDate;
+
+        if (filterAge) {
+          lage = lowAge;
+          hage = highAge;
+        }
+      }
+      
+      oe->selectRunners(typeS, lage, hage, fdate, ldate, !onlyNoFee, filtered);
+      
+      gdi.dropLine(2);
+      int modified = 0;
+      int count = 0;
+      for (size_t k = 0; k<filtered.size(); k++) {
+        if (op != 1 && filtered[k]->isVacant())
+          continue;
+        count++;
+
+        oDataInterface di = filtered[k]->getDI();
+        int fee = 0;
+
+        if (op == 0 || op == 1) {
+          if (op == 0)
+            fee = baseFee;
+          
+          if (di.getInt("Fee") != fee) {
+            di.setInt("Fee", fee);
+            modified++;
+            filtered[k]->synchronize(true);
+          }
+        }
+        else if (op == 2) {
+          filtered[k]->addClassDefaultFee(true);
+          if (filtered[k]->isChanged())
+            modified++;
+          filtered[k]->synchronize(true);
+          fee = di.getInt("Fee");
+        }
+        else
+          fee = di.getInt("Fee");
+
+        string info = filtered[k]->getClass() + ", " + filtered[k]->getCompleteIdentification();
+
+        gdi.addStringUT(0,  info + " (" + oe->formatCurrency(fee) + ")");
+        if (count % 5 == 0)
+          gdi.dropLine();
+      }
 
       gdi.dropLine();
-      if (!reset)
-        oe->generateFees(typeS, entryLimit, baseFee, highFee);
-      else
-        oe->generateFees(typeS, "", 0, 0);
-      
-      gdi.addStringUT(1, lang.tl("Utfört: ") + lbi.text).setColor(colorGreen);
-      gdi.refresh();    
+
+      if (count == 0) 
+        gdi.addString("", 1, "Ingen deltagare matchar sökkriteriet").setColor(colorRed);
+      else if (op == 0 || op == 2)
+        gdi.addString("", 1, "Ändrade avgift för X deltagare#" + itos(modified)).setColor(colorGreen);
+      else if (op == 1)
+        gdi.addString("", 1, "Nollställde avgift för X deltagare#" + itos(modified)).setColor(colorGreen);
+
+      gdi.refresh();   
 		}
 		else if (bi.id=="Cancel") {
       loadPage(gdi);
@@ -268,10 +455,13 @@ bool TabClub::loadPage(gdioutput &gdi)
 
   if (baseFee == 0) {
     if (oe->getDCI().getInt("OrdinaryEntry") > 0)
-      entryLimit = oe->getDCI().getDate("OrdinaryEntry");
+      lastDate = oe->getDCI().getDate("OrdinaryEntry");
     baseFee = oe->getDCI().getInt("EntryFee");
-    highFee = (int)(baseFee * 0.01*double(100 + atof(oe->getDCI().getString("LateEntryFactor").c_str())));
+    
+    lowAge = 0;
+    highAge = oe->getDCI().getInt("YouthAge");
   }
+
 	gdi.clearPage(false);
 	gdi.fillDown();
 	gdi.addString("", boldLarge, "Klubbar");
@@ -286,13 +476,13 @@ bool TabClub::loadPage(gdioutput &gdi)
   gdi.addButton("Update", "Uppdatera", ClubsCB, "Uppdatera klubbens uppgifter med data från löpardatabasen/distriktsregistret");
 
   gdi.popX();
-  gdi.dropLine(2);
+  gdi.dropLine(3);
 
   gdi.addButton("Fees", "Avgifter...", ClubsCB);
   gdi.addButton("UpdateAll", "Uppdatera alla klubbar", ClubsCB, "Uppdatera klubbarnas uppgifter med data från löpardatabasen/distriktsregistret");
   gdi.addButton("UpdateAllRunners", "Uppdatera klubbar && löpare", ClubsCB, "Uppdatera klubbarnas och löparnas uppgifter med data från löpardatabasen/distriktsregistret");
   
-  gdi.addButton("AllInvoice", "Alla fakturor...", ClubsCB);
+  gdi.addButton("AllInvoice", "Skapa fakturor...", ClubsCB);
   gdi.addButton("Summary", "Sammanställning", ClubsCB);
   gdi.popX();
   gdi.fillDown();
@@ -303,4 +493,118 @@ bool TabClub::loadPage(gdioutput &gdi)
   gdi.addTable(tbl, gdi.getCX(), gdi.getCY());
   gdi.refresh();
   return true;	
+}
+
+void TabClub::importAcceptedInvoice(gdioutput &gdi, const string &file) {
+
+  gdi.addString("", boldLarge, "Hämta svar om elektroniska fakturor");
+
+  gdi.fillDown();
+  gdi.dropLine(2);
+  csvparser csv;
+  list< vector<string> > data;
+  csv.parse(file, data);
+  list< vector<string> >::iterator it;
+  map<int, pair<bool, string> > hasAccepted;
+  for (it = data.begin(); it != data.end(); ++it) {
+    if (it->size() == 3) {
+      int id = atoi((*it)[0].c_str());
+      bool accepted = trim((*it)[1]) == "OK";
+      pClub pc = oe->getClub(id);
+      if (pc) {
+        hasAccepted[id].first = accepted;
+        if( hasAccepted[id].second.empty())
+          hasAccepted[id].second = (*it)[2];
+        else
+          hasAccepted[id].second += ", " + (*it)[2];
+      }
+      else
+        gdi.addString("", 0, "Okänd klub med id X#" + itos(id)).setColor(colorRed);
+    }
+    else
+      throw meosException("Bad file format.");
+  }
+
+  gdi.pushX();
+  gdi.fillNone();
+
+  int margin = gdi.getCX() + gdi.scaleLength(30);
+  vector<pClub> clubs;
+  oe->getClubs(clubs, true);
+  bool anyAccepted = false;
+  int count = 0;
+  for (size_t k = 0; k < clubs.size(); k++) {
+    map<int, pair<bool, string> >::iterator res = hasAccepted.find(clubs[k]->getId());
+
+    if (res != hasAccepted.end() && res->second.first) {
+      if (!anyAccepted) {
+        gdi.dropLine();
+        gdi.addString("", 1, "Accepterade elektroniska fakturor");
+        gdi.dropLine();
+        gdi.popX();
+        anyAccepted = true;
+      }
+      clubs[k]->getDI().setString("Invoice", "A");
+      gdi.addStringUT(0, itos(++count) + ".");
+      gdi.setCX(margin);
+      gdi.addStringUT(0, clubs[k]->getName() + ", " + res->second.second);
+      gdi.dropLine();
+      gdi.popX();
+    }
+  }
+
+  bool anyNotAccepted = false;
+  count = 0;
+  for (size_t k = 0; k < clubs.size(); k++) {
+    map<int, pair<bool, string> >::iterator res = hasAccepted.find(clubs[k]->getId());
+
+    if (res != hasAccepted.end() && !res->second.first) {
+      if (!anyNotAccepted) {
+        gdi.dropLine();
+        gdi.addString("", 1, "Ej accepterade elektroniska fakturor");
+        gdi.dropLine();
+        gdi.popX();
+        anyNotAccepted = true;
+      }
+      clubs[k]->getDI().setString("Invoice", "P");
+      gdi.addStringUT(0, itos(++count) + ".");
+      gdi.setCX(margin);
+      gdi.addStringUT(0, clubs[k]->getName() + ", " + res->second.second);
+      gdi.dropLine();
+      gdi.popX();
+
+    }
+  }
+
+  bool anyNoAnswer = false;
+  count = 0;
+  for (size_t k = 0; k < clubs.size(); k++) {
+    string email = clubs[k]->getDCI().getString("EMail");
+    bool hasMail = !email.empty() && email.find_first_of('@') != email.npos;
+
+    map<int, pair<bool, string> >::iterator res = hasAccepted.find(clubs[k]->getId());
+
+    if (res == hasAccepted.end() ) {
+      if (!anyNoAnswer) {
+        gdi.dropLine();
+        gdi.addString("", 1, "Klubbar som inte svarat");
+        gdi.dropLine();
+        gdi.popX();
+
+        anyNoAnswer = true;
+      }
+      gdi.addStringUT(0, itos(++count) + ".");
+      gdi.setCX(margin);
+
+      if (hasMail)
+        gdi.addStringUT(0, clubs[k]->getName());
+      else
+        gdi.addString("", 0, "X (Saknar e-post)#" + clubs[k]->getName());
+
+      gdi.dropLine();
+      gdi.popX();
+    }
+  }
+  gdi.fillDown();
+  gdi.dropLine();
 }

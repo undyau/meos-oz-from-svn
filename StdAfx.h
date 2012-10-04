@@ -16,7 +16,6 @@
 // Windows Header Files:
 #include <windows.h>
 #include <commctrl.h>
-//#include <Afxwin.h>
 
 // C RunTime Header Files
 
@@ -42,7 +41,6 @@ gdioutput *createExtraWindow(const string &title, int max_x = 0, int max_y = 0);
 
 // Local Header Files
 
-// TODO: reference additional headers your program requires here
 void LoadPage(const string &name);
 
 string getTempFile();

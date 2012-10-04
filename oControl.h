@@ -41,6 +41,7 @@ protected:
   int tMissedTimeTotal;
   int tMissedTimeMax;
   int tNumVisitors;
+  int tMissedTimeMedian;
 
   /// Table methods
   void addTableRow(Table &table) const;
@@ -58,6 +59,7 @@ public:
 
   int getMissedTimeTotal() const {return tMissedTimeTotal;}
   int getMissedTimeMax() const {return tMissedTimeMax;}
+  int getMissedTimeMedian() const {return tMissedTimeMedian;}
   int getNumVisitors() const {return tNumVisitors;}
   
   inline int minNumber() const {
@@ -75,13 +77,15 @@ public:
   }
 
   //Add unchecked controls to the list
-  void addUncheckedPunches(vector<int> &mp) const;
+  void addUncheckedPunches(vector<int> &mp, bool supportRogaining) const;
   //Start checking if all punches needed for this control exist
   void startCheckControl();
   //Get the number of a missing punch 
   int getMissingNumber() const;
-  //Returns true if the check of this control is completed
-  bool controlCompleted() const;
+  /** Returns true if the check of this control is completed
+   @param supportRogaining true if rogaining controls are supported
+  */
+  bool controlCompleted(bool supportRogaiing) const;
 
 	oDataInterface getDI(void);
   oDataConstInterface getDCI(void) const;
@@ -95,7 +99,7 @@ public:
   bool hasName() const {return !Name.empty();}
 	string getName() const;
 
-  bool isRogaining() const {return Status == StatusRogaining;}
+  bool isRogaining(bool useRogaining) const {return useRogaining && (Status == StatusRogaining);}
 
 	void setStatus(ControlStatus st);
 	void setName(string name);

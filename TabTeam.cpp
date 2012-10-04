@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@
 #include "oEvent.h"
 #include "xmlparser.h"
 #include "gdioutput.h"
+#include "gdiconstants.h"
+
 #include "csvparser.h"
 #include "SportIdent.h"
 #include "meos_util.h"
@@ -43,6 +45,8 @@ TabTeam::TabTeam(oEvent *poe):TabBase(poe)
   shownRunners = 0;
   shownDistinctRunners = 0;
   teamId=0;
+  inputId = 0;
+  timeToFill = 0;
 }
 
 TabTeam::~TabTeam(void)
@@ -56,6 +60,119 @@ int TeamCB(gdioutput *gdi, int type, void *data)
   return tt.teamCB(*gdi, type, data);
 }
 
+int teamSearchCB(gdioutput *gdi, int type, void *data)
+{
+  TabTeam &tc = dynamic_cast<TabTeam &>(*gdi->getTabs().get(TTeamTab));
+
+  return tc.searchCB(*gdi, type, data);
+}
+
+int TabTeam::searchCB(gdioutput &gdi, int type, void *data) {
+  static DWORD editTick = 0;
+  string expr;
+  bool showNow = false;
+  bool filterMore = false;
+
+  if (type == GUI_INPUTCHANGE) {
+    inputId++;
+    InputInfo &ii = *(InputInfo *)(data);
+    expr = trim(ii.text);
+    filterMore = expr.length() > lastSearchExpr.length() &&
+                  expr.substr(0, lastSearchExpr.length()) == lastSearchExpr;
+    editTick = GetTickCount();
+    if (expr != lastSearchExpr) {
+      int nr = oe->getNumRunners();
+      if (timeToFill < 50 || (filterMore && (timeToFill * lastFilter.size())/nr < 50))
+        showNow = true;
+      else {// Delay filter 
+        gdi.addTimeoutMilli(500, "Search: " + expr, runnerSearchCB).setExtra((void *)inputId);
+      }
+    }
+  }
+  else if (type == GUI_TIMER) {
+    
+    TimerInfo &ti = *(TimerInfo *)(data);
+    
+    if (inputId != int(ti.getExtra()))
+      return 0;
+
+    expr = ti.id.substr(8);
+    filterMore = expr.length() > lastSearchExpr.length() &&
+              expr.substr(0, lastSearchExpr.length()) == lastSearchExpr;
+    showNow = true;
+  }
+  else if (type == GUI_EVENT) {
+    EventInfo &ev = *(EventInfo *)(data);
+    if (ev.getKeyCommand() == KC_FIND) {
+      gdi.setInputFocus("SearchText", true);
+    }
+    else if (ev.getKeyCommand() == KC_FINDBACK) {
+      gdi.setInputFocus("SearchText", false);
+    }
+  }
+  else if (type == GUI_FOCUS) {
+    InputInfo &ii = *(InputInfo *)(data);
+
+    if (ii.text == getSearchString()) {
+      ((InputInfo *)gdi.setText("SearchText", ""))->setFgColor(colorDefault);
+    }
+  }
+
+  if (showNow) {
+    stdext::hash_set<int> filter;
+    
+    if (type == GUI_TIMER)
+      gdi.setWaitCursor(true);
+
+    if (filterMore) {
+      
+      oe->findTeam(expr, 0, filter);
+      lastSearchExpr = expr;
+      // Filter more
+      if (filter.empty()) {
+        vector< pair<string, size_t> > runners;
+        runners.push_back(make_pair(lang.tl("Ingen matchar 'X'#" + expr), -1));
+        gdi.addItem("Teams", runners);
+      }
+      else
+        gdi.filterOnData("Teams", filter);
+    }
+    else {
+      oe->findTeam(expr, 0, filter);
+      lastSearchExpr = expr;
+     
+      vector< pair<string, size_t> > runners;
+      oe->fillTeams(runners);
+      
+      if (filter.size() == runners.size()){
+      }
+      else if (filter.empty()) {
+        runners.clear();
+        runners.push_back(make_pair(lang.tl("Ingen matchar 'X'#" + expr), -1));
+      }
+      else {
+        vector< pair<string, size_t> > runners2;
+        
+        for (size_t k = 0; k<runners.size(); k++) {
+          if (filter.count(runners[k].second) == 1) {
+            runners2.push_back(make_pair(string(), runners[k].second));
+            runners2.back().first.swap(runners[k].first);
+          }
+        }
+        runners.swap(runners2);
+      }
+
+      gdi.addItem("Teams", runners);
+    }
+
+    if (type == GUI_TIMER)
+      gdi.setWaitCursor(false);
+  }
+
+  return 0;
+}
+
+
 void TabTeam::selectTeam(gdioutput &gdi, pTeam t)
 {
 	if(t){
@@ -63,8 +180,7 @@ void TabTeam::selectTeam(gdioutput &gdi, pTeam t)
 
     teamId=t->getId();
 		gdi.setText("Name", t->getName());
-    int bib = t->getBib();
-		gdi.setText("StartNo", bib > 0 ? itos(bib) : "");
+		gdi.setText("StartNo", t->getBib());
 
 		gdi.setText("Club", t->getClub());
 
@@ -143,8 +259,8 @@ bool TabTeam::save(gdioutput &gdi) {
 
 	if (t) {				
 		t->setName(name);
-    int bib = gdi.getTextNo("StartNo");
-		t->setBib(bib, bib>0); 
+    const string &bib = gdi.getText("StartNo");
+    t->setBib(bib, atoi(bib.c_str()) > 0); 
 		t->setStartTimeS(gdi.getText("Start"));
 		t->setFinishTimeS(gdi.getText("Finish"));
 
@@ -248,9 +364,8 @@ bool TabTeam::save(gdioutput &gdi) {
 
     t->evaluate(true);
 
-		oe->fillTeams(gdi, "Teams");
+    fillTeamList(gdi);
 		gdi.selectItemByData("Teams", t->getId());
-
 		gdi.setText("Time", t->getRunningTimeS());
 		gdi.selectItemByData("Status", t->getStatus());
 	}
@@ -279,7 +394,8 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       ListBoxInfo lbi;
       gdi.getSelectedItem("Teams", &lbi);
       oe->fillTeams(gdi, "Teams");
-      pTeam t=oe->findTeam(gdi.getText("SearchText"), lbi.data);
+      stdext::hash_set<int> foo;
+      pTeam t=oe->findTeam(gdi.getText("SearchText"), lbi.data, foo);
 
       if(t) {
         selectTeam(gdi, t);
@@ -287,6 +403,9 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       }
       else
         gdi.alert("Laget hittades inte");
+    }
+    else if (bi.id == "ShowAll") {
+      fillTeamList(gdi);
     }
     else if (bi.id.substr(0,2)=="MR") { 
       int leg = atoi(bi.id.substr(2, string::npos).c_str());
@@ -320,7 +439,7 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       gdi.addSelection("SelectR", 180, 300, TeamCB);
       gdi.fillDown();
       gdi.addButton("SelectRunner", "OK", TeamCB).setExtra(LPVOID(leg));
-      oe->fillRunners(gdi, "SelectR", false);
+      oe->fillRunners(gdi, "SelectR", false, 0);
       pTeam t = oe->getTeam(teamId);
       pRunner r = t ? t->getRunner(leg) : 0;
       gdi.selectItemByData("SelectR", r ? r->getId() : -1);
@@ -343,8 +462,21 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       }
     }
 		else if (bi.id=="Add") {
-      if (teamId>0)
+      if (teamId>0) {
+
+        string name = gdi.getText("Name");
+        pTeam t = oe->getTeam(teamId);
+        if (!name.empty() && t && t->getName() != name) {
+          if (gdi.ask("Vill du lägga till laget 'X'?#" + name)) {
+            t = oe->addTeam(name);
+            teamId = t->getId();
+          }
+          save(gdi);
+          return true;
+        }
+
         save(gdi);
+      }
 
       pTeam t = oe->addTeam(oe->getAutoTeamName());
       t->setStartNo(oe->getFreeStartNo());
@@ -357,7 +489,8 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       else  
         t->setClassId(oe->getFirstClassId(true));
       
-      oe->fillTeams(gdi, "Teams");
+      fillTeamList(gdi);
+      //oe->fillTeams(gdi, "Teams");
       selectTeam(gdi, t);
 
 			//selectTeam(gdi, 0);
@@ -399,7 +532,9 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
             r->synchronize();
           }
         }
-				oe->fillTeams(gdi, "Teams");
+        
+        fillTeamList(gdi);
+				//oe->fillTeams(gdi, "Teams");
 				selectTeam(gdi, 0);
 				gdi.selectItemByData("Teams", -1);
 			}
@@ -451,7 +586,8 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
 							pRunner r=oe->getRunner(bi.data, 0);
               if (r) {
 							  sprintf_s(bf, "SI%d", i);
-							  gdi.setText(bf, r->getCardNo());
+                int cno = r->getCardNo();
+                gdi.setText(bf, cno > 0 ? itos(cno) : "");
               }
 						}
 					}
@@ -510,8 +646,8 @@ void TabTeam::loadTeamMembers(gdioutput &gdi, int ClassId, int ClubId, pTeam t)
 	char bf_si[16];
   int xp = gdi.getCX();
   int yp = gdi.getCY();
- 
-  //int dx[5] = {0, 190, 260, 290, 334};
+  int numberPos = xp;
+  xp += gdi.scaleLength(25);
   int dx[6] = {0, 188, 220, 290, 316, 364};
   for (int i = 0; i<6; i++)
     dx[i] = gdi.scaleLength(dx[i]);
@@ -520,21 +656,21 @@ void TabTeam::loadTeamMembers(gdioutput &gdi, int ClassId, int ClubId, pTeam t)
   gdi.addString("", yp, xp + dx[2], 0, "Bricka:");
   gdi.addString("", yp, xp + dx[3], 0, "Hyrd:");
   gdi.addString("", yp, xp + dx[5], 0, "Status:");
-  //gdi.addString("", yp, xp + dx[3], 0, "Ändra:");
   gdi.dropLine(0.5);
+
 	for (unsigned i=0;i<pc->getNumStages();i++) {
     yp = gdi.getCY();
  
     sprintf_s(bf, "R%d", i);
 		gdi.pushX();
-		bool hasSI=false;
-
+		bool hasSI = false;
+    gdi.addStringUT(yp, numberPos, 0, pc->getLegNumber(i)+".");
     if(pc->getLegRunner(i)==i) {
-		
-      gdi.addInput(xp + dx[0], yp, bf, "", 16, TeamCB);//Name  
+      		
+      gdi.addInput(xp + dx[0], yp, bf, "", 18, TeamCB);//Name  
       gdi.addButton(xp + dx[1], yp-2, gdi.scaleLength(28), "DR" + itos(i), "<>", TeamCB, "Knyt löpare till sträckan.", false, false); // Change
       sprintf_s(bf_si, "SI%d", i);
-      hasSI=true;
+      hasSI = true;
       gdi.addInput(xp + dx[2], yp, bf_si, "", 5).width; //Si
 
       gdi.addCheckbox(xp + dx[3], yp + gdi.scaleLength(10), "RENT"+itos(i), "", 0, false); //Rentcard
@@ -546,7 +682,8 @@ void TabTeam::loadTeamMembers(gdioutput &gdi, int ClassId, int ClubId, pTeam t)
 		  gdi.popX();
     }
     else {
-      gdi.addInput(bf, "", 24);
+      //gdi.addInput(bf, "", 24);
+      gdi.addInput(xp + dx[0], yp, bf, "", 18, 0);//Name  
       gdi.disableInput(bf);
     }
     
@@ -555,21 +692,21 @@ void TabTeam::loadTeamMembers(gdioutput &gdi, int ClassId, int ClubId, pTeam t)
 			if (r) {
         gdi.setText(bf, r->getName())->setExtra((void *)r->getId());
         
-        if(hasSI)
+        if(hasSI) {
 				  gdi.setText(bf_si, r->getCardNo());
-
-         gdi.check("RENT" + itos(i), r->getDCI().getInt("CardFee") > 0);
-         string sid = "STATUS"+itos(i);
-         if (r->statusOK()) {
-           TextInfo * ti = (TextInfo *)gdi.setText(sid, "OK, " + r->getRunningTimeS(), false);
-           if(ti)
-             ti->setColor(colorGreen);
-         }
-         else if (r->getStatus() != StatusUnknown) {
-           TextInfo * ti = (TextInfo *)gdi.setText(sid, r->getStatusS() + ", " + r->getRunningTimeS(), false);
-           if (ti)
-             ti->setColor(colorRed);
-         }
+          gdi.check("RENT" + itos(i), r->getDCI().getInt("CardFee") > 0);
+        }
+        string sid = "STATUS"+itos(i);
+        if (r->statusOK()) {
+          TextInfo * ti = (TextInfo *)gdi.setText(sid, "OK, " + r->getRunningTimeS(), false);
+          if(ti)
+            ti->setColor(colorGreen);
+        }
+        else if (r->getStatus() != StatusUnknown) {
+          TextInfo * ti = (TextInfo *)gdi.setText(sid, r->getStatusS() + ", " + r->getRunningTimeS(), false);
+          if (ti)
+            ti->setColor(colorRed);
+        }
 			}
 		}
 	}
@@ -594,20 +731,28 @@ bool TabTeam::loadPage(gdioutput &gdi)
 	gdi.selectTab(tabId);
 	gdi.clearPage(false);
 	gdi.fillDown();
-	gdi.addString("", boldLarge, "Lag");
+	gdi.addString("", boldLarge, "Lag(flera)");
 
   gdi.pushX();
   gdi.fillRight();
-  gdi.addInput("SearchText", "", 17, 0, "", "Sök på namn, bricka eller startnummer.").isEdit(false).setBgColor(colorLightCyan).ignore(true);
+
+  gdi.registerEvent("SearchRunner", runnerSearchCB).setKeyCommand(KC_FIND);
+  gdi.registerEvent("SearchRunnerBack", runnerSearchCB).setKeyCommand(KC_FINDBACK);
+  gdi.addInput("SearchText", "", 17, teamSearchCB, "", "Sök på namn, bricka eller startnummer.").isEdit(false).setBgColor(colorLightCyan).ignore(true);
   gdi.dropLine(-0.2);
-  gdi.addButton("Search", "Sök", TeamCB, "Sök på namn, bricka eller startnummer.").isEdit(false);
+//  gdi.addButton("Search", "Sök", TeamCB, "Sök på namn, bricka eller startnummer.").isEdit(false);
+  //gdi.dropLine(-0.2);
+  //gdi.addButton("Search", "Sök", RunnerCB, "Sök på namn, bricka eller startnummer.");
+  gdi.addButton("ShowAll", "Visa alla", TeamCB).isEdit(false);
+  
   gdi.dropLine(2);
   gdi.popX();
 	gdi.fillDown();
 	gdi.addListBox("Teams", 250, 400, TeamCB, "", "").isEdit(false).ignore(true);
-	oe->fillTeams(gdi, "Teams");
-
-	gdi.fillRight();	
+	//oe->fillTeams(gdi, "Teams");
+  fillTeamList(gdi);
+	
+  gdi.fillRight();	
 
 	gdi.newColumn();
 	gdi.fillDown();
@@ -672,4 +817,18 @@ bool TabTeam::loadPage(gdioutput &gdi)
 
 	gdi.refresh();
   return true;
+}
+
+void TabTeam::fillTeamList(gdioutput &gdi) {
+  timeToFill = GetTickCount();
+  oe->fillTeams(gdi, "Teams");
+  timeToFill = GetTickCount() - timeToFill;
+  lastSearchExpr = "";
+  ((InputInfo *)gdi.setText("SearchText", getSearchString()))->setFgColor(colorGreyBlue);
+    lastFilter.clear();
+}
+
+
+const string &TabTeam::getSearchString() const {
+  return lang.tl("Sök (X)#Ctrl+F");
 }

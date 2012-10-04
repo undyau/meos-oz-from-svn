@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -71,9 +71,10 @@ protected:
 	OpFailStatus updateTime(const char *oTable, oBase *ob);
   // Update object in database with fixed query. If useId is false, Id is ignored (used
 	OpFailStatus syncUpdate(mysqlpp::Query &updateqry, const char *oTable, oBase *ob);
-	bool storeData(oDataInterface &odi, const mysqlpp::Row &row);
+	bool storeData(oDataInterface odi, const mysqlpp::Row &row, unsigned long &revision);
   
-
+  void importLists(oEvent *oe, const char *bf);
+  void encodeLists(const oEvent *or, string &listEnc) const;
 
   //Set DB to default competition DB
   void setDefaultDB();

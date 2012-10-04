@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ protected:
   vector<pRunner> Runners;
 	void setRunnerInternal(int k, pRunner r); 
 
-	BYTE oData[32];
+	BYTE oData[96];
 
   // Remove runner r by force and mark as need correction
   void correctRemove(pRunner r);
@@ -47,7 +47,7 @@ protected:
 	int _sortstatus;
   int tTotalPlace;
 	string getRunners() const;
-  pTeam matchTeam(const char *s_lc) const;
+  bool matchTeam(int number, const char *s_lc) const;
   int tNumRestarts; //Number of restarts for team
 
   int getLegToUse(int leg) const; // Get the number of the actual 
@@ -91,12 +91,13 @@ public:
   void importRunners(const vector<pRunner> &rns);
 
   int getPlace() const {return getLegPlace(-1);}
+  int getTotalPlace() const;
 
   string getDisplayName() const;
   string getDisplayClub() const;
 
-  int getBib() const;
-  void setBib(int bib, bool updateStartNo);
+  string getBib() const;
+  void setBib(const string &bib, bool updateStartNo);
 
   int getLegStartTime(int leg) const;
 	string getLegStartTimeS(int leg) const;

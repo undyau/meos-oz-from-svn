@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2011 Melin Software HB
+    Copyright (C) 2009-2012 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,25 +21,37 @@
 ************************************************************************/
 #include "stdafx.h"
 #include <vector>
+
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJK
 int getMeosBuild() 
 {
-  string revision("$Rev: 43 $");
+  string revision("$Rev: 102 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
-//ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuv
-//V2: abcdefgh
+//ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvx
+//V2: abcdefg
+//V3: abcdefghijklmn
 string getMeosDate() 
 {
-  string date("$Date: 2011-05-28 21:30:30 +0200 (lÃ¶, 28 maj 2011) $");
+  string date("$Date: 2012-04-29 08:50:28 +0200 (sÃ¶, 29 apr 2012) $");
   return date.substr(7,10);
+}
+
+string getBuildType() {
+  return "RC1";
 }
 
 string getMeosFullVersion() {
   char bf[256];
-  sprintf_s(bf, "Version X#2.5.%d, %s (customised by Big Foot)", getMeosBuild(), getMeosDate().c_str());
+  sprintf_s(bf, "Version X#3.0.%d, %s %s (customised for Big Foot)", getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
+  return bf;
+}
+
+string getMeosCompectVersion() {
+  char bf[256];
+  sprintf_s(bf, "3.0.%d (%s)", getMeosBuild(), getBuildType().c_str());
   return bf;
 }
 
@@ -51,4 +63,14 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Täby Extreme Challenge");
   supp.push_back("Thomas Engberg, VK Uvarna");
   supp.push_back("Eilert Edin, Sidensjö IK");
+  supp.push_back("Göran Nordh, Trollhättans SK");
+  supp.push_back("Roger Gustavsson, OK Tisaren");
+  supp.push_back("Sundsvalls OK");
+  supp.push_back("OK Gipens OL-skytte");
+  supp.push_back("Helsingborgs SOK");
+  supp.push_back("OK Gipens OL-skytte");
+  supp.push_back("Rune Thurén, Vallentuna-Össeby OL");
+  supp.push_back("Roland Persson, Kalmar OK");
+  supp.push_back("Robert Jessen, Främmestads IK");  
+  supp.push_back("Almby IK, Örebro");
 }
