@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -42,9 +42,10 @@ class oDataConstInterface;
 
 enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3, 
                    StatusDNF=4, StatusDQ=5, StatusMAX=6, 
-                   StatusUnknown=0};
+                   StatusUnknown=0, StatusNotCompetiting=99};
 
 enum SortOrder {ClassStartTime,
+                ClassTeamLeg,
                 ClassResult,
                 ClassCourseResult,
                 ClassTotalResult, 
@@ -81,7 +82,10 @@ protected:
 
 	//Used for selections, etc.
 	int _objectmarker;
-  void updateChanged(){Modified.Update(); changed=true;}
+  void updateChanged(){Modified.update(); changed=true;}
+
+  /** Change the id of the object */
+  virtual void changeId(int newId);
 
   //Used for handeling GUI combo boxes;
   static void clearCombo(HWND hWnd);
@@ -100,13 +104,11 @@ public:
 
   oEvent *getEvent() const {return oe;}
 	int getId() const {return Id;}
-  /// This is not database safe
-  void changeId(int id) {Id=id;}
 	bool isChanged() const {return changed;}
 	bool isRemoved() const {return Removed;}
-	int getAge() const {return Modified.GetAge();}
+	int getAge() const {return Modified.getAge();}
 	bool synchronize(bool writeOnly=false);
-  string getTimeStamp() const {return Modified.getStampString();}
+  string getTimeStamp() const;
 
   bool existInDB() const { return !sqlUpdated.empty(); }
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,12 +49,12 @@ TimeStamp::~TimeStamp()
 
 }
 
-void TimeStamp::Update(TimeStamp &ts)
+void TimeStamp::update(TimeStamp &ts)
 {
 	Time=max(Time, ts.Time);
 }
 
-void TimeStamp::Update()
+void TimeStamp::update()
 {
 	SYSTEMTIME st;
 	GetLocalTime(&st);
@@ -67,7 +67,7 @@ void TimeStamp::Update()
 	Time=int((currenttime/10000000)-__int64(370)*365*24*3600);
 }
 
-int TimeStamp::GetAge() const
+int TimeStamp::getAge() const
 {
 	SYSTEMTIME st;
 	GetLocalTime(&st);
@@ -85,7 +85,7 @@ int TimeStamp::GetAge() const
 	//return int((currenttime-Time));
 }
 
-string TimeStamp::GetStamp() const
+string TimeStamp::getStamp() const
 {
 	__int64 ft64=(__int64(Time)+__int64(370)*365*24*3600)*10000000;
 	FILETIME &ft=*(FILETIME*)&ft64;
@@ -111,7 +111,7 @@ string TimeStamp::getStampString() const
 	return bf;
 }
 
-void TimeStamp::SetStamp(string s)
+void TimeStamp::setStamp(string s)
 {
   if (s.size()<14)
     return;

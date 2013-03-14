@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -716,7 +716,13 @@ bool Table::deleteSelection(gdioutput &gdi) {
 }
 
 void Table::hide(gdioutput &gdi) {
-  destroyEditControl(gdi);
+  try {
+    destroyEditControl(gdi);
+  }
+  catch (std::exception &ex) {
+    gdi.alert(ex.what());
+  }
+
   clearCellSelection(0);
   ReleaseCapture();
   if (clearOnHide) {
@@ -737,9 +743,17 @@ bool Table::destroyEditControl(gdioutput &gdi) {
   colSelected=-1;
 
   if (hEdit) {
-    if (!enter(gdi))
-      return false;
-    
+    try {
+      if (!enter(gdi))
+        return false;
+    }
+    catch (std::exception &) {
+      if (hEdit) {
+        DestroyWindow(hEdit);
+        hEdit=0;
+      }
+      throw;
+    }
     if (hEdit) {
       DestroyWindow(hEdit);
       hEdit=0;
@@ -1505,7 +1519,8 @@ bool Table::enter(gdioutput &gdi)
         TableCell &cell=Data[editRow].cells[editCol];
         string output;
 
-        try {
+        //try 
+        {
           cell.owner->inputData(cell.id, bf, 0, output, false);
           cell.contents=output;
           DestroyWindow(hEdit);
@@ -1515,11 +1530,11 @@ bool Table::enter(gdioutput &gdi)
           getRowRect(editRow, rc);
           InvalidateRect(gdi.getTarget(), &rc, false);
           return true;
-        }
-        catch(const std::exception &ex) {         
+        }/*
+        catch(const std::exception &ex) {
           string msg(ex.what());
           gdi.alert(msg);
-        }
+        }*/
       }
       else if(editRow==1) {//Filter
         filter(editCol, bf);
@@ -2113,21 +2128,27 @@ void Table::autoSelectColumns() {
   // Filter away empty and all-equal columns
   for (size_t k = 0; k<Titles.size(); k++) {
     
-    if (Data.size() > 3) {
-      if (Data[2].cells[k].type == cellAction)
+    if (Data.size() < 3) {
+      if (Data.size() > 2 && Data[2].cells[k].type == cellAction)
         nonEmpty++;
       empty[k] = false;
     }
     else {
-      const string &first = Data.size() > 3 ? 
-        Data[2].cells[k].contents : _EmptyString;
-    
-      for (size_t r = 2; r<Data.size(); r++) {
-        const string &c = Data[r].cells[k].contents;
-        if (!c.empty() && c != first) {
-          nonEmpty++;
-          empty[k] = false;
-          break;
+      if (Data[2].cells[k].type == cellAction) {
+        nonEmpty++;
+        empty[k] = false;
+      }
+      else {
+        const string &first = Data.size() > 3 ? 
+          Data[2].cells[k].contents : _EmptyString;
+      
+        for (size_t r = 2; r<Data.size(); r++) {
+          const string &c = Data[r].cells[k].contents;
+          if (!c.empty() && c != first) {
+            nonEmpty++;
+            empty[k] = false;
+            break;
+          }
         }
       }
     }

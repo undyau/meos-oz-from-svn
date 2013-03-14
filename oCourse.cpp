@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ bool oCourse::Write(xmlparser &xml)
 	xml.startTag("Course");
 
 	xml.write("Id", Id);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.write("Name", Name);
 	xml.write("Length", Length);
 	xml.write("Controls", getControls());
@@ -115,7 +115,7 @@ void oCourse::Set(const xmlobject *xo)
       getDI().set(*it);
 		}
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
 	}
 }
@@ -284,14 +284,23 @@ oControl *oCourse::getControl(int index)
 
 bool oCourse::fillCourse(gdioutput &gdi, const string &name)
 {
+  int finishIx = useLastAsFinish() ? nControls - 1 : -1;
+  int startIx = useFirstAsStart() ? 0 : -1;
+
 	oPunchList::iterator it;	
   bool rogaining = hasRogaining();
 	gdi.clearList(name);
 	int offset = 1;
-	gdi.addItem(name, lang.tl("Start"), -1);
+	if (startIx == -1)
+    gdi.addItem(name, lang.tl("Start"), -1);
 	for (int k=0;k<nControls;k++) {
 		string c = Controls[k]->getString();
-		int multi = Controls[k]->getNumMulti();
+    if (k == startIx) 
+      c += " (" + lang.tl("Start") + ")";
+    else if (k == finishIx)
+      c += " (" + lang.tl("Mål") + ")";
+    
+    int multi = Controls[k]->getNumMulti();
     int submulti = 0;
     char bf[64];
     if (Controls[k]->isRogaining(rogaining)) {
@@ -312,7 +321,8 @@ bool oCourse::fillCourse(gdioutput &gdi, const string &name)
     }
     offset += submulti;
 	}
-	gdi.addItem(name, lang.tl("Mål"), -1);
+  if (finishIx == -1)
+	  gdi.addItem(name, lang.tl("Mål"), -1);
 
 	return true;
 }
@@ -586,6 +596,20 @@ int oCourse::getRogainingPointsPerMinute() const
   return getDCI().getInt("RReduction");
 }
 
+int oCourse::calculateReduction(int overTime) const 
+{
+  int reduction = 0;
+  if (overTime > 0) {
+    int method = getDCI().getInt("RReductionMethod");
+    if (method == 0) // Linear model
+      reduction = (59 + overTime * getRogainingPointsPerMinute()) / 60;
+    else // Time (minute) discrete model
+      reduction = ((59 + overTime) / 60) * getRogainingPointsPerMinute();
+  }   
+  return reduction;
+}
+
+
 void oCourse::setMinimumRogainingPoints(int p)
 {
   getDI().setInt("RPointLimit", p);
@@ -647,4 +671,44 @@ void oCourse::remove()
 bool oCourse::canRemove() const 
 {
   return !oe->isCourseUsed(Id);
+}
+
+void oCourse::changeId(int newId) {
+  pCourse old = oe->courseIdIndex[Id];
+  if (old == this)
+    oe->courseIdIndex.remove(Id);
+
+  oBase::changeId(newId);
+  
+  oe->courseIdIndex[newId] = this;
+}
+
+bool oCourse::useFirstAsStart() const {
+  return getDCI().getInt("FirstAsStart") != 0;
+}
+
+bool oCourse::useLastAsFinish() const {
+  return getDCI().getInt("LastAsFinish") != 0;
+}
+
+void oCourse::firstAsStart(bool f) {
+  getDI().setInt("FirstAsStart", f ? 1:0);
+}
+
+void oCourse::lastAsFinish(bool f) {
+  getDI().setInt("LastAsFinish", f ? 1:0);
+}
+
+int oCourse::getFinishPunchType() const {
+  if (useLastAsFinish() && nControls > 0)
+    return Controls[nControls - 1]->Numbers[0];
+  else
+    return oPunch::PunchFinish;
+}
+
+int oCourse::getStartPunchType() const {
+  if (useFirstAsStart() && nControls > 0)
+    return Controls[0]->Numbers[0];
+  else
+    return oPunch::PunchStart;
 }

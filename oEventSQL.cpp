@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,9 @@
 
 #include "random.h"
 #include "SportIdent.h"
+#include "meosdb/sqltypes.h"
+#include "meosexception.h"
+#include "meos_util.h"
 
 #include "meos.h"
 #include <cassert>
@@ -43,35 +46,16 @@ typedef bool (__cdecl* OPENDB_FCN)(void);
 typedef int (__cdecl* SYNCHRONIZE_FCN)(oBase *obj);
 
 
-#ifndef BUILD_DB_DLL
-
-extern "C"{
-
-#define MEOSDB_API
-int MEOSDB_API getMeosVersion();
-bool MEOSDB_API msSynchronizeList(oEvent *oe, int lid);
-int MEOSDB_API msSynchronizeUpdate(oBase *obj);
-int MEOSDB_API msSynchronizeRead(oBase *obj);
-int MEOSDB_API msRemove(oBase *obj);
-int MEOSDB_API msMonitor(oEvent *oe);
-int MEOSDB_API msUploadRunnerDB(oEvent *oe);
-int MEOSDB_API msOpenDatabase(oEvent *oe);
-int MEOSDB_API msDropDatabase(oEvent *oe);
-int MEOSDB_API msConnectToServer(oEvent *oe);
-bool MEOSDB_API msGetErrorState(char *msgBuff);
-bool MEOSDB_API msResetConnection();
-bool MEOSDB_API msReConnect();
-}
-
-#endif
 
 bool oEvent::connectToServer()
 {
   if (isThreadReconnecting())
     return false;
 
+#ifdef BUILD_DB_DLL
 	if(msOpenDatabase)
 		return true;
+#endif
 
 #ifdef BUILD_DB_DLL
 	hMod=LoadLibrary("meosdb.dll");
@@ -99,7 +83,7 @@ bool oEvent::connectToServer()
     hMod=0;
 		return false;//SOME_ERROR_CODE;
 	}
-#else
+#else/*
   msOpenDatabase = (SYNCHRONIZE_FCN)::msOpenDatabase;
   msConnectToServer = (SYNCHRONIZE_FCN)::msConnectToServer;	
   msSynchronizeUpdate = (SYNCHRONIZE_FCN)::msSynchronizeUpdate;
@@ -111,7 +95,7 @@ bool oEvent::connectToServer()
   msUploadRunnerDB = (SYNCHRONIZE_FCN)::msUploadRunnerDB;
   msGetErrorState = (ERRORMESG_FCN)::msGetErrorState;
   msResetConnection = (OPENDB_FCN)::msResetConnection;
-  msReConnect = (OPENDB_FCN)::msReConnect;
+  msReConnect = (OPENDB_FCN)::msReConnect;*/
 #endif
 	return true;
 }
@@ -130,7 +114,9 @@ void oEvent::startReconnectDaemon()
 
 bool oEvent::msSynchronize(oBase *ob)
 {
-	if(!msSynchronizeRead) return true;
+	//if(!msSynchronizeRead) return true;
+  if (!HasDBConnection && !HasPendingDBConnection)
+    return true;
 
 	int ret = msSynchronizeRead(ob);
 
@@ -239,9 +225,7 @@ void oEvent::storeChangeStatus(bool onlyChangable)
 
 
 bool oEvent::synchronizeList(oListId id)
-{
-	if(!msSynchronizeList) return true;
-  
+{  
   if(!HasDBConnection)
     return true;
 
@@ -320,8 +304,6 @@ bool BaseIsRemoved(const oBase &ob){return ob.isRemoved();}
 //Returns true if data is changed.
 bool oEvent::autoSynchronizeLists(bool SyncPunches)
 {
-	if(!msSynchronizeList) return false;
-  
   if(!HasDBConnection)
     return false;
 
@@ -460,18 +442,39 @@ bool oEvent::uploadSynchronize()
 {  
   if (isThreadReconnecting())
     throw std::exception("Internt fel i anslutningen. Starta om MeOS");
+  string newId = makeValidFileName(CurrentNameId);
+  strcpy_s(CurrentNameId, newId.c_str());
 
   for (list<CompetitionInfo>::iterator it = cinfo.begin(); it != cinfo.end(); ++it) {
     if (it->FullPath == CurrentNameId && it->Server.length()>0) {
-      if (!gdibase.ask("ask:overwrite_server"))
+      gdioutput::AskAnswer ans = gdibase.askCancel("ask:overwrite_server");
+
+      if (ans == gdioutput::AnswerCancel)
         return false;
+      else if (ans == gdioutput::AnswerNo) {
+        int len = strlen(CurrentNameId);
+        char ex[10];
+        sprintf_s(ex, "_%05XZ", (GetTickCount()/97) & 0xFFFFF);
+        if (len > 0) {
+          if (len< 7 || CurrentNameId[len-1] != 'Z')
+            strcat_s(CurrentNameId, ex);
+          else
+            strcpy_s(CurrentNameId + len - 7, 64 - len + 7, ex);
+        }
+      }
+      else {
+        if (!gdibase.ask("ask:overwriteconfirm"))
+          return false;
+      }
     }
   }
 
 	HasDBConnection=false;
 
+#ifdef BUILD_DB_DLL
 	if (!msSynchronizeUpdate)
 		throw std::exception("Internt fel. Starta om MeOS");
+#endif
 
 	if( !msOpenDatabase(this) ){
     char bf[256];
@@ -487,11 +490,18 @@ bool oEvent::uploadSynchronize()
     throw std::exception(error.c_str());
   }
 
-  if( !msUploadRunnerDB(this) ) {
+  OpFailStatus stat = (OpFailStatus)msUploadRunnerDB(this);
+
+  if(stat == opStatusFail) {
     char bf[256];
     msGetErrorState(bf);
     string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf; 
-    throw std::exception(error.c_str());
+    throw meosException(error);
+  }
+  else if (stat == opStatusWarning) {
+    char bf[256];
+    msGetErrorState(bf);
+    gdibase.addInfoBox("", string("Kunde inte ladda upp löpardatabasen (X).#") + bf, 5000);
   }
 
 	HasDBConnection=true;
@@ -514,8 +524,10 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
 
 	HasDBConnection=false;
 
+#ifdef BUILD_DB_DLL
 	if(!msConnectToServer)
 		return false;
+#endif
 
 	MySQLServer=ci.Server;
 	MySQLPassword=ci.ServerPassword;
@@ -681,10 +693,12 @@ bool oEvent::reConnect(char *errorMsg256)
     return false;
   }
 
+#ifdef BUILD_DB_DLL
   if (!msReConnect) {
     strcpy_s(errorMsg256, 256, "Inte ansluten mot meosdb.dll");
     return false;
   }
+#endif
 
   if(msReConnect()) {
     HasDBConnection = true;
@@ -827,8 +841,10 @@ bool oEvent::verifyConnection()
   if (isThreadReconnecting())
     return false;
 
+#ifdef BUILD_DB_DLL
   if (!msMonitor)
     return false;
+#endif
 
   if (!msMonitor(this)) {
     startReconnectDaemon();
@@ -855,9 +871,12 @@ void oEvent::closeDBConnection()
   }
   HasDBConnection=false;
 
-  if (msResetConnection) 
+  #ifdef BUILD_DB_DLL
+    if (msResetConnection) 
+      msResetConnection();
+  #else
     msResetConnection();
-
+  #endif
   Id=0;
 
   if (!oe->empty() && hadDB) {
@@ -920,18 +939,15 @@ void oEvent::dropDatabase()
   if (HasDBConnection) {
     HasDBConnection=false;
     
-    if (msDropDatabase) 
-      dropped = msDropDatabase(this)!=0;
+    dropped = msDropDatabase(this)!=0;
   }
   else throw std::exception("Inte ansluten");
 
   if (!dropped) {
-    if(msGetErrorState) {
-      char bf[256];
-      msGetErrorState(bf);
-      if(strlen(bf)>0)
-        throw std::exception(bf);
-    }
+    char bf[256];
+    msGetErrorState(bf);
+    if(strlen(bf)>0)
+      throw std::exception(bf);
     
     throw std::exception("Operationen misslyckades. Orsak okänd.");
   }

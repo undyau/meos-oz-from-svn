@@ -12,7 +12,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -68,6 +68,8 @@ public:
 	string getTime() const;
   int getAdjustedTime() const;
 	void setTime(string t);
+  virtual void setTimeInt(int newTime, bool databaseUpdate);
+
   void setTimeAdjust(int t) {tTimeAdjust=t;}
   void adjustTimeAdjust(int t) {tTimeAdjust+=t;}
 

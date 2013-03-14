@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,9 @@
 #include "oEvent.h"
 #include "gdioutput.h"
 #include "gdifonts.h"
+#include "meosdb/sqltypes.h"
+#include "meosexception.h"
+#include "inthashmap.h"
 
 #include "oDataContainer.h"
 #include "csvparser.h"
@@ -48,6 +51,8 @@
 #include <fcntl.h>
 #include "localizer.h"
 #include "iof30interface.h"
+
+#include "meosdb/sqltypes.h"
 
 string conv_is(int i)
 {
@@ -173,10 +178,17 @@ bool oEvent::exportOECSV(const char *file)
 }
 
 
-bool oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass)
+void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass)
 {
+  vector< pair<int, int> > runnersInTeam;
+  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+    if (!it->isRemoved() && it->tInTeam) {
+      runnersInTeam.push_back(make_pair(it->getId(), it->getClassId()) );
+    }
+  }
+
 	xmlparser xml;
-	if(xml.read(file)) {
+	xml.read(file);
 
 	  xmlobject xo = xml.getObject("EntryList");
 
@@ -454,9 +466,17 @@ bool oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
 		    }
       }
     }
-		return true;
+
+  vector<int> toRemove;
+  for (size_t k = 0; k < runnersInTeam.size(); k++) {
+    int id = runnersInTeam[k].first;
+    int classId = runnersInTeam[k].second;
+    pRunner r = getRunner(id, 0);
+    if (r && !r->tInTeam && r->getClassId() == classId) {
+      toRemove.push_back(r->getId());
 	}
-	else return false;
+}
+  removeRunner(toRemove);
 }
 
 bool oEvent::addXMLCompetitorDB(const xmlobject &xentry, int clubId)
@@ -955,10 +975,7 @@ bool oEvent::importXMLNames(const char *file,
 	info.clear();
   DWORD tc=GetTickCount(), t;
   
-  if(!xml.read(file)){
-    throw std::exception(xml.getError());
-	  return false;
-  }
+  xml.read(file);
 
   char bf[128];
   t=GetTickCount()-tc;
@@ -996,8 +1013,7 @@ void oEvent::importXML_IOF_Data(const char *clubfile,
     gdibase.addString("",0,"Läser klubbar...");
     gdibase.refresh();
 
-    if(!xml_club.read(clubfile))
-      throw std::exception(xml_club.getError());
+    xml_club.read(clubfile);
 
     gdibase.addString("",0,"Lägger till klubbar...");
     gdibase.refresh();
@@ -1034,8 +1050,7 @@ void oEvent::importXML_IOF_Data(const char *clubfile,
     gdibase.addString("",0,"Läser löpare...");
     gdibase.refresh();
     
-    if (!xml_cmp.read(competitorfile))
-      throw std::exception(xml_cmp.getError());
+    xml_cmp.read(competitorfile);
 
     if (clear) {
       runnerDB->clearRunners();
@@ -1075,11 +1090,26 @@ void oEvent::importXML_IOF_Data(const char *clubfile,
 
   saveRunnerDatabase("database", true);
   
-  if(HasDBConnection && msUploadRunnerDB) {
+  if(HasDBConnection) {
     gdibase.addString("", 0, "Uppdaterar serverns databas...");
     gdibase.refresh();
 
-    msUploadRunnerDB(this);
+    //msUploadRunnerDB(this);
+
+    OpFailStatus stat = (OpFailStatus)msUploadRunnerDB(this);
+
+    if(stat == opStatusFail) {
+      char bf[256];
+      msGetErrorState(bf);
+      string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf; 
+      throw meosException(error);
+    }
+    else if (stat == opStatusWarning) {
+      char bf[256];
+      msGetErrorState(bf);
+      gdibase.addInfoBox("", string("Kunde inte ladda upp löpardatabasen (X).#") + bf, 5000);
+    }
+
     gdibase.addString("", 0, "Klart");
     gdibase.refresh();
   }
@@ -1182,7 +1212,7 @@ string getStartName(const string &start) {
   int num = getNumberSuffix(start);
   if (num == 0 && start.length()>0) 
     num = int(start[start.length()-1])-'0';
-  if (num > 0 && num < 30)
+  if (num > 0 && num < 10)
     return lang.tl("Start ") + itos(num);
   else if (start.length() == 1)
     return lang.tl("Start");
@@ -2165,7 +2195,8 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
 				if(pc)	xml.write("CourseLength", "unit", "m", pc->getLengthS());
 
 				pCourse pcourse=it->getCourse();
-				if (pcourse && it->getStatus()>0 && it->getStatus()!=StatusDNS) {
+				if (pcourse && it->getStatus()>0 && it->getStatus()!=StatusDNS 
+          && it->getStatus()!=StatusNotCompetiting) {
           bool hasRogaining = pcourse->hasRogaining();
           int no = 1;
           for(int k=0;k<pcourse->nControls;k++)	{
@@ -2313,7 +2344,8 @@ void oEvent::exportTeamSplits(xmlparser &xml, const set<int> &classes, bool oldS
               xml.endTag();
             }
 			      pCourse pcourse=pc;
-			      if(pcourse && r->getStatus()>0 && r->getStatus()!=StatusDNS) {
+			      if(pcourse && r->getStatus()>0 && r->getStatus()!=StatusDNS 
+                  && r->getStatus()!=StatusNotCompetiting) {
               int no = 1;
               bool hasRogaining = pcourse->hasRogaining();
               
@@ -2344,12 +2376,11 @@ void oEvent::exportTeamSplits(xmlparser &xml, const set<int> &classes, bool oldS
 	
 }
 
-bool oEvent::exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, const set<int> &classes, int leg)
+void oEvent::exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, const set<int> &classes, int leg)
 {
 	xmlparser xml;
 
-	if(!xml.openOutput(file, false))
-    throw std::exception((string("Kan inte öppna: ")+file).c_str());
+	xml.openOutput(file, false);
 
   reEvaluateAll(true);
   if (version != IOF20)
@@ -2366,15 +2397,13 @@ bool oEvent::exportIOFSplits(IOFVersion version, const char *file, bool oldStyle
   }
 
 	xml.closeOut();
-	return true;
 }
 
-bool oEvent::exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes)
+void oEvent::exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes)
 {
 	xmlparser xml;
 
-	if(!xml.openOutput(file, false))
-    throw std::exception((string("Kan inte öppna: ")+file).c_str());
+	xml.openOutput(file, false);
 
   if (version == IOF20)
     exportIOFStartlist(xml);
@@ -2385,5 +2414,4 @@ bool oEvent::exportIOFStartlist(IOFVersion version, const char *file, const set<
 
  
 	xml.closeOut();
-	return true;
 }

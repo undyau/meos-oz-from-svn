@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@
 #include <winsock2.h>
 #include "localizer.h"
 #include "meos_util.h"
+
+#include <iostream>
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -394,7 +396,13 @@ bool SportIdent::OpenCom(const char *com)
 	//c[6]=
 	DWORD read;
 	BYTE buff[128];
+  memset(buff, 0, sizeof(buff));
 	read=ReadBytes(buff, 1, si->hComm);
+
+  if (read == 1 && buff[0] == 0xFF){
+    Sleep(100);
+    read = ReadBytes(buff, 1, si->hComm);
+  }
 
 	if (read==1 && buff[0]==STX) {
 		ReadFile(si->hComm, buff, 8, &read, NULL);
@@ -526,6 +534,11 @@ int SportIdent::ReadByte(BYTE &byte, HANDLE hComm)
 
 	if(ReadFile(hComm, &byte, 1, &dwRead, NULL))
 	{
+#ifdef DEBUG_SI
+		char t[64];
+	  sprintf_s(t, 64, "read=%02X\n", (int)byte);
+	  OutputDebugString(t);
+#endif
 		if(dwRead)
 			return 1;
 		else return 0;
@@ -554,9 +567,17 @@ int SportIdent::ReadBytes_delay(BYTE *byte, DWORD len,  HANDLE hComm)
 			Sleep(100);
 		}
 	}
+#ifdef DEBUG_SI
 	char t[64];
 	sprintf_s(t, 64, "retry=%d\n", d);
 	OutputDebugString(t);
+
+  for (int k = 0; k < read; k++) {
+  	char t[64];
+    sprintf_s(t, 64, "mreadd=%02X\n", (int)byte[k]);
+    OutputDebugString(t);
+  }
+#endif
 
 
 	return read;
@@ -571,6 +592,13 @@ int SportIdent::ReadBytes(BYTE *byte, DWORD len,  HANDLE hComm)
 
 	if(ReadFile(hComm, byte, len, &dwRead, NULL))
 	{
+#ifdef DEBUG_SI
+    for (int k = 0; k < dwRead; k++) {
+    	char t[64];
+	    sprintf_s(t, 64, "mread=%02X\n", (int)byte[k]);
+	    OutputDebugString(t);
+    }
+#endif
 		return dwRead;		
 	}
 	else return -1;
@@ -597,10 +625,12 @@ int SportIdent::ReadBytesDLE_delay(BYTE *byte, DWORD len,  HANDLE hComm)
 			Sleep(100);
 		}
 	}
+#ifdef DEBUG_SI
 
 	char t[64];
 	sprintf_s(t, 64, "retry=%d\n", d);
 	OutputDebugString(t);
+#endif
 
 	return read;
 }
@@ -812,7 +842,7 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
 						ReadBytes(bf+1, 17,  hComm);
 						if(CheckCRC(LPBYTE(bf)))
 						{
-							//WORD Station=MAKEWORD(bf[3], bf[2]);
+							WORD Station=MAKEWORD(bf[3], bf[2]);
 
 							DWORD ShortCard=MAKEWORD(bf[7], bf[6]);
 							DWORD Series=bf[5];
@@ -827,7 +857,8 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
 							if(bf[8]&0x1) Time=3600*12;
 							Time+=MAKEWORD(bf[10], bf[9]);
 
-							AddPunch(Time, si.StationNumber, Card, si.StationMode);	
+							//AddPunch(Time, si.StationNumber, Card, si.StationMode);
+              AddPunch(Time, Station, Card, si.StationMode);
 							//char str[128];
 							//sprintf_s(str, "%d, %02d:%02d", Card, Time/60, Time%60);
 							//MessageBox(NULL, str, NULL, MB_OK);
@@ -1110,18 +1141,21 @@ void SportIdent::GetSI6DataExt(HANDLE hComm)
 
 void SportIdent::GetSI9DataExt(HANDLE hComm)
 {
-	BYTE b[128*2];
-	memset(b, 0, 128*2);
+	BYTE b[128*5];
+	memset(b, 0, 128*5);
 	BYTE c[16];
 //	STX, 0xE1, 0x01, BN, CRC1,
 //CRC0, ETX
 	OutputDebugString("STARTREAD9 EXT-");
 
-	int blocks[2]={0,1};
+	int blocks_8_9_p_t[2]={0,1};
+  int blocks_10_11_SIAC[5]={0,4,5,6,7};
+  int limit = 1;
+  int *blocks = blocks_8_9_p_t;
+
 	DWORD written=0;
 
-	for(int k=0;k<2;k++)
-	{
+	for(int k=0; k < limit; k++){
 		c[0]=STX;
 		c[1]=0xEF;
 		c[2]=0x01;
@@ -1148,6 +1182,19 @@ void SportIdent::GetSI9DataExt(HANDLE hComm)
 			if(bf[0]==STX && bf[1]==0xEf) {
 				if (CheckCRC(bf+1)) {
 					memcpy(b+k*128, bf+6, 128);
+
+        if (k == 0) {
+          int series = b[24] & 15;
+          if (series == 15) {
+            int nPunch = min(int(b[22]), 128);
+            blocks = blocks_10_11_SIAC;
+            limit = 1 + (nPunch+31) / 32;
+          }
+          else {
+            limit = 2; // Card 8, 9, p, t
+          }
+				}
+
 				}
         else {	
           OutputDebugString("-FAIL-");
@@ -1167,7 +1214,7 @@ void SportIdent::GetSI9DataExt(HANDLE hComm)
 	OutputDebugString("-ACK-");
 
 	SICard card;
-	GetCard9Data(b, card);
+	if (GetCard9Data(b, card))
 	AddCard(card);
 }
 
@@ -1384,6 +1431,16 @@ bool SportIdent::GetCard5Data(BYTE *data, SICard &card)
 	return true;
 }
 
+DWORD SportIdent::GetExtCardNumber(BYTE *data) const {
+	DWORD cnr = 0;
+  BYTE *p = (BYTE *)&cnr;
+  p[0] = data[27];
+  p[1] = data[26];
+  p[2] = data[25];
+
+  return cnr;
+}
+
 
 bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 {
@@ -1403,13 +1460,10 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 
 	memset(&card, 0, sizeof(card));
 
-	DWORD cnr = 0;
-  BYTE *p = (BYTE *)&cnr;
-  p[0] = data[27];
-  p[1] = data[26];
-  p[2] = data[25];
-  //int series = data[24] & 0x7;
-  card.CardNumber = cnr;
+
+  card.CardNumber = GetExtCardNumber(data);
+
+  int series = data[24] & 15;
 
 //	DWORD control;
 //	DWORD time;
@@ -1417,11 +1471,38 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 	AnalysePunch(data+12, card.StartPunch.Time, card.StartPunch.Code);
 	AnalysePunch(data+16, card.FinishPunch.Time, card.FinishPunch.Code);
 	AnalysePunch(data+8, card.CheckPunch.Time, card.CheckPunch.Code);
+
+  if (series == 1) {
+    // SI Card 9
 	card.nPunch=min(int(data[22]), 50);
 
+    for(unsigned k=0;k<card.nPunch;k++)	{
+		  AnalysePunch(14*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
+	  }
+  }
+  else if (series == 2) {
+    // SI Card 8
+  	card.nPunch=min(int(data[22]), 30);
 	for(unsigned k=0;k<card.nPunch;k++)	{
-		AnalysePunch(14*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
+		  AnalysePunch(34*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
 	}
+  }
+  else if (series == 4) {
+    // pCard
+    card.nPunch=min(int(data[22]), 20);
+	  for(unsigned k=0;k<card.nPunch;k++)	{
+		  AnalysePunch(44*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
+	  }
+  }
+  else if (series == 15) {
+    // Card 10, 11, SIAC
+    card.nPunch=min(int(data[22]), 128);
+    for(unsigned k=0;k<card.nPunch;k++)	{
+		  AnalysePunch(data + 128 + 4*k, card.Punch[k].Time, card.Punch[k].Code);
+	  }
+  }
+  else
+    return false;
 
 	return true;
 }

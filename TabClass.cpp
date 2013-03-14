@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -517,6 +517,23 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       oe->getNotDrawnClasses(lst, false);
       gdi.setSelection("Classes", lst);
     }
+    else if (bi.id == "SelectStart") {
+      int id = bi.getExtraInt();
+      vector<int> blocks;
+      vector<string> starts;
+      oe->getStartBlocks(blocks, starts);
+      if (size_t(id) < starts.size()) {
+        string start = starts[id];
+        set<int> lst;
+        vector<pClass> cls;
+        oe->getClasses(cls);
+        for (size_t k = 0; k < cls.size(); k++) {
+          if (cls[k]->getStart() == start)
+            lst.insert(cls[k]->getId());
+        }
+        gdi.setSelection("Classes", lst);
+      }
+    }
     else if (bi.id == "QuickSettings") {
       save(gdi, false);
       prepareForDrawing(gdi);
@@ -710,6 +727,29 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
           "Avmarkera allt").isEdit(true);
         gdi.popX();
 
+        vector<int> blocks;
+        vector<string> starts;
+        oe->getStartBlocks(blocks, starts);
+        map<string, int> sstart;
+        for (size_t k = 0; k < starts.size(); k++) {
+          sstart.insert(make_pair(starts[k], k));
+        }
+        if (sstart.size() > 1) {
+          gdi.fillRight();
+          int cnt = 0;
+          for (map<string, int>::iterator it = sstart.begin(); it != sstart.end(); ++it) {
+            if ((cnt & 1)==0 && cnt>0) {
+              gdi.dropLine(2);
+              gdi.popX();
+            }
+            gdi.addButton("SelectStart", "Välj X#" + it->first, ClassesCB, "").setExtra(it->second); 
+            cnt++;
+          }
+          gdi.dropLine(2.5);
+          gdi.popX();
+          gdi.fillDown();
+        }
+
         oe->fillClasses(gdi, "Classes", oEvent::extraDrawn, oEvent::filterNone);
         
         by = gdi.getCY()+gdi.getLineHeight();
@@ -741,6 +781,9 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
 
         gdi.popX();
         gdi.dropLine(4);
+        gdi.addCheckbox("AllowNeighbours", "Tillåt samma bana inom basintervall", 0, true);
+        gdi.popX();
+        gdi.dropLine(2);
         gdi.addString("", 1, "Startintervall");
         gdi.dropLine(1.4);
         gdi.popX();
@@ -848,6 +891,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       drawInfo.extraFactor = 0.01*atof(gdi.getText("Extra").c_str());
 				
       drawInfo.baseInterval=TimeToRel(gdi.getText("BaseInterval"));
+      drawInfo.allowNeighbourSameCourse = gdi.isChecked("AllowNeighbours");
 			drawInfo.minClassInterval=TimeToRel(gdi.getText("MinInterval"));
 			drawInfo.maxClassInterval=TimeToRel(gdi.getText("MaxInterval"));
 			drawInfo.nFields=gdi.getTextNo("nFields");
@@ -1078,7 +1122,17 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "HandleMultiDay") {
       ListBoxInfo lbi;
       gdi.getSelectedItem("Method", &lbi);
-      setMultiDayClass(gdi, gdi.isChecked(bi.id), DrawMethod(lbi.data));
+      
+      pClass pc=oe->getClass(ClassId);
+      if(!pc)
+        throw std::exception("Class not found");
+
+      if (gdi.isChecked(bi.id) && (lastDrawMethod == TabClass::DMReversePursuit ||
+        lastDrawMethod == TabClass::DMPursuit)) {
+        drawDialog(gdi, TabClass::DMRandom, *pc);
+      }
+      else 
+        setMultiDayClass(gdi, gdi.isChecked(bi.id), lastDrawMethod);
     
     }
   	else if (bi.id=="Bibs") {
@@ -1481,7 +1535,8 @@ void TabClass::visualizeField(gdioutput &gdi) {
     }
     pClass pc = oe->getClass(ci.classId);
     if (pc) {
-      string tip = "X (Y deltagare, grupp Z, W)#" + pc->getName() + "#" + itos(ci.nRunners) + "#" + itos(groupNumber[ci.unique])
+      string course = pc->getCourse() ? ", " + pc->getCourse()->getName() : "";
+      string tip = "X (Y deltagare, grupp Z, W)#" + pc->getName() + course + "#" + itos(ci.nRunners) + "#" + itos(groupNumber[ci.unique])
                     + "#" + groups[ci.unique];
       rc.left = xp + ci.firstStart * w;
       int laststart = ci.firstStart + (ci.nRunners-1) * ci.interval;
@@ -2166,6 +2221,16 @@ void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oCl
   if (lastDrawMethod == method)
     return;
 
+  if (lastDrawMethod == TabClass::DMPursuit && method == TabClass::DMReversePursuit)
+    return;
+  if (lastDrawMethod == TabClass::DMReversePursuit && method == TabClass::DMPursuit)
+    return;
+
+  if (lastDrawMethod == TabClass::DMRandom && method == TabClass::DMSOFT)
+    return;
+  if (lastDrawMethod == TabClass::DMSOFT && method == TabClass::DMRandom)
+    return;
+
   int firstStart = 3600, 
       interval = 120,
       vac = 0;
@@ -2273,10 +2338,21 @@ void TabClass::setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMet
   
   gdi.selectItemByData("Method", defaultMethod);
 
+  if (gdi.hasField("Vacanses")) {
+
   gdi.setInputStatus("Vacanses", !hasMulti);
   gdi.setInputStatus("HandleBibs", !hasMulti);
+    
+    if (hasMulti) {
+      gdi.check("HandleBibs", false);
+      gdi.setInputStatus("Bib", false);
+    }
+  }
+
+  if (gdi.hasField("DoDrawBefore")) {
   gdi.setInputStatus("DoDrawBefore", !hasMulti);
   gdi.setInputStatus("DoDrawAfter", !hasMulti);
+  }
 }
 
 void TabClass::pursuitDialog(gdioutput &gdi) {

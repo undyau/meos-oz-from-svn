@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -128,9 +128,14 @@ void oPunch::setTime(string t)
   int tt = oe->getRelativeTime(t)-tTimeAdjust;
   if (tt < 0)
     tt = 0;
+  setTimeInt(tt, false);  
+}
+
+void oPunch::setTimeInt(int tt, bool databaseUpdate) {
   if (tt != Time) {
 	  Time = tt;
-    updateChanged();
+    if (!databaseUpdate)
+      updateChanged();
   }
 }
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 
 class oEvent;
 class xmlobject;
+typedef vector<xmlobject> xmlList;
 class xmlparser;
 class gdioutput;
 class oRunner;
@@ -209,6 +210,24 @@ class IOF30Interface {
   void readCourseGroups(xmlobject xClassCourse, vector< vector<pCourse> > &crs);
   void bindClassCourse(oClass &pc, const vector< vector<pCourse> > &crs);
 
+  static string constructCourseName(const xmlobject &xcrs);
+  static string constructCourseName(const string &family, const string &name);
+
+  void classAssignmentObsolete(gdioutput &gdi, xmlList &xAssignment, const map<string, pCourse> &courses,
+                               const map<string, vector<pCourse> > &coursesFamilies);
+  void classCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                             const map<string, pCourse> &courses,
+                             const map<string, vector<pCourse> > &coursesFamilies);
+  void personCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                              const map<string, pCourse> &courses);
+  void teamCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                            const map<string, pCourse> &courses);
+
+  void assignTeamCourse(gdioutput &gdi, oTeam &t, xmlList &xAssignment, 
+                        const map<string, pCourse> &courses);
+  
+  pCourse findCourse(gdioutput &gdi, const map<string, pCourse> &courses,
+                     xmlobject &xPAssignment);
 public:
   IOF30Interface(oEvent *oe_) : oe(*oe_) {cachedStageNumber = -1;}
   virtual ~IOF30Interface() {}

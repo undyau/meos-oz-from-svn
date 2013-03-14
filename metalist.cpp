@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -284,8 +284,10 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
 
         // Automatically determine what needs to be calculated
         if (mp.type == lTeamPlace || mp.type == lRunnerPlace) {
-          if (!li.calcResults)
+          if (!li.calcResults) {
             oe->calculateResults(oEvent::RTClassResult);
+            oe->calculateTeamResults();
+          }
           li.calcResults = true;
         }
         else if (mp.type == lRunnerTotalPlace) {
@@ -357,7 +359,7 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
         }
 
         if (mp.alignType == lNone) {
-          pos.add(label, width);
+          pos.add(label, width, width);
           pos.indent(mp.minimalIndent);
         }
         else {
@@ -367,14 +369,14 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
             if (stringLabelMap.count(mp.alignWithText) == 0) {
               throw meosException("Don't know how to align with 'X'#" + mp.alignWithText);
             }
-            pos.update(stringLabelMap[mp.alignWithText], label, width, mp.alignBlock);
+            pos.update(stringLabelMap[mp.alignWithText], label, width, mp.alignBlock, true);
           }
           else {
             if (labelMap.count(mp.alignType) == 0) {
               throw meosException("Don't know how to align with 'X'#" + typeToSymbol[mp.alignType]);
             }
 
-            pos.update(labelMap[mp.alignType], label, width, mp.alignBlock);
+            pos.update(labelMap[mp.alignType], label, width, mp.alignBlock, true);
           }
 
           pos.indent(mp.minimalIndent);
@@ -524,23 +526,23 @@ void Position::indent(int ind) {
   int end = pos.size() - 1;
   if (end < 1)
     return;
-  if (pos[end-1] < ind) {
-    int dx = ind - pos[end-1];
-    pos[end-1] += dx;
-    pos[end] += dx;
+  if (pos[end-1].first < ind) {
+    int dx = ind - pos[end-1].first;
+    pos[end-1].first += dx;
+    pos[end].first += dx;
   }
 }
 
 void Position::newRow() {
   if (!pos.empty())
     pos.pop_back();
-  pos.push_back(0);
+  pos.push_back(PosInfo(0, 0));
 }
 
-void Position::alignNext(const string &newname, int width, bool alignBlock) {
+void Position::alignNext(const string &newname, const int width, bool alignBlock) {
   if (pos.empty())
     return;
-  int p = pos.empty() ? 0 : pos.back();
+  int p = pos.empty() ? 0 : pos.back().first;
   const int backAlign = 20;
   const int fwdAlign = max(width/2, 40);
 
@@ -553,102 +555,109 @@ void Position::alignNext(const string &newname, int width, bool alignBlock) {
   int last = pos.size()-1;
   for (int k = pos.size()-2; k >= 0; k--) {
     last = k;
-    if (pos[k+1] < pos[k])
+    if (pos[k+1].first < pos[k].first)
       break;
   }
 
   for (int k = 0; k <= last; k++) {
-    if ( pos[k] >= p && pos[k] < next_p ) {
+    if ( pos[k].first >= p && pos[k].first < next_p ) {
       next = k;
-      next_p = pos[k];
+      next_p = pos[k].first;
     }
 
-    if ( pos[k] < p && pos[k] > prev_p ) {
+    if ( pos[k].first < p && pos[k].first > prev_p ) {
       prev = k;
-      prev_p = pos[k];
+      prev_p = pos[k].first;
     }
   }
 
   if ( p - prev_p < backAlign) {
     int delta = p - prev_p;
     for (size_t k = 0; k + 1 < pos.size(); k++) {
-      if (pos[k] >= prev_p)
-        pos[k] += delta;
+      if (pos[k].first >= prev_p)
+        pos[k].first += delta;
     }
-    update(prev, newname, width, alignBlock);
+    update(prev, newname, width, alignBlock, false);
   }
   else {
     if (next > 0 && (next_p - p) < fwdAlign)
-      update(next, newname, width, alignBlock);
+      update(next, newname, width, alignBlock, false);
     else
-      add(newname, width);
+      add(newname, width, width);
   }
 }
 
-void Position::update(const string &oldname, const string &newname, int width, bool alignBlock) {
+void Position::update(const string &oldname, const string &newname, 
+                      const int width, bool alignBlock, bool alignLock) {
   if (pmap.count(oldname) == 0)
     throw std::exception("Invalid position");
 
   int ix = pmap[oldname];
   
-  update(ix, newname, width, alignBlock);
+  update(ix, newname, width, alignBlock, alignLock);
 }
 
-void Position::update(int ix, const string &newname, int width, bool alignBlock) {
-
+void Position::update(int ix, const string &newname, const int width,
+                      bool alignBlock, bool alignLock) {
+  
   int last = pos.size()-1;
-  int xlimit = pos[ix];
-  if (xlimit < pos[last]) {
-    int delta = pos[last] - xlimit;
+
+  if (alignLock) {
+    pos[last].aligned = true;
+    pos[ix].aligned = true;
+  }
+  int xlimit = pos[ix].first;
+  if (xlimit < pos[last].first) {
+    int delta = pos[last].first - xlimit;
     
     // Find last entry to update (higher row)
     int lastud = last;
-    while (lastud>1 && pos[lastud] >= pos[lastud-1])
+    while (lastud>1 && pos[lastud].first >= pos[lastud-1].first)
       lastud--;
 
     for (int k = 0; k<lastud; k++) {
-      if (pos[k] >= xlimit)
-        pos[k] += delta;
+      if (pos[k].first >= xlimit)
+        pos[k].first += delta;
     }
   }
   else
-    pos[last] = pos[ix];
+    pos[last].first = pos[ix].first;
 
-  int ow = pos[ix+1] - pos[ix];
+  int ow = pos[ix+1].first - pos[ix].first;
   int nw = width;
   if (alignBlock && ow>0) {
     nw = max(ow, nw);
     if (nw > ow) {
       int delta = nw - ow;
       for (size_t k = 0; k<pos.size(); k++) {
-        if (pos[k] > pos[ix])
-          pos[k] += delta;
+        if (pos[k].first > pos[ix].first)
+          pos[k].first += delta;
       }
     }
   }
-  //pos.push_back(pos[ix]);
-  add(newname, nw);  
+  add(newname, nw, width);
 }
   
-void Position::add(const string &name, int width) {
+void Position::add(const string &name, int width, int blockWidth) {
   
   if (pos.empty()) {
-    pos.push_back(0);
+    pos.push_back(PosInfo(0, blockWidth));
     pmap[name] = 0;
-    pos.push_back(width);
+    pos.push_back(PosInfo(width, 0));
   }
   else {
     pmap[name] = pos.size() - 1;
-    pos.push_back(width + pos.back());
+    pos.back().width = blockWidth;
+    pos.push_back(PosInfo(width + pos.back().first, 0));
   }
 }
 
 int Position::get(const string &name) {
-  return pos[pmap[name]];
+  return pos[pmap[name]].first;
 }
 
 int Position::get(const string &name, double scale) {
-  return int(pos[pmap[name]] * scale);
+  return int(pos[pmap[name]].first * scale);
 }
 
 struct PosOrderIndex {
@@ -656,6 +665,7 @@ struct PosOrderIndex {
   int index;
   int width;
   int row;
+  bool aligned;
   bool operator<(const PosOrderIndex &x) const {return pos < x.pos;}
 };
 
@@ -663,22 +673,36 @@ bool Position::postAdjust() {
   
   vector<PosOrderIndex> x;
   int row = 0;
+  vector<int> aligned(1, -1);
+
   for (size_t k = 0; k < pos.size(); k++) {
     PosOrderIndex poi;
-    poi.pos = pos[k];
+    poi.pos = pos[k].first;
     poi.index = k;
     poi.row = row;
-    if (k + 1 == pos.size() || pos[k+1] == 0) {
+    if (pos[k].aligned)
+      aligned[row] = k;
+    if (k + 1 == pos.size() || pos[k+1].first == 0) {
       poi.width = 100000;
       row++;
+      aligned.push_back(-1);
     }
     else
-      poi.width = pos[k+1] - pos[k];
+      poi.width = pos[k].width;//pos[k+1].first - pos[k].first;//XXX//
 
     x.push_back(poi);
   }
 
   sort(x.begin(), x.end());
+
+  // Transfer aligned blocks to x
+  for (size_t k = 0; k<x.size(); k++) {
+    int r = x[k].row;
+    if (r!= -1 && aligned[r]>=x[k].index)
+      x[k].aligned = true;
+    else
+      x[k].aligned = false;
+  }
 
   pair<int, int> smallDiff(100000, -1);
   for (size_t k = 0; k<x.size(); k++) {
@@ -692,7 +716,12 @@ bool Position::postAdjust() {
         else {
           diff = x[j].pos - x[k].pos;
 
-          bool skipRow = false;
+          
+          bool skipRow = x[j].aligned || x[k].aligned;
+          
+          if (skipRow)
+            break;
+          
           for (size_t i = 0; i<x.size(); i++) {
             if (x[i].pos == x[k].pos && x[i].row == x[j].row) {
               skipRow = true;
@@ -726,7 +755,7 @@ bool Position::postAdjust() {
     assert(keepRow.count(x[minK].row) == 0);
     for (size_t k = 0; k<x.size(); k++) {
       if (x[k].pos >= basePos && keepRow.count(x[k].row) == 0) {
-        pos[x[k].index] += diff;
+        pos[x[k].index].first += diff;
         changed = true;
       }
     }
@@ -995,7 +1024,7 @@ void MetaListPost::serialize(xmlparser &xml) const {
   xml.startTag("Block", "Type", MetaList::typeToSymbol[type]);
   xml.write("Text", text);
   if (leg != -1)
-    xml.write("Leg", leg);
+    xml.write("Leg", itos(leg));
   if (alignType == lString)
     xml.write("Align", "BlockAlign", alignBlock, alignWithText);
   else
@@ -1019,7 +1048,10 @@ void MetaListPost::deserialize(const xmlobject &xml) {
 
   type = MetaList::symbolToType[tp];
   xml.getObjectString("Text", text);
-  leg = xml.getObjectInt("Leg");
+  if (xml.getObject("Leg"))
+    leg = xml.getObjectInt("Leg");
+  else
+    leg = -1;
   xmlobject xAlignBlock = xml.getObject("Align");
   alignBlock = xAlignBlock && xAlignBlock.getObjectBool("BlockAlign"); 
   blockWidth = xml.getObjectInt("BlockWidth");
@@ -1125,6 +1157,7 @@ void MetaList::initSymbols() {
     typeToSymbol[lSubSubCounter] = "SubSubCounter";
 
     typeToSymbol[lRunnerTotalTime] = "RunnerTotalTime";
+    typeToSymbol[lRunnerTimePerKM] = "RunnerTimePerKM";
     typeToSymbol[lRunnerTotalTimeStatus] = "RunnerTotalTimeStatus";
     typeToSymbol[lRunnerTotalPlace] = "RunnerTotalPlace";
     typeToSymbol[lRunnerTotalTimeAfter] = "RunnerTotalTimeAfter";
@@ -1144,7 +1177,7 @@ void MetaList::initSymbols() {
 
     baseTypeToSymbol[oListInfo::EBaseTypeRunner] = "Runner";
     baseTypeToSymbol[oListInfo::EBaseTypeTeam] = "Team";
-    baseTypeToSymbol[oListInfo::EBaseTypeClub] = "Club";
+    baseTypeToSymbol[oListInfo::EBaseTypeClub] = "ClubRunner";
     baseTypeToSymbol[oListInfo::EBaseTypePunches] = "Punches";
     baseTypeToSymbol[oListInfo::EBaseTypeNone] = "None";
 
@@ -1170,6 +1203,7 @@ void MetaList::initSymbols() {
     orderToSymbol[ClassPoints] = "ClassPoints";
     orderToSymbol[ClassTotalResult] = "ClassTotalResult";
     orderToSymbol[CourseResult] = "CourseResult";
+    orderToSymbol[ClassTeamLeg] = "ClassTeamLeg";
    
     for (map<SortOrder, string>::iterator it = orderToSymbol.begin();
       it != orderToSymbol.end(); ++it) {
@@ -1187,6 +1221,7 @@ void MetaList::initSymbols() {
     filterToSymbol[EFilterHasCard] = "FilterHasCard";
     filterToSymbol[EFilterExcludeDNS] = "FilterStarted";
     filterToSymbol[EFilterVacant] = "FilterNotVacant";
+    filterToSymbol[EFilterOnlyVacant] = "FilterOnlyVacant";
     filterToSymbol[EFilterHasNoCard] = "FilterNoCard";
 
     for (map<EFilterList, string>::iterator it = filterToSymbol.begin();
@@ -1543,7 +1578,7 @@ void MetaList::getBaseType(vector< pair<string, size_t> > &types, int &currentTy
   types.clear();
   for(map<oListInfo::EBaseType, string>::const_iterator it = baseTypeToSymbol.begin();
     it != baseTypeToSymbol.end(); ++it) {
-      if (it->first == oListInfo::EBaseTypeNone)
+      if (it->first == oListInfo::EBaseTypeNone || it->first == oListInfo::EBaseTypePunches)
         continue;
       types.push_back(make_pair(lang.tl(it->second), it->first));
   }
@@ -1555,18 +1590,24 @@ void MetaList::getSubType(vector< pair<string, size_t> > &types, int &currentTyp
   types.clear();
    
   oListInfo::EBaseType t;
+  set<oListInfo::EBaseType> tt;
 
   t = oListInfo::EBaseTypeNone;
+  tt.insert(t);
   types.push_back(make_pair(lang.tl(baseTypeToSymbol[t]), t));
 
   t = oListInfo::EBaseTypePunches;
+  tt.insert(t);
   types.push_back(make_pair(lang.tl(baseTypeToSymbol[t]), t));
 
   t = oListInfo::EBaseTypeRunner;
+  tt.insert(t);
   types.push_back(make_pair(lang.tl(baseTypeToSymbol[t]), t));
 
-  t = listSubType;
-  types.push_back(make_pair(lang.tl(baseTypeToSymbol[t]), t));
+  if (tt.count(listSubType) == 0) {
+    t = listSubType;
+    types.push_back(make_pair(lang.tl(baseTypeToSymbol[t]), t));
+  }
 
   currentType = listSubType;
 }

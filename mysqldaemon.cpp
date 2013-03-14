@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "TabAuto.h"
 #include "meos_util.h"
 #include "gdiconstants.h"
+#include "meosdb/sqltypes.h"
 
 MySQLReconnect::MySQLReconnect() : AutoMachine("MySQL-daemon") 
 {
@@ -125,15 +126,15 @@ void MySQLReconnect::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
     callCount=10; //Wait ten seconds for next attempt
 
     char bf[256];
-    if (oe->msGetErrorState) {
-      oe->msGetErrorState(bf);
+    if (oe->HasDBConnection) {
+      msGetErrorState(bf);
       gdi.addInfoBox("", "warning:dbproblem#" + string(bf), 9000);    
     }
     return;
   }
   else if(callCount<=0) {    
     hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&ReconnectThread,
-          oe->msReConnect, 0, NULL);
+                            msReConnect, 0, NULL);
     Sleep(100);
   }
   else callCount--;

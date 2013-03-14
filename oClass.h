@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -317,7 +317,17 @@ public:
 	unsigned getNumStages() const {return MultiCourse.size();}
   /** Get the set of true legs, identifying parallell legs etc. Returns indecs into 
    legInfo of the last leg of the true leg (first), and true leg (second).*/
-  void getTrueStages(vector<pair<int, int> > &stages) const;
+  struct TrueLegInfo {
+  protected:
+    TrueLegInfo(int first_, int second_) : first(first_), second(second_) {}
+    friend class oClass;
+  public:
+    int first;
+    int second;
+    int nonOptional; // Index of a leg with a non-optional runner of that leg (which e.g. defines the course)
+  };
+  
+  void getTrueStages(vector<TrueLegInfo> &stages) const;
 
   unsigned getLastStageIndex() const {return max<signed>(MultiCourse.size(), 1)-1;}
 
@@ -355,7 +365,8 @@ public:
 	void setCourse(pCourse c);
 
 	bool addStageCourse(int stage, int courseId);
-	void clearStageCourses(int stage);
+  bool addStageCourse(int stage, pCourse pc);
+  void clearStageCourses(int stage);
 
   bool removeStageCourse(int stage, int courseId, int position);
 

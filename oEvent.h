@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -126,6 +126,7 @@ struct DrawInfo;
 struct CompetitionInfo {
 	int Id;
 	string Name;
+  string Annotation;
 	string Date;
   string NameId;
 	string FullPath;
@@ -139,7 +140,14 @@ struct CompetitionInfo {
   string account;
   string lastNormalEntryDate;
 	int ServerPort;
-	bool operator<(const CompetitionInfo &ci){return Date<ci.Date;}
+  int numConnected; // Number of connected entities
+	bool operator<(const CompetitionInfo &ci)
+  {
+    if (Date != ci.Date) 
+      return Date<ci.Date;
+    else 
+      return Modified < ci.Modified;
+  }
 };
 
 struct BackupInfo : public CompetitionInfo {
@@ -175,6 +183,7 @@ struct TimeRunner;
 
 class oEvent : public oBase
 {
+  friend class oSSSQuickStart;   //Trying to minimise code chanes to oEvent, but this is a bit ugly
 protected:
   // Revision number for data modified on this client.
   unsigned long dataRevision;
@@ -192,6 +201,7 @@ protected:
   mutable int vacantId; //Cached vacant id
 
 	string Name;
+	string Annotation;
 	string Date;
 	DWORD ZeroTime;
 
@@ -307,7 +317,7 @@ protected:
 	char CurrentNameId[64];
 
 	//Dynamic SQL-connection.
-	SYNCHRONIZE_FCN msMonitor;	
+/*	SYNCHRONIZE_FCN msMonitor;	
   SYNCHRONIZE_FCN msOpenDatabase;	
 	SYNCHRONIZE_FCN msUploadRunnerDB;
   SYNCHRONIZE_FCN msConnectToServer;
@@ -319,6 +329,7 @@ protected:
   ERRORMESG_FCN msGetErrorState;
   OPENDB_FCN msResetConnection;
   OPENDB_FCN msReConnect;
+*/
 
   static int dbVersion;
 	string MySQLServer;
@@ -410,7 +421,7 @@ public:
   void adjustTeamMultiRunners(pClass cls);
 
   //Get list of runners in a class
-  void getRunners(int classId, vector<pRunner> &r, bool sortRunners = true);
+  void getRunners(int classId, int courseId, vector<pRunner> &r, bool sortRunners = true);
   void getRunnersByCard(int cardNo, vector<pRunner> &r);
   
   void getTeams(int classId, vector<pTeam> &t, bool sortTeams = true);
@@ -713,12 +724,13 @@ public:
 	void reEvaluateAll(bool DoSync);
   void reEvaluateChanged();
 
-	bool exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, 
+	void exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, 
                        const set<int> &classes,  int leg = -1);
-	bool exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes);
+	void exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes);
 
   bool exportOECSV(const char *file);
 	bool save();
+  void duplicate();
 	void newCompetition(const string &Name);
   void clearListedCmp();
   bool enumerateCompetitions(const char *path, const char *extension);
@@ -747,7 +759,7 @@ public:
 	bool isRunnerUsed(int Id) const;
   bool isClubUsed(int Id) const;
 	
-	void removeRunner(int Id);
+	void removeRunner(const vector<int> &Ids);
 	void removeCourse(int Id);	
 	void removeClass(int Id);
 	void removeControl(int Id);
@@ -773,6 +785,9 @@ public:
 	const string &getName() const {return Name;}
 	string getTitleName() const;
   void setName (const string &m);
+
+	const string &getAnnotation() const {return Annotation;}
+  void setAnnotation(const string &m);
 
 	string getDate() const {return Date;}
 	void setDate(const string &m);
@@ -840,7 +855,7 @@ public:
 	pRunner addRunnerVacant(int classId);
 
   pRunner getRunner(int Id, int stage) const;
-	pRunner getRunnerByCard(int CardNo, bool OnlyWithNoCard=false) const;
+	pRunner getRunnerByCard(int cardNo, bool onlyRunnerWithNoCard = false, bool ignoreRunnersWithNoStart = false) const;
   pRunner getRunnerByStartNo(int startNo) const;
 
   pRunner getRunnerByName(const string &pname, const string &pclub="") const;
@@ -972,7 +987,7 @@ public:
   pCard addCard(const oCard &oc);
 
   /** Import entry data */
-	bool importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass);
+	void importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass);
 
 protected:
   pClass getXMLClass(const xmlobject &xentry);
@@ -999,7 +1014,15 @@ public:
   string cloneCompetition(bool cloneRunners, bool cloneTimes, 
                           bool cloneCourses, bool cloneResult, bool addToDate);
 
-  void transferResult(oEvent &ce, vector<string> &failures);
+
+  void transferResult(oEvent &ce,
+                      const set<int> &allowNewEntries,
+                      bool transferAllNoCompete,
+                      vector<pRunner> &changedClass,
+                      vector<pRunner> &assignedVacant,
+                      vector<pRunner> &newEntries,
+                      vector<pRunner> &notTransfered,
+                      vector<pRunner> &noAssignmentTarget);
 
   /**Return false if card is not used*/
   bool checkCardUsed(gdioutput &gdi, int CardNo);

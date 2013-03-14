@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@
 #include "random.h"
 #include "metalist.h"
 #include "gdiconstants.h"
+#include "oExtendedEvent.h"
 
 gdioutput *gdi_main=0;
 oEvent *gEvent=0;
@@ -128,6 +129,8 @@ void LoadPage(gdioutput &gdi, TabType type) {
 
 // Path to settings file
 static char settings[260];
+// Startup path
+static char programPath[MAX_PATH];
   
 int APIENTRY WinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
@@ -140,6 +143,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     Setup(true);
     exit(0);
   }
+
+  GetCurrentDirectory(MAX_PATH, programPath);
 
   getUserFile(settings, "meospref.xml");
 
@@ -155,7 +160,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   gdi_extra.push_back(gdi_main);
 
   try {
-	  gEvent = new oEvent(*gdi_main);
+	  gEvent = new oExtendedEvent(*gdi_main);
   }
   catch (std::exception &ex) {
     gdi_main->alert(string("Failed to create base event: ") + ex.what());
@@ -194,7 +199,6 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     lang.loadLangResource("Svenska");
   }
 
-  lang.tl("<< Lägg till");
   try {
     char listpath[MAX_PATH];
     getUserFile(listpath, "");
@@ -204,8 +208,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     expandDirectory(".\\Lists\\", "*.lxml", res);
 #endif
 
-    try {
+    string err;
+
       for (size_t k = 0; k<res.size(); k++) {
+      try {
         xmlparser xml;
 
         strcpy_s(listpath, res[k].c_str());
@@ -214,15 +220,20 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         xmlobject xlist = xml.getObject(0);
         gEvent->getListContainer().load(MetaListContainer::InternalList, xlist);
       }
-    }
     catch (std::exception &ex) {
-      string err = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
-      throw std::exception(err.c_str());
+        string errLoc = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
+        if (err.empty())
+          err = errLoc;
+        else
+          err += "\n" + errLoc;
     }
+  }
+    if (!err.empty())
+      gdi_main->alert(err);
   }
   catch (std::exception &ex) {
     gdi_main->alert(ex.what());
-    exit(1);
+    //exit(1);
   }
 
   gEvent->openRunnerDatabase("database");
@@ -437,10 +448,10 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
     if (!c  && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown))
       SendMessage(hWnd, WM_VSCROLL, MAKELONG(SB_LINEUP, 0), 0);
   }
-  else if (wParam == VK_NEXT && !(lParam & (1<<31)) ) {
+  else if (wParam == VK_NEXT && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown)) {
     SendMessage(hWnd, WM_VSCROLL, MAKELONG(SB_PAGEDOWN, 0), 0);
   }
-  else if (wParam == VK_PRIOR && !(lParam & (1<<31)) ) {
+  else if (wParam == VK_PRIOR && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown)) {
     SendMessage(hWnd, WM_VSCROLL, MAKELONG(SB_PAGEUP, 0), 0);
   }
   else if(wParam==VK_DOWN) {
@@ -1409,6 +1420,19 @@ void exportSetup()
   }
 }
 
+bool getMeOSFile(char *FileNamePath, const char *FileName) {
+	char Path[MAX_PATH];
+
+  strcpy_s(Path, programPath);
+	int i=strlen(Path);
+	if(Path[i-1]!='\\')
+		strcat_s(Path, MAX_PATH, "\\");
+  
+  strcat_s(Path, FileName);
+  strcpy_s(FileNamePath, MAX_PATH, Path);
+  return true;
+}
+
 
 bool getUserFile(char *FileNamePath, const char *FileName) 
 {
@@ -1438,7 +1462,7 @@ bool getUserFile(char *FileNamePath, const char *FileName)
 }
 
 
-bool getDesktopFile(char *FileNamePath, const char *FileName) 
+bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFolder) 
 {
 	char Path[MAX_PATH];
 	char AppPath[MAX_PATH];
@@ -1453,10 +1477,16 @@ bool getDesktopFile(char *FileNamePath, const char *FileName)
 
 		CreateDirectory(AppPath, NULL);
 
-		strcpy_s(FileNamePath, MAX_PATH, AppPath);
-		strcat_s(FileNamePath, MAX_PATH, FileName);
+    if (subFolder) {
+      strcat_s(AppPath, MAX_PATH, subFolder);
+      strcat_s(AppPath, MAX_PATH, "\\");
+      CreateDirectory(AppPath, NULL);
+    }
+
+		strcpy_s(fileNamePath, MAX_PATH, AppPath);
+		strcat_s(fileNamePath, MAX_PATH, fileName);
 	}
-	else strcpy_s(FileNamePath, MAX_PATH, FileName);
+	else strcpy_s(fileNamePath, MAX_PATH, fileName);
 
 	return true;
 }

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ oBase::oBase(oEvent *poe)
 	changed = false;
   reChanged = false;
   counter = 0;
-
+  Modified.update();
   correctionNeeded = true;
 }
 
@@ -93,4 +93,14 @@ void oBase::setExtIdentifier(__int64 id)
 __int64 oBase::getExtIdentifier() const 
 {
   return getDCI().getInt64("ExtId");
+}
+
+string oBase::getTimeStamp() const {
+  if (oe && oe->isClient() && !sqlUpdated.empty())
+    return sqlUpdated;
+  else return Modified.getStampString();
+}
+
+void oBase::changeId(int newId) {
+  Id = newId;
 }

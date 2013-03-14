@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 
 class oTeam;//:public oBase {};
 typedef oTeam* pTeam;
+typedef const oTeam* cTeam;
 
 const unsigned int maxRunnersTeam=32;
 
@@ -53,7 +54,28 @@ protected:
   int getLegToUse(int leg) const; // Get the number of the actual 
                                   // runner to consider for a given leg
                                   // Maps -1 to last runner
+
+  void addTableRow(Table &table) const;
+
+  bool inputData(int id, const string &input, 
+                 int inputId, string &output, bool noUpdate);
+
+  void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
+
 public:
+
+  /** Remove runner from team (and from competition)
+    @param askRemoveRunner ask if runner should be removed from cmp. Otherwise just do it.
+    */
+  void removeRunner(gdioutput &gdi, bool askRemoveRunner, int runnerIx);
+  // Get entry date of team
+  string getEntryDate(bool dummy) const;
+
+  // Get the team itself
+  cTeam getTeam() const {return this;}
+  pTeam getTeam() {return this;}
+
+  int getRunningTime() const;
 
   /// Input data for multiday event
   void setInputData(const oTeam &t);
@@ -69,7 +91,7 @@ public:
   oDataConstInterface getDCI(void) const;
 
   bool skip() const {return isRemoved();}
-  void setTeamNoStart();
+  void setTeamNoStart(bool dns);
 	// If apply is triggered by a runner, don't go further than that runner.
   bool apply(bool sync, pRunner source);
   bool apply(bool sync);
@@ -121,7 +143,7 @@ public:
   string getLegPrintPlaceS(int leg) const;
 	int getLegPlace(int leg) const { return leg>=0 && leg<maxRunnersTeam ? _places[leg]:_places[Runners.size()-1];}
 
-  static bool compareSNO(const oTeam &a, const oTeam &b) {return a.StartNo<b.StartNo;}
+  static bool compareSNO(const oTeam &a, const oTeam &b);
 	static bool compareName(const oTeam &a, const oTeam &b) {return a.Name<b.Name;} 
 	static bool compareResult(const oTeam &a, const oTeam &b);
 	static bool compareStartTime(const oTeam &a, const oTeam &b);

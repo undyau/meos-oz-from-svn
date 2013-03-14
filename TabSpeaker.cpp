@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -451,26 +451,13 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   if(!pc)
     return;
 
-  int leg = selectedControl[pc->getId()].getLeg();
-
-  list<pControl> controls;
-  
   gdi.restore("classes", true);
   pCourse course=0;      
 
-  if(pc->hasMultiCourse())
-    course=pc->getCourse(leg);
-  else
-    course=pc->getCourse();
-
-  if(course)						
-	  course->getControls(controls);						
-  
-  list<pControl>::iterator it;
-	gdi.fillDown();
-
   int h,w;
   gdi.getTargetDimension(w, h);
+  
+	gdi.fillDown();
 
   int bw=gdi.scaleLength(100);
   int nbtn=max((w-80)/bw, 1);
@@ -482,9 +469,9 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   int cy=basey;
   int cb=1;
 
-  vector< pair<int, int> > stages;
+  vector<oClass::TrueLegInfo> stages;
   pc->getTrueStages(stages);
-
+  int leg = selectedControl[pc->getId()].getLeg();
   if (stages.size()>1) {
     gdi.addSelection(cx, cy+2, "Leg", int(bw/gdi.getScale())-5, 100, tabSpeakerCB);
 
@@ -497,7 +484,27 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   }
   else if (stages.size() == 1) {
     selectedControl[classId].setLeg(stages[0].first);
+    leg = stages[0].first;
   }
+
+  int courseLeg = leg;  
+  for (size_t k = 0; k <stages.size(); k++) {
+    if (stages[k].first == leg) {
+      courseLeg = stages[k].nonOptional;
+      break;
+    }
+  }
+
+  if(pc->hasMultiCourse())
+    course=pc->getCourse(courseLeg);
+  else
+    course=pc->getCourse();
+
+  list<pControl> controls;
+  list<pControl>::iterator it;
+
+  if(course)						
+	  course->getControls(controls);
 
 	for (it=controls.begin(); it!=controls.end(); ++it) {		
     if (controlsToWatch.count( (*it)->getId() ) ) {
@@ -750,7 +757,7 @@ void TabSpeaker::loadPriorityClass(gdioutput &gdi, int classId) {
   gdi.setOnClearCb(tabSpeakerCB);
   runnersToSet.clear();
   vector<pRunner> r;
-  oe->getRunners(classId, r);
+  oe->getRunners(classId, 0, r);
 
   int x = gdi.getCX();
   int y = gdi.getCY()+2*gdi.getLineHeight();

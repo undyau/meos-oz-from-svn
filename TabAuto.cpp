@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -242,7 +242,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     int nClass=gdi.getTextNo("nClass");
     int nRunner=gdi.getTextNo("nRunner");
 
-    if(nClass>0 && nRunner>0 && 
+    if(nRunner>0 && 
       gdi.ask("Vill du dumpa aktuellt tävling och skapa en testtävling?")) {
       oe->generateTestCompetition(nClass, nRunner, 
         gdi.isChecked("UseRelay"));

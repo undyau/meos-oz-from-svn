@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -33,16 +33,27 @@ class oEvent;
 
 class Position 
 {
+  struct PosInfo {
+    PosInfo(int f, int wid) : first(f), width(wid), aligned(false) {}
+    int first;   // Actual position
+    int width;   // Original block width
+    bool aligned;// True if aligned
+  };
   map<string, int> pmap;
-  vector<int> pos;
-  void update(int ix, const string &newname, int width, bool alignBlock);
+  vector< PosInfo > pos; // Pair of position, specified (minimal) width
+  void update(int ix, const string &newname, int width, bool alignBlock, bool alignLock);
 
 public:
   bool postAdjust();
 
-  void add(const string &name, int width);
-  void update(const string &oldname, const string &newname, int width, bool alignBlock);
-  void alignNext(const string &newname, int width, bool alignBlock);
+  void add(const string &name, const int width, int blockWidth);
+  void add(const string &name, const int width) {
+    add(name, width, width);
+  }
+  
+  void update(const string &oldname, const string &newname, 
+              const int width, bool alignBlock, bool alignLock);
+  void alignNext(const string &newname, const int width, bool alignBlock);
 
   void newRow();
   

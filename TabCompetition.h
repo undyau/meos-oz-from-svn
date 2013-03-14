@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -95,7 +95,14 @@ class TabCompetition :
 
   // Class id for last selected class for entry
   int lastSelectedClass;
+ 
+  set<int> allTransfer;
+
+  void displayRunners(gdioutput &gdi, const vector<pRunner> &changedClass) const;
+
 public:
+
+  void setEventorServer(const string &server);
   int competitionCB(gdioutput &gdi, int type, void *data);
   int restoreCB(gdioutput &gdi, int type, void *data);
 	bool loadPage(gdioutput &gdi);

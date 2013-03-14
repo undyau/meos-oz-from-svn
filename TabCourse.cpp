@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -60,6 +60,9 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
   gdi.disableInput("PointLimit");
   gdi.setText("PointReduction", "");
   gdi.disableInput("PointReduction");
+  gdi.check("ReductionPerMinute", false);
+  gdi.disableInput("ReductionPerMinute");
+
   gdi.selectItemByData("Rogaining", 0);
   if (pc) {
 		pc->synchronize();
@@ -70,15 +73,20 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
 		gdi.setTextZeroBlank("Length", pc->getLength());
     gdi.setTextZeroBlank("NumberMaps", pc->getNumberMaps());
 
+    gdi.check("FirstAsStart", pc->useFirstAsStart());
+    gdi.check("LastAsFinish", pc->useLastAsFinish());
+
     int rt = pc->getMaximumRogainingTime();
     int rp = pc->getMinimumRogainingPoints();
 
     if ( rt > 0 ) {
       gdi.selectItemByData("Rogaining", 1);
       gdi.enableInput("TimeLimit");
-      gdi.setText("TimeLimit", formatTime(rt));
+      gdi.setText("TimeLimit", formatTimeHMS(rt));
       gdi.enableInput("PointReduction");
       gdi.setText("PointReduction", itos(pc->getRogainingPointsPerMinute()));
+      gdi.enableInput("ReductionPerMinute");
+      gdi.check("ReductionPerMinute", pc->getDCI().getInt("RReductionMethod") != 0);
     }
     else if (rp > 0) {
       gdi.selectItemByData("Rogaining", 2);
@@ -92,6 +100,38 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
 
     gdi.selectItemByData("Courses", pc->getId());
     gdi.setText("CourseProblem", pc->getCourseProblems(), true);
+    vector<pClass> cls;
+    vector<pCourse> crs;
+    oe->getClasses(cls);
+    string usedInClasses;
+    for (size_t k = 0; k < cls.size(); k++) {
+      int nleg = max<int>(cls[k]->getNumStages(), 1);
+      vector<int> usage;
+      for (int j = 0; j < nleg; j++) {
+        cls[k]->getCourses(j, crs);
+        for (size_t i = 0; i < crs.size(); i++) {
+          if (crs[i] == pc) {
+            usage.push_back(j+1);
+            break;
+          }
+        }
+      }
+      string add;
+      if (usage.size() == 1) {
+        add = cls[k]->getName();
+      }
+      else if (usage.size() > 1) {
+        add = cls[k]->getName();
+      }
+
+      if (!add.empty()) {
+        if (!usedInClasses.empty())
+          usedInClasses += ", ";
+        usedInClasses += add;
+      }
+    }
+    gdi.setText("CourseUse", usedInClasses, true);
+    
 	  gdi.enableEditControls(true);
 	}
   else {
@@ -99,11 +139,14 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
 		gdi.setText("Controls", "");			
 		gdi.setText("Length", "");
     gdi.setText("NumberMaps", "");
-		courseId = 0;
+    gdi.check("FirstAsStart", false);
+    gdi.check("LastAsFinish", false);
+    courseId = 0;
 		gdi.disableInput("Remove");
 		gdi.disableInput("Save");
     gdi.selectItemByData("Courses", -1);
     gdi.setText("CourseProblem", "", true);
+	  gdi.setText("CourseUse", "", true);
 	  gdi.enableEditControls(false);
 	}
 }
@@ -135,18 +178,44 @@ void TabCourse::save(gdioutput &gdi)
 		create=true;
 	}
 
+  bool firstAsStart = gdi.isChecked("FirstAsStart");
+  bool lastAsFinish = gdi.isChecked("LastAsFinish");
+  bool oldFirstAsStart = pc->useFirstAsStart();
+  if (!oldFirstAsStart && firstAsStart) {
+    vector<pRunner> cr;
+    oe->getRunners(0, pc->getId(), cr, false);
+    bool hasRes = false;
+    for (size_t k = 0; k < cr.size(); k++) {
+      if (cr[k]->getCard() != 0) {
+        hasRes = true;
+        break;
+      }
+    }
+    if (hasRes) {
+      firstAsStart = gdi.ask("ask:firstasstart");
+    }
+  }
+
+  
 	pc->setName(name);
 	pc->importControls(gdi.getText("Controls"));
 	pc->setLength(gdi.getTextNo("Length"));
   pc->setNumberMaps(gdi.getTextNo("NumberMaps"));
-
+  pc->firstAsStart(firstAsStart);
+  pc->lastAsFinish(lastAsFinish);
+  
 
   string t;
   pc->setMaximumRogainingTime(convertAbsoluteTimeMS(gdi.getText("TimeLimit")));
   pc->setMinimumRogainingPoints(atoi(gdi.getText("PointLimit").c_str()));
-  pc->setRogainingPointsPerMinute(atoi(gdi.getText("PointReduction").c_str()));
+  int pr = atoi(gdi.getText("PointReduction").c_str());
+  pc->setRogainingPointsPerMinute(pr);
+  if (pr > 0) {
+    int rmethod = gdi.isChecked("ReductionPerMinute") ? 1 : 0;
+    pc->getDI().setInt("RReductionMethod", rmethod);
+  }
 
-	pc->synchronize();//Update SQL
+  pc->synchronize();//Update SQL
 
 	oe->fillCourses(gdi, "Courses");
 	oe->reEvaluateCourse(pc->getId(), true);
@@ -297,7 +366,9 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       gdi.setText("PointLimit", pl);
       
       gdi.setInputStatus("PointReduction", !pr.empty());
+      gdi.setInputStatus("ReductionPerMinute", !pr.empty());
       gdi.setText("PointReduction", pr);
+
     }
 	}
   else if(type==GUI_CLEAR) {
@@ -316,7 +387,7 @@ bool TabCourse::loadPage(gdioutput &gdi)
 
 	DWORD ClassID=0, RunnerID=0;
 
-  time_limit = "60:00:00";
+  time_limit = "01:00:00";
   point_limit = "10";
   point_reduction = "1";
 
@@ -360,6 +431,12 @@ bool TabCourse::loadPage(gdioutput &gdi)
 	gdi.addString("", 10, "help:12662");
   gdi.dropLine(1.5);
 
+  gdi.fillRight();
+  gdi.addCheckbox("FirstAsStart", "Använd första kontrollen som start");
+  gdi.fillDown();
+  gdi.addCheckbox("LastAsFinish", "Använd sista kontrollen som mål");
+  gdi.popX();
+
   RECT rc;
   rc.top = gdi.getCY() -5;
   rc.left = gdi.getCX();
@@ -375,19 +452,24 @@ bool TabCourse::loadPage(gdioutput &gdi)
   
   gdi.setCX(gdi.getCX()+gdi.scaleLength(20));
   gdi.dropLine(-0.8);
+  int cx = gdi.getCX();
   gdi.addInput("PointLimit", "", 8, 0, "Poänggräns:").isEdit(false);
   gdi.addInput("TimeLimit", "", 8, 0, "Tidsgräns:").isEdit(false);
   gdi.addInput("PointReduction", "", 8, 0, "Poängavdrag (per minut):").isEdit(false);
   gdi.dropLine(3.5);
-  
-  rc.bottom = gdi.getCY() + 5;
   rc.right = gdi.getCX() + 5;
+  gdi.setCX(cx);
+  gdi.fillDown();
+  gdi.addCheckbox("ReductionPerMinute", "Poängavdrag per påbörjad minut");
+
+  rc.bottom = gdi.getCY() + 5;
   gdi.addRectangle(rc, colorLightBlue, true);
 
   gdi.popX();
   gdi.fillDown();
   gdi.dropLine(2);
-	gdi.addString("CourseProblem", 1, "").setColor(colorRed);
+  gdi.addString("CourseUse", 0, "").setColor(colorDarkBlue);
+  gdi.addString("CourseProblem", 1, "").setColor(colorRed);
   gdi.dropLine(2);
 	gdi.fillRight();	
   gdi.addButton("Save", "Spara", CourseCB, "help:save").setDefault();
@@ -439,7 +521,7 @@ void TabCourse::setupCourseImport(gdioutput& gdi, GUICALLBACK cb) {
 
 	gdi.fillRight();
 	gdi.pushX();
-  gdi.addInput("FileName", "", 32, 0, "Filnamn:");
+  gdi.addInput("FileName", "", 48, 0, "Filnamn:");
 	gdi.dropLine();
 	gdi.fillDown();
 	gdi.addButton("BrowseCourse", "Bläddra...", CourseCB);

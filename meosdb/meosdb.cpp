@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -112,6 +112,7 @@ int MEOSDB_API msSynchronizeUpdate(oBase *obj)
 		return msql.syncUpdate((oFreePunch *) obj);
 	}
 	else if(typeid(*obj)==typeid(oEvent)){
+
 		return msql.SyncUpdate((oEvent *) obj);
 	}
 	else if(typeid(*obj)==typeid(oTeam)){
@@ -141,7 +142,7 @@ int MEOSDB_API msSynchronizeRead(oBase *obj)
 		return msql.syncRead(false, (oCard *) obj);
 	}
 	else if(typeid(*obj)==typeid(oFreePunch)){
-		return msql.syncRead(false, (oFreePunch *) obj);
+		return msql.syncRead(false, (oFreePunch *) obj, true);
 	}
 	else if(typeid(*obj)==typeid(oTeam)){
 		return msql.syncRead(false, (oTeam *) obj);
@@ -186,7 +187,13 @@ int MEOSDB_API msDropDatabase(oEvent *oe)
 // Tries to connect to the server defined by oe.
 int MEOSDB_API msConnectToServer(oEvent *oe)
 {
-	return msql.ListCompetitions(oe);
+	return msql.listCompetitions(oe, false);
+}
+
+// Reloads competitions. Assumes a connection.
+int MEOSDB_API msListCompetitions(oEvent *oe)
+{
+	return msql.listCompetitions(oe, true);
 }
 
 // Fills string msgBuff with the current error stage
@@ -209,6 +216,11 @@ bool MEOSDB_API msReConnect()
 
 
 } //Extern "C"
+
+bool repairTables(const string &db, vector<string> &output) {
+  return msql.repairTables(db, output);
+}
+
 
 #ifdef BUILD_DB_DLL
 

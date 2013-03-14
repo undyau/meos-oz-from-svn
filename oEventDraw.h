@@ -58,7 +58,7 @@ struct DrawInfo {
   int nFields;
   int firstStart;
   int maxCommonControl;
-
+  bool allowNeighbourSameCourse;
   // Statistics output from optimize start order
   int numDistinctInit;
   int numRunnerSameInitMax;

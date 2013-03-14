@@ -7,16 +7,15 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{5A8ACFDC-9E0A-4B59-9D8F-4013251EB156}
 AppName=MEOS-OZ
-AppVersion=3.0.276
-;AppVerName=MEOS-OZ 3.0.276
+AppVersion=3.0.311
 AppPublisher=undy
 AppPublisherURL=http://www.itsdamp.com
 AppSupportURL=http://www.itsdamp.com
 AppUpdatesURL=http://www.itsdamp.com
 DefaultDirName={pf}\MEOS-OZ
 DefaultGroupName=MEOS-OZ
-LicenseFile=D:\Andy Documents\Projects\meos-oz\installer\license.txt
-OutputDir=D:\Andy Documents\Projects\meos-oz\installer
+LicenseFile=license.txt
+OutputDir=.
 OutputBaseFilename=setup
 Compression=lzma
 SolidCompression=yes
@@ -28,12 +27,22 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "D:\Andy Documents\Projects\meos-oz\installer\meos.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\Andy Documents\Projects\meos-oz\installer\libmySQL.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\Andy Documents\Projects\meos-oz\installer\license.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\Andy Documents\Projects\meos-oz\installer\meosdoc.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\Andy Documents\Projects\meos-oz\installer\mysqlpp.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "D:\Andy Documents\Projects\meos-oz\installer\thirdpartylicense.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "meos.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "libmySQL.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "license.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "meosdoc.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "mysqlpp.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "thirdpartylicense.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "baseclass.xml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "database.clubs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "database.persons"; DestDir: "{app}"; Flags: ignoreversion
+Source: "ind_finalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "ind_totalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "ind_courseresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "classcourse.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "msvcm90.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "msvcp90.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "msvcr90.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -41,5 +50,6 @@ Name: "{group}\MEOS-OZ"; Filename: "{app}\meos.exe"
 Name: "{commondesktop}\MEOS-OZ"; Filename: "{app}\meos.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\meos.exe"; Parameters: "-s"
 Filename: "{app}\meos.exe"; Description: "{cm:LaunchProgram,MEOS-OZ}"; Flags: nowait postinstall skipifsilent
 

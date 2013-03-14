@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,6 +24,68 @@
 #include <vector>
 #include <math.h>
 #include "meos_util.h"
+
+void getLocalTimeDateFromUTC(string& date, string& time)
+{
+	SYSTEMTIME utc = {0};	
+	if (date[4] != '-' || date[7] != '-' || time[2] != ':' || time[5] != ':' ||
+		date.length() != 10 || time.length() != 8)
+		return;  // unexpected format, leave as is
+
+	utc.wYear = atoi(date.substr(0,4).c_str());
+	utc.wMonth = atoi(date.substr(5,2).c_str());
+	utc.wDay = atoi(date.substr(8,2).c_str());
+	utc.wHour = atoi(time.substr(0,2).c_str());
+	utc.wMinute = atoi(time.substr(3,2).c_str());
+	utc.wSecond = atoi(time.substr(6,2).c_str());
+
+	TIME_ZONE_INFORMATION TimeZoneInfo;
+	GetTimeZoneInformation( &TimeZoneInfo );
+	SYSTEMTIME local = {0};	
+
+	if (!SystemTimeToTzSpecificLocalTime( &TimeZoneInfo,
+																	 &utc,
+																	 &local ))
+		return;
+
+  char bf[32];
+	sprintf_s(bf, "%d-%02d-%02d", local.wYear, local.wMonth, local.wDay);
+	date = bf;
+	sprintf_s(bf, "%02d:%02d:%02d", local.wHour, local.wMinute, local.wSecond);
+	time = bf;
+}
+
+string getUTCTimeDateFromLocal(string ISODateTime)
+{
+	string date = ISODateTime.substr(0,10);
+	string time = ISODateTime.substr(11,8);
+
+	SYSTEMTIME local = {0};	
+	if (date[4] != '-' || date[7] != '-' || time[2] != ':' || time[5] != ':' ||
+		date.length() != 10 || time.length() != 8)
+		return ISODateTime;  // unexpected format, leave as is
+
+	local.wYear = atoi(date.substr(0,4).c_str());
+	local.wMonth = atoi(date.substr(5,2).c_str());
+	local.wDay = atoi(date.substr(8,2).c_str());
+	local.wHour = atoi(time.substr(0,2).c_str());
+	local.wMinute = atoi(time.substr(3,2).c_str());
+	local.wSecond = atoi(time.substr(6,2).c_str());
+
+	TIME_ZONE_INFORMATION TimeZoneInfo;
+	GetTimeZoneInformation( &TimeZoneInfo );
+	SYSTEMTIME utc = {0};	
+
+	if (!TzSpecificLocalTimeToSystemTime( &TimeZoneInfo,
+																	 &local,
+																	 &utc ))
+		return ISODateTime;
+
+  char bf[32];
+	sprintf_s(bf, "%d-%02d-%02dT%02d:%02d:%02d", 
+			utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
+	return string(bf);
+}
 
 string getLocalTime()
 {
@@ -929,6 +991,13 @@ bool compareClassName(const string &a, const string &b)
     bs = a.c_str();
     as = b.c_str();
   }
+
+  if (b.length() == 0 || a.length() == 0)
+    return false; // Dont process empty names
+
+  int firstAChar = -1;
+  int firstBChar = -1;
+
   int lasttype = -1;
   int lastatype = -1;
   while (*bs) {
@@ -938,6 +1007,8 @@ bool compareClassName(const string &a, const string &b)
       lasttype = 0; // Space
       continue;
     }
+    if (firstBChar == -1)
+      firstBChar = bchar;
 
     if (bchar>='0' && bchar<='9')
       lasttype = 1; // Digit
@@ -954,6 +1025,11 @@ bool compareClassName(const string &a, const string &b)
       else
         atype = 2; // Other
 
+      if (atype != 0 && firstAChar == -1) {
+        firstAChar = achar;
+        if (firstAChar != firstBChar)
+          return false; // First letter must match
+      }
       if (achar == bchar) {
         lastatype  = atype;
         break; // Match!
@@ -1243,4 +1319,43 @@ bool matchNumber(int a, const char *b) {
   }
 
   return false;
+}
+
+string makeValidFileName(const string &input) {
+  string out;
+  out.reserve(input.size());
+  for (size_t k = 0; k < input.length(); k++) {
+    int b = input[k];
+    if ( (b>='0' && b<='9') || (b>='a' && b<='z') || (b>='A' && b<='Z') || b == '_' || b=='.' )
+      out.push_back(b);
+    else if (b == ' ' ||  b == ',')
+      out.push_back('_');
+    else {
+      b = toLowerStripped(b);
+      if ( char(b) == 'ö')
+        b = 'o';
+      else if (char(b) == 'ä' || char(b) == 'å')
+        b = 'a';
+      out.push_back(b);
+    }
+  }
+
+  return out;
+}
+
+void capitalize(string &str) {
+  if (str.length() > 0) {
+    char c = str[0] & 0xFF;
+    
+    if (c>='a' && c<='z')
+      c += ('A' - 'a');
+    else if (c == 'ö')
+      c = 'Ö';
+    else if (c == 'ä')
+      c = 'Ä';
+    else if (c == 'å')
+      c = 'Å';
+
+    str[0] = c;
+  }
 }

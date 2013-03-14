@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ bool oControl::write(xmlparser &xml)
 	xml.startTag("Control");
 
 	xml.write("Id", Id);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.write("Name", Name);
 	xml.write("Numbers", codeNumbers());
 	xml.write("Status", Status);
@@ -138,7 +138,7 @@ void oControl::set(const xmlobject *xo)
 			Name=it->get();
 		}
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
     else if(it->is("oData")){
       getDI().set(*it);
@@ -648,7 +648,7 @@ Table *oEvent::getControlTB()//Table mode
   if (tables.count("control") == 0) {
 	  Table *table=new Table(this, 20, "Kontroller", "controls");
 
-    table->addColumn("Id", 70, true);
+    table->addColumn("Id", 70, true, true);
     table->addColumn("Ändrad", 70, false);
 
 	  table->addColumn("Namn", 150, false);

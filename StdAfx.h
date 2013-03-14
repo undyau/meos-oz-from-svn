@@ -33,8 +33,9 @@
 
 
 using namespace std;
-bool getUserFile(char *FileNamePath, const char *FileName);
-bool getDesktopFile(char *FileNamePath, const char *FileName);
+bool getUserFile(char *fileNamePath, const char *fileName);
+bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFolder = 0);
+bool getMeOSFile(char *FileNamePath, const char *FileName);
 
 class gdioutput;
 gdioutput *createExtraWindow(const string &title, int max_x = 0, int max_y = 0);

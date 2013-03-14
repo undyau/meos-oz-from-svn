@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -69,6 +69,14 @@ InputInfo::InputInfo() : hWnd(0), CallBack(0), ignoreCheck(false),
 
 
 EventInfo::EventInfo() : CallBack(0), keyEvent(KC_NONE) {}
+
+/** Return true if rendering text should be skipped for 
+    this format. */
+inline bool skipTextRender(int format) {
+  format &= 0xFF;
+  return format == pageNewPage || format == pageReserveHeight || 
+         format == pagePageInfo;
+}
 
 #ifndef MEOSDB  
 	
@@ -583,7 +591,7 @@ TextInfo &gdioutput::addStringUT(int yp, int xp, int format, const string &text,
 	TI.CallBack=cb;
   if (fontFace)
     TI.font = fontFace;
-  if (format != pageNewPage && format != pageReserveHeight) {
+  if (!skipTextRender(format)) {
 	  HDC hDC=GetDC(hWndTarget);
 
     if (hWndTarget && !manualUpdate)
@@ -628,7 +636,7 @@ TextInfo &gdioutput::addString(const char *id, int yp, int xp, int format, const
   if (fontFace)
     TI.font = fontFace;
 
-  if (format != pageNewPage && format != pageReserveHeight) {
+  if (!skipTextRender(format)) {
 	  HDC hDC=GetDC(hWndTarget);
 
     if (hWndTarget && !manualUpdate)
@@ -1497,6 +1505,15 @@ void gdioutput::processComboMessage(ListBoxInfo &bi, DWORD wParam)
               bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
           
             }
+        }
+        else {
+          GetWindowText(bi.hWnd, bf, sizeof(bf)-1);
+          if (bi.text != bf) {  
+				    bi.data = -1;
+            bi.text = bf;
+            bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
+          
+          }
         }
       }
 			break;
@@ -2804,8 +2821,7 @@ void gdioutput::fadeOut(string Id, int ms)
 
 void gdioutput::RenderString(TextInfo &ti, HDC hDC)
 {
-	if(ti.format==pageNewPage || 
-          ti.format==pageReserveHeight)
+	if(skipTextRender(ti.format))
 		return;
 
   if (ti.HasTimer && ti.xp == 0)
@@ -2941,8 +2957,7 @@ void gdioutput::RenderString(TextInfo &ti, HDC hDC)
 
 void gdioutput::RenderString(TextInfo &ti, const string &text, HDC hDC)
 {
-  if((ti.format&0xFF)==pageNewPage || 
-      (ti.format&0xFF)==pageReserveHeight)
+  if(skipTextRender(ti.format))
 		return;
 
 	RECT rc;

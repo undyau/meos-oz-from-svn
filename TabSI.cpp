@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -81,7 +81,9 @@ void TabSI::logCard(const SICard &card)
     logger = new csvparser;
     string readlog = "sireadlog_" + getLocalTimeFileName() + ".csv";
     char file[260];
-    getDesktopFile(file, readlog.c_str());
+    string subfolder = makeValidFileName(oe->getName());
+    const char *sf = subfolder.empty() ? 0 : subfolder.c_str();
+    getDesktopFile(file, readlog.c_str(), sf);
     logger->openOutput(file);
     vector<string> head = SICard::logHeader();
     logger->OutputRow(head);
@@ -161,6 +163,8 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
             gdi.popX();
             gdi.fillDown();
             gdi.addString("", 10, "help:14070");
+            gdi.scrollToBottom();
+            gdi.refresh();
             return 0;
           }
 
@@ -188,7 +192,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
 								gdi.pushX();
 								gdi.fillRight();
 								gdi.addInput("ComPortName", port, 10, 0, "COM-Port:");
-								gdi.addInput("BaudRate", "4800", 10, 0, "help:budrate");
+								gdi.addInput("BaudRate", "4800", 10, 0, "help:baudrate");
 
 								gdi.dropLine();
 								gdi.fillDown();
@@ -626,7 +630,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
       
       pRunner cardRunner = oe->getRunnerByCard(cardNo, true);
       if (cardNo>0 && cardRunner!=0 && cardRunner!=r) {
-        gdi.alert("Bricknummret är upptaget. (" +cardRunner->getName() + ")");
+        gdi.alert("Bricknummret är upptaget (X).#" + cardRunner->getName() + ", " + cardRunner->getClass());
         return 0;
       }
   
@@ -658,7 +662,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
       lastClassId=r->getClassId();
       lastFee=oe->interpretCurrency(gdi.getText("Fee"));
       
-	    r->setCardNo(cardNo, false);
+	    r->setCardNo(cardNo, true);
       
       oDataInterface di=r->getDI();
 
@@ -684,7 +688,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
                   r->getClass().c_str());
 
       string info(bf);
-      if(r->getDI().getInt("CardFee")>0)
+      if(r->getDI().getInt("CardFee") != 0)
         info+=lang.tl(", Hyrbricka");
 
       if(r->getDI().getInt("Paid")>0)
@@ -1116,12 +1120,15 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
 			  return;
 		  }
 		  else {
-			  char bf[256];
-			  sprintf_s(bf, 256, "SI-%d inläst.\nÅtgärder från operatören krävs...", sic.CardNumber);
+			  //char bf[256];
+			  //sprintf_s(bf, 256, "SI-%d inläst.\nÅtgärder från operatören krävs...", sic.CardNumber);
 			  CardQueue.push_back(sic);
-
-			  gdi.addInfoBox("SIREAD", gEvent->getCurrentTimeS()+": "+bf, 0, SportIdentCB);
-			  return;
+			  //gdi.addInfoBox("SIREAD", gEvent->getCurrentTimeS()+": "+bf, 0, SportIdentCB);
+        //gdi.addInfoBox("SIREAD", "X: Bricka Y avläst.\nManuell behandling är nödvändig.#" + 
+        //                          gEvent->getCurrentTimeS()+"#"+itos(sic.CardNumber), 0, SportIdentCB);
+			  gdi.addInfoBox("SIREAD", "info:readout_action#" + gEvent->getCurrentTimeS()+"#"+itos(sic.CardNumber), 0, SportIdentCB);
+			  
+        return;
 		  }
     }
     else {
@@ -1149,13 +1156,15 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
 		}
     
 		string name;
-		if(r) name=" ("+r->getName()+")";
+		if(r) 
+      name = " ("+r->getName()+")";
 
-		char bf[256];
-		sprintf_s(bf, 256, "SI-%d inläst%s.\nBrickan har ställts i kö.", sic.CardNumber, name.c_str());
-
+		//char bf[256];
+		//sprintf_s(bf, 256, "SI-%d inläst%s.\nBrickan har ställts i kö.", sic.CardNumber, name.c_str());
+    name = itos(sic.CardNumber) + name; 
 		CardQueue.push_back(sic);
-		gdi.addInfoBox("SIREAD", gEvent->getCurrentTimeS()+": "+bf);
+		//gdi.addInfoBox("SIREAD", gEvent->getCurrentTimeS()+": "+bf);
+    gdi.addInfoBox("SIREAD", "info:readout_queue#" + gEvent->getCurrentTimeS()+ "#" + name);
 		return;
 	}
 
@@ -1544,6 +1553,9 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
 
   if(runner->getStatus()==StatusOK)	{
     gEvent->calculateResults(oEvent::RTClassResult);
+    if (runner->getTeam()) 
+      gEvent->calculateTeamResults(runner->getLegNumber());
+    string placeS = runner->getTeam() ? runner->getTeam()->getLegPlaceS(runner->getLegNumber()) : runner->getPlaceS();
 
 		if(!silent) {
       gdi.fillDown();
@@ -1556,20 +1568,20 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
 
       string statusline = lang.tl("Status OK,    ") +
                           lang.tl("Tid: ") + runner->getRunningTimeS() + 
-                          lang.tl(",      Prel. placering: ") + runner->getPlaceS();
+                          lang.tl(",      Prel. placering: ") + placeS;
 
 
       statusline += lang.tl(",     Prel. bomtid: ") + runner->getMissedTimeS();
 			gdi.addStringUT(rc.top+6+lh, rc.left+20, 0, statusline);
       
-      if(runner->getDI().getInt("CardFee")>0)
+      if(runner->getDI().getInt("CardFee") != 0)
         rentCardInfo(gdi, rc.right-rc.left);
       gdi.scrollToBottom();
 		}
 		else {
       string msg="#" + runner->getName()  + " (" + cardno + ")\n"+
 					runner->getClub()+". "+runner->getClass() + 
-					"\n" + lang.tl("Tid:  ") + runner->getRunningTimeS() + lang.tl(", Plats  ") + runner->getPlaceS();
+					"\n" + lang.tl("Tid:  ") + runner->getRunningTimeS() + lang.tl(", Plats  ") + placeS;
 
 			gdi.addInfoBox("SIINFO", msg, 10000);
 		}
@@ -1600,7 +1612,7 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
 
 			gdi.addStringUT(rc.top+6+lh, rc.left+20, 0, msg);
       
-      if(runner->getDI().getInt("CardFee")>0)
+      if(runner->getDI().getInt("CardFee") != 0)
         rentCardInfo(gdi, rc.right-rc.left);
 
 			gdi.scrollToBottom();
@@ -1760,12 +1772,12 @@ void TabSI::generateEntryLine(gdioutput &gdi, pRunner r)
   oe->fillClubs(gdi, "Club");
   gdi.selectItemByData("Club", lastClubId);
 
-  gdi.addSelection("Class", 150, 200, 0, "Klass");  
+  gdi.addSelection("Class", 150, 200, 0, "Klass:");  
   oe->fillClasses(gdi, "Class", oEvent::extraNumMaps, oEvent::filterOnlyDirect);
   if(!gdi.selectItemByData("Class", lastClassId))
     gdi.selectFirstItem("Class");
 
-  gdi.addCombo("Fee", 60, 150, SportIdentCB, "Anm. avgift");
+  gdi.addCombo("Fee", 60, 150, SportIdentCB, "Anm. avgift:");
   oe->fillFees(gdi, "Fee");
   gdi.setText("Fee", lastFee);
 
@@ -1803,7 +1815,7 @@ void TabSI::generateEntryLine(gdioutput &gdi, pRunner r)
     gdi.setText("Fee", oe->formatCurrency(dci.getInt("Fee")));
     gdi.setText("Phone", dci.getString("Phone"));
     
-    gdi.check("RentCard", dci.getInt("CardFee")>0);
+    gdi.check("RentCard", dci.getInt("CardFee") != 0);
     gdi.check("Paid", dci.getInt("Paid")>0);
   }
   
@@ -1823,8 +1835,11 @@ void TabSI::generateEntryLine(gdioutput &gdi, pRunner r)
 void TabSI::updateEntryInfo(gdioutput &gdi)
 {
   int fee = oe->interpretCurrency(gdi.getText("Fee"));
-  if (gdi.isChecked("RentCard"))
-    fee += oe->getDI().getInt("CardFee");
+  if (gdi.isChecked("RentCard")) {
+    int cardFee = oe->getDI().getInt("CardFee");
+    if (cardFee > 0)
+      fee += cardFee;
+  }
   string method;
 
   if (gdi.isChecked("Paid"))

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ bool oCard::Write(xmlparser &xml)
 	xml.write("Punches", getPunchString());
 	xml.write("ReadId", ReadId);
 	xml.write("Id", Id);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.endTag();
 
 	return true;
@@ -95,7 +95,7 @@ void oCard::Set(const xmlobject &xo)
 			Id = it->getInt();			
 		}
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
 	}
 }
@@ -176,9 +176,12 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
 
 	gdi.clearList(name);
 	
-	bool HasStart=false;
-	bool HasFinish=false;
-	bool Extra=false;
+  bool showStart = crs ? !crs->useFirstAsStart() : true;
+  bool showFinish = crs ? !crs->useLastAsFinish() : true;
+
+	bool hasStart=false;
+	bool hasFinish=false;
+	bool extra=false;
 	int k=0;
 
   pControl ctrl=0;
@@ -200,10 +203,11 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
   }
 
 	for (it=Punches.begin(); it != Punches.end(); ++it){			
-		if(!HasStart && !it->isStart()){
+		if(!hasStart && !it->isStart()){
 			if(it->isUsed){
-				gdi.addItem(name, lang.tl("Start")+"\t-", 0);
-				HasStart=true;
+        if (showStart)
+				  gdi.addItem(name, lang.tl("Start")+"\t-", 0);
+				hasStart=true;
 			}
 		}
 
@@ -212,7 +216,7 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
 
     {
 		  if(it->isStart())  
-			  HasStart=true;
+			  hasStart=true;
       else if(it->isUsed && !it->isFinish() &&  !it->isCheck()) {
         while(ctrl && it->tMatchControlId!=ctrl->getId()) {
           if (ctrl->isRogaining(hasRogaining)) {
@@ -233,7 +237,28 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
         }
       }
       
-      if(it->isUsed || it->isFinish() || it->isStart()) {
+      if(it->isUsed || (showFinish && it->isFinish()) || (showStart && it->isStart())) {
+        if (it->isFinish() && hasRogaining && crs) { 
+          while (ctrl) {
+            if (ctrl->isRogaining(hasRogaining)) {
+              // Check if we have reach finihs without adding rogaining punches
+              while (ctrl && ctrl->isRogaining(hasRogaining)) {
+                if (rogainingIndex.count(matchPunch) == 1)
+                  gdi.addItem(name, rogainingIndex[matchPunch]->getString(), 
+                              int(rogainingIndex[matchPunch]));
+                else
+                  gdi.addItem(name, "-\t-", 0);
+                ctrl = crs->getControl(++matchPunch);  
+              }
+              punchRemain = ctrl ? ctrl->getNumMulti() : 1;
+            }
+            else {
+              gdi.addItem(name, "-\t-", 0);
+              ctrl = crs->getControl(++matchPunch);
+            }
+          }
+        }
+        
         gdi.addItem(name, it->getString(), int(&*it));
        
         if(!(it->isFinish() || it->isStart())) {
@@ -255,34 +280,31 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
           }
         }
       }
-		  else Extra=true;
+		  else 
+        extra=true;
   		
       k++;
 
-		  if(it->isFinish())
-			  HasFinish=true;
+      if(it->isFinish() && showFinish)
+			  hasFinish=true;
     }
 	}
 
-	if(!HasStart)
+  if(!hasStart && showStart)
 		gdi.addItem(name, lang.tl("Start")+"\t-", 0);
 	
-	if(!HasFinish)
+  if(!hasFinish && showFinish)
 		gdi.addItem(name, lang.tl("Mål")+"\t-", 0);
 	
 
-	if(Extra)	{
+	if(extra)	{
 		//Show punches that are not used.
 		k=0;
 		gdi.addItem(name, "", 0);
 		gdi.addItem(name, lang.tl("Extra stämplingar"), 0);
-		for (it=Punches.begin(); it != Punches.end(); ++it)
-		{			
-			if(!it->isUsed && !it->isFinish() && !it->isStart())
+		for (it=Punches.begin(); it != Punches.end(); ++it) {
+			if(!it->isUsed && !(it->isFinish() && showFinish) && !(it->isStart() && showStart))
 				gdi.addItem(name, it->getString(), int(&*it));
-
-			//k++;
-
 		}
 	}
 	return true;
@@ -479,7 +501,7 @@ Table *oEvent::getCardsTB() //Table mode
 
   Table *table=new Table(this, 20, "Brickor", "cards");
 
-  table->addColumn("Id", 70, false);
+  table->addColumn("Id", 70, true, true);
   table->addColumn("Ändrad", 70, false);
 
 	table->addColumn("Bricka", 120, true);

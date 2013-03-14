@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,11 +21,17 @@
 ************************************************************************/
 
 #include "stdafx.h"
+#include <algorithm>
+#include <cassert>
+
 #include "oFreePunch.h"
 #include "oEvent.h"
 #include "Table.h"
 #include "meos_util.h"
 #include "Localizer.h"
+#include "intkeymapimpl.hpp"
+
+bool oFreePunch::disableHashing = false;
 
 oFreePunch::oFreePunch(oEvent *poe, int card, int time, int type): oPunch(poe)
 {
@@ -58,7 +64,7 @@ bool oFreePunch::Write(xmlparser &xml)
 	xml.write("Time", Time);
 	xml.write("Type", Type);
 	xml.write("Id", Id);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.endTag();
 
 	return true;
@@ -85,17 +91,19 @@ void oFreePunch::Set(const xmlobject *xo)
 			Id=it->getInt();			
 		}
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
 	}
 }
 
-void oFreePunch::setCardNo(int cno, bool databaseUpdate) {
+bool oFreePunch::setCardNo(int cno, bool databaseUpdate) {
   if (cno != CardNo) {
     oe->punchIndex[itype].remove(CardNo); // Remove from index
+    rehashPunches(*oe, CardNo, 0);
+
     CardNo = cno;
     pRunner r1 = oe->getRunner(tRunnerId, 0);
-    itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
+    //itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
     pRunner r2 = oe->getRunner(tRunnerId, 0);
     
     if (r1)
@@ -103,10 +111,15 @@ void oFreePunch::setCardNo(int cno, bool databaseUpdate) {
     if (r2)
       r2->markClassChanged();
 
-    oe->punchIndex[itype][CardNo] = this; // Insert into index
+    //oe->punchIndex[itype][CardNo] = this; // Insert into index
+    rehashPunches(*oe, CardNo, this);
+
     if (!databaseUpdate)
       updateChanged();
+
+    return true;
   }
+  return false;
 }
 
 /*
@@ -133,7 +146,7 @@ Table *oEvent::getPunchesTB()//Table mode
 {
   if (tables.count("punch") == 0) {
 	  Table *table=new Table(this, 20, "Stämplingar", "punches");
-	  table->addColumn("Id", 70, true);
+	  table->addColumn("Id", 70, true, true);
     table->addColumn("Ändrad", 150, false);
     table->addColumn("Bricka", 70, true);
     table->addColumn("Kontroll", 70, true);
@@ -217,7 +230,16 @@ void oFreePunch::fillInput(int id, vector< pair<string, size_t> > &out, size_t &
 { 
 }
 
-void oFreePunch::setType(const string &t, bool databaseUpdate) {
+void oFreePunch::setTimeInt(int t, bool databaseUpdate) {
+  if (t != Time) {
+    Time = t;
+    rehashPunches(*oe, CardNo, 0);
+    if (!databaseUpdate)
+      updateChanged();
+  }
+}
+
+bool oFreePunch::setType(const string &t, bool databaseUpdate) {
   int type = atoi(t.c_str());
   int ttype = 0;
   if (type>0 && type<10000)
@@ -231,19 +253,104 @@ void oFreePunch::setType(const string &t, bool databaseUpdate) {
       ttype = oPunch::PunchStart;
   }
   if (ttype > 0 && ttype != Type) {
-    oe->punchIndex[itype].remove(CardNo); // Remove from index
-    pRunner r1 = oe->getRunner(tRunnerId, 0);
+    //oe->punchIndex[itype].remove(CardNo); // Remove from index
+    //pRunner r1 = oe->getRunner(tRunnerId, 0);
     Type = ttype;
-    itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
-    pRunner r2 = oe->getRunner(tRunnerId, 0);
+    //itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
+    pRunner r = oe->getRunner(tRunnerId, 0);
 
-    if (r1)
-      r1->markClassChanged();
-    if (r2)
-      r2->markClassChanged();
+    if (r)
+      r->markClassChanged();
+    //if (r2)
+    //  r2->markClassChanged();
 
-    oe->punchIndex[itype][CardNo] = this; // Insert into index
+    rehashPunches(*oe, CardNo, 0);
+    //oe->punchIndex[itype][CardNo] = this; // Insert into index
     if (!databaseUpdate)
-      updateChanged();    
+      updateChanged();
+
+    return true;
+  }
+  return false;
+}
+
+
+void oFreePunch::rehashPunches(oEvent &oe, int cardNo, pFreePunch newPunch) {
+  if (disableHashing || (cardNo == 0 && !oe.punchIndex.empty()) || oe.punches.empty())
+    return;
+  vector<pFreePunch> fp;
+
+  if (oe.punchIndex.empty()) {
+    // Rehash all punches. Ignore cardNo and newPunch (will be included automatically)
+    fp.reserve(oe.punches.size());
+    for (oFreePunchList::iterator pit = oe.punches.begin(); pit != oe.punches.end(); ++pit) 
+      fp.push_back(&(*pit));
+
+    sort(fp.begin(), fp.end(), FreePunchComp());
+    disableHashing = true;
+    try {
+      for (size_t j = 0; j < fp.size(); j++) {
+        pFreePunch punch = fp[j];
+        punch->itype = oe.getControlIdFromPunch(punch->Time, punch->Type, punch->CardNo, true, punch->tRunnerId);
+        intkeymap<pFreePunch> &card2Punch = oe.punchIndex[punch->itype];
+        if (card2Punch.count(punch->CardNo) == 0)
+          card2Punch[punch->CardNo] = punch; // Insert into index
+        else {
+          // Duplicate, insert at free unused index (do not lose it)
+          for (int k = 1; k < 50; k++) {
+            intkeymap<pFreePunch> &c2P = oe.punchIndex[-k];
+            if (c2P.count(punch->CardNo) == 0) {
+              c2P[punch->CardNo] = punch;
+              break;
+            }
+          }
+        }
+      }
+    }
+    catch(...) {
+      disableHashing = false;
+      throw;
+    }
+    disableHashing = false;
+    return;
+  }
+
+  map<int, intkeymap<pFreePunch> >::iterator it;
+  fp.reserve(oe.punchIndex.size() + 1);
+
+  // Get all punches for the specified card.
+  for(it = oe.punchIndex.begin(); it != oe.punchIndex.end(); ++it) {
+    pFreePunch value;
+    if (it->second.lookup(cardNo, value)) {
+      assert(value && value->CardNo == cardNo);
+      if (!value->isRemoved()) {
+        fp.push_back(value);
+        it->second.remove(cardNo);
+      }
+    }
+  }
+
+  if (newPunch)
+    fp.push_back(newPunch);
+
+  sort(fp.begin(), fp.end(), FreePunchComp());
+  for (size_t j = 0; j < fp.size(); j++) {
+    if (j>0 && fp[j-1] == fp[j])
+      continue; //Skip duplicates
+    pFreePunch punch = fp[j];
+    punch->itype = oe.getControlIdFromPunch(punch->Time, punch->Type, cardNo, true, punch->tRunnerId);
+    intkeymap<pFreePunch> &card2Punch = oe.punchIndex[punch->itype];
+    if (card2Punch.count(cardNo) == 0)
+      card2Punch[cardNo] = punch; // Insert into index
+    else {
+      // Duplicate, insert at free unused index (do not lose it)
+      for (int k = 1; k < 50; k++) {
+        intkeymap<pFreePunch> &c2P = oe.punchIndex[-k];
+        if (c2P.count(cardNo) == 0) {
+          c2P[cardNo] = punch;
+          break;
+        }
+      }
+    }
   }
 }

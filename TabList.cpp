@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -262,6 +262,29 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
         generateList(gdi);
       }    
     }
+    else if (bi.id == "RenameSaved") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("SavedInstance", &lbi)) {
+        const oListParam &par = oe->getListContainer().getParam(lbi.data);
+        gdi.clearPage(true);
+        gdi.addString("", boldLarge, "Döp om X#" + par.getName());
+        gdi.setData("ParamIx", lbi.data);
+        gdi.dropLine();
+        gdi.fillRight();
+        gdi.addInput("Name", par.getName(), 24);
+        gdi.setInputFocus("Name", true);
+        gdi.addButton("DoRenameSaved", "Döp om", ListsCB);
+        gdi.addButton("Cancel", "Avbryt", ListsCB);
+        gdi.dropLine(3);
+      }    
+    }
+    else if (bi.id == "DoRenameSaved") {
+      int ix = int(gdi.getData("ParamIx"));
+      oListParam &par = oe->getListContainer().getParam(ix);
+      string name = gdi.getText("Name");
+      par.setName(name);
+      loadPage(gdi);
+    }
     else if (bi.id == "RemoveSaved") {
       ListBoxInfo lbi;
       if (gdi.getSelectedItem("SavedInstance", &lbi)) {
@@ -417,8 +440,8 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.legNumber = -1;
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
-      cnf.getIndividual(par.selection);
-      cnf.getPatrol(par.selection);
+      //cnf.getIndividual(par.selection);
+      //cnf.getPatrol(par.selection);
       
      // oListInfo foo = currentList;
       oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
@@ -465,7 +488,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 			gdi.setData("DataSync", 1);
 			gdi.registerEvent(bi.id, ListsCB);
 
-			oe->generateInForestList(gdi, 0, NoStartRunnerCB);
+			oe->generateInForestList(gdi, openRunnerTeamCB, NoStartRunnerCB);
 			gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120), "Cancel", "Återgå", ListsCB,
                     "", true, false);
       gdi.addButton(gdi.getWidth()+20, 18+gdi.getButtonHeight(), gdi.scaleLength(120), 
@@ -764,7 +787,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       gdi.refresh();
     }
     else if (bi.id == "CustomList") {
-      oe->sanityCheck(gdi, true);
+      oe->sanityCheck(gdi, false);
       oListParam par;
       int index = bi.getExtraInt();
       par.listCode = oe->getListContainer().getType(index);
@@ -932,7 +955,7 @@ void TabList::loadGeneralList(gdioutput &gdi)
   gdi.addCheckbox("SplitAnalysis", "Med sträcktidsanalys", ListsCB, oe->getPropertyInt("splitanalysis", 1)!=0);
   gdi.addCheckbox("UseLargeSize", "Använd stor font", 0, 0);
 
-  gdi.addInput("ClassLimit", "", 5, 0, "Begränsa antal per klass");  
+  gdi.addInput("ClassLimit", "", 5, 0, "Begränsa antal per klass:");  
   gdi.dropLine();
 
   gdi.addSelection("LegNumber", 140, 300, ListsCB, "Sträcka:");
@@ -1194,6 +1217,7 @@ bool TabList::loadPage(gdioutput &gdi)
     gdi.addItem("SavedInstance", savedParams);
     gdi.selectFirstItem("SavedInstance");
     gdi.addButton("ShowSaved", "Visa", ListsCB);
+    gdi.addButton("RenameSaved", "Döp om", ListsCB);
     gdi.addButton("RemoveSaved", "Ta bort", ListsCB);
     gdi.popX();
     gdi.dropLine(3);

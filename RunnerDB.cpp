@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -526,8 +526,7 @@ void RunnerDB::saveClubs(const char *file)
 {
 	xmlparser xml;
 
-	if(!xml.openOutputT(file, true, "meosclubs"))
-    throw std::exception((string("Fel. Kan inte öppna: ") + file).c_str());
+	xml.openOutputT(file, true, "meosclubs");
 
   vector<oClub>::iterator it;	
 
@@ -598,8 +597,7 @@ void RunnerDB::loadClubs(const char *file)
 {
   xmlparser xml;
 
-	if(!xml.read(file)) 
-  	throw std::exception("Could not load club database.");
+	xml.read(file);
 
 	xmlobject xo;
 

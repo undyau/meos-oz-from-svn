@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ class xmlobject;
 typedef vector<xmlobject> xmlList;
 class xmlparser;
 
+const int buff_pre_alloc = 1024 * 10;
 
 struct xmldata
 {
@@ -83,7 +84,6 @@ protected:
   }
 
 	int lineNumber;
-	string errorMessage;
 	string doctype;
 
   vector<int> parseStack;
@@ -101,7 +101,7 @@ protected:
   bool cutMode;
 
   bool isUTF;
-  char strbuff[2048]; // Temporary buffer for processing (no threading allowed)
+  char strbuff[buff_pre_alloc]; // Temporary buffer for processing (no threading allowed)
 
   ProgressWindow *progress;
   int lastIndex;
@@ -110,44 +110,43 @@ public:
 
   void setProgress(HWND hWnd);
 
-	bool failed(){return errorMessage.length()>0;}
+//	bool failed(){return errorMessage.length()>0;}
 
 	const xmlobject getObject(const char *pname) const;
-	const char *getError();
+//	const char *getError();
 	
-  bool read(const string &file, int maxobj = 0);
-	bool readMemory(const string &mem, int maxobj);
+  void read(const string &file, int maxobj = 0);
+	void readMemory(const string &mem, int maxobj);
 
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop, 
               const string &value);
-  bool write(const char *tag); // Empty case
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag); // Empty case
+  void write(const char *tag, const char *prop, 
              const char *value);
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop, 
              const bool value);
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop, 
              const string &propValue, const string &value);
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop, 
              bool propValue, const string &value);
-  bool write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop, 
              const char *propValue, const string &value);
 
-  bool write(const char *tag, const string &value);
-  bool write(const char *tag, int value);
+  void write(const char *tag, const string &value);
+  void write(const char *tag, int value);
 
-  bool writeBool(const char *tag, bool value);
-  bool write64(const char *tag, __int64);
-  bool writeDWORD(const char *tag, DWORD);
+  void writeBool(const char *tag, bool value);
+  void write64(const char *tag, __int64);
 
-	bool startTag(const char *tag);	
-	bool startTag(const char *tag, const char *Property, 
+	void startTag(const char *tag);	
+	void startTag(const char *tag, const char *Property, 
                 const string &Value);
-  bool startTag(const char *tag, const vector<string> &propvalue);
+  void startTag(const char *tag, const vector<string> &propvalue);
 
-	bool endTag();
-	bool closeOut();
-	bool openOutput(const char *file, bool useCutMode);
-  bool openOutputT(const char *file, bool useCutMode, const string &type);
+	void endTag();
+	void closeOut();
+	void openOutput(const char *file, bool useCutMode);
+  void openOutputT(const char *file, bool useCutMode, const string &type);
   
   void openMemoryOutput(bool useCutMode);
   void getMemoryOutput(string &res);
@@ -200,8 +199,6 @@ public:
   const char *get() const {return parser->xmlinfo[index].data;}
   int getInt() const {const char *d = parser->xmlinfo[index].data;
                       return d ? atoi(d) : 0;}
-  DWORD getDWORD() const {const char *d = parser->xmlinfo[index].data;
-                      return d ? atol(d) : 0;}
   __int64 getInt64() const {const char *d = parser->xmlinfo[index].data;
                            return d ? _atoi64(d) : 0;}
 

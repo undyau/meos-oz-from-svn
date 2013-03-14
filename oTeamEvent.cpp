@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -72,22 +72,23 @@ void oEvent::fillTeams(gdioutput &gdi, const string &id, int classId)
 const vector< pair<string, size_t> > &oEvent::fillTeams(vector< pair<string, size_t> > &out, int ClassId)
 {	
 	synchronizeList(oLTeamId);
-
 	oTeamList::iterator it;	
-
 	Teams.sort(oTeam::compareSNO);
 
   out.clear();
-	//gdi.clearList(name);
 
   char bf[512];
 	for (it=Teams.begin(); it != Teams.end(); ++it) {
-		//char bf[256];
-		//if(ClassId==0 || ClassId==it->
     if(!it->Removed) {
-      sprintf_s(bf, "%03d %s", it->StartNo, it->Name.c_str());
-			//gdi.addItem(name, bf, it->Id);
-      out.push_back(make_pair(bf, it->Id));
+      if (it->StartNo != 0)
+        sprintf_s(bf, "%03d %s", it->StartNo, it->Name.c_str());
+      else
+        sprintf_s(bf, "--- %s", it->Name.c_str());
+
+      if (it->Class)
+        out.push_back(make_pair(bf + (" (" + it->getClass() + ")"), it->Id));
+      else
+        out.push_back(make_pair(bf, it->Id));
     }
 	}
 
@@ -143,6 +144,7 @@ pTeam oEvent::addTeam(const string &pname, int ClubId, int ClassId)
 
   oe->updateTabs();
 
+  Teams.back().getEntryDate(false);// Store entry time
   Teams.back().apply(false, 0);
 	return &Teams.back();
 }
@@ -164,6 +166,7 @@ pTeam oEvent::addTeam(const oTeam &t)
   else {
     nextFreeStartNo = max(nextFreeStartNo, pt->StartNo);
   }
+  //XXX Must not auto sync!
 
   return pt;
 }

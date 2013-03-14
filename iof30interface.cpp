@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "iof30interface.h"
 #include "oEvent.h"
 #include "gdioutput.h"
+#include "gdifonts.h"
 #include "xmlparser.h"
 #include "RunnerDB.h"
 #include "meos_util.h"
@@ -43,7 +44,8 @@ void IOF30Interface::readCourseData(gdioutput &gdi, const xmlobject &xo, bool up
   xo.getObjectString("iofVersion", ver);
   if (!ver.empty() && ver > "3.0")
     gdi.addString("", 0, "Varning, okänd XML-version X#" + ver);
-
+  courseCount = 0;
+  failed = 0;
   xmlList xl;
   xo.getObjects("RaceCourseData", xl);
   xmlList::const_iterator it;
@@ -66,36 +68,598 @@ void IOF30Interface::readCourseData(gdioutput &gdi, const xmlobject &xo, bool up
       xRaceCourses = xl[ix];
   }
 
-  xmlList xControls, xCourseClass;
+  xmlList xControls, xCourse, x;
   xRaceCourses.getObjects("Control", xControls);
-  xRaceCourses.getObjects("CourseClassData", xCourseClass);
+  xRaceCourses.getObjects("Course", xCourse);
 
   for (size_t k = 0; k < xControls.size(); k++) {
     readControl(xControls[k]);
   }
 
-  for (size_t k = 0; k < xCourseClass.size(); k++) {
-    vector< vector<pCourse> > crs;
-    readCourseGroups(xCourseClass[k], crs);
+  map<string, pCourse> courses;
+  map<string, vector<pCourse> > coursesFamilies;
 
-    for (size_t j = 0; j < crs.size(); j++)
-      for (size_t i = 0; i < crs[j].size(); i++)
-        courseCount++;
+  for (size_t k = 0; k < xCourse.size(); k++) {
+    pCourse pc = readCourse(xCourse[k]);
+    if (pc) {
+      courseCount++;
+      if (courses.count(pc->getName()))
+        gdi.addString("", 0, "Varning: Banan 'X' förekommer flera gånger#" + pc->getName()); 
+    
+      courses[pc->getName()] = pc;
+      
+      string family;
+      xCourse[k].getObjectString("CourseFamily", family);
 
-    if (updateClass) {
-      xmlList xClass;
-      xCourseClass[k].getObjects("Class", xClass);
-      for (size_t j = 0; j < xClass.size(); j++) {
-        map<int, vector<LegInfo> > teamClassConfig;
-        pClass pc = readClass(xClass[j], teamClassConfig);
-        if (pc) {
-          if (teamClassConfig.count(pc->getId()))
-            setupRelayClass(pc, teamClassConfig[pc->getId()]);
+      if (!family.empty()) {
+        coursesFamilies[family].push_back(pc);
+      }
+    }
+    else
+      failed++;
+  }
 
-          bindClassCourse(*pc, crs);
-          pc->synchronize();
+  if (!updateClass)
+    return;
+
+
+  xmlList xClassAssignment, xTeamAssignment, xPersonAssignment;
+  xRaceCourses.getObjects("ClassCourseAssignment", xClassAssignment);
+  if (xClassAssignment.size() > 0) 
+    classCourseAssignment(gdi, xClassAssignment, courses, coursesFamilies);
+
+  xRaceCourses.getObjects("PersonCourseAssignment", xPersonAssignment);
+  if (xPersonAssignment.size() > 0) 
+    personCourseAssignment(gdi, xPersonAssignment, courses);
+
+  xRaceCourses.getObjects("TeamCourseAssignment", xTeamAssignment);
+  if (xTeamAssignment.size() > 0) 
+    teamCourseAssignment(gdi, xTeamAssignment, courses);
+
+  xmlList xAssignment;
+  xRaceCourses.getObjects("CourseAssignment", xAssignment);
+  if (xAssignment.size() > 0) {
+    classAssignmentObsolete(gdi, xAssignment, courses, coursesFamilies);
+  }
+
+}
+
+void IOF30Interface::classCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                                           const map<string, pCourse> &courses,
+                                           const map<string, vector<pCourse> > &coursesFamilies) {
+
+  map< pair<int, int>, vector<string> > classIdLegToCourse;
+
+  for (size_t k = 0; k < xAssignment.size(); k++) {
+    xmlobject &xClsAssignment = xAssignment[k];
+    map<int, vector<int> > cls2Stages;
+    
+    xmlList xClsId;
+    xClsAssignment.getObjects("ClassId", xClsId);
+    for (size_t j = 0; j <xClsId.size(); j++) {
+      int id = xClsId[j].getInt();
+      if (oe.getClass(id) == 0) {
+        gdi.addString("", 0, "Klass saknad").setColor(colorRed);
+      }
+      else
+        cls2Stages.insert(make_pair(id, vector<int>()));
+    }
+
+    if (cls2Stages.empty()) {
+      string cname;
+      xClsAssignment.getObjectString("ClassName", cname);
+      if (cname.length() > 0) {
+        pClass pc = oe.getClassCreate(0, cname);
+        if (pc)
+          cls2Stages.insert(make_pair(pc->getId(), vector<int>()) );
+      }
+    }
+
+    if (cls2Stages.empty()) {
+      gdi.addString("", 0, "Klass saknad").setColor(colorRed);
+      continue;
+    }
+
+    // Allowed on leg
+    xmlList xLeg;
+    xClsAssignment.getObjects("AllowedOnLeg", xLeg);
+    
+    for (map<int, vector<int> >::iterator it = cls2Stages.begin(); it != cls2Stages.end(); ++it) {
+      pClass defClass = oe.getClass(it->first);
+      vector<int> &legs = it->second; 
+      
+      // Convert from leg/legorder to real leg number
+      for (size_t j = 0; j <xLeg.size(); j++) {
+        int leg = xLeg[j].getInt()-1;
+        if (defClass && defClass->getNumStages() > 0) {
+          for (unsigned i = 0; i < defClass->getNumStages(); i++) {
+            int realLeg, legIx;
+            defClass->splitLegNumberParallel(i, realLeg, legIx);
+            if (realLeg == leg)
+              legs.push_back(i);
+          }
+        }
+        else
+          legs.push_back(leg);
+      }
+      if (legs.empty())
+        legs.push_back(-1); // All legs
+    }
+    // Extract courses / families
+    xmlList xCourse;
+    xClsAssignment.getObjects("CourseName", xCourse);
+  
+    xmlList xFamily;
+    string t, t1, t2;
+    xClsAssignment.getObjects("CourseFamily", xFamily);
+
+    for (map<int, vector<int> >::iterator it = cls2Stages.begin(); it != cls2Stages.end(); ++it) {
+      const vector<int> &legs = it->second;
+      for (size_t m = 0; m < legs.size(); m++) {
+        int leg = legs[m];
+        for (size_t j = 0; j < xFamily.size(); j++) {
+          for (size_t i = 0; i < xCourse.size(); i++) {
+            string crs = constructCourseName(xFamily[j].getObjectString(0, t1),
+                                             xCourse[i].getObjectString(0, t2));
+            classIdLegToCourse[make_pair(it->first, leg)].push_back(crs);        
+          }
+        }
+        if (xFamily.empty()) {
+          for (size_t i = 0; i < xCourse.size(); i++) {
+            string crs = constructCourseName("", xCourse[i].getObjectString(0, t));
+            classIdLegToCourse[make_pair(it->first, leg)].push_back(crs);
+          }
+        }
+        if (xCourse.empty()) {
+          for (size_t j = 0; j < xFamily.size(); j++) {
+            map<string, vector<pCourse> >::const_iterator res  =
+                         coursesFamilies.find(xFamily[j].getObjectString(0, t));
+
+
+            if (res != coursesFamilies.end()) {
+              const vector<pCourse> &family = res->second; 
+              for (size_t i = 0; i < family.size(); i++) {
+                classIdLegToCourse[make_pair(it->first, leg)].push_back(family[i]->getName());
+              }
+            }
+          }
         }
       }
+    }
+  }
+
+  map< pair<int, int>, vector<string> >::iterator it;
+  for (it = classIdLegToCourse.begin(); it != classIdLegToCourse.end(); ++it) {
+    pClass pc = oe.getClass(it->first.first);
+    if (pc) {
+      pc->setCourse(0);
+      for (size_t k = 0; k < pc->getNumStages(); k++)
+        pc->clearStageCourses(k);
+    }
+  }
+  for (it = classIdLegToCourse.begin(); it != classIdLegToCourse.end(); ++it) {
+    pClass pc = oe.getClass(it->first.first);
+    unsigned leg = it->first.second;
+    const vector<string> &crs = it->second;
+    vector<pCourse> pCrs;
+    for (size_t k = 0; k < crs.size(); k++) {
+      map<string, pCourse>::const_iterator res = courses.find(crs[k]);
+      pCourse c = res != courses.end() ? res->second : 0;
+      if (c == 0)
+        gdi.addString("", 0, "Varning: Banan 'X' finns inte#" + crs[k]).setColor(colorRed);
+      pCrs.push_back(c);
+    }
+    if (pCrs.empty())
+      continue;
+
+    if (leg == -1) {
+      if (pCrs.size() > 1) {
+        if (!pc->hasMultiCourse()) {
+          pc->setNumStages(1);
+        }
+      }
+
+      if (pc->hasMultiCourse()) {
+        for (size_t k = 0; k < pc->getNumStages(); k++) {
+          for (size_t j = 0; j < pCrs.size(); j++)
+            pc->addStageCourse(k, pCrs[j]);
+        }
+      }
+      else
+        pc->setCourse(pCrs[0]);
+    }
+    else if (leg == 0 && pCrs.size() == 1) {
+      if (pc->hasMultiCourse())
+        pc->addStageCourse(0, pCrs[0]);
+      else
+        pc->setCourse(pCrs[0]);
+    }
+    else {
+      if (leg >= pc->getNumStages())
+        pc->setNumStages(leg+1);
+
+      for (size_t j = 0; j < pCrs.size(); j++)
+        pc->addStageCourse(leg, pCrs[j]);
+    }
+  }
+}
+
+void IOF30Interface::personCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                                            const map<string, pCourse> &courses) {
+  vector<pRunner> allR;
+  oe.getRunners(0, 0, allR, false);
+  map<string, pRunner> bib2Runner;
+  multimap<string, pRunner> name2Runner;
+  for (size_t k = 0; k < allR.size(); k++) {
+    string bib = allR[k]->getBib();
+    if (!bib.empty())
+      bib2Runner[bib] = allR[k];
+
+    name2Runner.insert(make_pair(allR[k]->getName(), allR[k]));
+  }
+
+  for (size_t k = 0; k < xAssignment.size(); k++) {
+    xmlobject &xPAssignment = xAssignment[k];
+    pRunner r = 0;
+    
+    string runnerText;
+    string bib;
+    xPAssignment.getObjectString("BibNumber", bib);
+
+    if (!bib.empty()) {
+      runnerText = bib;
+      r = bib2Runner[bib];
+    }
+
+    if (r == 0) {
+      int id = xPAssignment.getObjectInt("EntryId"); // This assumes entryId = personId, which may or may not be the case.
+      if (id != 0) {
+        runnerText = "Id = "+itos(id);
+        r = oe.getRunner(id, 0);
+      }
+    }
+
+    if (r == 0) {
+      string person;
+      xPAssignment.getObjectString("PersonName", person);
+      if (!person.empty()) {
+        runnerText = person;
+        string cls;
+        xPAssignment.getObjectString("ClassName", cls);
+        multimap<string, pRunner>::const_iterator res = name2Runner.find(person);
+        while (res != name2Runner.end() && person == res->first) {
+          if (cls.empty() || res->second->getClass() == cls) {
+            r = res->second;
+            break;
+          }
+          ++res;
+        }
+      }
+    }
+
+    if (r == 0) {
+      gdi.addString("", 0, "Varning: Deltagaren 'X' finns inte.#" + runnerText).setColor(colorRed);
+      continue;
+    }
+
+    pCourse c = findCourse(gdi, courses, xPAssignment);
+    if (c == 0)
+      continue;
+
+    r->setCourseId(c->getId());
+  }
+}
+
+pCourse IOF30Interface::findCourse(gdioutput &gdi,
+                                   const map<string, pCourse> &courses,
+                                   xmlobject &xPAssignment) {
+  string course;
+  xPAssignment.getObjectString("CourseName", course);
+  string family;
+  xPAssignment.getObjectString("CourseFamily", family);
+  string fullCrs = constructCourseName(family, course);
+
+  map<string, pCourse>::const_iterator res = courses.find(fullCrs);
+  pCourse c = res != courses.end() ? res->second : 0;
+  if (c == 0) {
+    gdi.addString("", 0, "Varning: Banan 'X' finns inte.#" + fullCrs).setColor(colorRed);
+  }
+  return c;
+}
+
+void IOF30Interface::teamCourseAssignment(gdioutput &gdi, xmlList &xAssignment, 
+                                            const map<string, pCourse> &courses) {
+  vector<pTeam> allT;
+  oe.getTeams(0, allT, false);
+  
+  map<string, pTeam> bib2Team;
+  map<pair<string, string>, pTeam> nameClass2Team;
+  for (size_t k = 0; k < allT.size(); k++) {
+    string bib = allT[k]->getBib();
+    if (!bib.empty())
+      bib2Team[bib] = allT[k];
+    
+    nameClass2Team[make_pair(allT[k]->getName(), allT[k]->getClass())] = allT[k];
+  }
+
+  for (size_t k = 0; k < xAssignment.size(); k++) {
+    xmlobject &xTAssignment = xAssignment[k];
+    pTeam t = 0;
+    string teamText;
+    string bib;
+    xTAssignment.getObjectString("BibNumber", bib);
+
+    if (!bib.empty()) {
+      teamText = bib;
+      t = bib2Team[bib];
+    }
+
+    if (t == 0) {
+      string team;
+      xTAssignment.getObjectString("TeamName", team);
+      if (!team.empty()) {
+        string cls;
+        xTAssignment.getObjectString("ClassName", cls);
+        t = nameClass2Team[make_pair(team, cls)];
+        teamText = team + " / " + cls;
+      }
+    }
+
+    if (t == 0) {
+      gdi.addString("", 0, "Varning: Laget 'X' finns inte.#" + teamText).setColor(colorRed);
+      continue;
+    }
+
+    xmlList teamMemberAssignment;
+    xTAssignment.getObjects("TeamMemberCourseAssignment", teamMemberAssignment);
+    assignTeamCourse(gdi, *t, teamMemberAssignment, courses);
+  }
+}
+
+void IOF30Interface::assignTeamCourse(gdioutput &gdi, oTeam &team, xmlList &xAssignment, 
+                                      const map<string, pCourse> &courses) {
+
+  if (!team.getClassRef())
+    return;
+  for (size_t k = 0; k <xAssignment.size(); k++) {
+
+    // Extract courses / families
+    pCourse c = findCourse(gdi, courses, xAssignment[k]);
+    if (c == 0)
+      continue;
+
+    xmlobject xLeg = xAssignment[k].getObject("Leg");
+    if (xLeg) {
+      int leg = xLeg.getInt() - 1;
+      int legorder = 0;
+      xmlobject xLegOrder = xAssignment[k].getObject("LegOrder");
+      if (xLegOrder)
+        legorder = xLegOrder.getInt() - 1;
+
+      int legId = team.getClassRef()->getLegNumberLinear(leg, legorder);
+      if (legId>=0) {
+        pRunner r = team.getRunner(legId);
+        if (r == 0) {
+          r = oe.addRunner(lang.tl("N.N."), team.getClubId(), team.getClassId(), 0, 0, false);
+          team.setRunner(legId, r, false);
+          r = team.getRunner(legId);
+        }
+        if (r) {
+          r->setCourseId(c->getId());
+        }
+      }
+      else
+        gdi.addString("", 0, "Bantilldelning för 'X' hänvisar till en sträcka som inte finns#" + team.getClass()).setColor(colorRed);
+    }
+    else {
+      string name;
+      xAssignment[k].getObjectString("TeamMemberName", name);
+      if (!name.empty()) {
+        for (int j = 0; j < team.getNumRunners(); j++) {
+          pRunner r = team.getRunner(j);
+          if (r && r->getName() == name) {
+            r->setCourseId(c->getId());
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+
+void IOF30Interface::classAssignmentObsolete(gdioutput &gdi, xmlList &xAssignment, 
+                                             const map<string, pCourse> &courses,
+                                             const map<string, vector<pCourse> > &coursesFamilies) {
+  map<int, vector<pCourse> > class2Courses;
+  map<int, set<string> > class2Families;
+
+  multimap<string, pRunner> bib2Runners;
+  typedef multimap<string, pRunner>::iterator bibIterT;
+  bool b2RInit = false;
+
+  map<pair<string, string>, pTeam> clsName2Team;
+  typedef map<pair<string, string>, pTeam>::iterator teamIterT;
+  bool c2TeamInit = false;
+
+  for (size_t k = 0; k < xAssignment.size(); k++) {
+    string name = constructCourseName(xAssignment[k]);
+    string family;
+    xAssignment[k].getObjectString("CourseFamily", family);
+
+    if ( courses.find(name) == courses.end() )
+      gdi.addString("", 0, "Varning: Banan 'X' finns inte#" + name); 
+    else {
+      pCourse pc = courses.find(name)->second;
+      xmlList xCls, xPrs;
+      xAssignment[k].getObjects("Class", xCls);
+      xAssignment[k].getObjects("Person", xPrs);
+
+      for (size_t j = 0; j < xCls.size(); j++) {
+        string cName;
+        xCls[j].getObjectString("Name", cName);
+        int id = xCls[j].getObjectInt("Id");
+        pClass cls = oe.getClassCreate(id, cName);
+        if (cls) {
+          class2Courses[cls->getId()].push_back(pc);
+
+          if (!family.empty()) {
+            class2Families[cls->getId()].insert(family);
+          }
+        }
+      }
+
+      for (size_t j = 0; j < xPrs.size(); j++) {
+        string bib;
+        int leg = xPrs[j].getObjectInt("Leg");
+        int legOrder = xPrs[j].getObjectInt("LegOrder");
+
+        xPrs[j].getObjectString("BibNumber", bib);
+        if (!bib.empty()) {
+          if (!b2RInit) {
+            // Setup bib2runner map
+            vector<pRunner> r;
+            oe.getRunners(0, 0, r);
+            for (size_t i = 0; i < r.size(); i++) {
+              string b = r[i]->getBib();
+              if (!b.empty())
+                bib2Runners.insert(make_pair(b, r[i]));
+            }
+            b2RInit = true;
+          }
+
+          pair<bibIterT, bibIterT> range = bib2Runners.equal_range(bib);
+          for (bibIterT it = range.first; it != range.second; ++it) {
+            int ln = it->second->getLegNumber();
+            int rLegNumber = 0, rLegOrder = 0;
+            if (it->second->getClassRef()) 
+              it->second->getClassRef()->splitLegNumberParallel(ln, rLegNumber, rLegOrder);
+            bool match = true;
+            if (leg != 0 && leg != rLegNumber+1)
+              match = false;
+            if (legOrder != 0 && legOrder != rLegOrder+1)
+              match = false;
+
+            if (match) {
+              it->second->setCourseId(pc->getId());
+              it->second->synchronize();
+            }
+          }
+          continue;
+        }
+        
+        string className, teamName;
+        xPrs[j].getObjectString("ClassName", className);
+        xPrs[j].getObjectString("TeamName", teamName);
+        
+        if (!teamName.empty()) {
+          if (!c2TeamInit) {
+            vector<pTeam> t;
+            oe.getTeams(0, t);
+            for (size_t i = 0; i < t.size(); i++) 
+              clsName2Team[make_pair(t[i]->getClass(), t[i]->getName())] = t[i];
+            c2TeamInit = true;
+          }
+          
+          teamIterT res = clsName2Team.find(make_pair(className, teamName));
+          
+          if (res != clsName2Team.end()) {
+            pClass cls = res->second->getClassRef();
+            if (cls) {
+              int ln = cls->getLegNumberLinear(leg, legOrder);
+              pRunner r = res->second->getRunner(ln);
+              if (r) {
+                r->setCourseId(pc->getId());
+                r->synchronize();
+              }
+            }
+          }
+          continue;
+        }
+        
+        // Note: entryId is assumed to be equal to personId, 
+        // which is the only we have. This might not be true.
+        int entryId = xPrs[j].getObjectInt("EntryId");
+        pRunner r = oe.getRunner(entryId, 0);
+        if (r) {
+          r->setCourseId(pc->getId());
+          r->synchronize();
+        }
+      }
+    }
+  }
+
+  if (!class2Families.empty()) {
+    vector<pClass> c;
+    oe.getClasses(c);
+    for (size_t k = 0; k < c.size(); k++) {
+      bool assigned = false;
+      
+      if (class2Families.count(c[k]->getId())) {
+        const set<string> &families = class2Families[c[k]->getId()];
+        
+        if (families.size() == 1) {
+          int nl = c[k]->getNumStages();
+          const vector<pCourse> &crsFam = coursesFamilies.find(*families.begin())->second;
+          if (nl == 0) {
+            if (crsFam.size() == 1)
+              c[k]->setCourse(crsFam[0]);
+            else {
+              c[k]->setNumStages(1);
+              c[k]->clearStageCourses(0);
+              for (size_t j = 0; j < crsFam.size(); j++)
+                c[k]->addStageCourse(0, crsFam[j]->getId());
+            }
+          }
+          else {
+            int nFam = crsFam.size();
+            for (int i = 0; i < nl; i++) {
+              c[k]->clearStageCourses(i);
+              for (int j = 0; j < nFam; j++)
+                c[k]->addStageCourse(i, crsFam[(j + i)%nFam]->getId());
+            }
+          }
+          assigned = true;
+        }
+        else if (families.size() > 1) {
+          int nl = c[k]->getNumStages();
+          if (nl == 0) {
+            c[k]->setNumStages(families.size());
+            nl = families.size();
+          }
+
+          set<string>::const_iterator fit = families.begin();
+          for (int i = 0; i < nl; i++, ++fit) {
+            if (fit == families.end())
+              fit = families.begin();
+            c[k]->clearStageCourses(i);
+            const vector<pCourse> &crsFam = coursesFamilies.find(*fit)->second;
+            int nFam = crsFam.size();
+            for (int j = 0; j < nFam; j++)
+              c[k]->addStageCourse(i, crsFam[j]->getId());
+          }
+       
+          assigned = true;
+        }
+      }
+
+      if (!assigned && class2Courses.count(c[k]->getId())) {
+        const vector<pCourse> &crs = class2Courses[c[k]->getId()];
+        int nl = c[k]->getNumStages();
+          
+        if (crs.size() == 1 && nl == 0) {
+          c[k]->setCourse(crs[0]);
+        }
+        else if (crs.size() > 1) {
+          int nCrs = crs.size();
+          for (int i = 0; i < nl; i++) {
+            c[k]->clearStageCourses(i);
+            for (int j = 0; j < nCrs; j++)
+              c[k]->addStageCourse(i, crs[(j + i)%nCrs]->getId());
+          }
+        }
+      }
+      c[k]->synchronize();
     }
   }
 }
@@ -472,6 +1036,7 @@ void IOF30Interface::readEvent(gdioutput &gdi, const xmlobject &xo,
       DI.setString("LateEntryFactor", lf);
     }
   }
+  oe.synchronize();
 }
 
 void IOF30Interface::setupClassConfig(int classId, const xmlobject &xTeam, map<int, vector<LegInfo> > &teamClassConfig) {
@@ -534,6 +1099,24 @@ pTeam IOF30Interface::readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
   xTeam.getObjectString("BibNumber", bib);
   t->setBib(bib, true);
 
+  oDataInterface di = t->getDI();
+  string entryTime;
+  xTeam.getObjectString("EntryTime", entryTime);
+  di.setDate("EntryDate", entryTime);
+
+  double fee = 0, paid = 0, taxable = 0, percentage = 0;
+  string currency;
+  xmlList xAssigned;
+  xTeam.getObjects("AssignedFee", xAssigned); 
+  for (size_t j = 0; j < xAssigned.size(); j++) {
+    getAssignedFee(xAssigned[j], fee, paid, taxable, percentage, currency);
+  }
+  fee += fee * percentage; // OLA / Eventor stupidity
+
+  di.setInt("Fee", oe.interpretCurrency(fee, currency));
+  di.setInt("Paid", oe.interpretCurrency(paid, currency));
+  di.setInt("Taxable", oe.interpretCurrency(fee, currency));
+
   xmlList xEntries;
   xTeam.getObjects("TeamEntryPerson", xEntries);
 
@@ -541,6 +1124,7 @@ pTeam IOF30Interface::readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
     readPersonEntry(gdi, xEntries[k], t, teamClassConfig);
   }
 
+  t->synchronize();
   return t;
 }
 
@@ -566,6 +1150,7 @@ pTeam IOF30Interface::readTeamStart(gdioutput &gdi, pClass pc, xmlobject &xTeam,
     readPersonStart(gdi, pc, xEntries[k], t, teamClassConfig);
   }
 
+  t->synchronize();
   return t;
 }
 
@@ -632,9 +1217,20 @@ int IOF30Interface::getIndexFromLegPos(int leg, int legorder, const vector<LegIn
 pRunner IOF30Interface::readPersonEntry(gdioutput &gdi, xmlobject &xo, pTeam team,
                                         const map<int, vector<LegInfo> > &teamClassConfig) {
   xmlobject xPers = xo.getObject("Person");
+  // Card
+  const int cardNo = xo.getObjectInt("ControlCard");
+  
   pRunner r = 0;
+  
   if (xPers)
     r = readPerson(gdi, xPers);
+
+  if (cardNo > 0 && r == 0 && team) {
+    // We got no person, but a card number. Add the runner anonymously.
+    r = oe.addRunner("N.N.", team->getClubId(), team->getClassId(), cardNo, 0, false);
+    r->synchronize();
+  }
+
   if (r == 0)
     return 0;
 
@@ -667,7 +1263,6 @@ pRunner IOF30Interface::readPersonEntry(gdioutput &gdi, xmlobject &xo, pTeam tea
   }
 
   // Card
-  int cardNo = xo.getObjectInt("ControlCard");
   if (cardNo > 0)
     r->setCardNo(cardNo, false);
 
@@ -760,8 +1355,6 @@ pRunner IOF30Interface::readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo
 pRunner IOF30Interface::readPerson(gdioutput &gdi, const xmlobject &person) {
 
 	xmlobject pname = person.getObject("Name");
-	if(!pname) 
-    return 0;
 
 	int pid = person.getObjectInt("Id");
   
@@ -782,7 +1375,11 @@ pRunner IOF30Interface::readPerson(gdioutput &gdi, const xmlobject &person) {
 	}	
 
   string given, family;
-	r->setName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family));
+  if (pname)
+	  r->setName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family));
+  else
+    r->setName("N.N.");
+
   r->setExtIdentifier(pid);
 
 	oDataInterface DI=r->getDI();
@@ -1464,6 +2061,8 @@ string formatStatus(RunnerStatus st) {
       return "Disqualified";
     case StatusMAX:
       return "OverTime";
+    case StatusNotCompetiting:
+      return "NotCompeting";
     default:
       return "Inactive";
   }
@@ -1484,7 +2083,7 @@ void IOF30Interface::writePersonResult(xmlparser &xml, const oRunner &r,
 
   if (teamMember) {
     oRunner const *resultHolder = &r;
-    pTeam t = r.getTeam();
+    cTeam t = r.getTeam();
     pClass cls = r.getClassRef();
     
     if (t && cls) {
@@ -1608,7 +2207,7 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
         writeCourse(xml, *crs);
     
       const vector<SplitData> &sp = r.getSplitTimes();
-      if (r.getStatus()>0 && r.getStatus() != StatusDNS) {
+      if (r.getStatus()>0 && r.getStatus() != StatusDNS && r.getStatus() != StatusNotCompetiting) {
         int nc = crs->getNumControls();
         bool hasRogaining = crs->hasRogaining();
         set< pair<unsigned, int> > rogaining;
@@ -1820,7 +2419,7 @@ void IOF30Interface::getRunnersToUse(const pClass cls, vector<pRunner> &rToUse,
   int classId = cls->getId();
   bool indRel = cls->getClassType() == oClassIndividRelay;
 
-  oe.getRunners(classId, r, false);
+  oe.getRunners(classId, 0, r, false);
   rToUse.reserve(r.size());
 
   for (size_t j = 0; j < r.size(); j++) {
@@ -1955,7 +2554,10 @@ void IOF30Interface::writeStart(xmlparser &xml, const oRunner &r,
     xml.write("BibNumber", bib);
 
   if (r.getStartTime() > 0)
-    xml.write("StartTime", oe.getAbsTimeISO(r.getStartTime()));
+	{
+		string dt = oe.getAbsTimeISO(r.getStartTime());
+    xml.write("StartTime", getUTCTimeDateFromLocal(dt));
+	}
     
   pCourse crs = r.getCourse();
   if (crs && includeCourse)
@@ -2098,6 +2700,7 @@ bool IOF30Interface::readControl(const xmlobject &xControl) {
   else if (idStr[0] == 'F')
     type = 2;
   else {
+    type = 0;
     code = atoi(idStr.c_str());
     if (code <= 0) 
       return false;
@@ -2132,7 +2735,7 @@ bool IOF30Interface::readControl(const xmlobject &xControl) {
   }
   else if (type == 1) {
     string start = getStartName(trim(idStr));
-    pControl pc = oe.getControl(getStartIndex(idStr), true);
+    pc = oe.getControl(getStartIndex(idStr), true);
     pc->setNumbers("");
     pc->setName(start);
     pc->setStatus(oControl::StatusStart);
@@ -2142,8 +2745,10 @@ bool IOF30Interface::readControl(const xmlobject &xControl) {
     int num = getNumberSuffix(finish);
     if (num == 0 && finish.length()>0) 
       num = int(finish[finish.length()-1])-'0';
-    if (num > 0) 
+    if (num > 0 && num<10) 
       finish = lang.tl("Mål ") + itos(num);
+    else
+      finish = lang.tl("Mål");
     pc = oe.getControl(getFinishIndex(num), true);
     pc->setNumbers("");
     pc->setName(finish);
@@ -2176,16 +2781,41 @@ void IOF30Interface::readCourseGroups(xmlobject xClassCourse, vector< vector<pCo
   }
 }
 
+string IOF30Interface::constructCourseName(const string &family, const string &name) {
+  if (family.empty())
+    return trim(name);
+  else
+    return trim(family) + ":" + trim(name);
+}
+
+string IOF30Interface::constructCourseName(const xmlobject &xcrs) {
+  string name, family;
+  xcrs.getObjectString("Name", name);
+  if (name.empty())
+    // CourseAssignment case
+    xcrs.getObjectString("CourseName", name);
+   
+  xcrs.getObjectString("CourseFamily", family);
+
+  return constructCourseName(family, name);
+}
+
 pCourse IOF30Interface::readCourse(const xmlobject &xcrs) {
 	if(!xcrs)
 		return 0;
 	
   int cid = xcrs.getObjectInt("Id");
   
-  string name;
+  string name = constructCourseName(xcrs);
+  /*, family;
   xcrs.getObjectString("Name", name);
-  name = trim(name);
-
+  xcrs.getObjectString("CourseFamily", family);
+  
+  if (family.empty())
+    name = trim(name);
+  else
+    name = trim(family) + ":" + trim(name);
+*/
   int len = xcrs.getObjectInt("Length");
   int climb = xcrs.getObjectInt("Climb");
 

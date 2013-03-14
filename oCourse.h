@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -65,9 +65,20 @@ protected:
   /// Add an control without update
   pControl doAddControl(int Id);
 
+  void changeId(int newId);
+
 public:
   void remove();
   bool canRemove() const;
+
+  bool useFirstAsStart() const;
+  bool useLastAsFinish() const;
+
+  void firstAsStart(bool f);
+  void lastAsFinish(bool f);
+
+  int getFinishPunchType() const;
+  int getStartPunchType() const;
 
   bool operator<(const oCourse &b) const {return Name<b.Name;}
 
@@ -91,6 +102,9 @@ public:
   // Rogaining: point lost per minute over maximal time 
   int getRogainingPointsPerMinute() const;
   void setRogainingPointsPerMinute(int t);
+
+  // Calculate point reduction given a over time (in seconds)
+  int calculateReduction(int overTime) const;
 
   /// Return true if the course has rogaining
   bool hasRogaining() const;

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ void TabRunner::selectRunner(gdioutput &gdi, pRunner r)
 
   int cno = parent->getCardNo();
   gdi.setText("CardNo", cno>0 ? itos(cno) : "");
-  gdi.check("RentCard", parent->getDI().getInt("CardFee")>0);
+  gdi.check("RentCard", parent->getDI().getInt("CardFee") != 0);
   bool hasFee = gdi.hasField("Fee");
 
   if (hasFee)
@@ -296,9 +296,12 @@ void TabRunner::selectRunner(gdioutput &gdi, pRunner r)
     pcourse->synchronize();
 		gdi.setTabStops("Course", 50);			
 		pcourse->fillCourse(gdi, "Course");
+    gdi.enableInput("AddAllC");
 	}
-	else
+  else {
 		gdi.clearList("Course");
+    gdi.disableInput("AddAllC");
+  }
 
 }
 
@@ -518,11 +521,15 @@ pRunner TabRunner::save(gdioutput &gdi, int runnerId, bool willExit)
 
 	  gdi.getSelectedItem("Status", &lbi);
 
-	  r->setStatus((RunnerStatus)lbi.data);
-  
+    RunnerStatus sIn = (RunnerStatus)lbi.data;
+    bool checkStatus = (sIn != r->getStatus());
+	  r->setStatus(sIn);
     r->addClassDefaultFee(false);
 	  vector<int> mp;
 	  r->evaluateCard(mp, 0, true);
+
+    if (checkStatus && sIn != r->getStatus())
+      gdi.alert("Status matchar inte data i löparbrickan.");
 
 	  r->synchronizeAll();
   }
@@ -753,7 +760,9 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
 				if(oe->isRunnerUsed(runnerId))
 					gdi.alert("Löparen ingår i ett lag och kan inte tas bort.");
 				else {
-					oe->removeRunner(runnerId);
+          pRunner r = oe->getRunner(runnerId, 0);
+          if (r)
+            r->remove();
 					fillRunnerList(gdi);
           //oe->fillRunners(gdi, "Runners");
           selectRunner(gdi, 0);
@@ -1180,7 +1189,7 @@ void TabRunner::showRunnerReport(gdioutput &gdi)
     runnersToReport.resize(1);
     runnersToReport[0] = runnerId;
   }
-  pTeam t = 0;
+  cTeam t = 0;
   for (size_t k = 0; k < runnersToReport.size(); k++) {
     pRunner r = oe->getRunner(runnersToReport[k], 0);
     if (r && r->getTeam()) {
@@ -1936,7 +1945,7 @@ bool TabRunner::loadPage(gdioutput &gdi)
 	gdi.pushX();
 	gdi.fillRight();
 
-  gdi.addInput("Time", "", 5, 0, "Löptid:").isEdit(false).ignore(true);
+  gdi.addInput("Time", "", 5, 0, "Tid:").isEdit(false).ignore(true);
 	gdi.disableInput("Time");
 
   if (oe->hasRogaining()) {
@@ -1945,7 +1954,7 @@ bool TabRunner::loadPage(gdioutput &gdi)
   }
 
 	gdi.fillDown();
-	gdi.addSelection("Status", 80, 160, 0, "Status:");
+	gdi.addSelection("Status", 100, 160, 0, "Status:");
   oe->fillStatus(gdi, "Status");
 	gdi.popX();
 	gdi.selectItemByData("Status", 0);

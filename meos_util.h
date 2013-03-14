@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,6 +22,8 @@
 
 #include <vector>
 
+void getLocalTimeDateFromUTC(string& date, string& time);
+string getUTCTimeDateFromLocal(string ISOdateTime);
 string convertSystemTime(const SYSTEMTIME &st);
 string convertSystemTimeOnly(const SYSTEMTIME &st);
 string convertSystemDate(const SYSTEMTIME &st);
@@ -151,3 +153,8 @@ enum PersonSex {sFemale = 1, sMale, sBoth, sUnknown};
 PersonSex interpretSex(const string &sex);
 
 string encodeSex(PersonSex sex);
+
+string makeValidFileName(const string &input);
+
+/** Initial capital letter. */
+void capitalize(string &str);

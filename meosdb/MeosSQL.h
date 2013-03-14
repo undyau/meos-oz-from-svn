@@ -24,6 +24,7 @@
 #include <mysql++.h>
 
 #include <string>
+#include "sqltypes.h"
 
 class oRunner;
 class oEvent;
@@ -36,6 +37,7 @@ class oBase;
 class oFreePunch;
 class oDataInterface;
 class oTeam;
+class oDataContainer;
 
 namespace mysqlpp {
   class Query;
@@ -43,12 +45,6 @@ namespace mysqlpp {
 
 using namespace std;
 
-enum OpFailStatus {
-  opStatusOK = 2,
-  opStatusFail = 0,
-  opStatusWarning = 1,
-  opUnreachable = -1,
-};
 
 class MeosSQL
 {
@@ -91,7 +87,7 @@ protected:
   void storeClub(const mysqlpp::Row &row, oClub &c);
   void storeControl(const mysqlpp::Row &row, oControl &c);
   void storeCard(const mysqlpp::Row &row, oCard &c);
-  void storePunch(const mysqlpp::Row &row, oFreePunch &p);
+  void storePunch(const mysqlpp::Row &row, oFreePunch &p, bool rehash);
 
   OpFailStatus storeTeam(const mysqlpp::Row &row, oTeam &t, 
                          bool readRecursive);
@@ -105,14 +101,22 @@ protected:
   OpFailStatus storeClass(const mysqlpp::Row &row, oClass &c,
                            bool readCourses);
 
+  void getColumns(const string &table, set<string> &output);
+
+  void upgradeDB(const string &db, oDataContainer const *odi);
+
+  void warnOldDB();
+  bool checkOldVersion(oEvent *oe, mysqlpp::Row &row);
 
 public:
   bool dropDatabase(oEvent *oe);
   bool checkConnection(oEvent *oe);
 
+  bool repairTables(const string &db, vector<string> &output);
+
   bool getErrorMessage(char *bf);
   bool reConnect();
-	bool ListCompetitions(oEvent *oe);
+	bool listCompetitions(oEvent *oe, bool keepConnection);
 	bool Remove(oBase *ob);
 
   // Create database of runners and clubs
@@ -158,7 +162,7 @@ public:
 	OpFailStatus syncRead(bool forceRead, oControl *c);
 
 	OpFailStatus syncUpdate(oFreePunch *c);
-	OpFailStatus syncRead(bool forceRead, oFreePunch *c);
+	OpFailStatus syncRead(bool forceRead, oFreePunch *c, bool rehash);
 
 	OpFailStatus syncUpdate(oTeam *t);
 	OpFailStatus syncRead(bool forceRead, oTeam *t);

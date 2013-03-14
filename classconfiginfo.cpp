@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -185,10 +185,14 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 
   oRunnerList::const_iterator rit;	
  	for (rit = Runners.begin(); rit != Runners.end(); ++rit) {
-    if (rit->getDCI().getInt("CardFee")>0) {
+    if (rit->isRemoved())
+      continue;
+
+    if (rit->getDCI().getInt("CardFee") != 0) {
       cnf.hasRentedCard = true;
     }
-    if (rit->getStatus() != StatusUnknown && rit->getStatus() != StatusDNS)
+    RunnerStatus st = rit->getStatus(); 
+    if (st != StatusUnknown && st != StatusDNS && st != StatusNotCompetiting)
       cnf.results = true;
 
     if (rit->getStartTime() > 0)

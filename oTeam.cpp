@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,6 +25,11 @@
 #include "oEvent.h"
 #include <assert.h>
 #include <algorithm>
+#include "meosdb/sqltypes.h"
+#include "Table.h"
+#include "localizer.h"
+#include "meosException.h"
+#include "gdioutput.h"
 
 oTeam::oTeam(oEvent *poe): oAbstractRunner(poe)
 {
@@ -67,7 +72,7 @@ bool oTeam::write(xmlparser &xml)
 	xml.startTag("Team");
 	xml.write("Id", Id);
 	xml.write("StartNo", StartNo);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.write("Name", Name);
 	xml.write("Start", StartTime);
 	xml.write("Finish", FinishTime);
@@ -139,7 +144,7 @@ void oTeam::set(const xmlobject &xo)
       inputPlace = it->getInt();
     }
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
 		else if (it->is("oData")) {
 			getDI().set(*it);
@@ -221,7 +226,7 @@ void oEvent::removeTeam(int Id)
 
 	for (it=Teams.begin(); it != Teams.end(); ++it){
 		if(it->Id==Id){
-			if(msRemove) 
+			if(HasDBConnection) 
         msRemove(&*it);
       dataRevision++;
       it->prepareRemove();
@@ -358,20 +363,13 @@ int oTeam::getLegFinishTime(int leg) const
 	else return 0;
 }
 
+int oTeam::getRunningTime() const {
+  return getLegRunningTime(-1);
+}
+
 int oTeam::getLegRunningTime(int leg) const
 {
   leg = getLegToUse(leg);
-	/*if (leg==-1)
-    leg=Runners.size()-1;
-	if (Class && !Runners[leg]) {
-    LegTypes lt = Class->getLegType(leg);
-    while (leg>=0 && lt == LTParallelOptional && !Runners[leg]) {
-      if (leg == 0)
-        return 0;
-      leg--;
-      lt = Class->getLegType(leg);
-    }
-  }*/
 
 	if (unsigned(leg)<Runners.size() && Runners[leg]) {
     if (Class) {
@@ -417,8 +415,13 @@ int oTeam::getLegRunningTime(int leg) const
           if(Runners[leg]->statusOK()) {
             if (leg==0) 
               return Runners[leg]->getRunningTime();
-            else
-              return Runners[leg]->getRunningTime()+getLegRunningTime(leg-1);
+            else {
+              int prev = getLegRunningTime(leg-1);
+              if (prev == 0)
+                return 0;
+              else
+                return Runners[leg]->getRunningTime() + prev;
+            }
           }
           else return 0;
 
@@ -552,47 +555,6 @@ string oTeam::getLegPrintPlaceS(int leg) const
 	}	
   return _EmptyString;
 }
-/*
- - Inactive		: Has not yet started
-	 - DidNotStart	: Did Not Start (in this race)
-	 - Active		: Currently on course
-	 - Finished		: Finished but not validated
-	 - OK			: Finished and validated
-	 - MisPunch		: Missing Punch
-	 - DidNotFinish	: Did Not Finish
-	 - Disqualified	: Disqualified
-	 - NotCompeting	: Not Competing (running outside the competition)
-	 - SportWithdr	: Sporting Withdrawal (e.g. helping injured)
-	 - OverTime 	: Overtime, i.e. did not finish within max time
-	 - Moved		: Moved to another class
-	 - MovedUp		: Moved to a "better" class, in case of entry
-	 				  restrictions
-	 - Cancelled	
-*/
-
-/*
-string oTeam::GetIOFStatusS() const
-{
-	switch(Status)
-	{
-	case StatusOK:
-		return "OK";
-	case StatusDNS:
-		return "DidNotStart";
-	case StatusMP:
-		return "MisPunch";
-	case StatusDNF:
-		return "DidNotFinish";
-	case StatusDQ:
-		return "Disqualified";
-	case StatusMAX:
-		return "OverTime";
-	}
-
-	return "Inactive";
-}
-
-*/
 
 bool oTeam::compareResult(const oTeam &a, const oTeam &b)
 {
@@ -610,7 +572,12 @@ bool oTeam::compareResult(const oTeam &a, const oTeam &b)
   else if(a.StartNo!=b.StartNo)
     return a.StartNo<b.StartNo;
 
-  return a.Name<b.Name;
+  int aix = a.getDCI().getInt("SortIndex");
+  int bix = b.getDCI().getInt("SortIndex");
+  if (aix != bix)
+    return aix < bix;
+  else
+    return a.Name<b.Name;
 }
 
 bool oTeam::compareStartTime(const oTeam &a, const oTeam &b)
@@ -621,14 +588,32 @@ bool oTeam::compareStartTime(const oTeam &a, const oTeam &b)
 			else return true;
 		}
   }
-  else if(a.StartTime!=b.StartTime)
-    return a.StartTime<b.StartTime;
-  else if(a.StartNo!=b.StartNo)
-    return a.StartNo<b.StartNo;
+  else if (a.StartTime != b.StartTime)
+    return a.StartTime < b.StartTime;
+  else if (a.StartNo != b.StartNo)
+    return a.StartNo < b.StartNo;
+  
+  int aix = a.getDCI().getInt("SortIndex");
+  int bix = b.getDCI().getInt("SortIndex");
+  if (aix != bix)
+    return aix < bix;
+  else
+    return a.Name<b.Name;
+}
 
+bool oTeam::compareSNO(const oTeam &a, const oTeam &b) {
+  if (a.StartNo != b.StartNo)
+    return a.StartNo<b.StartNo;
+  else if(a.Class != b.Class) {
+		if(a.Class) {
+      if(b.Class) return a.Class->tSortIndex<b.Class->tSortIndex;
+			else return true;
+		}
+  }
   return a.Name<b.Name;
 }
 	
+
 bool oTeam::isRunnerUsed(int Id) const
 {
 	for(unsigned i=0;i<Runners.size(); i++) {		
@@ -638,15 +623,25 @@ bool oTeam::isRunnerUsed(int Id) const
 	return false;
 }
 
-void oTeam::setTeamNoStart()
+void oTeam::setTeamNoStart(bool dns)
 {
-  setStatus(StatusDNS);
-  synchronize();
-	for(unsigned i=0;i<Runners.size(); i++) 		
-    if (Runners[i] && Runners[i]->getStatus()==StatusUnknown) {
-      Runners[i]->setStatus(StatusDNS);
-      Runners[i]->synchronize();
+  if (dns) {
+    setStatus(StatusDNS);
+    for(unsigned i=0;i<Runners.size(); i++) {
+      if (Runners[i] && Runners[i]->getStatus()==StatusUnknown) {
+        Runners[i]->setStatus(StatusDNS);
+      }
     }
+  }
+  else {
+    setStatus(StatusUnknown);
+    for(unsigned i=0;i<Runners.size(); i++) {
+      if (Runners[i] && Runners[i]->getStatus()==StatusDNS) {
+        Runners[i]->setStatus(StatusUnknown);
+      }
+    }
+  }
+  // Do not sync here
 }
 
 static void compressStartTimes(vector<int> &availableStartTimes, int finishTime)
@@ -1218,5 +1213,323 @@ void oEvent::getTeams(int classId, vector<pTeam> &t, bool sort) {
 
     if (classId == 0 || it->getClassId() == classId)
       t.push_back(&*it);
+  }
+}
+
+string oTeam::getEntryDate(bool dummy) const {
+  oDataConstInterface dci = getDCI();
+  int date = dci.getInt("EntryDate");
+  if (date == 0) {
+    (const_cast<oTeam *>(this)->getDI()).setDate("EntryDate", getLocalDate());
+  }
+  return dci.getDate("EntryDate");
+}
+
+unsigned static nRunnerMaxStored = -1;
+
+Table *oEvent::getTeamsTB() //Table mode
+{	
+  
+  vector<pClass> cls;
+  oe->getClasses(cls);
+  unsigned nRunnerMax = 0;
+  for (size_t k = 0; k < cls.size(); k++) {
+    nRunnerMax = max(nRunnerMax, cls[k]->getNumStages());
+  }
+
+  bool forceUpdate = nRunnerMax != nRunnerMaxStored;
+
+  if (forceUpdate && tables.count("team")) {
+    tables["team"]->releaseOwnership();
+    tables.erase("team");
+  }
+
+  if (tables.count("team") == 0) {
+
+ 	  oCardList::iterator it;	
+
+    Table *table=new Table(this, 20, "Lag(flera)", "teams");
+
+    table->addColumn("Id", 70, true, true);
+    table->addColumn("Ändrad", 70, false);
+
+	  table->addColumn("Namn", 200, false);
+    table->addColumn("Klass", 120, false);
+	  table->addColumn("Klubb", 120, false);
+
+    table->addColumn("Start", 70, false, true);
+    table->addColumn("Mål", 70, false, true);
+    table->addColumn("Status", 70, false);
+    table->addColumn("Tid", 70, false, true);
+
+    table->addColumn("Plac.", 70, true, true);
+    table->addColumn("Start nr.", 70, true, false);
+     
+    for (unsigned k = 0; k < nRunnerMax; k++) {
+      table->addColumn("Sträcka X#" + itos(k+1), 200, false, false);
+      table->addColumn("Bricka X#" + itos(k+1), 70, true, true);
+    }
+    nRunnerMaxStored = nRunnerMax;
+
+    oe->oTeamData->buildTableCol(table);
+
+    table->addColumn("Tid in", 70, false, true);
+    table->addColumn("Status in", 70, false, true);
+    table->addColumn("Poäng in", 70, true);
+    table->addColumn("Placering in", 70, true);
+
+    tables["team"] = table;
+    table->addOwnership();
+  }
+  
+  tables["team"]->update();
+  return tables["team"];
+}
+
+
+void oEvent::generateTeamTableData(Table &table, oTeam *addTeam)
+{ 
+  vector<pClass> cls;
+  oe->getClasses(cls);
+  unsigned nRunnerMax = 0;
+
+  for (size_t k = 0; k < cls.size(); k++) {
+    nRunnerMax = max(nRunnerMax, cls[k]->getNumStages());
+  }
+
+  if (nRunnerMax != nRunnerMaxStored)
+    throw meosException("Internal table error: Restart MeOS");
+
+  if (addTeam) {
+    addTeam->addTableRow(table);
+    return;
+  }
+
+  synchronizeList(oLTeamId);
+	oTeamList::iterator it;	
+  table.reserve(Teams.size());
+  for (it=Teams.begin(); it != Teams.end(); ++it){		
+		if(!it->skip()){
+      it->addTableRow(table);
+		}
+	}
+}
+
+void oTeam::addTableRow(Table &table) const {
+  oRunner &it = *pRunner(this);
+  table.addRow(getId(), &it);	
+
+  int row = 0;
+  table.set(row++, it, TID_ID, itos(getId()), false);
+  table.set(row++, it, TID_MODIFIED, getTimeStamp(), false);			
+
+  table.set(row++, it, TID_NAME, getName(), true);
+  table.set(row++, it, TID_CLASSNAME, getClass(), true, cellSelection);			
+  table.set(row++, it, TID_CLUB, getClub(), true, cellCombo);
+
+  table.set(row++, it, TID_START, getStartTimeS(), true);
+  table.set(row++, it, TID_FINISH, getFinishTimeS(), true);
+  table.set(row++, it, TID_STATUS, getStatusS(), true, cellSelection);
+  table.set(row++, it, TID_RUNNINGTIME, getRunningTimeS(), false);
+
+  table.set(row++, it, TID_PLACE, getPlaceS(), false);
+  table.set(row++, it, TID_STARTNO, itos(getStartNo()), true);
+
+  for (unsigned k = 0; k < nRunnerMaxStored; k++) {
+    pRunner r = getRunner(k);
+    if (r) {
+      table.set(row++, it, 100+2*k, r->getName(), r->getRaceNo() == 0);
+      table.set(row++, it, 101+2*k, itos(r->getCardNo()), true);
+    }
+    else {
+      table.set(row++, it, 100+2*k, "", Class && Class->getLegRunner(k) == k);
+      table.set(row++, it, 101+2*k, "", false);
+    }
+  }
+
+  row = oe->oTeamData->fillTableCol(oData, it, table, true);
+
+  table.set(row++, it, TID_INPUTTIME, getInputTimeS(), true);
+  table.set(row++, it, TID_INPUTSTATUS, getInputStatusS(), true, cellSelection);
+  table.set(row++, it, TID_INPUTPOINTS, itos(inputPoints), true);
+  table.set(row++, it, TID_INPUTPLACE, itos(inputPlace), true);
+}
+
+bool oTeam::inputData(int id, const string &input, 
+                        int inputId, string &output, bool noUpdate)
+{
+  int s,t;
+  synchronize(false);
+ 
+  if(id>1000) {
+    return oe->oTeamData->inputData(this, oData, id, input, 
+                                        inputId, output, noUpdate);
+  }
+  else if (id >= 100) {
+
+    bool isName = (id&1) == 0;
+    size_t ix = (id-100)/2;
+    if (ix < Runners.size()) {
+      if (Runners[ix]) {
+        if (isName) {
+          if (input.empty()) {
+            removeRunner(oe->gdibase, false, ix);
+          }
+          else {
+            Runners[ix]->setName(input);
+            Runners[ix]->synchronize(true);
+            output = Runners[ix]->getName();
+          }
+        }
+        else {
+          Runners[ix]->setCardNo(atoi(input.c_str()), true);
+          Runners[ix]->synchronize(true);
+          output = itos(Runners[ix]->getCardNo());
+        }
+      }
+      else {
+        if (isName && !input.empty() && Class) {
+          pRunner r = oe->addRunner(input, getClubId(), getClassId(), 0, 0, false);
+          setRunner(ix, r, true);
+          output = r->getName();
+        }
+
+      }
+    }
+  }
+
+  switch(id) {
+
+    case TID_NAME:
+      setName(input);
+      synchronize(true);
+      output = getName();
+      break;
+
+    case TID_START:
+      setStartTimeS(input);
+      t=getStartTime();      
+      s=getStartTime();
+      if (s!=t) 
+        throw std::exception("Starttiden är definerad genom klassen eller löparens startstämpling.");
+      synchronize(true);
+      output=getStartTimeS();
+      return true;
+    break;
+
+    case TID_CLUB: 
+      {
+        pClub pc = 0;
+        if (inputId > 0)
+          pc = oe->getClub(inputId);
+        else
+          pc = oe->getClubCreate(0, input);
+
+        setClub(pc ? pc->getName() : "");
+        synchronize(true);
+        output = getClub();
+      }
+      break;
+
+    case TID_CLASSNAME:
+      setClassId(inputId);
+      synchronize(true);
+      output = getClass();
+      break;
+
+    case TID_STATUS: {
+      RunnerStatus sIn = RunnerStatus(inputId);
+      if (sIn != StatusDNS) {
+        if (getStatus() == StatusDNS && sIn == StatusUnknown)
+          setTeamNoStart(false);
+        else
+          setStatus(sIn);
+      }
+      else if (getStatus() != StatusDNS)
+        setTeamNoStart(true);
+
+      apply(true, 0);
+      RunnerStatus sOut = getStatus();
+      if (sOut != sIn)
+        throw meosException("Status matchar inte deltagarnas status.");
+      output = getStatusS();
+    }
+    break;
+
+    case TID_STARTNO:
+      setStartNo(atoi(input.c_str()));
+      synchronize(true);
+      output = itos(getStartNo());
+      break;
+
+    case TID_INPUTSTATUS:
+      setInputStatus(RunnerStatus(inputId));
+      synchronize(true);
+      output = getInputStatusS();
+      break;
+
+    case TID_INPUTTIME:
+      setInputTime(input);
+      synchronize(true);
+      output = getInputTimeS();
+      break;
+
+    case TID_INPUTPOINTS:
+      setInputPoints(atoi(input.c_str()));
+      synchronize(true);
+      output = itos(getInputPoints());
+      break;
+
+    case TID_INPUTPLACE:
+      setInputPlace(atoi(input.c_str()));
+      synchronize(true);
+      output = itos(getInputPlace());
+      break;
+
+  }    
+  return false;
+}
+
+void oTeam::fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected)
+{ 
+  if(id>1000) {
+    oe->oRunnerData->fillInput(oData, id, 0, out, selected);
+    return;
+  }
+  else if (id==TID_CLASSNAME) {
+    oe->fillClasses(out, oEvent::extraNone, oEvent::filterOnlyMulti);
+    out.push_back(make_pair(lang.tl("Ingen klass"), 0));
+    selected = getClassId();
+  }  
+  else if (id==TID_CLUB) {
+    oe->fillClubs(out);
+    out.push_back(make_pair(lang.tl("Klubblös"), 0));
+    selected = getClubId();
+  }
+  else if (id==TID_STATUS || id==TID_INPUTSTATUS) {
+    oe->fillStatus(out);
+    selected = getStatus();
+  }
+}
+
+void oTeam::removeRunner(gdioutput &gdi, bool askRemoveRunner, int i) {
+  pRunner p_old = getRunner(i);
+  setRunner(i, 0, true);
+
+  //Remove multi runners
+  if (Class) {
+    for (unsigned k = i+1;k < Class->getNumStages(); k++) { 
+      if (Class->getLegRunner(k)==i) 
+        setRunner(k, 0, true);
+    }
+  }
+
+  //No need to delete multi runners. Disappears when parent is gone.
+  if(p_old && !oe->isRunnerUsed(p_old->getId())){
+    if(!askRemoveRunner || gdi.ask("Ska X raderas från tävlingen?#" + p_old->getName())){
+	    vector<int> oldR;
+      oldR.push_back(p_old->getId());
+      oe->removeRunner(oldR);
+    }
   }
 }

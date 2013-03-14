@@ -1,0 +1,1353 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+
+<meosclubs>
+<ClubList>
+<Club>
+<Id>11</Id>
+<Updated>20130313133908</Updated>
+<Name>Abominable O-Men ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>11</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>12</Id>
+<Updated>20130313133908</Updated>
+<Name>Bushflyers ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>12</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>13</Id>
+<Updated>20130313133908</Updated>
+<Name>Canberra Forest Riders ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>13</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>14</Id>
+<Updated>20130313133908</Updated>
+<Name>Girls Grammar ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>14</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>15</Id>
+<Updated>20130313133908</Updated>
+<Name>Grammar Junior ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>15</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>16</Id>
+<Updated>20130313133908</Updated>
+<Name>Grammar Senior ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>16</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>17</Id>
+<Updated>20130313133908</Updated>
+<Name>Parawanga Orienteers ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>17</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>18</Id>
+<Updated>20130313133908</Updated>
+<Name>Red Roos ACT</Name>
+<oData>
+<City>Wanniassa   Act</City>
+<District>4</District>
+<EMail>robert.mouatt@netspeed.com.au</EMail>
+<ExtId>18</ExtId>
+<Nationality>AUS</Nationality>
+<Street>58 Balfour Crescent</Street>
+<ZIP>2903</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>19</Id>
+<Updated>20130313133908</Updated>
+<Name>St Edmunds ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>19</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>20</Id>
+<Updated>20130313133908</Updated>
+<Name>Weston Emus ACT</Name>
+<oData>
+<District>4</District>
+<ExtId>20</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>21</Id>
+<Updated>20130313133908</Updated>
+<Name>Big Foot Orienteers</Name>
+<oData>
+<City>Chatswood West</City>
+<District>5</District>
+<EMail>bigfoot@bigfootorienteers.com</EMail>
+<ExtId>21</ExtId>
+<Nationality>AUS</Nationality>
+<Street>29 Bellevue Street</Street>
+<ZIP>2067</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>22</Id>
+<Updated>20130313133908</Updated>
+<Name>Bennelong Northside Orienteers</Name>
+<oData>
+<City>Fairlight</City>
+<District>5</District>
+<EMail>secretary@bennelongnorthside.com.au</EMail>
+<ExtId>22</ExtId>
+<Nationality>AUS</Nationality>
+<Street>Fairlight St</Street>
+<ZIP>2094</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>23</Id>
+<Updated>20130313133908</Updated>
+<Name>Central Coast Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>23</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>24</Id>
+<Updated>20130313133908</Updated>
+<Name>Garingal Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>24</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>25</Id>
+<Updated>20130313133908</Updated>
+<Name>Goldseekers Orienteers</Name>
+<oData>
+<CareOf>Phillip Schwebel</CareOf>
+<City>Orange</City>
+<District>5</District>
+<EMail>schwebel@ozemail.com.au</EMail>
+<ExtId>25</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>0263691333</Phone>
+<Street>280 Summer Street</Street>
+<ZIP>2800</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>26</Id>
+<Updated>20130313133908</Updated>
+<Name>Illawarra Kareelah Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>26</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>27</Id>
+<Updated>20130313133908</Updated>
+<Name>Western Plains Orienteers</Name>
+<oData>
+<CareOf>NSW</CareOf>
+<City>Dubbo</City>
+<District>5</District>
+<EMail>info@westernplainsorienteers.org</EMail>
+<ExtId>27</ExtId>
+<Nationality>AUS</Nationality>
+<Street>22L Rosedale Rd</Street>
+<ZIP>2830</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>28</Id>
+<Updated>20130313133908</Updated>
+<Name>Mountain Devils MTB Orienteering Club</Name>
+<oData>
+<District>5</District>
+<ExtId>28</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>29</Id>
+<Updated>20130313133908</Updated>
+<Name>Newcastle Orienteering Club</Name>
+<oData>
+<CareOf>Andrew Power</CareOf>
+<City>Hamilton</City>
+<District>5</District>
+<EMail>president@newcastleorienteering.asn.au</EMail>
+<ExtId>29</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>0249653243</Phone>
+<Street>48 Samdon Street</Street>
+<ZIP>NSW</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>30</Id>
+<Updated>20130313133908</Updated>
+<Name>Northern Tablelands Orienteering Club</Name>
+<oData>
+<City>Armidale</City>
+<District>5</District>
+<EMail>ntocasna@ntoc.asn.au</EMail>
+<ExtId>30</ExtId>
+<Nationality>AUS</Nationality>
+<Street>19 Bishop Crescent</Street>
+<ZIP>2350</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>31</Id>
+<Updated>20130313133908</Updated>
+<Name>Southern Highlands Occasional Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>31</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>32</Id>
+<Updated>20130313133908</Updated>
+<Name>Uringa Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>32</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>33</Id>
+<Updated>20130313133908</Updated>
+<Name>Western and Hills Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>33</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>34</Id>
+<Updated>20130313133908</Updated>
+<Name>Wagga and Riverina Occasional Orienteers</Name>
+<oData>
+<District>5</District>
+<ExtId>34</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>35</Id>
+<Updated>20130313133908</Updated>
+<Name>Bullecourt Boulder Bounders</Name>
+<oData>
+<District>6</District>
+<ExtId>35</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>36</Id>
+<Updated>20130313133908</Updated>
+<Name>Bundaberg United Scrub Harriers</Name>
+<oData>
+<District>6</District>
+<ExtId>36</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>37</Id>
+<Updated>20130313133908</Updated>
+<Name>Enoggeroos</Name>
+<oData>
+<District>6</District>
+<ExtId>37</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>38</Id>
+<Updated>20130313133908</Updated>
+<Name>Far North Queensland Mountain Bike Orienteers</Name>
+<oData>
+<District>6</District>
+<ExtId>38</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>39</Id>
+<Updated>20130313133908</Updated>
+<Name>Fraser Region Orienteering Group</Name>
+<oData>
+<District>6</District>
+<ExtId>39</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>40</Id>
+<Updated>20130313133908</Updated>
+<Name>Multi Terrain Bike Orienteers</Name>
+<oData>
+<CareOf>Craig Steffens</CareOf>
+<City>Brisbane</City>
+<District>6</District>
+<EMail>info@mtbo.com.au</EMail>
+<ExtId>40</ExtId>
+<Nationality>AUS</Nationality>
+<Street>the street at the end of the universe</Street>
+<ZIP>4034</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>41</Id>
+<Updated>20130313133908</Updated>
+<Name>Paradise Lost Orienteers</Name>
+<oData>
+<District>6</District>
+<ExtId>41</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>42</Id>
+<Updated>20130313133908</Updated>
+<Name>Range Runners Orienteering Club</Name>
+<oData>
+<District>6</District>
+<ExtId>42</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>43</Id>
+<Updated>20130313133908</Updated>
+<Name>Sunshine Orienteers Club</Name>
+<oData>
+<CareOf>Stuart Gordon</CareOf>
+<City>Burpengary</City>
+<District>6</District>
+<EMail>info@sunshineorienteers.com.au</EMail>
+<ExtId>43</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>0439979261</Phone>
+<Street>PO Box 1082</Street>
+<ZIP>4505</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>44</Id>
+<Updated>20130313133908</Updated>
+<Name>Toohey Forest Orienteers</Name>
+<oData>
+<District>6</District>
+<ExtId>44</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>45</Id>
+<Updated>20130313133908</Updated>
+<Name>Townsville Thuringowa Orienteering Club</Name>
+<oData>
+<District>6</District>
+<ExtId>45</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>46</Id>
+<Updated>20130313133908</Updated>
+<Name>Ugly Gully Orienteers</Name>
+<oData>
+<District>6</District>
+<ExtId>46</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>47</Id>
+<Updated>20130313133908</Updated>
+<Name>University of Queensland</Name>
+<oData>
+<District>6</District>
+<ExtId>47</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>48</Id>
+<Updated>20130313133908</Updated>
+<Name>Far North Orienteers</Name>
+<oData>
+<District>6</District>
+<ExtId>48</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>49</Id>
+<Updated>20130313133908</Updated>
+<Name>Lincoln Orienteers</Name>
+<oData>
+<District>7</District>
+<ExtId>49</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>50</Id>
+<Updated>20130313133908</Updated>
+<Name>Onkaparinga Hills Orienteering Club</Name>
+<oData>
+<District>7</District>
+<ExtId>50</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>51</Id>
+<Updated>20130313133908</Updated>
+<Name>Saltbush Orienteers</Name>
+<oData>
+<District>7</District>
+<ExtId>51</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>53</Id>
+<Updated>20130313133908</Updated>
+<Name>Top End Orienteers</Name>
+<oData>
+<District>7</District>
+<ExtId>53</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>54</Id>
+<Updated>20130313133908</Updated>
+<Name>Tjuringa Orienteers</Name>
+<oData>
+<CareOf>Jan Hillyard</CareOf>
+<City>Happy Valley</City>
+<District>7</District>
+<EMail>hillyard@senet.com.au</EMail>
+<ExtId>54</ExtId>
+<Nationality>AUS</Nationality>
+<Street>4 Oak Crt</Street>
+<ZIP>5159</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>55</Id>
+<Updated>20130313133908</Updated>
+<Name>Tintookies Orienteers</Name>
+<oData>
+<CareOf>Fi Pahor</CareOf>
+<City>Adelaide</City>
+<District>7</District>
+<EMail>fpahor@clearmail.com.au</EMail>
+<ExtId>55</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>82320652</Phone>
+<Street>5/355 Angas St</Street>
+<ZIP>5000</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>56</Id>
+<Updated>20130313133908</Updated>
+<Name>Wallaringa Orienteering Club</Name>
+<oData>
+<District>7</District>
+<ExtId>56</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>57</Id>
+<Updated>20130313133908</Updated>
+<Name>Yalanga Orienteers</Name>
+<oData>
+<District>7</District>
+<ExtId>57</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>58</Id>
+<Updated>20130313133908</Updated>
+<Name>Australopers Orienteering Club</Name>
+<oData>
+<District>8</District>
+<ExtId>58</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>59</Id>
+<Updated>20130313133908</Updated>
+<Name>Esk Valley Orienteering Club</Name>
+<oData>
+<District>8</District>
+<ExtId>59</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>60</Id>
+<Updated>20130313133908</Updated>
+<Name>Pathfinders Orienteering Club</Name>
+<oData>
+<District>8</District>
+<ExtId>60</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>61</Id>
+<Updated>20130313133908</Updated>
+<Name>Wellington Ranges Orienteering Club</Name>
+<oData>
+<District>8</District>
+<ExtId>61</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>62</Id>
+<Updated>20130313133908</Updated>
+<Name>Victorian ARDF Group</Name>
+<oData>
+<City>N/a</City>
+<District>9</District>
+<EMail>secretary@ardf.org.au</EMail>
+<ExtId>62</ExtId>
+<Nationality>AUS</Nationality>
+<Street>N/a</Street>
+<ZIP>N/A</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>63</Id>
+<Updated>20130313133908</Updated>
+<Name>Albury-Wodonga Orienteering Club</Name>
+<oData>
+<District>9</District>
+<ExtId>63</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>64</Id>
+<Updated>20130313133908</Updated>
+<Name>Bayside Kangaroos Orienteers</Name>
+<oData>
+<District>9</District>
+<ExtId>64</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>65</Id>
+<Updated>20130313133908</Updated>
+<Name>Bendigo Orienteers</Name>
+<oData>
+<City>Bendigo</City>
+<District>9</District>
+<EMail>secretary@bendigo-orienteers.com.au</EMail>
+<ExtId>65</ExtId>
+<Nationality>AUS</Nationality>
+<Street>C/O 80 Lawson St</Street>
+<ZIP>3550</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>67</Id>
+<Updated>20130313133908</Updated>
+<Name>Central Highlands Orienteering Club</Name>
+<oData>
+<City>Churchill</City>
+<District>9</District>
+<EMail>kpreston@hvp.com.au</EMail>
+<ExtId>67</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>0428992506</Phone>
+<Street>Po Box 274</Street>
+<ZIP>3842</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>68</Id>
+<Updated>20130313133908</Updated>
+<Name>Dandenong Ranges Orienteering Club</Name>
+<oData>
+<City>Laburnum</City>
+<District>9</District>
+<EMail>debbiedodd@iinet.net.au</EMail>
+<ExtId>68</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>03 9878 9168</Phone>
+<Street>PO Box 5020</Street>
+<ZIP>3130</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>69</Id>
+<Updated>20130313133908</Updated>
+<Name>Eureka Orienteers</Name>
+<oData>
+<CareOf>Vic</CareOf>
+<City>Ballarat East</City>
+<District>9</District>
+<EMail>eurekao@tpg.com.au</EMail>
+<ExtId>69</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>0353317937</Phone>
+<Street>835 York Street</Street>
+<ZIP>3350</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>70</Id>
+<Updated>20130313133908</Updated>
+<Name>Melbourne Forest Racers</Name>
+<oData>
+<District>9</District>
+<ExtId>70</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>71</Id>
+<Updated>20130313133908</Updated>
+<Name>Nillumbik Emus Orienteering Club</Name>
+<oData>
+<CareOf>Rex Niven (Secretary)</CareOf>
+<City>Eltham</City>
+<District>9</District>
+<EMail>rex@fortytrout.com.au</EMail>
+<ExtId>71</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>9444 1803</Phone>
+<Street>15-17 Rockliffe Ave</Street>
+<ZIP>3095</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>72</Id>
+<Updated>20130313133908</Updated>
+<Name>Tuckonie Orienteering Club</Name>
+<oData>
+<District>9</District>
+<ExtId>72</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>73</Id>
+<Updated>20130313133908</Updated>
+<Name>Yarra Valley Orienteering Club</Name>
+<oData>
+<District>9</District>
+<ExtId>73</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>74</Id>
+<Updated>20130313133908</Updated>
+<Name>Bibbulmun Orienteers</Name>
+<oData>
+<District>10</District>
+<ExtId>74</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>75</Id>
+<Updated>20130313133908</Updated>
+<Name>Kulgun 225 Orienteers</Name>
+<oData>
+<District>10</District>
+<ExtId>75</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>76</Id>
+<Updated>20130313133908</Updated>
+<Name>LOST</Name>
+<oData>
+<District>10</District>
+<ExtId>76</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>77</Id>
+<Updated>20130313133908</Updated>
+<Name>South-West Orienteering Trekkers</Name>
+<oData>
+<CareOf>WA</CareOf>
+<City>Bunbury</City>
+<District>10</District>
+<EMail>freemason49@hotmail.com</EMail>
+<ExtId>77</ExtId>
+<Nationality>AUS</Nationality>
+<Phone>08 9795 7706 </Phone>
+<Street>12 Crowea Street</Street>
+<ZIP>6230</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>78</Id>
+<Updated>20130313133908</Updated>
+<Name>Wullundigong Orienteers of the West</Name>
+<oData>
+<District>10</District>
+<ExtId>78</ExtId>
+<Nationality>AUS</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>88</Id>
+<Updated>20130313133908</Updated>
+<Name>New Zealand Challenge team</Name>
+<oData>
+<District>3</District>
+<ExtId>88</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>89</Id>
+<Updated>20130313133908</Updated>
+<Name>New Zealand Pinestars</Name>
+<oData>
+<District>3</District>
+<ExtId>89</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>90</Id>
+<Updated>20130313133908</Updated>
+<Name>Auckland</Name>
+<oData>
+<District>3</District>
+<ExtId>90</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>91</Id>
+<Updated>20130313133908</Updated>
+<Name>Counties Manakau</Name>
+<oData>
+<District>3</District>
+<ExtId>91</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>92</Id>
+<Updated>20130313133908</Updated>
+<Name>Dunedin</Name>
+<oData>
+<District>3</District>
+<ExtId>92</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>93</Id>
+<Updated>20130313133908</Updated>
+<Name>Hamilton</Name>
+<oData>
+<District>3</District>
+<ExtId>93</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>94</Id>
+<Updated>20130313133908</Updated>
+<Name>Hawkes Bay</Name>
+<oData>
+<District>3</District>
+<ExtId>94</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>95</Id>
+<Updated>20130313133908</Updated>
+<Name>Hutt Valley</Name>
+<oData>
+<District>3</District>
+<ExtId>95</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>96</Id>
+<Updated>20130313133908</Updated>
+<Name>Malborough</Name>
+<oData>
+<District>3</District>
+<ExtId>96</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>97</Id>
+<Updated>20130313133908</Updated>
+<Name>Nelson</Name>
+<oData>
+<District>3</District>
+<ExtId>97</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>98</Id>
+<Updated>20130313133908</Updated>
+<Name>North West</Name>
+<oData>
+<District>3</District>
+<ExtId>98</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>99</Id>
+<Updated>20130313133908</Updated>
+<Name>Peninsula and Plains</Name>
+<oData>
+<District>3</District>
+<ExtId>99</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>100</Id>
+<Updated>20130313133908</Updated>
+<Name>Red Kiwi</Name>
+<oData>
+<District>3</District>
+<ExtId>100</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>101</Id>
+<Updated>20130313133908</Updated>
+<Name>Rotorua</Name>
+<oData>
+<District>3</District>
+<ExtId>101</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>102</Id>
+<Updated>20130313133908</Updated>
+<Name>Southland</Name>
+<oData>
+<District>3</District>
+<ExtId>102</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>103</Id>
+<Updated>20130313133908</Updated>
+<Name>Taranaki</Name>
+<oData>
+<District>3</District>
+<ExtId>103</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>104</Id>
+<Updated>20130313133908</Updated>
+<Name>Taupo</Name>
+<oData>
+<District>3</District>
+<ExtId>104</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>105</Id>
+<Updated>20130313133908</Updated>
+<Name>Wairarapa</Name>
+<oData>
+<District>3</District>
+<ExtId>105</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>106</Id>
+<Updated>20130313133908</Updated>
+<Name>Wellington</Name>
+<oData>
+<District>3</District>
+<ExtId>106</ExtId>
+<Nationality>NZL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>404</Id>
+<Updated>20130313133908</Updated>
+<Name>Hamar OK</Name>
+<oData>
+<District>1</District>
+<ExtId>404</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>405</Id>
+<Updated>20130313133908</Updated>
+<Name>Lillehammer OK</Name>
+<oData>
+<District>1</District>
+<ExtId>405</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>406</Id>
+<Updated>20130313133908</Updated>
+<Name>OSI Orientering</Name>
+<oData>
+<District>1</District>
+<ExtId>406</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>407</Id>
+<Updated>20130313133908</Updated>
+<Name>Convergence</Name>
+<oData>
+<District>1</District>
+<ExtId>407</ExtId>
+<Nationality>FRA</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>408</Id>
+<Updated>20130313133908</Updated>
+<Name>Tullinge SK</Name>
+<oData>
+<District>1</District>
+<ExtId>408</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>409</Id>
+<Updated>20130313133908</Updated>
+<Name>Fossum IF</Name>
+<oData>
+<District>1</District>
+<ExtId>409</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>410</Id>
+<Updated>20130313133908</Updated>
+<Name>OK Enen</Name>
+<oData>
+<District>1</District>
+<ExtId>410</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>411</Id>
+<Updated>20130313133908</Updated>
+<Name>South Ribble Orienteering Club</Name>
+<oData>
+<District>1</District>
+<ExtId>411</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>412</Id>
+<Updated>20130313133908</Updated>
+<Name>Lillomarka OL</Name>
+<oData>
+<District>1</District>
+<ExtId>412</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>413</Id>
+<Updated>20130313133908</Updated>
+<Name>OLC SKOG Fribourg</Name>
+<oData>
+<District>1</District>
+<ExtId>413</ExtId>
+<Nationality>SUI</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>415</Id>
+<Updated>20130313133908</Updated>
+<Name>OK Tyr</Name>
+<oData>
+<District>1</District>
+<ExtId>415</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>416</Id>
+<Updated>20130313133908</Updated>
+<Name>TVOC (Thames Valley Orienteering Club)</Name>
+<oData>
+<District>1</District>
+<ExtId>416</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>417</Id>
+<Updated>20130313133908</Updated>
+<Name>SYO - South Yorkshire Orienteers</Name>
+<oData>
+<District>1</District>
+<ExtId>417</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>418</Id>
+<Updated>20130313133908</Updated>
+<Name>GRAMP (Grampian Orienteers)</Name>
+<oData>
+<District>1</District>
+<ExtId>418</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>419</Id>
+<Updated>20130313133908</Updated>
+<Name>Malungs OK Skogsmårdarna</Name>
+<oData>
+<District>1</District>
+<ExtId>419</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>420</Id>
+<Updated>20130313133908</Updated>
+<Name>Skattkärrs IF</Name>
+<oData>
+<District>1</District>
+<ExtId>420</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>421</Id>
+<Updated>20130313133908</Updated>
+<Name>Fermo</Name>
+<oData>
+<District>1</District>
+<ExtId>421</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>422</Id>
+<Updated>20130313133908</Updated>
+<Name>IFK Lidingö</Name>
+<oData>
+<District>1</District>
+<ExtId>422</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>423</Id>
+<Updated>20130313133908</Updated>
+<Name>CSU</Name>
+<oData>
+<District>1</District>
+<ExtId>423</ExtId>
+<Nationality>USA</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>424</Id>
+<Updated>20130313133908</Updated>
+<Name>Domnarvets GoIF</Name>
+<oData>
+<District>1</District>
+<ExtId>424</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>425</Id>
+<Updated>20130313133908</Updated>
+<Name>Border Liners</Name>
+<oData>
+<District>1</District>
+<ExtId>425</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>427</Id>
+<Updated>20130313133908</Updated>
+<Name>OK Roskilde</Name>
+<oData>
+<District>1</District>
+<ExtId>427</ExtId>
+<Nationality>DEN</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>428</Id>
+<Updated>20130313133908</Updated>
+<Name>South East Lancashire O. C.</Name>
+<oData>
+<District>1</District>
+<ExtId>428</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>429</Id>
+<Updated>20130313133908</Updated>
+<Name>Three Rock Orienteering Club</Name>
+<oData>
+<District>1</District>
+<ExtId>429</ExtId>
+<Nationality>IRL</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>431</Id>
+<Updated>20130313133908</Updated>
+<Name>TIPO TKE</Name>
+<oData>
+<District>1</District>
+<ExtId>431</ExtId>
+<Nationality>HUN</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>432</Id>
+<Updated>20130313133908</Updated>
+<Name>Mishima</Name>
+<oData>
+<District>1</District>
+<ExtId>432</ExtId>
+<Nationality>JPN</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>433</Id>
+<Updated>20130313133908</Updated>
+<Name>Skillingaryds FK</Name>
+<oData>
+<District>1</District>
+<ExtId>433</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>434</Id>
+<Updated>20130313133908</Updated>
+<Name>Vallset/Stange</Name>
+<oData>
+<District>1</District>
+<ExtId>434</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>436</Id>
+<Updated>20130313133908</Updated>
+<Name>Ulu's Reisewelt</Name>
+<oData>
+<District>1</District>
+<ExtId>436</ExtId>
+<Nationality>SUI</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>437</Id>
+<Updated>20130313133908</Updated>
+<Name>bussola ok</Name>
+<oData>
+<District>1</District>
+<ExtId>437</ExtId>
+<Nationality>SUI</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>438</Id>
+<Updated>20130313133908</Updated>
+<Name>OK77</Name>
+<oData>
+<District>1</District>
+<ExtId>438</ExtId>
+<Nationality>FIN</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>439</Id>
+<Updated>20130313133908</Updated>
+<Name>Angelniemen Ankkuri</Name>
+<oData>
+<District>1</District>
+<ExtId>439</ExtId>
+<Nationality>FIN</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>441</Id>
+<Updated>20130313133908</Updated>
+<Name>Southdowns orienteers SO</Name>
+<oData>
+<District>1</District>
+<ExtId>441</ExtId>
+<Nationality>GBR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>442</Id>
+<Updated>20130313133908</Updated>
+<Name>Pan-Kristianstad</Name>
+<oData>
+<District>1</District>
+<ExtId>442</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>443</Id>
+<Updated>20130313133908</Updated>
+<Name>OLC Wienerwald</Name>
+<oData>
+<District>1</District>
+<ExtId>443</ExtId>
+<Nationality>AUT</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>444</Id>
+<Updated>20130313133908</Updated>
+<Name>Göteborg Majorna OK</Name>
+<oData>
+<District>1</District>
+<ExtId>444</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>445</Id>
+<Updated>20130313133908</Updated>
+<Name>IK Grane Arendal Orientering</Name>
+<oData>
+<CareOf>Magnus Johnsson</CareOf>
+<City>Arendal</City>
+<District>1</District>
+<EMail>magnus@graneorientering.no</EMail>
+<ExtId>445</ExtId>
+<Nationality>NOR</Nationality>
+<Street>Høyåsen 8</Street>
+<ZIP>4843</ZIP>
+</oData>
+</Club>
+<Club>
+<Id>446</Id>
+<Updated>20130313133908</Updated>
+<Name>Centrum OK</Name>
+<oData>
+<District>1</District>
+<ExtId>446</ExtId>
+<Nationality>SWE</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>447</Id>
+<Updated>20130313133908</Updated>
+<Name>Konnerud IL</Name>
+<oData>
+<District>1</District>
+<ExtId>447</ExtId>
+<Nationality>NOR</Nationality>
+</oData>
+</Club>
+<Club>
+<Id>448</Id>
+<Updated>20130313133908</Updated>
+<Name>Tel Aviv University OC</Name>
+<oData>
+<District>1</District>
+<ExtId>448</ExtId>
+<Nationality>ISR</Nationality>
+</oData>
+</Club>
+</ClubList>
+</meosclubs>

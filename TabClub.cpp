@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -122,6 +122,8 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       pClub pc=oe->getClub(lbi.data);
       if (pc) {
         gdi.clearPage(true);
+        oe->calculateTeamResults();
+        oe->sortTeams(ClassStartTime, 0);
         oe->calculateResults(oEvent::RTClassResult);
         oe->sortRunners(ClassStartTime);
         int pay, paid;
@@ -140,13 +142,13 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       
       gdi.addSelection("Type", 300, 100, 0, "Val av export:");
 
-      gdi.addItem("Type", "Skriv ut alla", oEvent::IPTAllPrint);
-      gdi.addItem("Type", "Exportera alla till HTML", oEvent::IPTAllHTML);
+      gdi.addItem("Type", lang.tl("Skriv ut alla"), oEvent::IPTAllPrint);
+      gdi.addItem("Type", lang.tl("Exportera alla till HTML"), oEvent::IPTAllHTML);
 
-      gdi.addItem("Type", "Skriv ut dem utan e-post", oEvent::IPTNoMailPrint);
-      gdi.addItem("Type", "Skriv ut ej accepterade elektroniska", oEvent::IPTNonAcceptedPrint);
 #ifdef _DEBUG
-      gdi.addItem("Type", "Exportera elektroniska fakturor", oEvent::IPTElectronincHTML);
+      gdi.addItem("Type", lang.tl("Skriv ut dem utan e-post"), oEvent::IPTNoMailPrint);
+      gdi.addItem("Type", lang.tl("Skriv ut ej accepterade elektroniska"), oEvent::IPTNonAcceptedPrint);
+      gdi.addItem("Type", lang.tl("Exportera elektroniska fakturor"), oEvent::IPTElectronincHTML);
 #endif
       gdi.selectFirstItem("Type");
       gdi.fillRight();
@@ -519,7 +521,7 @@ void TabClub::importAcceptedInvoice(gdioutput &gdi, const string &file) {
           hasAccepted[id].second += ", " + (*it)[2];
       }
       else
-        gdi.addString("", 0, "Okänd klub med id X#" + itos(id)).setColor(colorRed);
+        gdi.addString("", 0, "Okänd klubb med id X#" + itos(id)).setColor(colorRed);
     }
     else
       throw meosException("Bad file format.");

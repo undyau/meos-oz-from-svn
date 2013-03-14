@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 
 #include <map>
 #include <vector>
+#include <set>
 
 #include "oBase.h"
 
@@ -37,6 +38,8 @@ struct oDataInfo {
 	int SubType;
   int tableIndex;
   char Description[48];
+  int decimalSize;
+  int decimalScale;
   vector< pair<string, string> > enumDescription;
 
   oDataInfo();
@@ -88,10 +91,14 @@ protected:
 	static string C_STRING(const string & name, int len);
 	static string SQL_quote(const char *in);
 public:	
-	enum oIntSize{oISTime = 29, oISCurrency = 30, oISDate = 31, oIS64=64, oIS32=32, oIS16=16, oIS8=8, oIS16U=17, oIS8U=9};
+	enum oIntSize{oISDecimal = 28, oISTime = 29, oISCurrency = 30, oISDate = 31, oIS64=64, oIS32=32, oIS16=16, oIS8=8, oIS16U=17, oIS8U=9};
   enum oStringSubType {oSSString = 0, oSSEnum = 1};
-	string generateSQLDefinition() const;
-	string generateSQLSet(const void *data) const;
+  string generateSQLDefinition(const std::set<string> &exclude) const;
+  string generateSQLDefinition() const {
+    return generateSQLDefinition(std::set<string>());
+  }
+	
+  string generateSQLSet(const void *data) const;
 	void getVariableInt(const void *data, list<oVariableInt> &var) const;
 	void getVariableString(const void *data, list<oVariableString> &var) const;
 
@@ -100,6 +107,7 @@ public:
                                         const oBase *ob) const;
 
 	void addVariableInt(const char *name, oIntSize isize, const char *descr);
+  void addVariableDecimal(const char *name, const char *descr, int fixedDeci);
 	void addVariableDate(const char *name,  const char *descr){addVariableInt(name, oISDate, descr);}
   void addVariableCurrency(const char *name,  const char *descr){addVariableInt(name, oISCurrency, descr);}
 	void addVariableString(const char *name, int MaxChar, const char *descr);
@@ -219,8 +227,11 @@ public:
 	inline bool saveDataFields(gdioutput &gdi) 
 		{return oDC->saveDataFields(oB, Data, gdi);}
 
-	inline string generateSQLDefinition() const
-		{return oDC->generateSQLDefinition();}
+  inline string generateSQLDefinition() const
+    {return oDC->generateSQLDefinition(std::set<string>());}
+
+  inline string generateSQLDefinition(const std::set<string> &exclude) const
+		{return oDC->generateSQLDefinition(exclude);}
 
 	inline string generateSQLSet() const
 		{return oDC->generateSQLSet(Data);}
@@ -297,8 +308,11 @@ public:
 	inline void fillDataFields(gdioutput &gdi) const
 		{oDC->fillDataFields(oB, Data, gdi);}
 
-	inline string generateSQLDefinition() const
-		{return oDC->generateSQLDefinition();}
+  inline string generateSQLDefinition() const
+		{return oDC->generateSQLDefinition(set<string>());}
+
+	inline string generateSQLDefinition(const set<string> &exclude) const
+		{return oDC->generateSQLDefinition(exclude);}
 
 	inline string generateSQLSet() const
 		{return oDC->generateSQLSet(Data);}

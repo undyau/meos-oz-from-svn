@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,15 @@ protected:
 	int CardNo;
   int itype; //Index type used for lookup
   int tRunnerId; // Id of runner the punch is classified to.
+
+  /** Class used to sort punches by time. */
+  class FreePunchComp {
+    public:
+    bool operator()(pFreePunch a, pFreePunch b) {
+      return a->Time < b->Time;
+    }
+  };
+
 public:
   
   void addTableRow(Table &table) const;
@@ -46,11 +55,13 @@ public:
   bool canRemove() const;
 
 	int getCardNo() const {return CardNo;}
-  void setCardNo(int cardNo, bool databaseUpdate = false);
+  bool setCardNo(int cardNo, bool databaseUpdate = false);
+  bool setType(const string &t, bool databaseUpdate = false);
+  void setTimeInt(int newTime, bool databaseUpdate);
 
-  void setType(const string &t, bool databaseUpdate = false);
+  static void rehashPunches(oEvent &oe, int cardNo, pFreePunch newPunch);
+  static bool disableHashing;
 
-	//void setData(int card, int time, int type);
 	oFreePunch(oEvent *poe, int card, int time, int type);
 	oFreePunch(oEvent *poe, int id);
   virtual ~oFreePunch(void);

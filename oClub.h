@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,11 @@
 class oEvent;
 
 class oClub;
+class oRunner;
+typedef oRunner* pRunner;
+class oTeam;
+typedef oTeam* pTeam;
+
 typedef oClub* pClub;
 class oDataInterface;
 class oDataConstInterface;
@@ -65,6 +70,31 @@ protected:
   // Set name internally, and update pretty name
   void internalSetName(const string &n);
 
+  void changeId(int newId);
+
+  struct InvoiceData {
+    int yp;
+    int xs;
+    int nameIndent;
+    int adrPos;
+    int clsPos;
+    bool multiDay;
+    int cardPos;
+    int feePos;
+    int paidPos;
+    int resPos;
+    int total_fee_amount;
+    int total_rent_amount;
+    int total_paid_amount;
+    int lh;//lineheight
+    InvoiceData(int lh_) {
+      memset(this, 0, sizeof(InvoiceData));
+      lh = lh_;
+    }
+  };
+
+  void addRunnerInvoiceLine(gdioutput &gdi, const pRunner r, InvoiceData &data, bool inTeam) const;
+  void addTeamInvoiceLine(gdioutput &gdi, const pTeam r, InvoiceData &data) const;
 public:
   static void buildTableCol(oEvent *oe, Table *t);
   void addTableRow(Table &table) const;

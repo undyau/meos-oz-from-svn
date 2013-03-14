@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -52,6 +52,7 @@ DrawInfo::DrawInfo() {
   nFields = 10;
   firstStart = 3600;
   maxCommonControl = 3;
+  allowNeighbourSameCourse = true;
 
   // Statistics output from optimize start order
   numDistinctInit = -1;
@@ -97,14 +98,14 @@ bool ClassBlockInfo::operator <(ClassBlockInfo &ci)
 	return Depth<ci.Depth;
 }
 
-bool isFree(vector< vector<pair<int, int> > > &StartField, int nFields, 
+bool isFree(const DrawInfo &di, vector< vector<pair<int, int> > > &StartField, int nFields, 
             int FirstPos, int PosInterval, ClassInfo &cInfo)
 {
   int Type = cInfo.unique;
   int courseId = cInfo.courseId;
 
   int nEntries = cInfo.nRunners;
-  bool disallowNeighbors = false;
+  bool disallowNeighbors = !di.allowNeighbourSameCourse;
   // Adjust first pos to make room for extra (before first start)
   if (cInfo.nExtra>0) {
     int newFirstPos = FirstPos - cInfo.nExtra * PosInterval;
@@ -259,11 +260,6 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
   gdi.dropLine();
   //Find last starter
   int last = opt.last;
-  /*for (int k=0;k<di.nFields;k++) {
-    for (size_t j=0;j<startField[k].size(); j++)
-			if(startField[k][j])
-				last = max(last, int(j));
-	}*/
 
 
 	int laststart=0;
@@ -537,7 +533,7 @@ void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, D
         int ipos = startpos;
         int t = 0;
 
-        while( !isFree(StartField, di.nFields, ipos, i, cInfo[k]) ) {
+        while( !isFree(di, StartField, di.nFields, ipos, i, cInfo[k]) ) {
 				  t++;
 
           // Algorithm to randomize start position
@@ -604,7 +600,9 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
   runners.reserve(Runners.size());
 
   if (drawType == drawAll) {
-    if (leg==0) {
+    const bool multiDay = !getDCI().getString("PreEvent").empty();
+
+    if (leg==0 && !multiDay) {
       //Only remove vacances on leg 0.
       vector<int> toRemove;
       //Remove old vacances
@@ -616,10 +614,8 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
         }
       }
 
-      while (!toRemove.empty()) {
-        removeRunner(toRemove.back());
-        toRemove.pop_back();
-      }
+      removeRunner(toRemove);
+      toRemove.clear();
 
 	    while (Vacances>0) {
         oe->addRunnerVacant(ClassID);
@@ -1203,7 +1199,7 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
   if (classId<=0)
     return;
   vector<pRunner> runner;
-  getRunners(classId, runner);
+  getRunners(classId, 0, runner);
 
   if (runner.empty())
     return;

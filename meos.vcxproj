@@ -71,7 +71,6 @@
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='test|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='test|Win32'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='test|Win32'" />
-    <IncludePath Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\meosdb\mysql55;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Midl>
@@ -356,6 +355,9 @@
     <ClInclude Include="classconfiginfo.h" />
     <ClInclude Include="intkeymap.hpp" />
     <ClInclude Include="intkeymapimpl.hpp" />
+    <ClInclude Include="meosdb\MeosSQL.h" />
+    <ClInclude Include="meosdb\sqltypes.h" />
+    <ClInclude Include="meosdb\targetver.h" />
     <ClInclude Include="oListInfo.h" />
     <ClInclude Include="toolbar.h" />
     <ClInclude Include="csvparser.h" />

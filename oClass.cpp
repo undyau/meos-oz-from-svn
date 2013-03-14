@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ bool oClass::Write(xmlparser &xml)
 	xml.startTag("Class");
 
 	xml.write("Id", Id);
-	xml.write("Updated", Modified.GetStamp());
+	xml.write("Updated", Modified.getStamp());
 	xml.write("Name", Name);
 	
 	if(Course)
@@ -144,7 +144,7 @@ void oClass::Set(const xmlobject *xo)
 			getDI().set(*it);
 		}	
 		else if(it->is("Updated")){
-			Modified.SetStamp(it->get());
+			Modified.setStamp(it->get());
 		}
 	}
 
@@ -617,13 +617,17 @@ bool oClass::fillStageCourses(gdioutput &gdi, int stage,
 	return true;
 }
 
-bool oClass::addStageCourse(int iStage, int CourseId)
+bool oClass::addStageCourse(int iStage, int courseId)
+{	
+  return addStageCourse(iStage, oe->getCourse(courseId));
+}
+
+bool oClass::addStageCourse(int iStage, pCourse pc)
 {	
 	if(unsigned(iStage)>=MultiCourse.size())
 		return false;
 
 	vector<pCourse> &Stage=MultiCourse[iStage];
-	pCourse pc=oe->getCourse(CourseId);
 
   if(pc) {
     tCoursesChanged = true;
@@ -671,18 +675,32 @@ void oClass::setNumStages(int no)
   oe->updateTabs();
 }
 
-void oClass::getTrueStages(vector< pair<int, int> > &stages) const
+void oClass::getTrueStages(vector<oClass::TrueLegInfo > &stages) const
 {
   stages.clear();
   if (!legInfo.empty()) {
     for (size_t k = 0; k+1 < legInfo.size(); k++) {
-      if (legInfo[k].trueLeg != legInfo[k+1].trueLeg)
-        stages.push_back(pair<int,int>(k, legInfo[k].trueLeg));
+      if (legInfo[k].trueLeg != legInfo[k+1].trueLeg) {
+        stages.push_back(TrueLegInfo(k, legInfo[k].trueLeg));
     }
-    stages.push_back(pair<int, int>(legInfo.size()-1, legInfo.back().trueLeg));
   }
+    stages.push_back(TrueLegInfo(legInfo.size()-1, legInfo.back().trueLeg));
+
+    for (size_t k = 0; k <stages.size(); k++) {
+      stages[k].nonOptional = k > 0 ? stages[k-1].first + 1: 0;
+      while(stages[k].nonOptional <= stages[k].first) {
+        if (!legInfo[stages[k].nonOptional].isOptional())
+          break;
   else
-    stages.push_back(make_pair(-1,1));
+          stages[k].nonOptional++;
+}
+    }
+  }
+  else {
+    stages.push_back(TrueLegInfo(-1,1));
+    stages.back().nonOptional = -1;
+  }
+
 }
 
 bool oClass::startdataIgnored(int i) const
@@ -1139,49 +1157,6 @@ bool oEvent::fillClassesTB(gdioutput &gdi)//Table mode
 	return true;
 }
 
-/*
-Table *oEvent::GetClassesTB()//Table mode
-{	
-	oClassList::iterator it;	
-	SynchronizeList(oLClassId);
-
-	Table *table=new Table;
-
-	table->addColumn("Id", 40, true);
-	table->addColumn("Klass", 120, false);
-	table->addColumn("Bana", 90, false);
-	table->addColumn("Deltagare", 120, true);
-	table->addColumn("TS", 120, true);
-	//table
-
-	
-	for (it=Classes.begin(); it != Classes.end(); ++it){		
-		if(!it->Removed){
-
-
-			table->addRow();
-			
-			
-			char num[16];
-			_itoa_s(it->getId(), num, 10);
-			table->set(0, num);
-
-			table->set(1, it->GetName());
-			
-			pCourse pc=it->getCourse();
-			if(pc) table->set(1, pc->GetName());
-			else table->set(2, "-");
-			
-			//char num[10];
-			_itoa_s(it->GetNumRunners(), num, 10);
-			table->set(3, num);
-
-			table->set(4, it->Modified.GetStamp());
-		}
-	}
-	return table;
-}
-*/
 bool oClass::isCourseUsed(int Id) const
 {
 	if(Course && Course->getId()==Id)	
@@ -1331,7 +1306,7 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
     int maxleg = pc->getLastStageIndex();
 
 	  for (it=Runners.begin(); it != Runners.end(); ++it){		
-      if(!it->skip() && it->getClassId()==id) {	
+      if(!it->skip() && it->getClassId()==id && it->getStatus() != StatusNotCompetiting) {	
         if (leg==0) {
    			  total++;
 
@@ -1891,7 +1866,7 @@ ClassMetaType oClass::interpretClassType() const {
     char path[_MAX_PATH];
     getUserFile(path, "baseclass.xml");
     xmlparser xml;
-    if (xml.read(path)) {
+    xml.read(path);
       xmlobject cType = xml.getObject("BaseClassTypes");
       xmlList xtypes;
       cType.getObjects("Type", xtypes);
@@ -1918,7 +1893,6 @@ ClassMetaType oClass::interpretClassType() const {
         oe->classTypeNameToType[name] = mtype;
       }
     }
-  }
 
   if (oe->classTypeNameToType.count(type) == 1)
     return oe->classTypeNameToType[type];
@@ -2029,7 +2003,7 @@ void oEvent::getStartBlocks(vector<int> &blocks, vector<string> &starts) const
     map<int, string>::iterator v = bs.find(it->getBlock());
 
     if (v!=bs.end() && v->first!=0 && v->second!=it->getStart()) {
-      string msg = "Ett startblock spänner över flera starter: " + it->getStart() + " " + v->second;
+      string msg = "Ett startblock spänner över flera starter: X/Y#" + it->getStart() + "#" + v->second;
       throw std::exception(msg.c_str());
     }
     bs[it->getBlock()] = it->getStart();
@@ -2066,7 +2040,7 @@ Table *oEvent::getClassTB()//Table mode
   if (tables.count("class") == 0) {
 	  Table *table=new Table(this, 20, "Klasser", "classes");
 
-    table->addColumn("Id", 70, false);
+    table->addColumn("Id", 70, true, true);
     table->addColumn("Ändrad", 70, false);
 	  
     table->addColumn("Namn", 200, false);
@@ -2154,6 +2128,8 @@ void oClass::getStatistics(const set<int> &feeLock, int &entries, int &started) 
   started = 0;
   for (it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
     if (it->skip() || it->isVacant())
+      continue;
+    if (it->getStatus() == StatusNotCompetiting)
       continue;
 
     if (it->getClassId()==Id) {

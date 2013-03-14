@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 ************************************************************************/
 
 #include "stdafx.h"
+#include <set>
 #include "oDataContainer.h"
 #include "oEvent.h"
 
@@ -48,6 +49,8 @@ oDataInfo::oDataInfo() {
 	Type = 0;
 	SubType = 0;
   tableIndex = 0;
+  decimalSize = 0;
+  decimalScale = 1;
   memset(Description, 0, sizeof(Description));
 }
 
@@ -75,6 +78,15 @@ void oDataContainer::addVariableInt(const char *name, oIntSize isize, const char
 	}
 	else 
     throw std::exception("oDataContainer: Out of bounds.");
+}
+
+void oDataContainer::addVariableDecimal(const char *name, const char *descr, int fixedDeci) {
+  addVariableInt(name, oISDecimal, descr);
+  Index[name].decimalSize = fixedDeci;
+  int &s = Index[name].decimalScale;
+  s = 1;
+  for (int k = 0; k < fixedDeci; k++)
+    s*=10;
 }
 
 void oDataContainer::addVariableString(const char *name, int maxChar, const char *descr)
@@ -437,6 +449,8 @@ void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput
         int nr;
         memcpy(&nr, vd, sizeof(int));
         if (di.SubType == oISCurrency) {
+          if (strcmp(di.Name, "CardFee") == 0 && nr == -1)
+            nr = 0; //XXX CardFee hack. CardFee = 0 is coded as -1
           gdi.setText(Id.c_str(), ob->getEvent()->formatCurrency(nr));
         }
         else {
@@ -450,18 +464,6 @@ void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput
         memcpy(&nr, vd, sizeof(__int64));
         gdi.setText(Id.c_str(), itos(nr));
       }
-      /*if (di.SubType != oISDate)
-        gdi.setText(Id.c_str(), nr);
-      else {
-        if (nr>0) {
-          char date[32];
-          sprintf_s(date, "%d-%02d-%02d", nr/(100*100), (nr/100)%100,nr%100);
-          gdi.setText(Id.c_str(), date);
-        }
-        else {
-          gdi.setText(Id.c_str(), "-");
-        }
-      }*/
 		}
 		else if(di.Type==oDTString){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
@@ -496,6 +498,17 @@ bool oDataContainer::saveDataFields(const oBase *ob, void *data, gdioutput &gdi)
       }
       else if (di.SubType == oISTime) {
         no = convertAbsoluteTimeHMS(gdi.getText(Id.c_str()));
+      }
+      else if (di.SubType == oISDecimal) {
+        string str = gdi.getText(Id.c_str());
+        for (size_t k = 0; k < str.length(); k++) {
+          if (str[k] == ',') {
+            str[k] = '.';
+            break;
+          }
+        }
+        double val = atof(str.c_str());
+        no = int(di.decimalScale * val);
       }
       else {
         no = gdi.getTextNo(Id.c_str());
@@ -569,36 +582,45 @@ string oDataContainer::SQL_quote(const char *in)
 	return out;
 }
 
-string oDataContainer::generateSQLDefinition() const
-{
+string oDataContainer::generateSQLDefinition(const std::set<string> &exclude) const {
 	map<string, oDataInfo>::const_iterator it;
 	it=Index.begin();
 
 	string sql;
+  bool addSyntx = !exclude.empty();
 
-	while (it!=Index.end()) {		
-    const oDataInfo &di=it->second;
-		if(di.Type==oDTInt){
-      if(di.SubType==oIS32 || di.SubType==oISDate || di.SubType==oISCurrency || di.SubType==oISTime)
-				sql+=C_INT(it->first);
-			else if(di.SubType==oIS16)
-				sql+=C_SMALLINT(it->first);
-			else if(di.SubType==oIS8)
-				sql+=C_TINYINT(it->first);
-			else if(di.SubType==oIS64)
-				sql+=C_INT64(it->first);
-      else if(di.SubType==oIS16U)
-				sql+=C_SMALLINTU(it->first);
-			else if(di.SubType==oIS8U)
-				sql+=C_TINYINTU(it->first);
-		}
-		else if(di.Type==oDTString){
-      sql+=C_STRING(it->first, di.Size-1);
-		}
+	while (it!=Index.end()) {
+    if (exclude.count(it->first) == 0) {
+      if (addSyntx)
+         sql += "ADD COLUMN ";
+
+      const oDataInfo &di=it->second;
+		  if(di.Type==oDTInt){
+        if(di.SubType==oIS32 || di.SubType==oISDate || di.SubType==oISCurrency || 
+           di.SubType==oISTime || di.SubType==oISDecimal)
+				  sql+=C_INT(it->first);
+			  else if(di.SubType==oIS16)
+				  sql+=C_SMALLINT(it->first);
+			  else if(di.SubType==oIS8)
+				  sql+=C_TINYINT(it->first);
+			  else if(di.SubType==oIS64)
+				  sql+=C_INT64(it->first);
+        else if(di.SubType==oIS16U)
+				  sql+=C_SMALLINTU(it->first);
+			  else if(di.SubType==oIS8U)
+				  sql+=C_TINYINTU(it->first);
+		  }
+		  else if(di.Type==oDTString){
+        sql+=C_STRING(it->first, di.Size-1);
+		  }
+    }
 		++it;
 	}
 
-	return sql;
+  if (addSyntx && !sql.empty())
+    return sql.substr(0, sql.length() - 2); //Remove trailing comma-space
+  else
+	  return sql;
 }
 
 
@@ -751,7 +773,14 @@ void oDataContainer::buildTableCol(Table *table)
 		if(di.Type==oDTInt){
       bool right = di.SubType == oISCurrency;
       bool numeric = di.SubType != oISDate && di.SubType != oISTime;
-      di.tableIndex = table->addColumn(di.Description, max(int(strlen(di.Description))*6, 70), numeric, right);
+      int w;
+      if (di.SubType == oISDecimal)
+        w = max( (di.decimalSize+4)*10, 70);
+      else
+        w = 70;
+
+      w = max(int(strlen(di.Description))*6, w);
+      di.tableIndex = table->addColumn(di.Description, w, numeric, right);
 		}
 		else if(di.Type==oDTString){
       int w = max(max(di.Size+1, int(strlen(di.Description)))*6, 70);
@@ -790,6 +819,19 @@ bool oDataContainer::formatNumber(int nr, const oDataInfo &di, char bf[64]) cons
       bf[0] = '-';
       bf[1] = 0;
     }
+    return true;
+  }
+  else if (di.SubType == oISDecimal) {
+    if (nr) {
+      int whole = nr / di.decimalScale;
+      int part = nr - whole * di.decimalScale;
+      string deci = ",";
+      string ptrn = "%d" + deci + "%0" + itos(di.decimalSize) + "d";
+      sprintf_s(bf, 64, ptrn.c_str(), whole, abs(part));
+    }
+    else
+      bf[0] = 0;
+
     return true;
   }
   else {
@@ -874,6 +916,17 @@ bool oDataContainer::inputData(oBase *ob, void *data, int id,
         }
         else if (di.SubType == oISTime) {
           no = convertAbsoluteTimeHMS(input);
+        }
+        else if (di.SubType == oISDecimal) {
+          string str = input;
+          for (size_t k = 0; k < str.length(); k++) {
+            if (str[k] == ',') {
+              str[k] = '.';
+              break;
+            }
+          }
+          double val = atof(str.c_str());
+          no = int(di.decimalScale * val);
         }
         else if (di.SubType == oIS64) {
           __int64 no64 = _atoi64(input.c_str());

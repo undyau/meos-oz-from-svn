@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -346,8 +346,12 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       mlp.align(EPostType(lbi.data), gdi.isChecked("BlockAlign"));
       mlp.alignText(gdi.getText("AlignText"));
       
-      if (gdi.isChecked("UseLeg"))
-        mlp.setLeg(gdi.getTextNo("Leg") - 1);
+      if (gdi.isChecked("UseLeg")) {
+        int leg = gdi.getTextNo("Leg");
+        if (leg < 1 || leg > 1000)
+          throw meosException("X är inget giltigt sträcknummer#" + itos(leg));
+        mlp.setLeg(leg - 1);
+      }
       else
         mlp.setLeg(-1);
 
@@ -429,14 +433,15 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
         int ix = 0;
         vector< pair<string, string> > ext;
         ext.push_back(make_pair("xml-data", "*.xml"));
-        string fileName = gdi.browseForSave(ext, "xml", ix);
+        fileName = gdi.browseForSave(ext, "xml", ix);
         if (fileName.empty())
           return 0;
       }
-
+      
+      currentList->save(fileName);
+ 
       lastSaved = SavedFile;
       makeDirty(gdi, NoTouch, ClearDirty);
-      currentList->save(fileName);
       savedFileName = fileName;
       return 1;
     }

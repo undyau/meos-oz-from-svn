@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -41,9 +41,11 @@
 
 class oRunner;
 typedef oRunner* pRunner;
+typedef const oRunner* cRunner;
 
 class oTeam;
 typedef oTeam* pTeam;
+typedef const oTeam* cTeam;
 
 struct SICard;
 
@@ -69,6 +71,11 @@ protected:
 
   bool sqlChanged;
 public:
+  // Get the runners team or the team itself
+  virtual cTeam getTeam() const = 0;
+  virtual pTeam getTeam() = 0;
+
+  virtual string getEntryDate(bool useTeamEntryDate = true) const = 0;
 
   // Set default fee, from class 
   // a non-zero fee is changed only if resetFee is true
@@ -296,10 +303,20 @@ protected:
   // Rogainig results. Control and punch time
   vector< pair<pControl, int> > tRogaining;
   int tRogainingPoints;
+  int tPenaltyPoints;
   string tProblemDescription;
   // Sets up mutable data above
   void setupRunnerStatistics() const;
+  void printRogainingSplits(gdioutput &gdi) const;
+
+  // Update hash
+  void changeId(int newId);
+
 public:
+  // Get entry date of runner (or its team)
+  string getEntryDate(bool useTeamEntryDate = true) const;
+
+  // Get date of birth
 
   int getBirthAge() const;
 
@@ -312,7 +329,9 @@ public:
   void remove();
   bool canRemove() const;
 
-  pTeam getTeam() const {return tInTeam;}
+  cTeam getTeam() const {return tInTeam;}
+  pTeam getTeam() {return tInTeam;}
+
   /// Get total running time for multi/team runner at the given time
   int getTotalRunningTime(int time) const;
   
@@ -333,6 +352,7 @@ public:
   pRunner getMatchedRunner(const SICard &sic) const;
 
   const int getRogainingPoints() const {return tRogainingPoints;}
+  const int getPenaltyPoints() const {return tPenaltyPoints;}
   const string &getProblemDescription() const {return tProblemDescription;}
 
   // Leg statistics access methods
@@ -368,6 +388,9 @@ public:
 
   /** Take the start time from runner r*/
   void cloneStartTime(const pRunner r);
+
+  /** Clone data from other runner */
+  void cloneData(const pRunner r);
 
   // Leg to run for this runner. Maps into oClass.MultiCourse.
   // Need to check index in bounds.
@@ -468,7 +491,7 @@ public:
 	void setCourseId(int id);
 
   int getCardNo() const {return tParentRunner ? tParentRunner->CardNo : CardNo;}
-	void setCardNo(int card, bool matchCard);
+	void setCardNo(int card, bool matchCard, bool updateFromDatabase = false);
   /** Sets the card to a given card. An existing card is marked as unpaired.
       CardNo is updated. Returns id of old card (or 0).
   */

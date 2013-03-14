@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -77,11 +77,15 @@ int csvparser::iscsv(const char *file)
   if(sp.size()==1 && strcmp(sp[0], "RAIDDATA")==0)
     return 3;
 
+	if (sp.size()==1 && _stricmp(bf, "FName,SName,Club,Class")==0)
+		return 99; //Ór
+
 	if(sp.size()<5)//No csv
 		return 0;
 
 	if(_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0) //OS-fil (SWE/ENG)??
 		return 2;
+
 	else return 1; //OE?!
 }
 
@@ -223,6 +227,95 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 	return true;
 }
 
+bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
+{
+		enum {ORsurname=0, ORfirstname=1, ORclub=2, ORcard=3,  
+			ORrent=4, ORstart=5, ORclass=6, ORcourse=7, ORid=8};
+
+	fin.open(file);
+
+	if(!fin.good())
+		return false;
+
+	char bf[1024];
+	fin.getline(bf, 1024);
+	
+	nimport=0;
+	while (!fin.eof()) {	
+		fin.getline(bf, 1024);
+	
+		vector<char *> sp;
+
+		split(bf, sp, ',');
+
+		if (sp.size()>8) {
+			nimport++;
+
+      pClub pclub = event.getClubCreate(0, sp[ORclub]);
+
+			if (pclub) {
+        pclub->synchronize(true);
+			}       
+
+      pRunner pr = 0;            
+      if (pr == 0) {        
+        oRunner r(&event);         
+        pr = event.addRunner(r);
+      }
+      
+      if (pr==0)
+        continue;
+
+      string name = string(sp[ORfirstname])+" "+string(sp[ORsurname]);
+      pr->setName(name);
+      pr->setClubId(pclub ? pclub->getId():0);
+			pr->setCardNo( atoi(sp[ORcard]), false );
+			
+			pr->setStartTime( event.convertAbsoluteTime(sp[ORstart]) );
+			pr->setStatus(StatusUnknown);
+
+      if (strlen(sp[ORclass]) > 0) {
+  			pClass pc=event.getClass(sp[ORclass]);
+
+        if (pc) { 
+          pc->synchronize();        
+          pr->setClassId(pc->getId());
+				}
+				else {
+					pc=event.getClassCreate(-1,sp[ORclass]); 
+				}
+			}
+
+			pr->setStartNo(nimport);
+
+			oDataInterface DI=pr->getDI();
+      
+      if(pr->getCourse() == 0){
+				  pCourse course(0);
+
+          if (!course) {
+            oCourse oc(&event, -1);
+            oc.setLength(0);
+            oc.setName(sp[ORcourse]);
+            course = event.addCourse(oc);
+            if (course)
+              course->synchronize();
+          }
+          if (course) {
+            if (pr->getClassId() != 0)
+              event.getClass(pr->getClassId())->setCourse(course);
+            else
+              pr->setCourseId(course->getId());
+          }
+        }
+      if (pr)
+        pr->synchronize();
+		}
+	}
+	fin.close();
+
+	return true;
+}
 
 bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 {
@@ -410,7 +503,7 @@ bool csvparser::closeOutput()
 }
 
 
-int csvparser::split(char *line, vector<char *> &split_vector)
+int csvparser::split(char *line, vector<char *> &split_vector, char sep)
 {
 	
 	int len=strlen(line);
@@ -425,7 +518,7 @@ int csvparser::split(char *line, vector<char *> &split_vector)
 
 		while(line[m])
 		{
-			if(!cite && line[m]==';')
+			if(!cite && line[m]==sep)
 				line[m]=0;
 			else
 			{
@@ -575,7 +668,7 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
 bool csvparser::ImportRAID(oEvent &event, const char *file)
 {
 	enum {RAIDid=0, RAIDteam=1, RAIDcity=2, RAIDedate=3, RAIDclass=4,
-        RAIDclassid=5, RAIDrunner1=6, RAIDrunner2=7};
+        RAIDclassid=5, RAIDrunner1=6, RAIDrunner2=7, RAIDcanoe=8};
 		
 	fin.open(file);
 
@@ -592,7 +685,7 @@ bool csvparser::ImportRAID(oEvent &event, const char *file)
 		vector<char *> sp;
 		split(bf, sp);
 
-		if(sp.size()>7) {
+		if(sp.size()>8) {
 			nimport++;
 
 			//Create club with this club number...
@@ -608,6 +701,7 @@ bool csvparser::ImportRAID(oEvent &event, const char *file)
 			pTeam team=event.addTeam(sp[RAIDteam], ClubId,  ClassId);
 			
 			team->setStartNo(atoi(sp[RAIDid]));
+			team->getDI().setInt("SortIndex", atoi(sp[RAIDcanoe]));
 				
 			oDataInterface teamDI=team->getDI();
 			teamDI.setDate("EntryDate", sp[RAIDedate]);

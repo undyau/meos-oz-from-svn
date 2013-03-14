@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2012 Melin Software HB
+    Copyright (C) 2009-2013 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -569,7 +569,7 @@ string getOrder(int k) {
   else if (k==12)
     str = "tolfte";
   else
-    return itos(k) + lang.tl(":e");
+    return lang.tl("X:e#" + itos(k));
 
   return lang.tl(str);
 }
@@ -601,7 +601,7 @@ string getNumber(int k) {
   else if (k==12)
     str = "tolva";
   else
-    return itos(k) + lang.tl(":e");
+    return lang.tl("X:e#" + itos(k));
 
   return lang.tl(str);
 }
@@ -790,7 +790,7 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
       continue;
     if (!r.Class ||r.Class->Id != classId)
       continue;
-    if (r.Status == StatusDNS)
+    if (r.Status == StatusDNS || r.Status == StatusNotCompetiting)
       continue;
     if (r.CardNo == 0)
       continue;
