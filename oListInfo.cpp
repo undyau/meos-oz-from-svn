@@ -1195,6 +1195,13 @@ void oEvent::getListTypes(map<EStdListType, oListInfo> &listMap, int filterResul
   li.supportExtra = true;
   listMap[EStdResultList]=li;
 
+  li.Name=lang.tl("Resultat, course");  // results by course
+  li.listType=li.EBaseTypeRunner;
+  li.supportClasses = true;
+  li.supportLegs = true;
+  li.supportExtra = true;
+  listMap[EStdCourseResultList]=li;
+
   li.Name=lang.tl("Resultat, generell");
   li.listType=li.EBaseTypeRunner;
   li.supportClasses = true;
@@ -1210,6 +1217,12 @@ void oEvent::getListTypes(map<EStdListType, oListInfo> &listMap, int filterResul
   li.supportExtra = true;
   listMap[ERogainingInd]=li;
 
+	li.Name=lang.tl("Rogaining, course");  // results by course
+  li.listType=li.EBaseTypeRunner;
+  li.supportClasses = true;
+  li.supportLegs = true;
+  li.supportExtra = true;
+  listMap[ECourseRogainingInd]=li;
 
   li.Name=lang.tl("Avgjorda klasser (prisutdelningslista)");
   li.listType=li.EBaseTypeRunner;
@@ -1787,6 +1800,60 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
       li.calcResults = true;
       li.listType=li.EBaseTypeRunner;
       li.sortOrder=ClassResult;
+      li.setFilter(EFilterHasResult);
+      break;
+
+    case EStdCourseResultList:
+      getResultTitle(li, title);
+      par.getCustomTitle(title);
+
+      li.addHead(oPrintPost(lCmpName, MakeDash(title), boldLarge, 0,0));
+      li.addHead(oPrintPost(lCmpDate, "", normalText, 0, 25));
+      generateNBestHead(par, li, 25+lh);
+
+      pos.add("place", 25);
+      pos.add("name", li.getMaxCharWidth(this, lPatrolNameNames, "", normalText));
+      pos.add("club", li.getMaxCharWidth(this, lPatrolClubNameNames, "", normalText));
+      pos.add("status", 50);
+      pos.add("after", 50);
+      pos.add("missed", 50);
+
+      li.addSubHead(oPrintPost(lCourseName, "", boldText, 0, 10));
+
+      li.addListPost(oPrintPost(lRunnerPlace, "", normalText, pos.get("place"), 0));
+      li.addListPost(oPrintPost(lPatrolNameNames, "", normalText, pos.get("name"), 0));
+      li.addListPost(oPrintPost(lPatrolClubNameNames, "", normalText, pos.get("club"), 0));
+
+      if (li.lp.useControlIdResultTo==0 && li.lp.useControlIdResultFrom==0) {
+        li.addListPost(oPrintPost(lRunnerTimeStatus, "", normalText, pos.get("status"), 0));
+        li.addListPost(oPrintPost(lRunnerTimeAfter, "", normalText, pos.get("after"), 0));
+        if(li.lp.showInterTimes) {
+          li.addSubListPost(oPrintPost(lPunchNamedTime, "", italicSmall, pos.get("name"), 0, 1));
+          li.subListPost.back().fixedWidth = 160;
+          li.listSubType = li.EBaseTypePunches;
+        }
+        else if (li.lp.showSplitTimes) {
+          li.addSubListPost(oPrintPost(lPunchTime, "", italicSmall, pos.get("name"), 0, 1));
+          li.subListPost.back().fixedWidth = 95;
+          li.listSubType = li.EBaseTypePunches;
+        }
+      }
+      else {
+        li.needPunches = true;
+        li.addListPost(oPrintPost(lRunnerTempTimeStatus, "", normalText, pos.get("status"), 0));
+        li.addListPost(oPrintPost(lRunnerTempTimeAfter, "", normalText, pos.get("after"), 0));
+      }
+      li.addSubHead(oPrintPost(lString, lang.tl("Tid"), boldText, pos.get("status"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Efter"), boldText, pos.get("after"), 10));
+
+      if (li.lp.splitAnalysis)  {
+        li.addListPost(oPrintPost(lRunnerMissedTime, "", normalText, pos.get("missed"), 0));
+        li.addSubHead(oPrintPost(lString, lang.tl("Bomtid"), boldText, pos.get("missed"), 10));
+      }
+
+      li.calcResults = true;
+      li.listType=li.EBaseTypeRunner;
+      li.sortOrder=CourseResult;
       li.setFilter(EFilterHasResult);
       break;
 
@@ -2565,6 +2632,40 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
 
       li.listType=li.EBaseTypeRunner;
       li.sortOrder = ClassPoints;
+      li.lp.legNumber = -1;
+      li.calcResults = true;
+      li.rogainingResults = true;
+    break;
+
+
+   case ECourseRogainingInd:
+      pos.add("place", 25);
+      pos.add("name", li.getMaxCharWidth(this, lRunnerCompleteName, "", normalText, 0, true));
+      pos.add("points", 50);
+      pos.add("status", 50);
+      li.addHead(oPrintPost(lCmpName, MakeDash(par.getCustomTitle(lang.tl("Rogainingresultat - %s"))), boldLarge, 0,0));
+      li.addHead(oPrintPost(lCmpDate, "", normalText, 0, 25));
+      generateNBestHead(par, li, 25+lh);
+      
+      li.addListPost(oPrintPost(lRunnerPlace, "", normalText, pos.get("place"), vspace));
+      li.addListPost(oPrintPost(lRunnerCompleteName, "", normalText, pos.get("name"), vspace));
+      li.addListPost(oPrintPost(lRunnerRogainingPoint, "", normalText, pos.get("points"), vspace));
+      li.addListPost(oPrintPost(lRunnerTimeStatus, "", normalText, pos.get("status"), vspace));
+      
+      li.setFilter(EFilterHasResult); 
+
+      if(li.lp.splitAnalysis || li.lp.showInterTimes) {
+        li.addSubListPost(oPrintPost(lRogainingPunch, "", normalText, 10, 0, 1));
+        li.subListPost.back().fixedWidth=130;
+        li.listSubType=li.EBaseTypePunches;
+      }
+
+      li.addSubHead(oPrintPost(lCourseName, "", boldText, pos.get("place"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Poäng"), boldText, pos.get("points"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Tid"), boldText, pos.get("status"), 10));
+
+      li.listType=li.EBaseTypeRunner;
+      li.sortOrder = CoursePoints;
       li.lp.legNumber = -1;
       li.calcResults = true;
       li.rogainingResults = true;

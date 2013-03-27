@@ -1204,6 +1204,7 @@ void MetaList::initSymbols() {
     orderToSymbol[ClassTotalResult] = "ClassTotalResult";
     orderToSymbol[CourseResult] = "CourseResult";
     orderToSymbol[ClassTeamLeg] = "ClassTeamLeg";
+		orderToSymbol[CoursePoints] = "CoursePoints";
    
     for (map<SortOrder, string>::iterator it = orderToSymbol.begin();
       it != orderToSymbol.end(); ++it) {

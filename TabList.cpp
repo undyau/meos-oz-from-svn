@@ -404,6 +404,26 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       generateList(gdi);
       gdi.refresh();
     }
+    else if (bi.id=="ResultIndividualCourse") {
+      oe->sanityCheck(gdi, true);
+      oListParam par;
+      ClassConfigInfo cnf;
+      oe->getClassConfigurationInfo(cnf);
+      cnf.getIndividual(par.selection);
+      par.listCode = EStdCourseResultList;
+      par.showInterTimes = true;
+      par.legNumber = -1;
+      par.pageBreak = gdi.isChecked("PageBreak");
+      par.splitAnalysis = gdi.isChecked("SplitAnalysis");
+      
+      ListBoxInfo lbi;
+      gdi.getSelectedItem("ClassLimit", &lbi);
+      par.filterMaxPer = lbi.data;
+
+      oe->generateListInfo(par, gdi.getLineHeight(), currentList);
+      generateList(gdi);
+      gdi.refresh();
+    }
      else if (bi.id=="ResultIndSplit") {
       oe->sanityCheck(gdi, true);
       oListParam par;
@@ -1132,6 +1152,8 @@ bool TabList::loadPage(gdioutput &gdi)
 
     if (cnf.hasIndividual()) {
 	    gdi.addButton("ResultIndividual", "Individuell", ListsCB);
+      checkWidth(gdi);
+	    gdi.addButton("ResultIndividualCourse", "Efter Bana", ListsCB);
       checkWidth(gdi);
       gdi.addButton("ResultClub", "Klubbresultat", ListsCB);
       checkWidth(gdi);

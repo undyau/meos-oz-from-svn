@@ -13,6 +13,7 @@ public:
   bool RoundLateTimesToMinute() {return m_RoundLateTimesToMinute;};
 	void RoundLateTimesToMinute(bool a_RoundLateTimesToMinute) {m_RoundLateTimesToMinute = a_RoundLateTimesToMinute;};
 	bool SSSQuickStart(gdioutput &gdi);
+	void exportCourseOrderedIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, const set<int> &classes, int leg);
 
 private:
   bool m_CtrlNamesOnSplits;
