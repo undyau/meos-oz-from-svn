@@ -51,8 +51,6 @@ if (!csv.ImportOr_CSV(m_Event, file.c_str())) {
 else
 	m_ImportCount = csv.nimport;
 
-m_Event.RoundLateTimesToMinute(true);
-m_Event.CtrlNamesOnSplits(true);
   //gdi.addString("", 0, "Klart. X deltagare importerade.#" + itos(csv.nimport));
 
 //m_Event.liveResult(true);

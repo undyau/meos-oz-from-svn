@@ -447,7 +447,7 @@ public:
   void setMaximalTime(const string &time);
 
   void saveProperties(const char *file);
-  void loadProperties(const char *file);
+  virtual void loadProperties(const char *file);
 
   // Get window handle
   HWND hWnd() const;  
@@ -1006,6 +1006,7 @@ protected:
   bool addXMLCourse(const xmlobject &xcourse, bool addClasses);
   /** type: 0 control, 1 start, 2 finish*/
 	bool addXMLControl(const xmlobject &xcontrol, int type);
+	string shortenName(string name);  // implemented in oExtendedEvent.cpp
 	
 public:
   
