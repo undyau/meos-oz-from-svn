@@ -1007,9 +1007,10 @@ protected:
   /** type: 0 control, 1 start, 2 finish*/
 	bool addXMLControl(const xmlobject &xcontrol, int type);
 	string shortenName(string name);  // implemented in oExtendedEvent.cpp
+
 	
 public:
-  
+  void setShortNames(bool shorten); // implemented in oExtendedEvent.cpp
   void getPredefinedClassTypes(map<string, ClassMetaType> &types) const;
 
   string cloneCompetition(bool cloneRunners, bool cloneTimes, 

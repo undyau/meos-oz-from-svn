@@ -1270,6 +1270,9 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       gdi.addCheckbox("EventorDb", "Uppdatera löpardatabasen", CompetitionCB, true);
       gdi.dropLine(3);
       gdi.popX();
+      gdi.addCheckbox("ShortNames", "Shorten Names", CompetitionCB, true);
+      gdi.dropLine(3);
+      gdi.popX();
       gdi.addButton("Cancel", "Avbryt", CompetitionCB);
       gdi.addButton("EventorNext", "Nästa >>", CompetitionCB);
     }
@@ -1283,6 +1286,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "EventorNext") {
       bool cmp = gdi.isChecked("EventorCmp");
       bool db = gdi.isChecked("EventorDb");
+      oe->setShortNames(gdi.isChecked("ShortNames"));
       ListBoxInfo lbi;
       gdi.getSelectedItem("EventorSel", &lbi);
       const CompetitionInfo *ci = 0;      

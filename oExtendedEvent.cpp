@@ -7,6 +7,7 @@
 
 oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
+    eventProperties["DoShortenNames"] = "0";   // default to behaving like vanilla MEOS
 }
 
 oExtendedEvent::~oExtendedEvent(void)
@@ -70,8 +71,16 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 }
 
 
+void oEvent::setShortNames(bool shorten)
+{
+  eventProperties["DoShortenNames"] = shorten ? "1" : "0";
+}
+
 string oEvent::shortenName(string name)
 {
+  if (eventProperties["DoShortenNames"] != "1")
+    return name;
+
 	std::map<string,string> clubs;
 	clubs["ShortNameFor Abominable O-Men ACT"] = "AO.A";
 	clubs["ShortNameFor Bushflyers ACT"] = "BS.A";
