@@ -1010,7 +1010,7 @@ protected:
 
 	
 public:
-  void setShortNames(bool shorten); // implemented in oExtendedEvent.cpp
+  void setShortClubNames(bool shorten); // implemented in oExtendedEvent.cpp
   void getPredefinedClassTypes(map<string, ClassMetaType> &types) const;
 
   string cloneCompetition(bool cloneRunners, bool cloneTimes, 

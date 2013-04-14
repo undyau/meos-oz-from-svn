@@ -3168,7 +3168,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
     }
     if (misses.size()==0) {
       gdi.dropLine();
-      gdi.addString("", fontSmall, "Bomfritt lopp / underlag saknas");
+     // gdi.addString("", fontSmall, "Bomfritt lopp / underlag saknas");
     }
     else {
       gdi.dropLine();
