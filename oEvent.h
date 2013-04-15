@@ -1006,10 +1006,11 @@ protected:
   bool addXMLCourse(const xmlobject &xcourse, bool addClasses);
   /** type: 0 control, 1 start, 2 finish*/
 	bool addXMLControl(const xmlobject &xcontrol, int type);
-	string shortenName(string name);  // implemented in oExtendedEvent.cpp
+	
 
 	
 public:
+	string shortenName(string name);  // implemented in oExtendedEvent.cpp
   void setShortClubNames(bool shorten); // implemented in oExtendedEvent.cpp
   void getPredefinedClassTypes(map<string, ClassMetaType> &types) const;
 

@@ -1410,7 +1410,10 @@ pClub IOF30Interface::readOrganization(gdioutput &gdi, const xmlobject &xclub, b
 
 	if(name.length()==0 || !IsCharAlphaNumeric(name[0]))
 		return 0;
- 
+
+	if (name.length() > 6)
+		name = oe.shortenName(name);
+
 	pClub pc=0;
 
   if ( !saveToDB ) {

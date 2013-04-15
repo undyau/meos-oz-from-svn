@@ -694,6 +694,9 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
 
       gdi.popX();        
       gdi.addCheckbox("Clear", "Nollställ databaser", 0, true);
+			gdi.dropLine(3);
+      gdi.popX();
+      gdi.addCheckbox("ShortClubNames", "Shorten Club Names", CompetitionCB, true);
       gdi.dropLine(3);
 
       gdi.popX();
@@ -713,6 +716,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       bool clear = gdi.isChecked("Clear");
       oe->importXML_IOF_Data(gdi.getText("ClubFile").c_str(),
                              gdi.getText("CmpFile").c_str(), clear);
+	  oe->setShortClubNames(gdi.isChecked("ShortClubNames"));
       
       gdi.dropLine();
       gdi.addButton("Cancel", "Återgå", CompetitionCB);

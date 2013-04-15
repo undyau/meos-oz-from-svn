@@ -3030,7 +3030,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
   gdi.addStringUT(fontSmall, lang.tl("Start: ") + getStartTimeS() + lang.tl(", Mål: ") + getFinishTimeS());
   gdi.addStringUT(fontSmall, lang.tl("Status: ") + getStatusS() + lang.tl(", Tid: ") + getRunningTimeS());
   if (getPlaceS() != _EmptyString)
-    gdi.addStringUT(fontSmall, lang.tl("Aktuell klassposition") + " (" + getClass() + ":" + getPlaceS());
+    gdi.addStringUT(fontSmall, lang.tl("Aktuell klassposition") + " in " + getClass() + ": " + getPlaceS());
   int cy = gdi.getCY()+4;
   int cx = gdi.getCX();
 //  int pnr = 1;
