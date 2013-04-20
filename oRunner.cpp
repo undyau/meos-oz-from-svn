@@ -3029,7 +3029,8 @@ void oRunner::printSplits(gdioutput &gdi) const {
   gdi.dropLine(0.5);
   gdi.addStringUT(fontSmall, lang.tl("Start: ") + getStartTimeS() + lang.tl(", Mål: ") + getFinishTimeS());
   gdi.addStringUT(fontSmall, lang.tl("Status: ") + getStatusS() + lang.tl(", Tid: ") + getRunningTimeS());
-  if (getPlaceS() != _EmptyString)
+  oe->calculateResults(oEvent::RTClassResult);
+	if (getPlaceS() != _EmptyString)
     gdi.addStringUT(fontSmall, lang.tl("Aktuell klassposition") + " in " + getClass() + ": " + getPlaceS());
   int cy = gdi.getCY()+4;
   int cx = gdi.getCX();
@@ -3849,8 +3850,8 @@ string oRunner::getMissedTimeS(int ctrlNo) const
 
 int oRunner::getLegPlace(int ctrlNo) const {
   setupRunnerStatistics();
-  if (unsigned(ctrlNo) < tLegPlaces.size())
-    return tLegPlaces[ctrlNo];
+  if (unsigned(ctrlNo) < tPlaceLeg.size())  // tLegPlaces wasn't set, so use tPlaceLeg
+    return tPlaceLeg[ctrlNo];
   else
     return 0;
 }
