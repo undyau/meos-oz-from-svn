@@ -3132,7 +3132,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
           int sp = getSplitTime(it->tIndex);
           if (sp>0) {
             punchTime = getPunchTimeS(it->tIndex);
-            gdi.addStringUT(cy, cx+c2, fontSmall, formatTime(sp));
+						gdi.addStringUT(cy, cx+c2, getLegPlace(it->tIndex) == 1 ? boldSmall : fontSmall, formatTime(sp));
           }
         }
         else {
@@ -3151,9 +3151,9 @@ void oRunner::printSplits(gdioutput &gdi) const {
 
         if (!punchTime.empty()) {
           if (!moreThanHour)
-            gdi.addStringUT(cy, cx+c4, fontSmall, punchTime);
+            gdi.addStringUT(cy, cx+c4, getLegPlaceAcc(it->tIndex) == 1 ? boldSmall : fontSmall, punchTime);
           else
-            gdi.addStringUT(cy, cx+c4+width, fontSmall|textRight, punchTime);
+            gdi.addStringUT(cy, cx+c4+width, getLegPlaceAcc(it->tIndex) == 1 ? boldSmall|textRight : fontSmall|textRight, punchTime);
         }
         cy+=int(gdi.getLineHeight()*0.9);
       }
