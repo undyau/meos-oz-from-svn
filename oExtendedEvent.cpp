@@ -4,6 +4,7 @@
 #include "gdioutput.h"
 #include "meos_util.h"
 #include "localizer.h"
+#include "gdifonts.h"
 
 oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
@@ -220,4 +221,104 @@ string oEvent::shortenName(string name)
 		}
 	else
 		return name.substr(0,5);
+}
+
+
+
+/* Would like a semi-open interval [min, max) */
+int random_in_range (unsigned int min, unsigned int max)
+{
+  int base_random = rand(); /* in [0, RAND_MAX] */
+  if (RAND_MAX == base_random) return random_in_range(min, max);
+  /* now guaranteed to be in [0, RAND_MAX) */
+  int range       = max - min,
+      remainder   = RAND_MAX % range,
+      bucket      = RAND_MAX / range;
+  /* There are range buckets, plus one smaller interval
+     within remainder of RAND_MAX */
+  if (base_random < RAND_MAX - remainder) {
+    return min + base_random/bucket;
+  } else {
+    return random_in_range (min, max);
+  }
+}
+
+void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStart, 
+                               const string &minIntervall, const string &vacances)
+{
+  gdi.refresh();
+  gdi.fillDown();
+  gdi.addString("", 1, "MEOS-OZ custom randomised gap filling draw").setColor(colorGreen);
+  gdi.addString("", 0, "Inspekterar klasser...");
+  gdi.refreshFast();
+
+  int baseInterval = convertAbsoluteTimeMS(minIntervall);
+  int iFirstStart = getRelativeTime(firstStart);
+  double vacancy = atof(vacances.c_str())/100;
+
+  // Find latest allocated start-time
+	int latest(0), toBeSet(0);
+  std::map<pCourse, int> counts;
+  for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
+    latest = max(latest, j->getStartTime());
+    if (j->getStartTime() == 0)
+      toBeSet++;
+
+    if (j->getCourse() != NULL)
+      {
+      if (counts.find(j->getCourse()) != counts.end())
+         counts[j->getCourse()] = counts[j->getCourse()] + 1;
+      else
+         counts[j->getCourse()] = 1;
+      }
+	}
+
+  char bf[256];
+  sprintf_s(bf, lang.tl("Löpare utan starttid: %d.").c_str(), toBeSet);
+  gdi.addStringUT(1, bf);
+  gdi.refreshFast();
+
+  // Find course with most entries
+  int largest(0);
+  for (std::map<pCourse, int>::iterator i = counts.begin(); i != counts.end(); i++)
+     if ((i->second) > largest)
+       largest = i->second;
+
+
+  // Determine required last start - if its earlier than existing last start, use that.
+  int range = int ((largest * baseInterval * (100 + vacancy + 1)) /100);
+  if (iFirstStart + range < latest)
+    range = latest - iFirstStart;
+
+  // Allocate start for each course
+	for (oCourseList::iterator j = Courses.begin(); j != Courses.end(); j++) 
+    {
+    std::map<int, oRunner*> starts;
+    std::vector<oRunner*> notset;
+    for (oRunnerList::iterator k = Runners.begin(); k != Runners.end(); k++) 
+      {
+      if (k->getCourse() == &(*j))
+        {
+        if (k->getStartTime() > 0)
+          starts[k->getStartTime()] = &(*k);
+        else
+          notset.push_back(&(*k));
+        }
+      }
+
+    for (unsigned int i = 0; i < notset.size(); i++)
+      {
+      int target = iFirstStart + baseInterval * random_in_range(0, range/baseInterval);
+      while (starts.find(target) != starts.end())
+        {
+        target = iFirstStart + baseInterval * random_in_range(0, range/baseInterval);
+        }
+      starts[target] = notset[i];
+      }
+
+    for (std::map<int, oRunner*>::iterator l = starts.begin(); l != starts.end(); l++)
+      l->second->setStartTime(l->first);
+    }
+
+  return;
 }

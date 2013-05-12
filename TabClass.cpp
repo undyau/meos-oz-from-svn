@@ -41,6 +41,7 @@
 #include "meosException.h"
 #include "gdifonts.h"
 #include "oEventDraw.h"
+#include "oExtendedEvent.h"
 
 extern pEvent gEvent;
 
@@ -559,7 +560,8 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       gdi.addSelection("Method", 200, 200, 0, "Metod:");
       gdi.addItem("Method", lang.tl("Lottning"), 1);
       gdi.addItem("Method", lang.tl("SOFT-lottning"), 2);
-      gdi.selectItemByData("Method", 1);
+      gdi.addItem("Method", lang.tl("MEOS-OZ Random Fill"), 99);
+      gdi.selectItemByData("Method", 99);
       
       gdi.fillDown();
       gdi.addCheckbox("LateBefore", "Efteranmälda före ordinarie");
@@ -663,7 +665,10 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       gdi.getSelectedItem("Method", &lbi);
       bool useSoft = lbi.data==2;
       gdi.clearPage(true);
-      oe->automaticDrawAll(gdi, firstStart, minInterval, vacances, 
+      if (lbi.data == 99) // Custom MEOS-OZ draw
+        static_cast<oExtendedEvent*>(oe)->simpleDrawRemaining(gdi, firstStart, minInterval, vacances);
+      else
+        oe->automaticDrawAll(gdi, firstStart, minInterval, vacances, 
                             lateBefore, useSoft, pairwise);
 
       gdi.scrollToBottom();
