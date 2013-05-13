@@ -1,3 +1,9 @@
+May 2013 (fork of 3.0.311)
+- New simple drawing mechanism, accessed via Classes|Draw Several Classes
+  MEOS-Random Fill - then Draw Automatically.
+  This will do a random draw over the range of start times, only using
+  times where nobody else is running on same course.
+
 April 2013 (fork of 3.0.311)
 
 Australian Customisations:
