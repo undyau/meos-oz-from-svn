@@ -1667,6 +1667,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       ext.push_back(make_pair("IOF Resultat, version 2.0.3 (xml)", "*.xml"));
       
       ext.push_back(make_pair("OE Semikolonseparerad (csv)", "*.csv"));
+			ext.push_back(make_pair("Course ordered IOF Results, version 2.0.3 (xml)", "*.xml"));
 			ext.push_back(make_pair("Course ordered IOF Results, version 3.0 (xml)", "*.xml"));
       ext.push_back(make_pair("Webben (html)", "*.html"));
 			string save = gdi.browseForSave(ext, "xml", FilterIndex);
@@ -1707,12 +1708,12 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         else if (FilterIndex == 3) {
  				  oe->exportOECSV(save.c_str());
         }
-				else if (FilterIndex == 4) {
+				else if (FilterIndex == 4 || FilterIndex == 5) {
 					ClassConfigInfo cnf;
           oe->getClassConfigurationInfo(cnf);
           if (!cnf.hasTeamClass()) {
-						static_cast<oExtendedEvent*>(oe)->exportCourseOrderedIOFSplits(oEvent::IOF30, save.c_str(), true, set<int>(), -1);
-				
+						oEvent::IOFVersion ver = FilterIndex == 5 ? oEvent::IOF30 : oEvent::IOF20;
+						static_cast<oExtendedEvent*>(oe)->exportCourseOrderedIOFSplits(ver, save.c_str(), true, set<int>(), -1);				
 					}
 				}
         else {

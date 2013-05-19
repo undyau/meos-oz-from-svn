@@ -33,7 +33,6 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	std::set<std::string> usedNames;
 
 	for (oClassList::iterator j = Classes.begin(); j != Classes.end(); j++) {
-		std::string name = j->getName();
 		usedNames.insert(j->getName());
 	}
 
@@ -54,7 +53,8 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	// Reassign all runners to new classes, saving old ones
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
 		runnerOldClassXref[j->getId()] = j->getClassId();	
-		j->setClassId(courseNewClassXref[j->getCourseId()]);
+		int id = j->getCourse()->getId();
+		j->setClassId(courseNewClassXref[id]);
 	}
 
 	// Do the export
