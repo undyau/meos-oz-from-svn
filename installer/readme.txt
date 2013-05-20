@@ -1,3 +1,7 @@
+20 May 2013 (fork of 3.0.311)
+- fix export to XML by course
+- English header line for OE csv export
+
 May 2013 (fork of 3.0.311)
 - New simple drawing mechanism, accessed via Classes|Draw Several Classes
   MEOS-Random Fill - then Draw Automatically.
