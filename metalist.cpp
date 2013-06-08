@@ -1131,6 +1131,7 @@ void MetaList::initSymbols() {
     typeToSymbol[lRunnerRank] = "RunnerRank";
     typeToSymbol[lRunnerCourse] = "RunnerCourse";
     typeToSymbol[lRunnerRogainingPoint] = "RunnerRogainingPoint";
+    typeToSymbol[lRunnerPenaltyPoint] = "RunnerPenaltyPoint";
     typeToSymbol[lRunnerUMMasterPoint] = "RunnerUMMasterPoint";
     typeToSymbol[lRunnerTimePlaceFixed] = "RunnerTimePlaceFixed";
     typeToSymbol[lRunnerLegNumberAlpha] = "RunnerLegNumberAlpha";

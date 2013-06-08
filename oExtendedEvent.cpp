@@ -322,3 +322,61 @@ void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStar
 
   return;
 }
+
+
+
+void oEvent::calculateCourseRogainingResults()
+{
+	sortRunners(CoursePoints);
+	oRunnerList::iterator it;
+
+	int cCourseId=-1;
+  int cPlace = 0;
+	int vPlace = 0;
+	int cTime = numeric_limits<int>::min();;
+  int cDuplicateLeg=0;
+  bool useResults = false;
+  bool isRogaining = false;
+  bool invalidClass = false;
+
+	for (it=Runners.begin(); it != Runners.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
+    if (it->getCourseId()!=cCourseId || it->tDuplicateLeg!=cDuplicateLeg) {
+			cCourseId = it->getCourseId();
+      useResults = it->Class ? !it->Class->getNoTiming() : false;
+			cPlace = 0;
+			vPlace = 0;
+			cTime = numeric_limits<int>::min();
+      cDuplicateLeg = it->tDuplicateLeg;
+      isRogaining = it->Class ? it->Class->isRogaining() : false;
+      invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
+		}
+	
+    if (!isRogaining)
+      continue;
+
+    if (invalidClass) {
+      it->tTotalPlace = 0;
+      it->tPlace = 0;
+    }
+    else if(it->Status==StatusOK) {
+			cPlace++;
+
+      int cmpRes = 3600 * 24 * 7 * it->tRogainingPoints - it->getRunningTime();
+
+      if(cmpRes != cTime)
+				vPlace = cPlace;
+
+			cTime = cmpRes;
+
+      if (useResults)
+			  it->tPlace = vPlace;
+      else
+        it->tPlace = 0;
+		}
+		else
+			it->tPlace = 99000 + it->Status;
+	}
+}

@@ -679,6 +679,25 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       generateList(gdi);
       gdi.refresh();
 		}
+    else if(bi.id=="SSSResultList")	{
+      oe->sanityCheck(gdi, true);
+      oListParam par;
+      par.pageBreak = gdi.isChecked("PageBreak");
+      par.splitAnalysis = false;
+      par.listCode = ECourseRogainingInd;
+      ClassConfigInfo cnf;
+      oe->getClassConfigurationInfo(cnf);
+      cnf.getRogaining(par.selection);
+      
+      ListBoxInfo lbi;
+      gdi.getSelectedItem("ClassLimit", &lbi);
+      par.filterMaxPer = lbi.data;
+
+      oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
+      currentList.setCallback(openRunnerTeamCB);
+      generateList(gdi);
+      gdi.refresh();
+		}
     else if(bi.id=="CourseReportTeam")	{
       oe->sanityCheck(gdi, false);
      
@@ -1199,6 +1218,9 @@ bool TabList::loadPage(gdioutput &gdi)
     if (cnf.hasRogaining()) {
       checkWidth(gdi);
       gdi.addButton("RogainingResultList", "Rogaining", ListsCB);
+      checkWidth(gdi);
+      gdi.addButton("SSSResultList", "SSS style", ListsCB);
+
     }
 
 	  gdi.addButton("ResultList", "Avancerat...", ListsCB);

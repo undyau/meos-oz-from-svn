@@ -425,7 +425,12 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       break;
     case lRunnerRogainingPoint:
       if (r && !invalidClass) {
-        sprintf_s(bf, "%dp", r->getRogainingPoints());
+        sprintf_s(bf, "%d", r->getRogainingPoints());
+      }
+      break;
+    case lRunnerPenaltyPoint:
+      if (r && !invalidClass) {
+				sprintf_s(bf, "%d", r->getPenaltyPoints());
       }
       break;
     case lRunnerTimeAfter:
@@ -904,9 +909,13 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
     }
     else if (li.calcResults) {
       if (li.rogainingResults) {
-        calculateRogainingResults();
-        if (li.sortOrder != ClassPoints)
-          sortRunners(li.sortOrder);
+        if (li.sortOrder == CoursePoints)
+          calculateCourseRogainingResults();
+        else {
+          calculateRogainingResults();
+          if (li.sortOrder != ClassPoints)
+            sortRunners(li.sortOrder);
+        }
       }
       else if (li.lp.useControlIdResultTo || li.lp.useControlIdResultFrom) 
         calculateSplitResults(li.lp.useControlIdResultFrom, li.lp.useControlIdResultTo);
@@ -2640,29 +2649,38 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
 
    case ECourseRogainingInd:
       pos.add("place", 25);
-      pos.add("name", li.getMaxCharWidth(this, lRunnerCompleteName, "", normalText, 0, true));
-      pos.add("points", 50);
-      pos.add("status", 50);
+      pos.add("name", li.getMaxCharWidth(this, lRunnerCompleteName, "", fontLarge, 0, true));
+      pos.add("class", 80);
+      pos.add("status", 80);
+      pos.add("penalty", 80);
+      pos.add("points", 80);
+
       li.addHead(oPrintPost(lCmpName, MakeDash(par.getCustomTitle(lang.tl("Rogainingresultat - %s"))), boldLarge, 0,0));
-      li.addHead(oPrintPost(lCmpDate, "", normalText, 0, 25));
+      li.addHead(oPrintPost(lCmpDate, "", fontLarge, 0, 25));
       generateNBestHead(par, li, 25+lh);
+      li.largeSize = true;
       
-      li.addListPost(oPrintPost(lRunnerPlace, "", normalText, pos.get("place"), vspace));
-      li.addListPost(oPrintPost(lRunnerCompleteName, "", normalText, pos.get("name"), vspace));
-      li.addListPost(oPrintPost(lRunnerRogainingPoint, "", normalText, pos.get("points"), vspace));
-      li.addListPost(oPrintPost(lRunnerTimeStatus, "", normalText, pos.get("status"), vspace));
+      li.addListPost(oPrintPost(lRunnerPlace, "", fontLarge, pos.get("place"), vspace));
+      li.addListPost(oPrintPost(lRunnerCompleteName, "", fontLarge, pos.get("name"), vspace));
+      li.addListPost(oPrintPost(lClassName, "", fontLarge, pos.get("class"), vspace));
+      li.addListPost(oPrintPost(lRunnerTimeStatus, "", fontLarge, pos.get("status"), vspace));
+      li.addListPost(oPrintPost(lRunnerPenaltyPoint, "", fontLarge, pos.get("penalty"), vspace));
+      li.addListPost(oPrintPost(lRunnerRogainingPoint, "", fontLarge, pos.get("points"), vspace));
+
       
       li.setFilter(EFilterHasResult); 
 
       if(li.lp.splitAnalysis || li.lp.showInterTimes) {
-        li.addSubListPost(oPrintPost(lRogainingPunch, "", normalText, 10, 0, 1));
+        li.addSubListPost(oPrintPost(lRogainingPunch, "", fontLarge, 10, 0, 1));
         li.subListPost.back().fixedWidth=130;
         li.listSubType=li.EBaseTypePunches;
       }
 
-      li.addSubHead(oPrintPost(lCourseName, "", boldText, pos.get("place"), 10));
-      li.addSubHead(oPrintPost(lString, lang.tl("Poäng"), boldText, pos.get("points"), 10));
-      li.addSubHead(oPrintPost(lString, lang.tl("Tid"), boldText, pos.get("status"), 10));
+      li.addSubHead(oPrintPost(lCourseName, "", boldLarge, pos.get("place"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Tid"), boldLarge, pos.get("status"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Penalty"), boldLarge, pos.get("penalty"), 10));
+      li.addSubHead(oPrintPost(lString, lang.tl("Poäng"), boldLarge, pos.get("points"), 10));
+
 
       li.listType=li.EBaseTypeRunner;
       li.sortOrder = CoursePoints;

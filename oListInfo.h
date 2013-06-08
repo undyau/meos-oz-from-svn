@@ -75,6 +75,7 @@ enum EPostType
   lRunnerRank,
   lRunnerCourse,
   lRunnerRogainingPoint,
+  lRunnerPenaltyPoint,
   lRunnerUMMasterPoint,
   lRunnerTimePlaceFixed,
   lRunnerLegNumberAlpha,

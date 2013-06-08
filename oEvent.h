@@ -1012,6 +1012,8 @@ protected:
 public:
 	string shortenName(string name);  // implemented in oExtendedEvent.cpp
   void setShortClubNames(bool shorten); // implemented in oExtendedEvent.cpp
+	void calculateCourseRogainingResults(); // implemented in oExtendedEvent.cpp
+
   void getPredefinedClassTypes(map<string, ClassMetaType> &types) const;
 
   string cloneCompetition(bool cloneRunners, bool cloneTimes, 
