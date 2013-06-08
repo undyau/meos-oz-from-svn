@@ -2139,10 +2139,10 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
     xml.write("BibNumber", bib);
 
   if (r.getStartTime() > 0)
-    xml.write("StartTime", oe.getAbsTimeISO(r.getStartTime()));
+    xml.write("StartTime", getUTCTimeDateFromLocal(oe.getAbsTimeISO(r.getStartTime())));
 
   if (r.getFinishTime() > 0)
-    xml.write("FinishTime", oe.getAbsTimeISO(r.getFinishTime()));
+    xml.write("FinishTime", getUTCTimeDateFromLocal(oe.getAbsTimeISO(r.getFinishTime())));
 
   if (r.getRunningTime() > 0)
     xml.write("Time", r.getRunningTime());
