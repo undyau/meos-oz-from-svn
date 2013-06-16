@@ -367,8 +367,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       gdi.addCombo("EventorServer", 320, 100, eventorServer, "Eventor server:");
 
       vector<string> eventorCand;
-      eventorCand.push_back("https://eventor.orientering.se/api/");
-
+      eventorCand.push_back("https://eventor.orienteering.asn.au/api/");
       gdi.addItem("EventorServer", eventorBase);
       for (size_t k = 0; k < eventorCand.size(); k++) {
         if (eventorBase != eventorCand[k])
