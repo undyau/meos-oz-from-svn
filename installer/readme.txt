@@ -1,3 +1,8 @@
+19 June 2013 (fork of 3.0.311)
+- SSS results report
+- Start & finish time converetd from UTC in results export
+- Replace emaining reference to Swedish Eventor
+
 20 May 2013 (fork of 3.0.311)
 - fix export to XML by course
 - English header line for OE csv export
