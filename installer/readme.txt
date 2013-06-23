@@ -1,3 +1,6 @@
+26 June 2013 (fork of 3.0.311)
+- add missing HTML help for English
+
 19 June 2013 (fork of 3.0.311)
 - SSS results report
 - Start & finish time converetd from UTC in results export
