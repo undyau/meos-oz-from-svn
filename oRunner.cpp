@@ -1090,7 +1090,7 @@ void oRunner::doAdjustTimes(pCourse course) {
     if (minTime>0) {
       int t = 0;
       if (n>0 && splitTimes[n].time>0 && splitTimes[n-1].time>0) {
-        t = splitTimes[n].time - splitTimes[n-1].time;
+        t = splitTimes[n].time + adjustment - splitTimes[n-1].time;
         //XXX Start
         int maxadjust = max(minTime-t, 0);
         adjustment += maxadjust;

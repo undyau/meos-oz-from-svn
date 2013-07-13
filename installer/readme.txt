@@ -1,10 +1,14 @@
+13 July 2013 (fork of 3.0.311)
+- Splits shown incorrectly when more than one control with
+  a minimum-time (i.e. two road crossings).
+
 26 June 2013 (fork of 3.0.311)
 - add missing HTML help for English
 
 19 June 2013 (fork of 3.0.311)
 - SSS results report
-- Start & finish time converetd from UTC in results export
-- Replace emaining reference to Swedish Eventor
+- Start & finish time converted from UTC in results export
+- Replace remaining reference to Swedish Eventor
 
 20 May 2013 (fork of 3.0.311)
 - fix export to XML by course
@@ -33,6 +37,8 @@ Australian Customisations:
 
 Bug Fixes (to be sent to MEOS owners):
 - oRunner::getLegPlace() doesn't work.
+- oRunner::doAdjustTimes() - splits shown incorrectly 
+  when more than one control with a minimum-time.
 
 Bug Fixes (sent to MEOS owners):
 - Convert event start time from Eventor from UTC to local
