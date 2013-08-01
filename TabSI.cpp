@@ -302,7 +302,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
             oe->fillControlTypes(gdi, "ControlType");
             gdi.selectItemByData("ControlType", oPunch::PunchCheck);
             
-            gdi.addSelection("Filter", 150, 300, 0, "Datumfilter");
+            gdi.addSelection("Filter", 150, 300, 0, lang.tl("Datumfilter"));
             for (size_t k = 0; k<filterDate.size(); k++) {
               gdi.addItem("Filter", filterDate[k], k);
             }

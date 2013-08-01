@@ -42,6 +42,7 @@
 #include "oListInfo.h"
 #include "TabSI.h"
 #include "intkeymapimpl.hpp"
+#include "oExtendedEvent.h"
 
 TabRunner::TabRunner(oEvent *poe):TabBase(poe)
 {
@@ -1511,7 +1512,9 @@ void TabRunner::showInForestList(gdioutput &gdi)
   gdi.popX();
 
   clearInForestData();
-  oe->analyseDNS(unknown_dns, known_dns, known, unknown);
+
+	std::list<oFreePunch> strangers;
+	static_cast<oExtendedEvent*>(oe)->analyseDNS(unknown_dns, known_dns, known, unknown, strangers);
 
   if (!unknown.empty()) {
     gdi.dropLine();
@@ -1539,7 +1542,14 @@ void TabRunner::showInForestList(gdioutput &gdi)
   else
     gdi.disableInput("SetUnknown");
 
-  if (known.empty() && unknown.empty() && known_dns.empty()) {
+	if (!strangers.empty()) {
+	  gdi.dropLine();
+    gdi.addString("", 1, "Runners who seem to be in the forest but who are unregistered");
+    gdi.dropLine(0.5);
+    static_cast<oExtendedEvent*>(oe)->listStrangers(gdi, strangers);
+	}
+
+  if (known.empty() && unknown.empty() && known_dns.empty() && strangers.empty()) {
     gdi.addString("", 10, "inforestwarning");
   }
 }

@@ -71,6 +71,19 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	}
 }
 
+void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns, 
+																vector<pRunner> &known, vector<pRunner> &unknown, std::list<oFreePunch> &strangers)
+{
+	oEvent::analyseDNS(unknown_dns, known_dns, known, unknown);
+		
+	strangers.empty();
+	for (oFreePunchList::iterator it = punches.begin(); it!=punches.end(); ++it) {
+		if (getCardByNumber(it->getCardNo()) == 0)
+			strangers.push_back(*it);
+		//strangers.sort();
+		}
+}
+
 
 void oEvent::setShortClubNames(bool shorten)
 {
@@ -379,4 +392,24 @@ void oEvent::calculateCourseRogainingResults()
 		else
 			it->tPlace = 99000 + it->Status;
 	}
+}
+
+
+void oExtendedEvent::listStrangers(gdioutput &gdi, std::list<oFreePunch> &strangers)
+{
+  char bf[64];
+  int yp = gdi.getCY();
+  int xp = gdi.getCX();
+
+	for (std::list<oFreePunch>::const_iterator k = strangers.begin(); k != strangers.end(); k++) {
+		sprintf_s(bf, "%d", k->getCardNo());
+		gdi.addStringUT(yp, xp, 0, bf);
+		gdi.addStringUT(yp, xp+100, 0, k->getTime());
+		pRunner runner;
+		if (runner = dbLookUpByCard(k->getCardNo()))
+			gdi.addStringUT(yp, xp+200, 0, string("possibly ") + runner->getName());
+		else
+			gdi.addStringUT(yp, xp+200, 0, string("unknown"));
+		yp += gdi.getLineHeight();
+		}
 }
