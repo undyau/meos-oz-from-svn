@@ -1514,7 +1514,8 @@ void TabRunner::showInForestList(gdioutput &gdi)
   clearInForestData();
 
 	std::list<oFreePunch> strangers;
-	static_cast<oExtendedEvent*>(oe)->analyseDNS(unknown_dns, known_dns, known, unknown, strangers);
+	std::list<oFreePunch> late_punches;
+	static_cast<oExtendedEvent*>(oe)->analyseDNS(unknown_dns, known_dns, known, unknown, strangers, late_punches);
 
   if (!unknown.empty()) {
     gdi.dropLine();
@@ -1547,6 +1548,13 @@ void TabRunner::showInForestList(gdioutput &gdi)
     gdi.addString("", 1, "Runners who seem to be in the forest but who are unregistered");
     gdi.dropLine(0.5);
     static_cast<oExtendedEvent*>(oe)->listStrangers(gdi, strangers);
+	}
+	
+	if (!late_punches.empty()) {
+	  gdi.dropLine();
+    gdi.addString("", 1, "Cards that may have been re-used and runner may not be back");
+    gdi.dropLine(0.5);
+    static_cast<oExtendedEvent*>(oe)->listLatePunches(gdi, late_punches);
 	}
 
   if (known.empty() && unknown.empty() && known_dns.empty() && strangers.empty()) {

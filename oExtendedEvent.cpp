@@ -71,19 +71,6 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	}
 }
 
-void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns, 
-																vector<pRunner> &known, vector<pRunner> &unknown, std::list<oFreePunch> &strangers)
-{
-	oEvent::analyseDNS(unknown_dns, known_dns, known, unknown);
-		
-	strangers.empty();
-	for (oFreePunchList::iterator it = punches.begin(); it!=punches.end(); ++it) {
-		if (getCardByNumber(it->getCardNo()) == 0)
-			strangers.push_back(*it);
-		//strangers.sort();
-		}
-}
-
 
 void oEvent::setShortClubNames(bool shorten)
 {
@@ -406,10 +393,58 @@ void oExtendedEvent::listStrangers(gdioutput &gdi, std::list<oFreePunch> &strang
 		gdi.addStringUT(yp, xp, 0, bf);
 		gdi.addStringUT(yp, xp+100, 0, k->getTime());
 		pRunner runner;
-		if (runner = dbLookUpByCard(k->getCardNo()))
+		if ((runner = dbLookUpByCard(k->getCardNo())) != NULL)
 			gdi.addStringUT(yp, xp+200, 0, string("possibly ") + runner->getName());
 		else
 			gdi.addStringUT(yp, xp+200, 0, string("unknown"));
 		yp += gdi.getLineHeight();
+		}
+}
+
+void oExtendedEvent::listLatePunches(gdioutput &gdi, std::list<oFreePunch> &strangers)
+{
+  char bf[64];
+  int yp = gdi.getCY();
+  int xp = gdi.getCX();
+
+	for (std::list<oFreePunch>::const_iterator k = strangers.begin(); k != strangers.end(); k++) {
+		sprintf_s(bf, "%d", k->getCardNo());
+		gdi.addStringUT(yp, xp, 0, bf);
+		gdi.addStringUT(yp, xp+100, 0, k->getTime());
+		gdi.addStringUT(yp, xp+160, 0, itos(k->getControlNumber()));
+		vector<pRunner> r;
+		getRunnersByCard(k->getCardNo(), r);
+		string name;
+		for (size_t i = 0; i < r.size(); i++) {
+			if (name.size() != 0)
+				name += " or ";
+			name += r[i]->getName();
+			}
+		gdi.addStringUT(yp, xp+220, 0, string("possibly ") + name);
+		yp += gdi.getLineHeight();
+		}
+}
+
+void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns, 
+																vector<pRunner> &known, vector<pRunner> &unknown, 
+																std::list<oFreePunch> &strangers, std::list<oFreePunch> &unknown_reused)
+{
+	oEvent::analyseDNS(unknown_dns, known_dns, known, unknown);
+		
+	strangers.empty();
+	for (oFreePunchList::iterator it = punches.begin(); it!=punches.end(); ++it) {
+		vector<pRunner> r;
+		getRunnersByCard(it->getCardNo(), r);
+		if (r.size() == 0)
+			strangers.push_back(*it);
+		else {
+			int lastFinish(0);
+			for (size_t i=0; i<r.size(); i++) {
+				if (r[i]->getFinishTime() > lastFinish)
+					lastFinish = r[i]->getFinishTime();
+				}
+			if (lastFinish < it->getAdjustedTime())
+				unknown_reused.push_back(*it);
+			}
 		}
 }
