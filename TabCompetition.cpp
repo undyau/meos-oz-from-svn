@@ -168,6 +168,26 @@ int restoreCB(gdioutput *gdi, int type, void *data)
   return tc.restoreCB(*gdi, type, data);
 }
 
+void TabCompetition::loadSssUploadPage(gdioutput &gdi)
+{
+  gdi.clearPage(false);
+  showConnectionPage=true;    
+  gdi.addString("", boldLarge, "Summer Series Upload");
+  gdi.pushX();
+  gdi.dropLine();
+  string defaultSssServer = oe->getPropertyString("SssServer", "http://sportident.itsdamp.com/liveresult.php");
+  int defaultSssEventNum = oe->getPropertyInt("SssEventNum", 99);
+
+  gdi.fillRight();
+  gdi.addInput("SssServer", defaultSssServer, 30, 0, "Upload server:", "URL of server expecting upload");
+  gdi.addInput("SssEventNum", itos(defaultSssEventNum), 4, 0, "Event number within series");
+  gdi.dropLine(4);
+  gdi.popX();
+  gdi.addButton("SssUpload", "Upload Results", CompetitionCB);
+  gdi.addButton("Cancel", "Till huvudsidan", CompetitionCB);
+  gdi.refresh();
+}
+
 void TabCompetition::loadConnectionPage(gdioutput &gdi)
 {
   gdi.clearPage(false);
@@ -728,6 +748,10 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
     }
 		else if (bi.id=="ConnectMySQL") 
       loadConnectionPage(gdi);
+		else if (bi.id=="DoSSSUpload") 
+      loadSssUploadPage(gdi);
+		else if (bi.id=="SssUpload") 
+      static_cast<oExtendedEvent*>(oe)->uploadSss(gdi);
     else if(bi.id=="SaveClient") { 
       oe->setClientName(gdi.getText("ClientName"));
       if (gdi.getText("ClientName").length()>0) 
@@ -2458,7 +2482,9 @@ bool TabCompetition::loadPage(gdioutput &gdi)
                   CompetitionCB, "", false, false);
 		gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "ConnectMySQL", "Databasanslutning", 
                   CompetitionCB, "", false, false);
-
+	if (oe->getPropertyInt("IsSydneySummerSeries", 0))
+		gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "DoSSSUpload", "Upload SSS Results", 
+                  CompetitionCB, "", false, false);
     rc.bottom = gdi.getCY() + gdi.scaleLength(30);
     rc.right = rc.left + bw + gdi.scaleLength(60);
   	

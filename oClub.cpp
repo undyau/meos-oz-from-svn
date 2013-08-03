@@ -194,7 +194,7 @@ pClub oEvent::getClubCreate(int Id, const string &CreateName)
   }
   if (CreateName.empty()) {    
 		//Not found. Auto add...	
-		return getClubCreate(Id, "Klubblös");
+		return getClubCreate(Id, lang.tl("Klubblös"));
 	}
 	else	{
     oClubList::iterator it;

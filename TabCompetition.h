@@ -82,6 +82,7 @@ class TabCompetition :
 
   void loadMultiEvent(gdioutput &gdi);
   void saveMultiEvent(gdioutput &gdi);
+  void loadSssUploadPage(gdioutput &gdi);
 
   string eventorOrigin; // The command used when checking eventor
   bool checkEventor(gdioutput &gdi, ButtonInfo &bi);

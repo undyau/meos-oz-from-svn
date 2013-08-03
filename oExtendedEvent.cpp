@@ -20,6 +20,7 @@ bool oExtendedEvent::SSSQuickStart(gdioutput &gdi)
   oSSSQuickStart qs(*this);
 	if (qs.ConfigureEvent(gdi)){
 		gdi.alert("Loaded " + itos(qs.ImportCount()) + " competitors onto start list");
+		setProperty("IsSydneySummerSeries", 1);
 		return true;
 	}
 	return false;
@@ -458,4 +459,17 @@ void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &k
 				unknown_reused.push_back(*it);
 			}
 		}
+}
+
+void oExtendedEvent::uploadSss(gdioutput &gdi)
+{
+	string url = gdi.getText("SssServer");
+	int eventNum = gdi.getTextNo("SssEventNum", false);
+	if (eventNum == 0) {
+		gdi.alert("Invalid event number :" + gdi.getText("SssEventNum"));
+		return;
+		}
+	gdi.alert("Faked upload of results to " + url);
+	setProperty("SssServer",url);
+	setProperty("SssEventNum",itos(eventNum));
 }

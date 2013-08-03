@@ -18,5 +18,6 @@ public:
 		std::list<oFreePunch> &strangers, std::list<oFreePunch> &unknown_reused);
 	void listStrangers(gdioutput &gdi, std::list<oFreePunch> &strangers);
 	void listLatePunches(gdioutput &gdi, std::list<oFreePunch> &late_punches);
+	void uploadSss(gdioutput &gdi);
 private:
 };
