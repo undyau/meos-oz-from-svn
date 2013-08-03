@@ -1545,7 +1545,7 @@ void TabRunner::showInForestList(gdioutput &gdi)
 
 	if (!strangers.empty()) {
 	  gdi.dropLine();
-    gdi.addString("", 1, "Runners who seem to be in the forest but who are unregistered");
+    gdi.addString("", 1, "Unknown runners who seem to be in the forest");
     gdi.dropLine(0.5);
     static_cast<oExtendedEvent*>(oe)->listStrangers(gdi, strangers);
 	}

@@ -432,16 +432,27 @@ void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &k
 	oEvent::analyseDNS(unknown_dns, known_dns, known, unknown);
 		
 	strangers.empty();
+
+	std::map<int, std::vector<pRunner>> runners;
+	for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+		runners[it->getCardNo()].push_back(&*it);
+		
+		if (it->getCard() != 0) {
+			int temp = atoi(it->getCard()->getCardNo().c_str());
+			if (temp != 0 && temp != it->getCardNo())
+			runners[temp].push_back(&*it);
+			}
+		}
+
 	for (oFreePunchList::iterator it = punches.begin(); it!=punches.end(); ++it) {
-		vector<pRunner> r;
-		getRunnersByCard(it->getCardNo(), r);
-		if (r.size() == 0)
+		if (runners[it->getCardNo()].size() == 0)
 			strangers.push_back(*it);
 		else {
 			int lastFinish(0);
-			for (size_t i=0; i<r.size(); i++) {
-				if (r[i]->getFinishTime() > lastFinish)
-					lastFinish = r[i]->getFinishTime();
+			for (size_t i=0; i<runners[it->getCardNo()].size(); i++) {
+				int time = max(runners[it->getCardNo()][i]->getFinishTime(),runners[it->getCardNo()][i]->getStartTime());
+				if (time > lastFinish)
+					lastFinish = time;
 				}
 			if (lastFinish < it->getAdjustedTime())
 				unknown_reused.push_back(*it);

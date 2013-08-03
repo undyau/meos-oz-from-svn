@@ -1,3 +1,9 @@
+13 August 2013 (fork of 3.0.311)
+- Alter "Remaining Runners" to show who may be missing 
+  when running with people being auto-entered as they
+  download. Also show when stick used by an existing
+  runner was later re-used and hasn't downloaded.
+
 13 July 2013 (fork of 3.0.311)
 - Splits shown incorrectly when more than one control with
   a minimum-time (i.e. two road crossings).
