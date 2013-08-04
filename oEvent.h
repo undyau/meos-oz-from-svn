@@ -728,7 +728,7 @@ public:
                        const set<int> &classes,  int leg = -1);
 	void exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes);
 
-  bool exportOECSV(const char *file);
+  bool exportOECSV(const char *file, bool byClass = true);
 	bool save();
   void duplicate();
 	void newCompetition(const string &Name);

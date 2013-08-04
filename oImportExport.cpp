@@ -106,14 +106,17 @@ string &getFirst(string &inout, int maxNames) {
 			OElength=40};
 */
 
-bool oEvent::exportOECSV(const char *file)
+bool oEvent::exportOECSV(const char *file, bool byClass)
 {
 	csvparser csv;
 
 	if(!csv.openOutput(file))
 		return false;
 	
-	calculateResults(RTClassResult);
+	if (byClass)
+		calculateResults(RTClassResult);
+	else
+		calculateResults(RTCourseResult);
 
 	oRunnerList::iterator it;
 

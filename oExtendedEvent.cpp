@@ -469,7 +469,12 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 		gdi.alert("Invalid event number :" + gdi.getText("SssEventNum"));
 		return;
 		}
+
+	string resultCsv = getTempFile();
+	exportOECSV(resultCsv, false);
+
 	gdi.alert("Faked upload of results to " + url);
 	setProperty("SssServer",url);
 	setProperty("SssEventNum",itos(eventNum));
+
 }
