@@ -176,11 +176,10 @@ void TabCompetition::loadSssUploadPage(gdioutput &gdi)
   gdi.pushX();
   gdi.dropLine();
   string defaultSssServer = oe->getPropertyString("SssServer", "http://sportident.itsdamp.com/liveresult.php");
-  int defaultSssEventNum = oe->getPropertyInt("SssEventNum", 99);
 
   gdi.fillRight();
   gdi.addInput("SssServer", defaultSssServer, 30, 0, "Upload server:", "URL of server expecting upload");
-  gdi.addInput("SssEventNum", itos(defaultSssEventNum), 4, 0, "Event number within series");
+  gdi.addInput("SssEventNum", itos(static_cast<oExtendedEvent*>(oe)->getSssEventNum()), 4, 0, "Event number within series");
   gdi.dropLine(4);
   gdi.popX();
   gdi.addButton("SssUpload", "Upload Results", CompetitionCB);
@@ -2482,7 +2481,7 @@ bool TabCompetition::loadPage(gdioutput &gdi)
                   CompetitionCB, "", false, false);
 		gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "ConnectMySQL", "Databasanslutning", 
                   CompetitionCB, "", false, false);
-	if (oe->getPropertyInt("IsSydneySummerSeries", 0))
+	if (static_cast<oExtendedEvent*>(oe)->getIsSydneySummerSeries())
 		gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "DoSSSUpload", "Upload SSS Results", 
                   CompetitionCB, "", false, false);
     rc.bottom = gdi.getCY() + gdi.scaleLength(30);

@@ -638,6 +638,8 @@ protected:
   intkeymap<pRunner> cardHash;
   int tClubDataRevision;
   bool readOnly;
+	virtual void writeExtraXml(xmlparser &xml){};
+	virtual void readExtraXml(const xmlparser &xml) {};
 public:
 
   bool isReadOnly() const {return readOnly;}

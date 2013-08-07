@@ -5,10 +5,14 @@
 #include "meos_util.h"
 #include "localizer.h"
 #include "gdifonts.h"
+#include "Download.h"
+#include "progress.h"
 
 oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
-    eventProperties["DoShortenClubNames"] = "0";   // default to behaving like vanilla MEOS
+	IsSydneySummerSeries = 0;
+  SssEventNum = 0;
+	eventProperties["DoShortenClubNames"] = "0";   // default to behaving like vanilla MEOS
 }
 
 oExtendedEvent::~oExtendedEvent(void)
@@ -20,7 +24,7 @@ bool oExtendedEvent::SSSQuickStart(gdioutput &gdi)
   oSSSQuickStart qs(*this);
 	if (qs.ConfigureEvent(gdi)){
 		gdi.alert("Loaded " + itos(qs.ImportCount()) + " competitors onto start list");
-		setProperty("IsSydneySummerSeries", 1);
+		IsSydneySummerSeries = true;
 		return true;
 	}
 	return false;
@@ -464,17 +468,48 @@ void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &k
 void oExtendedEvent::uploadSss(gdioutput &gdi)
 {
 	string url = gdi.getText("SssServer");
-	int eventNum = gdi.getTextNo("SssEventNum", false);
-	if (eventNum == 0) {
+	SssEventNum = gdi.getTextNo("SssEventNum", false);
+	if (SssEventNum == 0) {
 		gdi.alert("Invalid event number :" + gdi.getText("SssEventNum"));
 		return;
 		}
 
 	string resultCsv = getTempFile();
-	exportOECSV(resultCsv, false);
+	ProgressWindow pw(hWnd());
+	exportOECSV(resultCsv.c_str(), false);
+	Download dwl;
+  dwl.initInternet();
+  std::vector<pair<string,string>> headers;
+	string result;
+  try {
+		dwl.postFile(url, resultCsv, result, headers, pw);
+  }
+  catch (std::exception &) {
+    removeTempFile(resultCsv);
+    throw;
+  }
 
-	gdi.alert("Faked upload of results to " + url);
+  dwl.createDownloadThread();
+  while (dwl.isWorking()) {
+    Sleep(100);
+	}
 	setProperty("SssServer",url);
-	setProperty("SssEventNum",itos(eventNum));
+	gdi.alert("Faked upload of results to " + url);
+}
 
+void oExtendedEvent::writeExtraXml(xmlparser &xml)
+{
+	xml.write("IsSydneySummerSeries", IsSydneySummerSeries);
+	xml.write("SssEventNum", SssEventNum);
+}
+
+void oExtendedEvent::readExtraXml(const xmlparser &xml)
+{
+ 	xmlobject xo;
+ 
+	xo=xml.getObject("IsSydneySummerSeries");
+	if(xo) IsSydneySummerSeries=!!xo.getInt();
+
+	xo=xml.getObject("SssEventNum");
+	if(xo) SssEventNum=xo.getInt();
 }

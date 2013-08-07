@@ -910,8 +910,8 @@ bool oEvent::save(const char *file)
   xml.write("NameId", CurrentNameId);
 	xml.write("Annotation", Annotation);
 	xml.write("Id", Id);
+	writeExtraXml(xml);
 	xml.write("Updated", Modified.getStamp());
-
 	oEventData->write(oData, xml);
 
   int i = 0;
@@ -1099,6 +1099,8 @@ bool oEvent::open(const xmlparser &xml) {
 
 	xo=xml.getObject("Id");
 	if(xo) Id=xo.getInt();
+
+	readExtraXml(xml);
 
 	xo=xml.getObject("oData");
 

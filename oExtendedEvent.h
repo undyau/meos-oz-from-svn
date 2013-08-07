@@ -19,5 +19,11 @@ public:
 	void listStrangers(gdioutput &gdi, std::list<oFreePunch> &strangers);
 	void listLatePunches(gdioutput &gdi, std::list<oFreePunch> &late_punches);
 	void uploadSss(gdioutput &gdi);
+	virtual void writeExtraXml(xmlparser &xml);
+	virtual void readExtraXml(const xmlparser &xml);
+	int getSssEventNum() {return SssEventNum;};
+	int getIsSydneySummerSeries() {return IsSydneySummerSeries;};
 private:
+	bool IsSydneySummerSeries;
+	int SssEventNum;
 };
