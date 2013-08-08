@@ -241,6 +241,7 @@ Enhetstyp = Unit type
 Etapp = Stage
 Etapp X = Stage X
 Etappresultat = Stage Results
+Ett okänt fel inträffade. = Unknown error occurred.
 Eventorkoppling = Eventor Connection
 Export av resultat/sträcktider = Export results / splits
 Exportera = Export

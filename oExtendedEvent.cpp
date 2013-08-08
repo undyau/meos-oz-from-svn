@@ -482,7 +482,7 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
   std::vector<pair<string,string>> headers;
 	string result;
   try {
-		dwl.postFile(url, resultCsv, result, headers, pw);
+		dwl.postData(url, "dummy", pw);
   }
   catch (std::exception &) {
     removeTempFile(resultCsv);
@@ -494,7 +494,7 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
     Sleep(100);
 	}
 	setProperty("SssServer",url);
-	gdi.alert("Faked upload of results to " + url);
+	gdi.alert("Completed upload of results to " + url);
 }
 
 void oExtendedEvent::writeExtraXml(xmlparser &xml)

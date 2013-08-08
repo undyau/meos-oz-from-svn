@@ -240,6 +240,7 @@ Enhetstyp = Unit type
 Etapp = Stage
 Etapp X = Stage X
 Etappresultat = Stage Results
+Ett okänt fel inträffade. = Unknown error occurred.
 Ett startblock spänner över flera starter: X/Y = A start block spans more than one start: X/Y
 Eventor server = Eventor server
 Eventorkoppling = Eventor Connection

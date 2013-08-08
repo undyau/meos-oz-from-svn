@@ -67,6 +67,7 @@ public:
 
   void postFile(const string &url, const string &file, const string &fileOut,
                 const vector< pair<string, string> > &headers, ProgressWindow &pw);
+  void postData(const string &url, const string &data, ProgressWindow &pw);
 	int processMessages();
 	bool successful();
 	bool isWorking();

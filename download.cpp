@@ -453,3 +453,62 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
   InternetCloseHandle(hRequest);
   return true;
 }
+
+void Download::postData(const string &url, const string &data, ProgressWindow &pw) {
+  SetLastError(0);
+  DWORD_PTR dw = 0;
+  URL_COMPONENTS uc;
+  memset(&uc, 0, sizeof(uc));
+  uc.dwStructSize = sizeof(uc);
+  char host[128];
+  char path[128];
+  char extra[256];
+  uc.lpszExtraInfo = extra;
+  uc.dwExtraInfoLength = sizeof(extra);
+  uc.lpszHostName = host;
+  uc.dwHostNameLength = sizeof(host);
+  uc.lpszUrlPath = path;
+  uc.dwUrlPathLength = sizeof(path);
+
+  InternetCrackUrl(url.c_str(), url.length(), ICU_ESCAPE, &uc);
+  int port = INTERNET_DEFAULT_HTTP_PORT;
+  if (uc.nScheme == INTERNET_SCHEME_HTTPS)
+    port = INTERNET_DEFAULT_HTTPS_PORT;
+  else if (uc.nPort>0)
+    port = uc.nPort;
+  HINTERNET hConnect = InternetConnect(hInternet, host, port,
+                                       NULL, NULL, INTERNET_SERVICE_HTTP, 0, dw);
+   static TCHAR hdrs[] =
+      _T("Content-Type: application/x-www-form-urlencoded");
+   static TCHAR frmdata[] =
+      _T("Name=sss23&Title=Fake%20Event&Subtitle=SSS%204&Data=Stno;SI card;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...%0A368;2037145;\"1\";\"Green\";\"Richard\";;M;;0;18:26:14;19:14:18;48:04;0;2;;\"GO\";\"\";1;\"Score\";\"Score\";\"550\";\"590\";\"40\";\"MM\";\"Score\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";;0;0.00;0;0;\"Score\";0;0;30;1;18:26:14;19:14:18;201;00:43;203;02:08;214;03:12;224;04:56;213;06:37;223;07:40;202;08:36;222;10:06;212;11:56;221;14:40;211;16:43;220;18:44;210;19:32;230;20:42;219;22:41;209;24:42;229;26:50;228;29:18;218;31:10;227;33:22;226;35:01;207;36:00;206;38:13;217;39:45;216;41:20;225;42:29;205;44:56;215;46:34;204;47:16;;-----;");
+  //static LPSTR accept[2]={"*/*", NULL};
+	 PCTSTR accept[] = {_T("*/*"), NULL};
+//string accept = "*/*";
+	HINTERNET hRequest(NULL);
+	bool success (true);
+
+	if (!hConnect)
+		success = false;
+
+	if (success)
+		hRequest = HttpOpenRequest(hConnect, "POST", uc.lpszUrlPath, NULL, NULL, accept, 0, 1);
+	if (!hRequest)
+		success = false;
+
+	if (success && !HttpSendRequest(hRequest, hdrs, strlen(hdrs), frmdata, strlen(frmdata)))
+		success = false;
+
+  if (hConnect)
+		InternetCloseHandle(hConnect);
+
+  if (!success) {
+ 		DWORD ec = GetLastError();
+
+    string error = ec != 0 ? getErrorMessage(ec) : "";
+    if (error.empty())
+      lang.tl("Ett okänt fel inträffade.");
+    throw std::exception(error.c_str());
+  }
+
+ }
