@@ -496,8 +496,40 @@ void Download::postData(const string &url, const string &data, ProgressWindow &p
 	if (!hRequest)
 		success = false;
 
-	if (success && !HttpSendRequest(hRequest, hdrs, strlen(hdrs), frmdata, strlen(frmdata)))
+	if (success && !HttpSendRequest(hRequest, hdrs, strlen(hdrs), frmdata /*(void*)data.c_str()*/, strlen(frmdata)))
 		success = false;
+	else {
+		DWORD dwStatus = 0;
+		DWORD dwBufLen = sizeof(dwStatus);
+	  success = !!HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE|HTTP_QUERY_FLAG_NUMBER,
+                          (LPVOID)&dwStatus, &dwBufLen, 0);
+		if (success && dwStatus >= 400) {
+      char bf[256];
+      switch (dwStatus) {
+        case HTTP_STATUS_BAD_REQUEST:
+          sprintf_s(bf, "HTTP Error 400: The request could not be processed by the server due to invalid syntax.");
+          break;
+        case HTTP_STATUS_DENIED:
+          sprintf_s(bf, "HTTP Error 401: The requested resource requires user authentication.");
+          break;
+        case HTTP_STATUS_FORBIDDEN:
+          sprintf_s(bf, "HTTP Error 403: Åtkomst nekad (access is denied).");
+          break;
+        case HTTP_STATUS_NOT_FOUND:
+          sprintf_s(bf, "HTTP Error 404: Resursen kunde ej hittas (not found).");
+          break;
+        case HTTP_STATUS_NOT_SUPPORTED:
+          sprintf_s(bf, "HTTP Error 501: Förfrågan stöds ej (not supported).");
+          break;
+        case HTTP_STATUS_SERVER_ERROR:
+          sprintf_s(bf, "HTTP Error 500: Internt serverfel (server error).");
+          break;
+        default: 
+          sprintf_s(bf, "HTTP Status Error %d", dwStatus);
+      }      
+      throw dwException(bf, dwStatus);
+    }
+	}
 
   if (hConnect)
 		InternetCloseHandle(hConnect);
