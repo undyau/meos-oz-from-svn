@@ -153,9 +153,6 @@ bool oEvent::exportOECSV(const char *file, bool byClass)
 		row[17]=conv_is(it->getClassId());
 		row[18]=it->getClass();
 		row[19]=it->getClass();
-		row[20]=conv_is(it->getRogainingPoints());
-		row[21]=conv_is(it->getPenaltyPoints()+it->getRogainingPoints());
-		row[22]=conv_is(it->getPenaltyPoints());
 
 		row[35]=conv_is(di.getInt("CardFee"));
 		row[36]=conv_is(di.getInt("Fee"));

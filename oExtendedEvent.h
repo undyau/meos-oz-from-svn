@@ -23,7 +23,10 @@ public:
 	virtual void readExtraXml(const xmlparser &xml);
 	int getSssEventNum() {return SssEventNum;};
 	int getIsSydneySummerSeries() {return IsSydneySummerSeries;};
+	bool exportOrCSV(const char *file, bool byClass);
 private:
+	string loadCsvToString(string file);
+	string string_replace(string src, string const& target, string const& repl);
 	bool IsSydneySummerSeries;
 	int SssEventNum;
 };

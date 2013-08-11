@@ -7,6 +7,8 @@
 #include "gdifonts.h"
 #include "Download.h"
 #include "progress.h"
+#include "csvparser.h"
+
 
 oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
@@ -476,13 +478,16 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 
 	string resultCsv = getTempFile();
 	ProgressWindow pw(hWnd());
-	exportOECSV(resultCsv.c_str(), false);
+	exportOrCSV(resultCsv.c_str(), false);
+	string data = _T(loadCsvToString(resultCsv));
+	data = string_replace(data, "&","and");
+	data = "Name=sss" + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=sss" + itos(SssEventNum) + "&Data=" + data;
 	Download dwl;
   dwl.initInternet();
   std::vector<pair<string,string>> headers;
 	string result;
   try {
-		dwl.postData(url, _T("Name=sss23&Title=Fake%20Event&Subtitle=SSS%204&Data=Stno;SI card;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...%0A368;2037145;\"1\";\"Green\";\"Andy\";;M;;0;18:26:14;19:14:18;48:04;0;2;;\"GO\";\"\";1;\"Score\";\"Score\";\"550\";\"590\";\"40\";\"MM\";\"Score\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";;0;0.00;0;0;\"Score\";0;0;30;1;18:26:14;19:14:18;201;00:43;203;02:08;214;03:12;224;04:56;213;06:37;223;07:40;202;08:36;222;10:06;212;11:56;221;14:40;211;16:43;220;18:44;210;19:32;230;20:42;219;22:41;209;24:42;229;26:50;228;29:18;218;31:10;227;33:22;226;35:01;207;36:00;206;38:13;217;39:45;216;41:20;225;42:29;205;44:56;215;46:34;204;47:16;;-----;"), pw);
+		dwl.postData(url, data, pw);
   }
   catch (std::exception &) {
     removeTempFile(resultCsv);
@@ -512,4 +517,164 @@ void oExtendedEvent::readExtraXml(const xmlparser &xml)
 
 	xo=xml.getObject("SssEventNum");
 	if(xo) SssEventNum=xo.getInt();
+}
+
+string oExtendedEvent::loadCsvToString(string file)
+{
+	string result;
+	std::ifstream fin;
+	fin.open(file.c_str());
+
+	if(!fin.good())
+		return string("");
+
+	char bf[1024];
+	while (!fin.eof()) {	
+		fin.getline(bf, 1024);
+		string temp(bf);
+		result += temp + "\n";
+	}
+	
+	return result.substr(0, result.size()-1);
+}
+
+string oExtendedEvent::string_replace(string src, string const& target, string const& repl)
+{
+    // handle error situations/trivial cases
+
+    if (target.length() == 0) {
+        // searching for a match to the empty string will result in 
+        //  an infinite loop
+        //  it might make sense to throw an exception for this case
+        return src;
+    }
+
+    if (src.length() == 0) {
+        return src;  // nothing to match against
+    }
+
+    size_t idx = 0;
+
+    for (;;) {
+        idx = src.find( target, idx);
+        if (idx == string::npos)  break;
+
+        src.replace( idx, target.length(), repl);
+        idx += repl.length();
+    }
+
+    return src;
+}
+
+int MyConvertStatusToOE(int i)
+{
+	switch(i)
+	{
+	    case StatusOK:
+			return 0;	    	
+	    case StatusDNS:  // Ej start
+			return 1;	    	
+	    case StatusDNF:  // Utg.
+			return 2;	    	
+	    case StatusMP:  // Felst.
+			return 3;
+	    case StatusDQ: //Disk
+			return 4;  	    	
+	    case StatusMAX: //Maxtid 
+			return 5;
+	} 
+	return 1;//Ej start...?!
+}
+
+string my_conv_is(int i)
+{
+	char bf[256];
+	 if(_itoa_s(i, bf, 10)==0)
+		return bf;
+	 return "";
+}
+
+bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
+{
+	csvparser csv;
+
+	if(!csv.openOutput(file))
+		return false;
+	
+	if (byClass)
+		calculateResults(RTClassResult);
+	else
+		calculateResults(RTCourseResult);
+
+	if (IsSydneySummerSeries)
+		calculateCourseRogainingResults();
+
+	oRunnerList::iterator it;
+
+	csv.OutputRow(lang.tl("Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller;Pl"));
+	
+	char bf[256];
+	for(it=Runners.begin(); it != Runners.end(); ++it){	
+		vector<string> row;
+		row.resize(44);
+		oDataInterface di=it->getDI();
+
+		row[0]=my_conv_is(it->getId());
+		row[1]=my_conv_is(it->getCardNo());
+    row[2]=my_conv_is(int(it->getExtIdentifier()));
+		row[3]=it->getFamilyName();
+		row[4]=it->getGivenName();
+		row[5]=my_conv_is(di.getInt("BirthYear") % 100);
+		row[6]=di.getString("Sex");
+		
+		row[9]=it->getStartTimeS();
+		if(row[9]=="-") row[9]="";
+
+		row[10]=it->getFinishTimeS();
+		if(row[10]=="-") row[10]="";
+
+		row[11]=it->getRunningTimeS(); 
+		if(row[11]=="-") row[11]="";
+
+		row[12]=my_conv_is(MyConvertStatusToOE(it->getStatus()));
+		if (MyConvertStatusToOE(it->getStatus()) == 1) //DNS
+			continue;
+		row[13]=my_conv_is(it->getClubId());
+		
+		row[15]=it->getClub();
+		row[16]=di.getString("Nationality");
+		row[17]=my_conv_is(it->getClassId());
+		row[18]=it->getClass();
+		row[19]=it->getClass();
+		row[20]=my_conv_is(it->getRogainingPoints());
+		row[21]=my_conv_is(it->getPenaltyPoints()+it->getRogainingPoints());
+		row[22]=my_conv_is(it->getPenaltyPoints());
+		row[23]=it->getClass();
+
+		row[35]=my_conv_is(di.getInt("CardFee"));
+		row[36]=my_conv_is(di.getInt("Fee"));
+		row[37]=my_conv_is(di.getInt("Paid"));
+		
+		pCourse pc=it->getCourse();
+		if(pc){
+			row[38]=my_conv_is(pc->getId());
+			row[24]=pc->getName();
+			row[18]=pc->getName();
+			row[39]=pc->getName();
+			if(pc->getLength()>0){
+				sprintf_s(bf, "%d.%d", pc->getLength()/1000, pc->getLength()%1000);
+				row[40]=bf;
+			}
+			row[41]=my_conv_is(pc->getDI().getInt("Climb"));
+
+			row[42]=my_conv_is(pc->getNumControls());
+		}
+    row[43] = it->getPlaceS();
+
+		csv.OutputRow(row);
+	}
+
+	csv.closeOutput();
+
+	return true;
 }
