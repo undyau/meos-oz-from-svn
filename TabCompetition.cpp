@@ -2915,14 +2915,14 @@ void TabCompetition::loadMultiEvent(gdioutput &gdi) {
 
   gdi.addSelection("PreEvent", 300, 200, CompetitionCB, "Föregående etapp:", "Välj den etapp som föregår denna tävling");
   oe->fillCompetitions(gdi, "PreEvent", 1, preEvent);
-  gdi.addItem("PreEvent", "Ingen / okänd", -2);
+  gdi.addItem("PreEvent", lang.tl("Ingen / okänd"), -2);
   bool hasPre = !gdi.getText("PreEvent").empty();
   if (!hasPre)
     gdi.selectItemByData("PreEvent", -2);
   
   gdi.addSelection("PostEvent", 300, 200, CompetitionCB, "Nästa etapp:", "Välj den etapp som kommer efter denna tävling");
   oe->fillCompetitions(gdi, "PostEvent", 1,  postEvent);  
-  gdi.addItem("PostEvent", "Ingen / okänd", -2);
+  gdi.addItem("PostEvent", lang.tl("Ingen / okänd"), -2);
   bool hasPost = !gdi.getText("PostEvent").empty();
   
   if (!hasPost)
