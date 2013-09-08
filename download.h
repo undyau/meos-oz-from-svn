@@ -86,6 +86,8 @@ protected:
 
   friend void SUThread(void *ptr);
 
+	std::vector<string*> usedBuffers;
+
 };
 
 #endif // !defined(AFX_DOWNLOAD_H__DEBC6296_9CAE_4FF6_867B_DD896D0B6A7A__INCLUDED_)

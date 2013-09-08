@@ -60,6 +60,9 @@ Download::~Download()
 
 	if(hInternet)
 		InternetCloseHandle(hInternet);
+
+	for (unsigned int i = 0 ; i < usedBuffers.size(); i++)
+		delete usedBuffers[i];
 }
 
 void __cdecl SUThread(void *ptr)
@@ -479,7 +482,9 @@ void Download::postData(const string &url, const string &data, ProgressWindow &p
   HINTERNET hConnect = InternetConnect(hInternet, host, port,
                                        NULL, NULL, INTERNET_SERVICE_HTTP, 0, dw);
   static TCHAR hdrs[] = _T("Content-Type: application/x-www-form-urlencoded");
-	static string formdata = data;
+	string* str = new string;
+	usedBuffers.push_back(str);
+	*str = data;
 	PCTSTR accept[] = {_T("*/*"), NULL};
 
 	HINTERNET hRequest(NULL);
@@ -493,7 +498,7 @@ void Download::postData(const string &url, const string &data, ProgressWindow &p
 	if (!hRequest)
 		success = false;
 
-	if (success && !HttpSendRequest(hRequest, hdrs, strlen(hdrs), (TCHAR*)formdata.c_str(), formdata.size()))
+	if (success && !HttpSendRequest(hRequest, hdrs, strlen(hdrs), (TCHAR*)str->c_str(), str->size()))
 		success = false;
 	else {
 		DWORD dwStatus = 0;

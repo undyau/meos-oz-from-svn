@@ -469,6 +469,7 @@ void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &k
 
 void oExtendedEvent::uploadSss(gdioutput &gdi)
 {
+	static int s_counter(0);
 	string url = gdi.getText("SssServer");
 	SssEventNum = gdi.getTextNo("SssEventNum", false);
 	if (SssEventNum == 0) {
@@ -481,7 +482,7 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 	exportOrCSV(resultCsv.c_str(), false);
 	string data = _T(loadCsvToString(resultCsv));
 	data = string_replace(data, "&","and");
-	data = "Name=sss" + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=sss" + itos(SssEventNum) + "&Data=" + data;
+	data = "Name=sss" + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=sss" + itos(SssEventNum) + "&Data=" + data + "&Serial=" + itos(s_counter++);
 	Download dwl;
   dwl.initInternet();
   std::vector<pair<string,string>> headers;
