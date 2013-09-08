@@ -594,6 +594,16 @@ string my_conv_is(int i)
 	 return "";
 }
 
+string formatOeCsvTime(int rt)
+{
+  if(rt>0 && rt<3600*48) {
+		char bf[16];
+		sprintf_s(bf, 16, "%d:%02d", (rt/60), rt%60);
+		return bf;
+	}
+	return "-";
+}
+
 bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 {
 	csvparser csv;
@@ -616,7 +626,7 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 	char bf[256];
 	for(it=Runners.begin(); it != Runners.end(); ++it){	
 		vector<string> row;
-		row.resize(44);
+		row.resize(200);
 		oDataInterface di=it->getDI();
 
 		row[0]=my_conv_is(it->getId());
@@ -633,7 +643,7 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 		row[10]=it->getFinishTimeS();
 		if(row[10]=="-") row[10]="";
 
-		row[11]=it->getRunningTimeS(); 
+		row[11]= formatOeCsvTime(it->getRunningTime());
 		if(row[11]=="-") row[11]="";
 
 		row[12]=my_conv_is(MyConvertStatusToOE(it->getStatus()));
@@ -669,9 +679,33 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 
 			row[42]=my_conv_is(pc->getNumControls());
 		}
-    row[43] = it->getPlaceS();
+  row[43] = it->getPlaceS();
+	row[44] = it->getStartTimeS();
+	if(row[44]=="-") row[44]="";
+	row[45]=it->getFinishTimeS();
+	if(row[45]=="-") row[45]="";
 
-		csv.OutputRow(row);
+
+// Get punches
+  if (it->getCard()) 
+		{
+		int j(0);
+    for (int i = 0; i < it->getCard()->getNumPunches(); i++)
+			{
+			oPunch* punch = it->getCard()->getPunchByIndex(i);
+			if (punch->getControlNumber() > 0)
+				{
+				int st = it->getStartTime();
+				int pt = punch->getAdjustedTime();
+				if (st>0 && pt>0 && pt>st) 
+          row [47 + j*2] = formatOeCsvTime(pt-st);
+				row[46 + j*2] = my_conv_is(punch->getControlNumber());
+				j++;
+				}
+      }
+		row[42]=my_conv_is(j);
+		}
+	csv.OutputRow(row);
 	}
 
 	csv.closeOutput();
