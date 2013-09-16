@@ -36,25 +36,27 @@ else
 removeTempFile(file);
 
 // retrieve startlist from web
+
+bool load = gdi.ask("Do you want to load a start list from the web ?");
 m_ImportCount = 0;
-file = getTempFile();
-if (!GetStartListFromWeb(file))
-	return false;
 
-csvparser csv;
-gdi.addString("", 0, "Import Ór start-list...");
-gdi.setWaitCursor(true);
-if (!csv.ImportOr_CSV(m_Event, file.c_str())) {
-	removeTempFile(file);
-	return false;
-}
-else
-	m_ImportCount = csv.nimport;
+if (load)
+	{
+	file = getTempFile();
+	if (!GetStartListFromWeb(file))
+		return false;
 
-  //gdi.addString("", 0, "Klart. X deltagare importerade.#" + itos(csv.nimport));
-
-//m_Event.liveResult(true);
-//m_Event.liveResultUrl(string("http://sportident.itsdamp.com/LiveResultFromXML.php"));
+	csvparser csv;
+	gdi.addString("", 0, "Import Ór start-list...");
+	gdi.setWaitCursor(true);
+	if (!csv.ImportOr_CSV(m_Event, file.c_str())) 
+		{
+		removeTempFile(file);
+		return false;
+		}
+	else
+		m_ImportCount = csv.nimport;
+	}
 
 return true;
 }
