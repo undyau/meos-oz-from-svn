@@ -1,3 +1,8 @@
+14 October 2013 (fork of 3.0.311)
+- Implement upload to existing SSS processor.
+- Some additional language conversion for multi-stage events.
+
+
 13 August 2013 (fork of 3.0.311)
 - Alter "Remaining Runners" to show who may be missing 
   when running with people being auto-entered as they
