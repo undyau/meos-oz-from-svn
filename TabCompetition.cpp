@@ -1938,12 +1938,12 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
 			gdi.popX();
 
       gdi.dropLine(2.5);
-      gdi.addInput("FileName", "", 48, 0, "Anmälningar (IOF (xml) eller OE-CSV)");
+			gdi.addInput("FileName", oe->getPropertyString("EntryImportFile",""), 48, 0, "Anmälningar (IOF (xml) eller OE-CSV)");
 			gdi.dropLine();
       gdi.addButton("BrowseEntries", "Bläddra...", CompetitionCB).setExtra("FileName");
 			gdi.popX();
       gdi.dropLine(2);
-      gdi.addCheckbox("UpdateClass", "Återställ / uppdatera klasstillhörighet");
+      gdi.addCheckbox("UpdateClass", "Återställ / uppdatera klasstillhörighet", 0, false);
       gdi.popX();
       gdi.dropLine(2.5);
       gdi.addInput("FileNameRank", "", 48, 0, "Ranking (IOF, xml)");
@@ -1972,6 +1972,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       filename[2] = gdi.getText("FileNameClb");
       filename[3] = gdi.getText("FileName");
       filename[4] = gdi.getText("FileNameRank");
+			oe->setProperty("EntryImportFile", gdi.getText("FileName"));
       bool updateClass = gdi.isChecked("UpdateClass");
 
       try {

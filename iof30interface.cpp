@@ -1419,6 +1419,15 @@ pClub IOF30Interface::readOrganization(gdioutput &gdi, const xmlobject &xclub, b
   if ( !saveToDB ) {
 	  if(clubId)
 		  pc = oe.getClubCreate(clubId, name);
+		else {
+			std::vector<pClub>c;
+			oe.getClubs(c, false);
+			for (unsigned int i = 0; i < c.size(); i++)
+				if (c[i]->getName() == name) {
+					pc = c[i];
+					break;
+				}
+		}
 
     if(!pc) return false;
   }
@@ -1673,12 +1682,20 @@ pClass IOF30Interface::readClass(const xmlobject &xclass,
 		pc = oe.getClass(classId);
 
     if (!pc) {
-      oClass c(&oe, classId);
-      pc = oe.addClass(c);
+			if (name.length() > 0)
+				pc = oe.getClass(name);
+			if (!pc) {
+				oClass c(&oe, classId);
+				pc = oe.addClass(c);
+			}
     }
   }
-  else
-    pc = oe.addClass(name);
+	else {
+    if (name.length() > 0)
+			pc = oe.getClass(name);
+		if (!pc)
+			pc = oe.addClass(name);
+	}
 
 	oDataInterface DI = pc->getDI();
 

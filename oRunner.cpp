@@ -1018,6 +1018,8 @@ bool oRunner::evaluateCard(vector<int> & MissingPunches, int addpunch, bool sync
         tProblemDescription = "Tidsavdrag: X poäng.#" + itos(tPenaltyPoints); 
         tRogainingPoints = max(0, tRogainingPoints - tPenaltyPoints);
       }
+			else
+				tPenaltyPoints = 0;  // should be initialised to this - being corrupted somewhere ??
     }
   }
 
