@@ -345,12 +345,14 @@ void oEvent::calculateCourseRogainingResults()
   bool useResults = false;
   bool isRogaining = false;
   bool invalidClass = false;
+	int cCourseOfClassId=-1;
 
 	for (it=Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved())
       continue;
 
-    if (it->getCourseId()!=cCourseId || it->tDuplicateLeg!=cDuplicateLeg) {
+    if ((it->getCourseId()!=cCourseId && (cCourseOfClassId <= 0 || it->getCourseId()!=cCourseOfClassId)) || 
+			it->tDuplicateLeg!=cDuplicateLeg) {
 			cCourseId = it->getCourseId();
       useResults = it->Class ? !it->Class->getNoTiming() : false;
 			cPlace = 0;
@@ -360,6 +362,11 @@ void oEvent::calculateCourseRogainingResults()
       isRogaining = it->Class ? it->Class->isRogaining() : false;
       invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
 		}
+
+		if (cCourseId == 0 && it->Class->getCourseId() > 0)
+			cCourseOfClassId = it->Class->getCourseId();
+		else
+			cCourseOfClassId = -1;
 	
     if (!isRogaining)
       continue;

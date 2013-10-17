@@ -2648,7 +2648,7 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
 
 
    case ECourseRogainingInd:
-      pos.add("place", 25);
+      pos.add("place", 45);
       pos.add("name", li.getMaxCharWidth(this, lRunnerCompleteName, "", fontLarge, 0, true));
       pos.add("class", 80);
       pos.add("status", 80);

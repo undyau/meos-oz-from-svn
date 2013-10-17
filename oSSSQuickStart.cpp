@@ -32,6 +32,10 @@ else
 	removeTempFile(file);
 	return false;
 	}
+SYSTEMTIME st;
+GetSystemTime(&st);
+
+m_Event.setDate(convertSystemDate(st));
 
 removeTempFile(file);
 
