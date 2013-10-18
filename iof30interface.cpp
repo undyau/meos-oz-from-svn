@@ -1362,6 +1362,15 @@ pRunner IOF30Interface::readPerson(gdioutput &gdi, const xmlobject &person) {
 
 	if(pid)
 		r = oe.getRunner(pid, 0);
+	else
+	{
+		// Runner may already exist, but without a number ?
+		if (pname)
+		{
+			string given, family;
+			r = oe.getRunnerByName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family));
+		}
+	}
 	
 	if (!r) {
     if ( pid > 0) {
