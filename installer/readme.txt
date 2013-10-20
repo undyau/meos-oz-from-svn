@@ -1,3 +1,10 @@
+20 October 2013 (fork of 3.0.311)
+- Import from XML tries to match existing runner by name if match by external Id fails.
+- Treat competitors who have explicit course set the same as those who have course set from class.
+- SSS quick-start now uses current date as event date.
+- Import from XML now sets class based on imported name if XML doesn't contain CourseId.
+
+
 14 October 2013 (fork of 3.0.311)
 - Implement upload to existing SSS processor.
 - Some additional language conversion for multi-stage events.
