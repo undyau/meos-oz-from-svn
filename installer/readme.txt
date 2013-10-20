@@ -1,4 +1,5 @@
 20 October 2013 (fork of 3.0.311)
+- Improve formatting of SSS style results so that position numbers aren't truncated.
 - Import from XML tries to match existing runner by name if match by external Id fails.
 - Treat competitors who have explicit course set the same as those who have course set from class.
 - SSS quick-start now uses current date as event date.
