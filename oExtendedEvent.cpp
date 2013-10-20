@@ -186,6 +186,7 @@ string oEvent::shortenName(string name)
 	clubs["ShortNameFor Wairarapa"] = "WA.NZL";
 	clubs["ShortNameFor Wellington"] = "WN.NZL";
 	clubs["ShortNameFor Far North Orienteers"] = "FN.Q";
+	clubs["ShortNameFor Northern Rivers Orienteering Club"] = "NR.N";
 
 
 	// Check for presence in map of shortened names
@@ -606,7 +607,7 @@ string formatOeCsvTime(int rt)
 {
   if(rt>0 && rt<3600*48) {
 		char bf[16];
-		sprintf_s(bf, 16, "%d:%02d", (rt/60), rt%60);
+		sprintf_s(bf, 16, "%02d:%02d", (rt/60), rt%60);
 		return bf;
 	}
 	return "-";
