@@ -192,8 +192,8 @@ string oEvent::shortenName(string name)
 	// Check for presence in map of shortened names
 	string key("ShortNameFor " + name);
 	
-	if (eventProperties.find(key) != eventProperties.end() && eventProperties[name].length() > 0)
-		return eventProperties[name];
+	if (eventProperties.find(key) != eventProperties.end() && eventProperties[key].length() > 0)
+		return eventProperties[key];
 	
 	if (clubs.find(key) != clubs.end())
 		{

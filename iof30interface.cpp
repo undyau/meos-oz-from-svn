@@ -1686,7 +1686,21 @@ pClass IOF30Interface::readClass(const xmlobject &xclass,
 
 	pClass pc = 0;
 
-  if (classId) {
+	if (name.length() > 0) {
+		pc = oe.getClass(name);
+		if (!pc) {
+			pc = oe.addClass(name, 0, oe.getClass(classId) ? 0 : classId);
+		}		
+	}
+	else {
+		pc = oe.getClass(classId);
+		if (!pc) {
+				oClass c(&oe, classId);
+				pc = oe.addClass(c);
+		}
+	}
+
+ /* if (classId) {
 		pc = oe.getClass(classId);
 
     if (!pc) {
@@ -1703,7 +1717,7 @@ pClass IOF30Interface::readClass(const xmlobject &xclass,
 			pc = oe.getClass(name);
 		if (!pc)
 			pc = oe.addClass(name);
-	}
+	}*/
 
 	oDataInterface DI = pc->getDI();
 
