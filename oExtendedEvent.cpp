@@ -14,7 +14,7 @@ oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
 	IsSydneySummerSeries = 0;
   SssEventNum = 0;
-	eventProperties["DoShortenClubNames"] = "0";   // default to behaving like vanilla MEOS
+	setShortClubNames(false);   // default to behaving like vanilla MEOS
 }
 
 oExtendedEvent::~oExtendedEvent(void)
@@ -25,8 +25,8 @@ bool oExtendedEvent::SSSQuickStart(gdioutput &gdi)
 {
   oSSSQuickStart qs(*this);
 	if (qs.ConfigureEvent(gdi)){
-		gdi.alert("Loaded " + itos(qs.ImportCount()) + " competitors onto start list");
 		IsSydneySummerSeries = true;
+		setShortClubNames(true);
 		return true;
 	}
 	return false;
@@ -192,7 +192,7 @@ string oEvent::shortenName(string name)
 	// Check for presence in map of shortened names
 	string key("ShortNameFor " + name);
 	
-	if (eventProperties.find(key) != eventProperties.end())
+	if (eventProperties.find(key) != eventProperties.end() && eventProperties[name].length() > 0)
 		return eventProperties[name];
 	
 	if (clubs.find(key) != clubs.end())

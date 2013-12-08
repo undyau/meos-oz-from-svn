@@ -734,7 +734,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       bool clear = gdi.isChecked("Clear");
       oe->importXML_IOF_Data(gdi.getText("ClubFile").c_str(),
                              gdi.getText("CmpFile").c_str(), clear);
-	  oe->setShortClubNames(gdi.isChecked("ShortClubNames"));
+			oe->setShortClubNames(gdi.isChecked("ShortClubNames"));
       
       gdi.dropLine();
       gdi.addButton("Cancel", "Återgå", CompetitionCB);

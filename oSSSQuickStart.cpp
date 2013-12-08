@@ -41,7 +41,7 @@ removeTempFile(file);
 
 // retrieve startlist from web
 
-bool load = gdi.ask("Do you want to load a start list from the web ?");
+bool load = gdi.ask("Do you want to load a \"start\" list from the web ?\r\n\r\nIt will contain most regular SSS runners.");
 m_ImportCount = 0;
 
 if (load)
@@ -60,6 +60,8 @@ if (load)
 		}
 	else
 		m_ImportCount = csv.nimport;
+
+	gdi.alert("Loaded " + itos(ImportCount()) + " competitors onto start list");
 	}
 
 return true;
