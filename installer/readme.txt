@@ -1,3 +1,7 @@
+8 December 2013 (fork of 3.0.311)
+- When importing IOF 3 XML entries attempt match on existing entries by name first.
+- Club names were not being included in import from XML.
+
 20 October 2013 (fork of 3.0.311)
 - Improve formatting of SSS style results so that position numbers aren't truncated.
 - Import from XML tries to match existing runner by name if match by external Id fails.
