@@ -111,8 +111,11 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
     case lRunnerMissedTime:
     case lTeamTimeAfter:
     case lTeamLegTimeAfter:
+    case lTeamTotalTimeAfter:
       extra = "+10:00";
       break;
+    case lTeamTotalTime:
+    case lTeamTotalTimeStatus:
     case lTeamLegTimeStatus:
     case lTeamTimeStatus:
     case lRunnerTempTimeStatus:
@@ -412,14 +415,13 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       if (r && pc && !invalidClass) {
         int tleg = r->tLeg >= 0 ? r->tLeg:0;
         if (r->getTotalStatus()==StatusOK &&  pc && !pc->getNoTiming()) {
-          int after = r->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg);
+          int after = r->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg, true);
           int afterOld = r->inputTime - pc->getBestInputTime(tleg);
           int ad = after - afterOld;
           if (ad > 0)
             sprintf_s(bf, "+%d:%02d", ad/60, ad%60);
           if (ad < 0)
             sprintf_s(bf, "-%d:%02d", (-ad)/60, (-ad)%60);
-
         }
       }
       break;
@@ -447,7 +449,7 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       if (r && pc && !invalidClass) {
         int tleg = r->tLeg >= 0 ? r->tLeg:0;
         if (r->getTotalStatus()==StatusOK &&  pc && !pc->getNoTiming()) {
-          int after = r->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg);
+          int after = r->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg, true);
           if (after > 0)
             sprintf_s(bf, "+%d:%02d", after/60, after%60);
         }
@@ -529,6 +531,54 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         else
           sprintf_s(bf, "0");
       }
+      break;
+    case lRunnerAge:
+      if (r) {
+        int y = r->getBirthAge();
+        if (y > 0)
+          sprintf_s(bf, "%d", y);
+      }
+    break;
+    case lRunnerBirthYear:
+      if (r) {
+        int y = r->getBirthYear();
+        if (y > 0)
+          sprintf_s(bf, "%d", y);
+      }
+    break;
+    case lRunnerSex:
+      if (r) {
+        PersonSex s = r->getSex();
+        if (s == sFemale)
+          sptr = &lang.tl("Kvinna");
+        else if (s == sMale)
+          sptr = &lang.tl("Man");
+      }
+    break;
+    case lRunnerPhone:
+      if (r) {
+        string s = r->getDCI().getString("Phone");
+        sprintf_s(bf, s.c_str());
+      }
+    break;
+    case lRunnerFee:
+      if (r) {
+        string s = formatCurrency(r->getDCI().getInt("Fee"));
+        sprintf_s(bf, s.c_str());
+      }
+    break;
+    case lTeamFee:
+      if (t) {
+        string s = formatCurrency(t->getTeamFee());
+        sprintf_s(bf, s.c_str());
+      }
+    break;
+    case lRunnerNationality:
+      if (r) {
+        string nat = r->getNationality();
+        sprintf_s(bf, nat.c_str());
+      }
+    break;
     case lTeamName:
       //sptr = t ? &t->Name : 0;
       if (t) {
@@ -540,19 +590,19 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         strcpy_s(bf, t->Runners[pp.index]->getStartTimeCompact().c_str());
       break;
     case lTeamStatus:
-      if(t && !invalidClass) strcpy_s(bf, t->getLegStatusS(pp.index).c_str() );
+      if(t && !invalidClass) strcpy_s(bf, t->getLegStatusS(pp.index, false).c_str() );
       break;
     case lTeamTime:
-      if(t && !invalidClass) strcpy_s(bf, t->getLegRunningTimeS(pp.index).c_str() );
-      break;    
+      if(t && !invalidClass) strcpy_s(bf, t->getLegRunningTimeS(pp.index, false).c_str() );
+      break;
     case lTeamTimeStatus:
       if (invalidClass)
           sptr = &lang.tl("Struken");
       else if(t) {
-        if(t->getLegStatus(pp.index)==StatusOK)
-          strcpy_s(bf, t->getLegRunningTimeS(pp.index).c_str() );
+        if(t->getLegStatus(pp.index, false)==StatusOK)
+          strcpy_s(bf, t->getLegRunningTimeS(pp.index, false).c_str() );
         else
-          strcpy_s(bf, t->getLegStatusS(pp.index).c_str() );
+          strcpy_s(bf, t->getLegStatusS(pp.index, false).c_str() );
       }
       break; 
     case lTeamRogainingPoint:
@@ -562,30 +612,30 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       break;
     case lTeamTimeAfter:
       //sprintf_s(bf, "+1:01");
-      if (t && t->getLegStatus(pp.index)==StatusOK && !invalidClass) {
+      if (t && t->getLegStatus(pp.index, false)==StatusOK && !invalidClass) {
         int ta=t->getTimeAfter(pp.index);
         if (ta>0)
           sprintf_s(bf, "+%d:%02d", ta/60, ta%60);
       }
       break;
     case lTeamPlace:
-      if(t && !invalidClass) strcpy_s(bf, t->getLegPrintPlaceS(pp.index).c_str());
+      if(t && !invalidClass) strcpy_s(bf, t->getLegPrintPlaceS(pp.index, false).c_str());
       break;
     case lTeamLegTimeStatus:
       if (invalidClass)
         sptr = &lang.tl("Struken");
       else if(t) {
         int ix = r ? r->getLegNumber() : counter.level3;
-        if(t->getLegStatus(ix)==StatusOK)
-          strcpy_s(bf, t->getLegRunningTimeS(ix).c_str() );
+        if(t->getLegStatus(ix, false)==StatusOK)
+          strcpy_s(bf, t->getLegRunningTimeS(ix, false).c_str() );
         else
-          strcpy_s(bf, t->getLegStatusS(ix).c_str() );
+          strcpy_s(bf, t->getLegStatusS(ix, false).c_str() );
       }
       break; 
     case lTeamLegTimeAfter:
       if(t) {
         int ix = r ? r->getLegNumber() : counter.level3;
-        if (t->getLegStatus(ix)==StatusOK && !invalidClass) {
+        if (t->getLegStatus(ix, false)==StatusOK && !invalidClass) {
           int ta=t->getTimeAfter(ix);
         if (ta>0)
           sprintf_s(bf, "+%d:%02d", ta/60, ta%60);
@@ -611,6 +661,60 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         string bib = t->getBib();
         if(!bib.empty())
           sprintf_s(bf, "%s", bib.c_str());
+      }
+      break;
+    case lTeamTotalTime:
+      if(t && !invalidClass) strcpy_s(bf, t->getLegRunningTimeS(pp.index, true).c_str() );
+      break;
+    case lTeamTotalTimeStatus:
+      if (invalidClass)
+          sptr = &lang.tl("Struken");
+      else if(t) {
+        if(t->getLegStatus(pp.index, true)==StatusOK)
+          strcpy_s(bf, t->getLegRunningTimeS(pp.index, true).c_str() );
+        else
+          strcpy_s(bf, t->getLegStatusS(pp.index, true).c_str() );
+      }
+      break; 
+    case lTeamPlaceDiff:
+      if (t && !invalidClass) {
+        int p = t->getTotalPlace();
+        if (t->getTotalStatus() == StatusOK && p > 0 && t->inputPlace>0) {
+          int pd = p - t->inputPlace;
+          if (pd > 0)
+            sprintf_s(bf, "+%d", pd);
+          else if (pd < 0)
+            sprintf_s(bf, "-%d", -pd);
+        }
+      }
+      break;
+    case lTeamTotalPlace:
+      if (t && !invalidClass) strcpy_s(bf, t->getPrintTotalPlaceS().c_str() );
+      break;
+
+      break;
+    case lTeamTotalTimeAfter:
+      if (t && pc && !invalidClass) {
+        int tleg = t->getNumRunners() - 1;
+        if (t->getTotalStatus()==StatusOK &&  pc && !pc->getNoTiming()) {
+          int after = t->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg, true);
+          if (after > 0)
+            sprintf_s(bf, "+%d:%02d", after/60, after%60);
+        }
+      }
+      break;
+    case lTeamTotalTimeDiff:
+      if (t && pc && !invalidClass) {
+        int tleg = t->getNumRunners() - 1;
+        if (t->getTotalStatus()==StatusOK &&  pc && !pc->getNoTiming()) {
+          int after = t->getTotalRunningTime() - pc->getTotalLegLeaderTime(tleg, true);
+          int afterOld = t->inputTime - pc->getBestInputTime(tleg);
+          int ad = after - afterOld;
+          if (ad > 0)
+            sprintf_s(bf, "+%d:%02d", ad/60, ad%60);
+          if (ad < 0)
+            sprintf_s(bf, "-%d:%02d", (-ad)/60, (-ad)%60);
+        }
       }
       break;
     case lTeamStartNo:
@@ -998,7 +1102,9 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
   }
   else if( li.listType==li.EBaseTypeTeam ) {
     if (li.calcResults)
-      calculateTeamResults();
+      calculateTeamResults(false);
+    if (li.calcTotalResults)
+      calculateTeamResults(true);
     if (li.rogainingResults)
       throw std::exception("Not implemented");
     if (li.calcCourseClassResults)
@@ -1027,7 +1133,7 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
           continue;
       }
 
-      if(li.filter(EFilterHasResult) && it->getLegStatus(li.lp.legNumber)==StatusUnknown)
+      if(li.filter(EFilterHasResult) && it->getLegStatus(li.lp.legNumber, false)==StatusUnknown)
         continue;
 
 //		  if (it->getClassId()!=Id) {
@@ -1076,8 +1182,10 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
 	  }
   }
   else if( li.listType==li.EBaseTypeClub ) {
-    if (li.calcResults)
-      calculateTeamResults();
+    if (li.calcResults) {
+      calculateTeamResults(true);
+      calculateTeamResults(false);
+    }
     if (li.calcCourseClassResults)
       calculateResults(RTClassCourseResult);
     
@@ -2381,7 +2489,6 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
       mList.setListType(li.EBaseTypeTeam);
       mList.setSortOrder(ClassStartTime);
       mList.addFilter(EFilterExcludeDNS);
-      mList.save("foo.xml");
 
 /*      xmlparser xfoo, xbar;
       xfoo.openMemoryOutput(true);

@@ -65,7 +65,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	}
 
 	// Do the export
-	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, classes, leg);
+	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, /*USe UTC*/false, classes, leg);
 
 	// Reassign all runners back to original classes
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {

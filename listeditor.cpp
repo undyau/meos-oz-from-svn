@@ -623,7 +623,7 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.pushX();
   gdi.fillRight();
   int boxY = gdi.getCY();
-  gdi.addSelection("Type", 250, 500, 0, "Typ:");
+  gdi.addSelection("Type", 290, 500, 0, "Typ:");
   gdi.addItem("Type", types);
   gdi.selectItemByData("Type", currentType);
   gdi.addInput("Text", mlp.getText(), 16, 0, "Egen text:", "Använd symbolen X där MeOS ska fylla i typens data.");
@@ -633,7 +633,7 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.dropLine(3);
   currentList->getAlignTypes(mlp, types, currentType);
   sort(types.begin(), types.end());
-  gdi.addSelection("AlignType", 250, 500, editListCB, "Justera mot:");
+  gdi.addSelection("AlignType", 290, 500, editListCB, "Justera mot:");
   gdi.addItem("AlignType", types);
   gdi.selectItemByData("AlignType", currentType);
 

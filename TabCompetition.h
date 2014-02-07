@@ -88,8 +88,10 @@ class TabCompetition :
   bool checkEventor(gdioutput &gdi, ButtonInfo &bi);
 
   bool useEventor() const;
+  bool useEventorUTC() const;
 
   bool openCompetition(gdioutput &gdi, int id);
+  void selectTransferClasses(gdioutput &gdi, bool expand);
 
   // Welcome page for new users
   void welcomeToMeOS(gdioutput &gdi);
@@ -104,6 +106,8 @@ class TabCompetition :
 public:
 
   void setEventorServer(const string &server);
+  void setEventorUTC(bool useUTC);
+  
   int competitionCB(gdioutput &gdi, int type, void *data);
   int restoreCB(gdioutput &gdi, int type, void *data);
 	bool loadPage(gdioutput &gdi);

@@ -39,6 +39,7 @@
 #include "meos_util.h"
 #include <cassert>
 #include "TabRunner.h"
+#include "meosexception.h"
 
 //const int rgbGreen=RGB(128, 240, 128);
 //const int rgbRed=RGB(255, 128, 128);
@@ -49,6 +50,7 @@ TabSI::TabSI(oEvent *poe):TabBase(poe)
   interactiveReadout=poe->getPropertyInt("Interactive", 1)!=0;
   useDatabase=poe->getPropertyInt("Database", 1)!=0;
   printSplits=false;
+  manualInput = poe->getPropertyInt("ManualInput", 0) == 1;
 
   mode=ModeReadOut;
   currentAssignIndex=0;
@@ -269,6 +271,13 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="PrintSplits") {
       printSplits=gdi.isChecked(bi.id);
+    }
+    else if (bi.id == "UseManualInput") {
+      manualInput = gdi.isChecked("UseManualInput");
+      oe->setProperty("ManualInput", manualInput ? 1 : 0);
+      gdi.restore("ManualInput");
+      if (manualInput)
+        showManualInput(gdi);
     }
     else if (bi.id=="Import") {
       int origin = (int)bi.getExtra();
@@ -719,7 +728,50 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
     else if (bi.id=="RentCard" || bi.id=="Paid") {
       updateEntryInfo(gdi);
     }
+    else if (bi.id == "ManualOK") {
+      if (runnerMatchedId == -1) 
+        throw meosException("Löparen hittades inte");
 
+      bool useNow = int(gdi.getExtra("FinishTime")) == 1;
+      string time = useNow ? getLocalTimeOnly() : gdi.getText("FinishTime");
+
+      int relTime = oe->getRelativeTime(time);
+      if (relTime <= 0) {
+        throw meosException("Ogiltig tid.");
+      }
+      bool ok = gdi.isChecked("StatusOK");
+      bool dnf = gdi.isChecked("StatusDNF");
+
+      pRunner r = oe->getRunner(runnerMatchedId, 0);
+      if (r==0)
+        throw meosException("Löparen hittades inte");
+
+      if (r->getStatus() != StatusUnknown) {
+        if (!gdi.ask("X har redan ett resultat. Vi du fortsätta?#" + r->getCompleteIdentification()))
+          return 0;
+      }
+
+      gdi.restore("ManualInput", false);
+
+      SICard sic;
+      sic.runnerId = runnerMatchedId;
+      sic.relativeFinishTime = relTime;
+      sic.statusOK = ok;
+      sic.statusDNF = dnf;
+
+      gSI->AddCard(sic);
+    }
+    else if (bi.id == "StatusOK") {
+      bool ok = gdi.isChecked(bi.id);
+      if (ok) {
+       gdi.check("StatusDNF", false);
+      }
+    }
+    else if (bi.id == "StatusDNF") {
+      bool dnf = gdi.isChecked(bi.id);
+      gdi.setInputStatus("StatusOK", !dnf);
+      gdi.check("StatusOK", !dnf);
+    }
 	}
 	else if (type==GUI_LISTBOX) {
 		ListBoxInfo bi=*(ListBoxInfo *)data;
@@ -789,10 +841,54 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
       updateEntryInfo(gdi);    
     }
   }
-  else if (type==GUI_INPUT) {
-    InputInfo ii=*(InputInfo *)data;
+  else if (type == GUI_FOCUS) {
+    InputInfo &ii=*(InputInfo *)data;
+    
+    if (ii.id == "FinishTime") {
+      if (ii.getExtraInt() == 1) {
+        ii.setExtra(0);
+        ii.setFgColor(colorDefault);
+        //gdi.refreshFast();
+        gdi.setText(ii.id, "", true);
+      }
+    }
+  }
+  else if(type==GUI_INPUTCHANGE){
+		InputInfo ii=*(InputInfo *)data;
+    if (ii.id == "Manual") {
+      int nr = atoi(ii.text.c_str());
 
-    if (ii.id=="CardNo") {
+      pRunner r = 0;
+      if (nr > 0) {
+        r = oe->getRunnerByStartNo(nr);
+        if (r == 0)
+          r = oe->getRunnerByCard(nr, true, true);
+      }
+
+      if (nr == 0 && ii.text.size() > 2) {
+        stdext::hash_set<int> f1, f2;
+        r = oe->findRunner(ii.text, 0, f1, f2);
+      }
+      if (r != 0) {
+        gdi.setText("FindMatch", r->getCompleteIdentification(), true);
+        runnerMatchedId = r->getId();
+      }
+      else {
+        gdi.setText("FindMatch", "", true);
+        runnerMatchedId = -1;
+      }
+    }
+  }
+  else if (type==GUI_INPUT) {
+    InputInfo &ii=*(InputInfo *)data;
+    if (ii.id == "FinishTime") {
+      if (ii.text.empty()) {
+        ii.setExtra(1);
+        ii.setFgColor(colorGreyBlue);
+        gdi.setText(ii.id, lang.tl("Aktuell tid"), true);
+      }
+    }
+    else if (ii.id=="CardNo") {
       int cardNo = gdi.getTextNo("CardNo");
       
       if (cardNo>0 && gdi.getText("Name").empty()) {
@@ -992,6 +1088,7 @@ bool TabSI::loadPage(gdioutput &gdi)
   gdi.addCheckbox("Interactive", "Interaktiv inläsning", SportIdentCB, interactiveReadout);
   gdi.addCheckbox("Database", "Använd löpardatabasen", SportIdentCB, useDatabase);
   gdi.addCheckbox("PrintSplits", "Sträcktidsutskrift", SportIdentCB, printSplits);
+  gdi.addCheckbox("UseManualInput", "Manuell inmatning", SportIdentCB, manualInput);
   gdi.fillDown();
 
   gdi.popX();
@@ -1004,6 +1101,9 @@ bool TabSI::loadPage(gdioutput &gdi)
     gdi.setRestorePoint("Help");
 	  gdi.addString("", 10, "help:471101");
 
+    if (gdi.isChecked("UseManualInput"))
+      showManualInput(gdi);
+
     gdi.dropLine();    
   }
   else if(mode==ModeAssignCards) {
@@ -1012,12 +1112,14 @@ bool TabSI::loadPage(gdioutput &gdi)
     gdi.disableInput("Interactive");
     gdi.disableInput("Database");
     gdi.disableInput("PrintSplits");
+    gdi.disableInput("UseManualInput");
   }
   else {
     entryTips(gdi);
     generateEntryLine(gdi, 0);
     gdi.disableInput("Interactive");
     gdi.disableInput("PrintSplits");
+    gdi.disableInput("UseManualInput");
   }
 
   // Uncondition clear
@@ -1072,6 +1174,9 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
 	DWORD loaded;
 	bool pageLoaded=gdi.getData("SIPageLoaded", loaded);
 
+  if (pageLoaded && manualInput)
+    gdi.restore("ManualInput");
+
   if (!pageLoaded && !insertCardNumberField.empty()) {
     if (gdi.insertText(insertCardNumberField, itos(sic.CardNumber)))
       return;
@@ -1100,11 +1205,19 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
     processPunchOnly(gdi, sic);
     return;
 	}
+	pRunner r;
+  if (sic.runnerId == 0)
+    r = gEvent->getRunnerByCard(sic.CardNumber, false);
+  else {
+    r = gEvent->getRunner(sic.runnerId, 0);
+    sic.CardNumber = r->getCardNo();
+  }
 
-	bool ReadBefore = gEvent->isCardRead(sic);
-	pRunner r = gEvent->getRunnerByCard(sic.CardNumber, false);
+  bool ReadBefore = sic.runnerId == 0 ? gEvent->isCardRead(sic) : false;
 
 	if (!pageLoaded) {
+    if (sic.runnerId != 0)
+      throw meosException("Internal error");
 		//SIPage not loaded...
 
     if(!r && useDatabase)
@@ -1184,6 +1297,8 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
             generateSplits(runner, gdi);
         }
 			  activeSIC.clear(0);
+        if (manualInput)
+          showManualInput(gdi);
         checkMoreCardsInQueue(gdi);
 			  return;
 		  }
@@ -1207,15 +1322,17 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
     }
 	}
 
-  r = gEvent->getRunnerByCard(sic.CardNumber, !ReadBefore);
 	pRunner db_r = 0;
+  if (sic.runnerId == 0) {
+    r = gEvent->getRunnerByCard(sic.CardNumber, !ReadBefore);
 
-	if (!r && useDatabase) {
-		//Look up in database.
-		db_r = gEvent->dbLookUpByCard(sic.CardNumber);
-		if (db_r)
-      r = autoMatch(sic, db_r);
-	}
+	  if (!r && useDatabase) {
+		  //Look up in database.
+		  db_r = gEvent->dbLookUpByCard(sic.CardNumber);
+		  if (db_r)
+        r = autoMatch(sic, db_r);
+	  }
+  }
 
   // If there is no class, auto create
   if(interactiveReadout && oe->getNumClasses()==0) {
@@ -1235,7 +1352,9 @@ void TabSI::insertSICard(gdioutput &gdi, SICard &sic)
   if(r && r->getClassId()) {
     SICard copy = sic;
     activeSIC.clear(0); 
-		processCard(gdi, r, copy); //Everyting is OK    
+		processCard(gdi, r, copy); //Everyting is OK
+    if (gdi.isChecked("UseManualInput"))
+      showManualInput(gdi);
   }
   else {
     if(interactiveReadout) {
@@ -1415,6 +1534,9 @@ bool TabSI::processUnmatched(gdioutput &gdi, const SICard &csic, bool silent)
     gdi.addRectangle(rc, colorLightRed, true);
 		gdi.addStringUT(rc.top+6, rc.left+20, 1, info);
     //gdi.dropLine();
+    if (gdi.isChecked("UseManualInput"))
+      showManualInput(gdi);
+
 		gdi.scrollToBottom();
 	}
 	else {
@@ -1464,7 +1586,7 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
     }
   }
 
-	if (!runner->getCourse()) {
+  if (!runner->getCourse() && !csic.isManualInput()) {
     pClass pclass=gEvent->getClass(runner->getClassId());
 
     if(pclass && !pclass->hasMultiCourse()) {
@@ -1500,47 +1622,69 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
     pcourse->synchronize();
 	//silent=true;
 	SICard sic(csic);
-	pCard card=gEvent->allocateCard(runner);
-
-	card->setReadId(csic);
-	card->setCardNo(sic.CardNumber);
-	
-	char bf[16];
-	_itoa_s(sic.CardNumber, bf, 16, 10);
-	string cardno=bf;
-
-	string info=runner->getName() + " (" + cardno + "),   " + runner->getClub() + ",   " + runner->getClass();
-	string warnings;
-
-  // Write read card to log
-  logCard(sic);
-
-	// Convert punch times to relative times.
-	oe->convertTimes(sic);
-
-	if(sic.CheckPunch.Code!=-1)
-		card->addPunch(oPunch::PunchCheck, sic.CheckPunch.Time,0);
-
-	if(sic.StartPunch.Code!=-1)
-		card->addPunch(oPunch::PunchStart, sic.StartPunch.Time,0);
-
-	for(unsigned i=0;i<sic.nPunch;i++)
-		card->addPunch(sic.Punch[i].Code, sic.Punch[i].Time,0);
-
-	if(sic.FinishPunch.Code!=-1)
-		card->addPunch(oPunch::PunchFinish, sic.FinishPunch.Time,0);
-	else
-		warnings+=lang.tl("Målstämpling saknas.");
-
-  card->synchronize();
-
+  string info, warnings, cardno;
 	vector<int> MP;
-	runner->addPunches(card, MP);
 
+  if (!csic.isManualInput()) {
+	  pCard card=gEvent->allocateCard(runner);
+
+	  card->setReadId(csic);
+	  card->setCardNo(sic.CardNumber);
+  	
+	  char bf[16];
+	  _itoa_s(sic.CardNumber, bf, 16, 10);
+	  cardno = bf;
+
+	  info=runner->getName() + " (" + cardno + "),   " + runner->getClub() + ",   " + runner->getClass();
+	  
+    // Write read card to log
+    logCard(sic);
+
+	  // Convert punch times to relative times.
+	  oe->convertTimes(sic);
+
+	  if(sic.CheckPunch.Code!=-1)
+		  card->addPunch(oPunch::PunchCheck, sic.CheckPunch.Time,0);
+
+	  if(sic.StartPunch.Code!=-1)
+		  card->addPunch(oPunch::PunchStart, sic.StartPunch.Time,0);
+
+	  for(unsigned i=0;i<sic.nPunch;i++)
+		  card->addPunch(sic.Punch[i].Code, sic.Punch[i].Time,0);
+
+	  if(sic.FinishPunch.Code!=-1)
+		  card->addPunch(oPunch::PunchFinish, sic.FinishPunch.Time,0);
+	  else
+		  warnings+=lang.tl("Målstämpling saknas.");
+
+    card->synchronize();
+
+	  runner->addPunches(card, MP);
+  }
+  else {
+    //Manual input
+    info = runner->getName() + ",   " + runner->getClub() + ",   " + runner->getClass();
+    runner->setCard(0);
+	  
+    if (csic.statusOK) {
+      runner->setStatus(StatusOK);
+      runner->setFinishTime(csic.relativeFinishTime);
+    }
+    else if (csic.statusDNF) {
+      runner->setStatus(StatusDNF);
+      runner->setFinishTime(0);
+    }
+    else {
+      runner->setStatus(StatusMP);
+      runner->setFinishTime(csic.relativeFinishTime);
+    }
+
+    cardno = MakeDash("-");
+    runner->evaluateCard(MP, false, false);
+  }
 
 	//Update to SQL-source
 	runner->synchronize();
-
 
   RECT rc;
   rc.left=15;
@@ -1554,8 +1698,8 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
   if(runner->getStatus()==StatusOK)	{
     gEvent->calculateResults(oEvent::RTClassResult);
     if (runner->getTeam()) 
-      gEvent->calculateTeamResults(runner->getLegNumber());
-    string placeS = runner->getTeam() ? runner->getTeam()->getLegPlaceS(runner->getLegNumber()) : runner->getPlaceS();
+      gEvent->calculateTeamResults(runner->getLegNumber(), false);
+    string placeS = runner->getTeam() ? runner->getTeam()->getLegPlaceS(runner->getLegNumber(), false) : runner->getPlaceS();
 
 		if(!silent) {
       gdi.fillDown();
@@ -1899,4 +2043,43 @@ bool TabSI::autoAssignClass(pRunner r, const SICard &sic) {
   }
 
   return r && r->getClassId() != 0;
+}
+
+void TabSI::showManualInput(gdioutput &gdi) {
+  runnerMatchedId = -1;
+  gdi.setRestorePoint("ManualInput");
+  gdi.fillDown();
+  gdi.dropLine(0.7);
+
+  int x = gdi.getCX();
+  int y = gdi.getCY();
+
+  gdi.setCX(x+gdi.scaleLength(15));
+  gdi.dropLine();
+  gdi.addString("", 1, "Manuell inmatning");
+  gdi.fillRight();
+  gdi.pushX();
+  gdi.dropLine();
+  gdi.addInput("Manual", "", 20, SportIdentCB, "Nummerlapp, SI eller Namn:");
+  gdi.addInput("FinishTime", lang.tl("Aktuell tid"), 8, SportIdentCB, "Måltid:").setFgColor(colorGreyBlue).setExtra(1);
+  gdi.dropLine(1.2);
+  gdi.addCheckbox("StatusOK", "Godkänd", SportIdentCB, true);
+  gdi.addCheckbox("StatusDNF", "Utgått", SportIdentCB, false);
+  gdi.dropLine(-0.3);
+  gdi.addButton("ManualOK", "OK", SportIdentCB).setDefault();
+  gdi.fillDown();
+  gdi.dropLine(2);
+  gdi.popX();
+  gdi.addString("FindMatch", 0, "", 0).setColor(colorDarkGreen);
+  gdi.dropLine();
+
+  RECT rc;
+  rc.left=x;
+  rc.right=gdi.getWidth()-10;
+  rc.top=y;
+  rc.bottom=gdi.getCY()+gdi.scaleLength(5);
+  gdi.dropLine();
+  gdi.addRectangle(rc, colorLightBlue);
+  gdi.refresh();
+  gdi.scrollToBottom();
 }

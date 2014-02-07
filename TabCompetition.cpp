@@ -321,12 +321,27 @@ int eventorServer(gdioutput *gdi, int type, void *data) {
     const ListBoxInfo &lbi = *((ListBoxInfo *)data);
     tc.setEventorServer(lbi.text);
   }
+  else if (type == GUI_BUTTON) {
+    const ButtonInfo &bi = *((ButtonInfo *)data);
+
+    if (bi.id == "EventorUTC")
+      tc.setEventorUTC(gdi->isChecked(bi.id));
+  }
   return 0;
 }
 
 void TabCompetition::setEventorServer(const string &server) {
   eventorBase = server;
   oe->setProperty("EventorBase", server);
+}
+
+void TabCompetition::setEventorUTC(bool useUTC) {
+  oe->setProperty("UseEventorUTC", useUTC);
+}
+
+bool TabCompetition::useEventorUTC() const {
+  bool eventorUTC = oe->getPropertyInt("UseEventorUTC", 0) != 0;
+  return eventorUTC;    
 }
 
 enum StartMethod {SMCommon = 1, SMDrawn, SMFree, SMCustom};
@@ -394,6 +409,9 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       }
 
       gdi.selectFirstItem("EventorServer");
+
+      bool eventorUTC = oe->getPropertyInt("UseEventorUTC", 0) != 0;
+      gdi.addCheckbox("EventorUTC", "Eventors tider i UTC (koordinerad universell tid)", eventorServer, eventorUTC);
 
       char bf[260];
       GetCurrentDirectory(260, bf);
@@ -495,7 +513,14 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       fields.push_back("Homepage");
       
       oe->getDI().buildDataFields(gdi, fields);
-      
+    
+      gdi.dropLine();
+      gdi.addString("", 1, "Tidszon");
+
+      gdi.dropLine(0.3);
+      gdi.addCheckbox("UTC", "Exportera tider i UTC", 0,
+                      oe->getDCI().getInt("UTC") == 1);
+     
       gdi.newColumn();
       gdi.popY();
 
@@ -624,6 +649,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         changedFee = true;
       
 
+      oe->getDI().setInt("UTC", gdi.isChecked("UTC") ? 1 : 0);
+      
       oe->getDI().setInt("CurrencyFactor", gdi.isChecked("UseFraction") ? 100 : 1);
       oe->getDI().setInt("CurrencyPreSymbol", gdi.isChecked("PreSymbol") ? 1 : 0);
       oe->setCurrency(-1, "", "", false);
@@ -870,24 +897,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       gdi.addString("", boldLarge, "Överför resultat till nästa etapp");
       gdi.setData("PostEvent", lbi.data);
       gdi.dropLine();
-      gdi.addListBox("ClassNewEntries", 200, 400, 0, "Klasser där nyanmälningar ska överföras:", "", true);
-      oe->fillClasses(gdi, "ClassNewEntries", oEvent::extraNone, oEvent::filterNone);
-      
-      gdi.setSelection("ClassNewEntries", allTransfer);
-      gdi.pushX();
-      gdi.fillRight();
-      gdi.addButton("SelectAll", "Välj allt", CompetitionCB);
-      gdi.fillDown();
-      gdi.addButton("SelectNone", "Välj inget", CompetitionCB);
-      gdi.popX();
-      gdi.addCheckbox("TransferEconomy", "Överför nya deltagare i ej valda klasser med status \"deltar ej\"");
-      gdi.fillRight();
-      gdi.addButton("DoTransferData", "Överför resultat", CompetitionCB);
-      gdi.addButton("MultiEvent", "Återgå", CompetitionCB);
-  
-      gdi.popX();
-      gdi.dropLine();
-      gdi.refresh();   
+      selectTransferClasses(gdi, false);
     }
     else if (bi.id == "SelectAll" || bi.id=="SelectNone") {
       set<int> s;
@@ -895,9 +905,23 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         s.insert(-1);
       gdi.setSelection("ClassNewEntries", s);
     }
+    else if (bi.id == "ExpandTResults") {
+      selectTransferClasses(gdi, true);
+    }
     else if (bi.id == "DoTransferData") {
-      gdi.getSelection("ClassNewEntries", allTransfer);
-      bool transferNoCompet = gdi.isChecked("TransferEconomy");
+      bool transferNoCompet = true;
+      gdi.disableInput("DoTransferData");
+      gdi.disableInput("MultiEvent");
+      gdi.disableInput("ExpandTResults", true);
+      gdi.disableInput("SelectAll", true);
+      gdi.disableInput("SelectNone", true);
+      if (gdi.hasField("ClassNewEntries")) {
+        gdi.getSelection("ClassNewEntries", allTransfer);
+        transferNoCompet = gdi.isChecked("TransferEconomy");
+      }
+      else {
+        oe->getAllClasses(allTransfer);
+      }
       int id = (int)gdi.getData("PostEvent");
 
       string file = oe->getFileNameFromId(id);
@@ -965,6 +989,9 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           displayRunners(gdi, failedTarget);
         }
         
+        vector<pTeam> newEntriesT, notTransferedT, failedTargetT;
+        oe->transferResult(nextStage, newEntriesT, notTransferedT, failedTargetT);
+
         nextStage.save();
 
         oe->updateTabs(true);
@@ -1124,7 +1151,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       dwl.initInternet();
 
       string startlist = getTempFile();
-      oe->exportIOFStartlist(oEvent::IOF30, startlist.c_str(), set<int>());
+      bool eventorUTC = oe->getPropertyInt("UseEventorUTC", 0) != 0;
+      oe->exportIOFStartlist(oEvent::IOF30, startlist.c_str(), eventorUTC, set<int>());
       vector<string> fileList;
       fileList.push_back(startlist);
 
@@ -1203,7 +1231,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
 
       string resultlist = getTempFile();
       set<int> classes;
-      oe->exportIOFSplits(oEvent::IOF30, resultlist.c_str(), false, classes, -1);
+      bool eventorUTC = oe->getPropertyInt("UseEventorUTC", 0) != 0;
+      oe->exportIOFSplits(oEvent::IOF30, resultlist.c_str(), false, eventorUTC, classes, -1);
       vector<string> fileList;
       fileList.push_back(resultlist);
 
@@ -1662,7 +1691,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
 				gdi.setWaitCursor(true);
         oe->sanityCheck(gdi, false);
         if (FilterIndex == 1 || FilterIndex == 2) {
-          oe->exportIOFStartlist(FilterIndex == 1 ? oEvent::IOF30 : oEvent::IOF20, save.c_str(), set<int>());
+          bool useUTC = oe->getDCI().getInt("UTC") != 0;
+          oe->exportIOFStartlist(FilterIndex == 1 ? oEvent::IOF30 : oEvent::IOF20, save.c_str(), useUTC, set<int>());
         }
         else if (FilterIndex == 3) {
 				  oe->exportOECSV(save.c_str());
@@ -1701,8 +1731,9 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           oEvent::IOFVersion ver = FilterIndex == 1 ? oEvent::IOF30 : oEvent::IOF20;
           ClassConfigInfo cnf;
           oe->getClassConfigurationInfo(cnf);
+          bool useUTC = oe->getDCI().getInt("UTC") != 0;
           if (!cnf.hasTeamClass()) {
-  				  oe->exportIOFSplits(ver, save.c_str(), true, set<int>(), -1);
+  				  oe->exportIOFSplits(ver, save.c_str(), true, useUTC, set<int>(), -1);
           }
           else {
             gdi.clearPage(false);
@@ -1772,14 +1803,16 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         ClassConfigInfo cnf;
         oe->getClassConfigurationInfo(cnf);
         int legMax = cnf.getNumLegsTotal();
+        bool useUTC = oe->getDCI().getInt("UTC") != 0;
         for (int leg = 0; leg<legMax; leg++) {
           file = fileBase + "_" + itos(leg+1) + fileEnd;
-          oe->exportIOFSplits(ver, file.c_str(), true, set<int>(), leg);
+          oe->exportIOFSplits(ver, file.c_str(), true, useUTC, set<int>(), leg);
         }
       }
       else {
+        bool useUTC = oe->getDCI().getInt("UTC") != 0;
         int leg = lbi.data == 1 ? -1 : lbi.data - 10;
-        oe->exportIOFSplits(ver, file.c_str(), true, set<int>(), leg);
+        oe->exportIOFSplits(ver, file.c_str(), true, useUTC, set<int>(), leg);
       }
 
       loadPage(gdi);
@@ -2250,7 +2283,6 @@ void TabCompetition::copyrightLine(gdioutput &gdi) const
   gdi.fillRight();
  
   gdi.addButton("Help", "Hjälp", CompetitionCB, "");
- 
   gdi.addButton("About", "Om MeOS...", CompetitionCB);
 
   gdi.dropLine(0.4);
@@ -2361,8 +2393,8 @@ bool TabCompetition::loadPage(gdioutput &gdi)
     textSizeControl(gdi); 
     
     gdi.popX();
-
     gdi.fillDown();	
+
     gdi.dropLine(3);
     copyrightLine(gdi);
 
@@ -2693,11 +2725,26 @@ void TabCompetition::getEventorCompetitions(gdioutput &gdi,
     ci.Id = xmlEvents[k].getObjectInt("EventId");
     xmlobject date = xmlEvents[k].getObject("StartDate");
     date.getObjectString("Date", ci.Date);
-    if (date.getObject("Clock"))
+    if (date.getObject("Clock")) 
       date.getObjectString("Clock", ci.firstStart);
 			
-		getLocalTimeDateFromUTC(ci.Date, ci.firstStart);  // Make times local
-
+    if (useEventorUTC()) {
+      int offset = getTimeZoneInfo(ci.Date);
+      int t = convertAbsoluteTimeISO(ci.firstStart);
+      int nt = t - offset;
+      int dayOffset = 0;
+      if (nt < 0) {
+        nt += 24*3600;
+        dayOffset = -1;
+      }
+      else if (nt > 24*3600) {
+        nt -= 24*3600;
+        dayOffset = 1;
+      }
+      ci.firstStart = formatTimeHMS(nt);
+      //TODO: Take dayoffset into account
+    }
+    
     xmlEvents[k].getObjectString("WebURL", ci.url);
     xmlobject aco = xmlEvents[k].getObject("Account");
     if (aco) {
@@ -3037,5 +3084,36 @@ void TabCompetition::displayRunners(gdioutput &gdi, const vector<pRunner> &chang
     gdi.addStringUT(0, changedClass[k]->getName() + " (" + changedClass[k]->getClass() +", " + 
                        changedClass[k]->getStartTimeS()+ ")");
   }
+}
+
+void TabCompetition::selectTransferClasses(gdioutput &gdi, bool expand) {
+  gdi.restore("SelectTClass", false);
+  gdi.setRestorePoint("SelectTClass");
+
+  if (expand) {
+    gdi.fillDown();
+    gdi.addListBox("ClassNewEntries", 200, 400, 0, "Klasser där nyanmälningar ska överföras:", "", true);
+    oe->fillClasses(gdi, "ClassNewEntries", oEvent::extraNone, oEvent::filterNone);
+    
+    gdi.setSelection("ClassNewEntries", allTransfer);
+    gdi.pushX();
+    gdi.fillRight();
+    gdi.addButton("SelectAll", "Välj allt", CompetitionCB);
+    gdi.fillDown();
+    gdi.addButton("SelectNone", "Välj inget", CompetitionCB);
+    gdi.popX();
+    gdi.addCheckbox("TransferEconomy", "Överför nya deltagare i ej valda klasser med status \"deltar ej\"");
+    gdi.fillRight();
+  }
+  else {
+    gdi.fillRight();
+    gdi.addButton("ExpandTResults", "Välj klasser med nya anmälningar", CompetitionCB);
+  }
+
+  gdi.addButton("DoTransferData", "Överför resultat", CompetitionCB);
+  gdi.addButton("MultiEvent", "Återgå", CompetitionCB);
+  gdi.popX();
+  gdi.dropLine();
+  gdi.refresh(); 
 }
 

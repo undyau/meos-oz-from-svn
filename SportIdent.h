@@ -78,8 +78,16 @@ struct SICard
   char Club[41];
 	bool PunchOnly;
   bool convertedTime;
+  // Used for manual time input
+  int runnerId;
+  int relativeFinishTime;
+  bool statusOK;
+  bool statusDNF;
+
   vector<string> codeLogData(int row) const;
   static vector<string> logHeader();
+
+  bool isManualInput() const {return runnerId != 0;} 
 };
 
 

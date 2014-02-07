@@ -1051,16 +1051,21 @@ bool oRunner::evaluateCard(vector<int> & MissingPunches, int addpunch, bool sync
   if (Class && sync) {
     bool update = false;
     if (tInTeam) {
-      int t1 = Class->getTotalLegLeaderTime(tLeg);
-      int t2 = tInTeam->getLegRunningTime(tLeg);
-      if (t2<=t1)
+      int t1 = Class->getTotalLegLeaderTime(tLeg, false);
+      int t2 = tInTeam->getLegRunningTime(tLeg, false);
+      if (t2<=t1 && t2>0)
+        update = true;
+
+      int t3 = Class->getTotalLegLeaderTime(tLeg, true);
+      int t4 = tInTeam->getLegRunningTime(tLeg, true);
+      if (t4<=t3 && t4>0)
         update = true;
     }
 
     if (!update) {
       int t1 = Class->getBestLegTime(tLeg);
       int t2 = getRunningTime();
-      if (t2<=t1)
+      if (t2<=t1 && t2>0)
         update = true;
     }
     if (update)
@@ -1142,15 +1147,69 @@ bool oRunner::storeTimes()
             updated = true;
           }
         }
-        if (tInTeam->getLegStatus(tLeg)==StatusOK) {
-          int &bt=Class->tLeaderTime[leg].totalLeaderTime;      
-          int rt=tInTeam->getLegRunningTime(tLeg);
+      }
+
+      bool updateTotal = true;
+      bool updateTotalInput = true;
+      
+      int basePLeg = firstLeg;
+      while (basePLeg > 0 && Class->legInfo[basePLeg].isParallel())
+        basePLeg--;
+
+      int ix = basePLeg;
+      while (ix < nleg && (ix == basePLeg || Class->legInfo[ix].isParallel()) ) {
+        updateTotal = updateTotal && tInTeam->getLegStatus(ix, false)==StatusOK;
+        updateTotalInput = updateTotalInput && tInTeam->getLegStatus(ix, true)==StatusOK;
+        ix++;
+      }
+
+      if (updateTotal) {
+        int rt = 0;
+        int ix = basePLeg;
+        while (ix < nleg && (ix == basePLeg || Class->legInfo[ix].isParallel()) ) {
+          rt = max(rt, tInTeam->getLegRunningTime(ix, false));
+          ix++;
+        }
+
+        for (int leg = firstLeg; leg<lastLeg; leg++) {
+          int &bt=Class->tLeaderTime[leg].totalLeaderTime; 
           if(rt > 0 && (bt == 0 || rt < bt)) {
             bt=rt;
             updated = true;
           }
         }
       }
+      if (updateTotalInput) {
+        //int rt=tInTeam->getLegRunningTime(tLeg, true);
+        int rt = 0;
+        int ix = basePLeg;
+        while (ix < nleg && (ix == basePLeg || Class->legInfo[ix].isParallel()) ) {
+          rt = max(rt, tInTeam->getLegRunningTime(ix, true));
+          ix++;
+        }
+        for (int leg = firstLeg; leg<lastLeg; leg++) {
+          int &bt=Class->tLeaderTime[leg].totalLeaderTimeInput;      
+          if(rt > 0 && (bt == 0 || rt < bt)) {
+            bt=rt;
+            updated = true;
+          }
+        }
+      }
+    
+      // Normalize total times for parallell legs (take maximal value)
+      /*int maxTotal = 0, maxTotalInput = 0;
+      int ix = basePLeg;
+      while (ix < nleg && (ix == basePLeg || Class->legInfo[ix].isParallel()) ) {
+        maxTotal = max(maxTotal, Class->tLeaderTime[ix].totalLeaderTime);
+        maxTotalInput = max(maxTotalInput, Class->tLeaderTime[ix].totalLeaderTimeInput);
+        ix++;
+      }
+      ix = basePLeg;
+      while (ix < nleg && (ix == basePLeg || Class->legInfo[ix].isParallel()) ) {
+        Class->tLeaderTime[ix].totalLeaderTime = maxTotal;
+        Class->tLeaderTime[ix].totalLeaderTimeInput = maxTotalInput;
+        ix++;
+      }*/
     }
   }
   else {
@@ -1166,8 +1225,9 @@ bool oRunner::storeTimes()
       int &bt=Class->tLeaderTime[tDuplicateLeg].totalLeaderTime;
       int rt=getRaceRunningTime(tDuplicateLeg);
       if(rt>0 && (bt==0 || rt<bt)) {
-        bt=rt;
+        bt = rt;
         updated = true;
+        Class->tLeaderTime[tDuplicateLeg].totalLeaderTimeInput = rt;
       }
     }
   }
@@ -1281,7 +1341,7 @@ bool oRunner::operator <(const oRunner &c)
       if (StartNo != c.StartNo && !getBib().empty())
         return StartNo < c.StartNo;
 		  else 
-        return Name<c.Name;
+        return Name < c.Name;
     }
 	}
 	else if(oe->CurrentSortOrder==ClassResult) {
@@ -1598,7 +1658,7 @@ int oRunner::getCoursePlace() const
 int oRunner::getTotalPlace() const
 {
   if (tInTeam)
-    return tInTeam->getLegPlace(tLeg);
+    return tInTeam->getLegPlace(tLeg, true);
   else
 	  return tTotalPlace;
 }
@@ -2227,7 +2287,7 @@ void oRunner::createMultiRunner(bool createMaster, bool sync)
     synchronize(true);
     oe->removeRunner(toRemove); 
     }
-  }
+}
 
 pRunner oRunner::getPredecessor() const
 {
@@ -2277,7 +2337,7 @@ bool oRunner::apply(bool sync)
 
         if (r && r->FinishTime>0 && r->statusOK()) {
           int rt=r->getRaceRunningTime(tDuplicateLeg-1);
-          int timeAfter=rt-pc->getTotalLegLeaderTime(r->tDuplicateLeg);
+          int timeAfter=rt-pc->getTotalLegLeaderTime(r->tDuplicateLeg, true);
           if(rt>0 && timeAfter>=0)
             lastStart=pc->getStartData(tDuplicateLeg)+timeAfter;
         }
@@ -2862,7 +2922,7 @@ int oRunner::getTimeAfter(int leg) const
   if (t<=0)
     return -1;
 
-  return t-Class->getTotalLegLeaderTime(leg);
+  return t-Class->getTotalLegLeaderTime(leg, true);
 }
 
 int oRunner::getTimeAfter() const
@@ -3979,7 +4039,7 @@ int oRunner::getTotalRunningTime(int time) const {
       return 0;
 
     if (time == FinishTime) {
-      return tInTeam->getLegRunningTime(tLeg) + inputTime; // Use the official running time in this case (which works with parallel legs)
+      return tInTeam->getLegRunningTime(tLeg, true); // Use the official running time in this case (which works with parallel legs)
     }
 
     int baseleg = tLeg-1;
@@ -3992,11 +4052,11 @@ int oRunner::getTotalRunningTime(int time) const {
       leg--;
     }
 
-    int pt = leg>=0 ? tInTeam->getLegRunningTime(leg) : 0;
+    int pt = leg>=0 ? tInTeam->getLegRunningTime(leg, true) : 0;
     if (pt>0)
-      return pt + time - StartTime + inputTime;
+      return pt + time - StartTime;
     else if (tInTeam->StartTime > 0)
-      return (time - tInTeam->StartTime) + inputTime;
+      return (time - tInTeam->StartTime) + tInTeam->inputTime;
     else
       return 0;
   }
@@ -4057,7 +4117,7 @@ RunnerStatus oRunner::getTotalStatus() const {
   if (tInTeam == 0 || tLeg == 0) 
     return max(Status, inputStatus);
   else {
-    RunnerStatus st = tInTeam->getLegStatus(tLeg-1);
+    RunnerStatus st = tInTeam->getLegStatus(tLeg-1, true);
 
     if (st == StatusOK || st == StatusUnknown)
       return Status;
@@ -4129,9 +4189,13 @@ void oRunner::setInputData(const oRunner &r) {
     if (r.Status != StatusNotCompetiting) {
   inputTime = r.getTotalRunningTime(r.FinishTime);
   inputStatus = r.getTotalStatus();
+      if (r.tInTeam) { // If a team has not status ok, transfer this status to all team members.
+        if (r.tInTeam->getTotalStatus() > StatusOK)
+          inputStatus = r.tInTeam->getTotalStatus();
+      }
   inputPoints = r.getRogainingPoints() + r.inputPoints;
   inputPlace = r.tTotalPlace < 99000 ? r.tTotalPlace : 0;
-}
+    }
     else {
       // Copy input
       inputTime = r.inputTime;

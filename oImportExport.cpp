@@ -478,7 +478,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     if (r && !r->tInTeam && r->getClassId() == classId) {
       toRemove.push_back(r->getId());
 	}
-}
+  }
   removeRunner(toRemove);
 }
 
@@ -2088,8 +2088,8 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
               xml.write("Clock", "clockFormat", "HH:MM:SS", formatTimeIOF(it->getLegFinishTime(-1), ZeroTime));
 					  xml.endTag();
   				
-					  xml.write("Time", "timeFormat", "HH:MM:SS", formatTimeIOF(it->getLegRunningTime(-1), 0));
-					  xml.write("ResultPosition", it->getLegPlaceS(-1));
+					  xml.write("Time", "timeFormat", "HH:MM:SS", formatTimeIOF(it->getLegRunningTime(-1, false), 0));
+					  xml.write("ResultPosition", it->getLegPlaceS(-1, false));
 
 					  xml.write("CompetitorStatus", "value", it->Runners[0]->getIOFStatusS());
   				
@@ -2099,7 +2099,7 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
 					  if(pc)	xml.write("CourseLength", "unit", "m", pc->getLengthS());
 
 					  pCourse pcourse=pc;
-					  if(pcourse && it->getLegStatus(-1)>0 && it->getLegStatus(-1)!=StatusDNS) {
+					  if(pcourse && it->getLegStatus(-1, false)>0 && it->getLegStatus(-1, false)!=StatusDNS) {
               int no = 1;
               bool hasRogaining = pcourse->hasRogaining();
               for (int k=0;k<pcourse->nControls;k++)	{
@@ -2382,7 +2382,9 @@ void oEvent::exportTeamSplits(xmlparser &xml, const set<int> &classes, bool oldS
 	
 }
 
-void oEvent::exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, const set<int> &classes, int leg)
+void oEvent::exportIOFSplits(IOFVersion version, const char *file, 
+                             bool oldStylePatrolExport, bool useUTC, 
+                             const set<int> &classes, int leg)
 {
 	xmlparser xml;
 
@@ -2393,19 +2395,20 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file, bool oldStyle
     calculateResults(RTClassCourseResult);
 	calculateResults(RTTotalResult);
   calculateResults(RTClassResult);
-  calculateTeamResults();
+  calculateTeamResults(true);
+  calculateTeamResults(false);
 
   if (version == IOF20)
     exportIOFResults(xml, true, classes, leg, oldStylePatrolExport);
   else {
     IOF30Interface writer(this);
-    writer.writeResultList(xml, classes, leg);
+    writer.writeResultList(xml, classes, leg, useUTC);
   }
 
 	xml.closeOut();
 }
 
-void oEvent::exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes)
+void oEvent::exportIOFStartlist(IOFVersion version, const char *file, bool useUTC, const set<int> &classes)
 {
 	xmlparser xml;
 
@@ -2415,9 +2418,7 @@ void oEvent::exportIOFStartlist(IOFVersion version, const char *file, const set<
     exportIOFStartlist(xml);
   else {
     IOF30Interface writer(this);
-    writer.writeStartList(xml, classes);
+    writer.writeStartList(xml, classes, useUTC);
   }
-
- 
 	xml.closeOut();
 }

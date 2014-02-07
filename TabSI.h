@@ -49,6 +49,7 @@ class TabSI :
   bool interactiveReadout;
   bool useDatabase;
   bool printSplits;
+  bool manualInput;
   PrinterObject splitPrinter;
 
   vector<PunchInfo> punches;
@@ -60,6 +61,9 @@ class TabSI :
     ModeAssignCards,
     ModeEntry
   };
+
+  int runnerMatchedId;
+
   //Interactive card assign
   SIMode mode;
   int currentAssignIndex;
@@ -75,6 +79,8 @@ class TabSI :
 
   void showReadPunches(gdioutput &gdi, vector<PunchInfo> &punches, set<string> &dates);
   void showReadCards(gdioutput &gdi, vector<SICard> &cards);
+
+  void showManualInput(gdioutput &gdi);
 
   // Insert card without converting times and with/without runner
   void processInsertCard(const SICard &csic);

@@ -482,7 +482,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
 		gdi.addString("", 1, "Test av stämplingsinläsningar");
 
-    gdi.addString("", 10, "Med den här automaten kan du simulera inläsning av SI-brickor. Löptider slumpas fram fram för alla deltagare. Även radiostämplingar kan simuleras.\n\nVARNING: Endast för testning. Använder du den här automaten i samband med ett riktigt arrangemang, saboterar du tävlingen.");
+    gdi.addString("", 10, "help:simulate");
 
     PunchMachine *pm=dynamic_cast<PunchMachine*>((PunchMachine*)bu.getExtra());
 
@@ -585,7 +585,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
     //Try exporting.
 #ifndef MEOSDB
-    oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, set<int>());
+    oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, set<int>());
 #endif
 
 		SplitsMachine *sm=dynamic_cast<SplitsMachine*>((AutoMachine*)bu.getExtra());
@@ -975,7 +975,7 @@ void SplitsMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 #ifndef MEOSDB
   if ((interval>0 && ast==SyncTimer) || (interval==0 && ast==SyncDataUp)) {
     if(!file.empty())
-      oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, classes, leg);
+      oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, classes, leg);
   }
 #endif
 }

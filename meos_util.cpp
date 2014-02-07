@@ -25,7 +25,7 @@
 #include <math.h>
 #include "meos_util.h"
 
-void getLocalTimeDateFromUTC(string& date, string& time)
+/*void getLocalTimeDateFromUTC(string& date, string& time)
 {
 	SYSTEMTIME utc = {0};	
 	if (date[4] != '-' || date[7] != '-' || time[2] != ':' || time[5] != ':' ||
@@ -85,7 +85,7 @@ string getUTCTimeDateFromLocal(string ISODateTime)
 	sprintf_s(bf, "%d-%02d-%02dT%02d:%02d:%02d", 
 			utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
 	return string(bf);
-}
+}*/
 
 string getLocalTime()
 {
@@ -378,7 +378,7 @@ int convertAbsoluteTimeISO(const string &m)
   else
     tmp = tmp.substr(2);
 
-  if (tmp.length() < 3)
+  if (tmp.length() < 2)
     return -1;
 
   sStr = tmp.substr(0, 2);
@@ -1357,5 +1357,53 @@ void capitalize(string &str) {
       c = 'Å';
 
     str[0] = c;
+  }
+}
+
+/** Return bias in seconds. UTC = local time + bias. */
+int getTimeZoneInfo(const string &date) {
+  static char lastDate[16] = {0};
+  static int lastValue = -1;
+  // Local cacheing
+  if (lastValue != -1 && lastDate == date) {
+    return lastValue;
+  }
+  strcpy_s(lastDate, 16, date.c_str());
+//  TIME_ZONE_INFORMATION tzi;
+  SYSTEMTIME st;
+  convertDateYMS(date, st);
+  st.wHour = 12;  
+  SYSTEMTIME utc;
+  TzSpecificLocalTimeToSystemTime(0, &st, &utc);
+
+  int datecode = ((st.wYear * 12 + st.wMonth) * 31) + st.wDay;
+  int datecodeUTC = ((utc.wYear * 12 + utc.wMonth) * 31) + utc.wDay;
+  
+  int daydiff = 0;
+  if (datecodeUTC > datecode)
+    daydiff = 1;
+  else if (datecodeUTC < datecode)
+    daydiff = -1;
+
+  int t = st.wHour * 3600;
+  int tUTC = daydiff * 24 * 3600 + utc.wHour * 3600 + utc.wMinute * 60 + utc.wSecond;
+
+  lastValue = tUTC - t;
+  return lastValue;
+}
+
+string getTimeZoneString(const string &date) {
+  int a = getTimeZoneInfo(date);
+  if (a == 0)
+    return "+00:00";
+  else if (a>0) {
+    char bf[12];
+    sprintf_s(bf, "-%02d:%02d", a/3600, (a/60)%60);
+    return bf;
+  }
+  else {
+    char bf[12];
+    sprintf_s(bf, "+%02d:%02d", a/-3600, (a/-60)%60);
+    return bf;
   }
 }

@@ -818,7 +818,7 @@ ButtonInfo &gdioutput::addCheckbox(int x, int y, const string &id, const string 
 		      x-ox, y-oy + (size.cy-h)/2, h, h, hWndTarget, NULL,  
 		      (HINSTANCE)GetWindowLong(hWndTarget, GWL_HINSTANCE), NULL);
 
-  addStringUT(y - oy , x - ox + (3*h)/2, 0, ttext, 0);
+  addStringUT(y , x + (3*h)/2, 0, ttext, 0);
 
 	SendMessage(bi.hWnd, WM_SETFONT, (WPARAM) getGUIFont(), 0);
 
@@ -1095,8 +1095,7 @@ void gdioutput::setSelection(const string &id, const set<int> &selection)
   }
 }
 
-void gdioutput::getSelection(const string &id, set<int> &selection)
-{
+void gdioutput::getSelection(const string &id, set<int> &selection) {
   list<ListBoxInfo>::iterator it;
 	for(it=LBI.begin(); it != LBI.end(); ++it){
 		if (it->id==id && !it->IsCombo) {
@@ -1112,6 +1111,11 @@ void gdioutput::getSelection(const string &id, set<int> &selection)
       return;
 		}
   }
+
+  #ifdef _DEBUG
+    string err = string("Internal Error, identifier not found: X#") + id;
+    throw std::exception(err.c_str());
+  #endif
 } 
 
 ListBoxInfo &gdioutput::addSelection(const string &id, int width, int height, GUICALLBACK cb, const string &Explanation, const string &Help)
@@ -1916,8 +1920,8 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
             SetBkColor(HDC(wParam), ii.bgColor);
           }
           else {
-            SetDCBrushColor(HDC(wParam), GetSysColor(COLOR_BACKGROUND));
-            SetBkColor(HDC(wParam), GetSysColor(COLOR_BACKGROUND));
+            SetDCBrushColor(HDC(wParam), GetSysColor(COLOR_WINDOW));
+            SetBkColor(HDC(wParam), GetSysColor(COLOR_WINDOW));
           }
           if (ii.fgColor != colorDefault)
             SetTextColor(HDC(wParam), ii.fgColor);

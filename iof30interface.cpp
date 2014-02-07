@@ -1305,24 +1305,25 @@ pRunner IOF30Interface::readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo
   if (c)
     r->setClubId(c->getId());
 
-  if (pc)
-    r->setClassId(pc->getId());
-
   xmlList starts;
   xo.getObjects("Start", starts);
 
   for (size_t k = 0; k < starts.size(); k++) {
     int race = starts[k].getObjectInt("raceNumber");
     pRunner rRace = r;
-    if (race > 1)
-      rRace = r->getMultiRunner(race - 1);
-
+    if (race > 1 && r->getNumMulti() > 0) {
+      pRunner rr = r->getMultiRunner(race - 1);
+      if (rr)
+        rRace = rr;
+    }
     if (rRace) {
       // Card
       int cardNo = starts[k].getObjectInt("ControlCard");
       if (cardNo > 0)
         rRace->setCardNo(cardNo, false);
 
+      xmlobject startTime = starts[k].getObject("StartTime");
+      
       if (team) {
         int leg = starts[k].getObjectInt("Leg");
         int legorder = starts[k].getObjectInt("LegOrder");
@@ -1334,16 +1335,23 @@ pRunner IOF30Interface::readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo
         team->setRunner(legindex, rRace, false);
         if (rRace->getClubId() == 0)
           rRace->setClubId(team->getClubId());
+
+        if (startTime && pc) {
+          pc->setStartType(legindex, STDrawn);
+
+        }
       }
 
       string bib;
       starts[k].getObjectString("BibNumber", bib);
       rRace->getDI().setString("Bib", bib);
 
-      xmlobject startTime = starts[k].getObject("StartTime");
       rRace->setStartTime(parseISO8601Time(startTime));
     }  
   }
+
+  if (pc)
+    r->setClassId(pc->getId());
 
   r->synchronize();
   return r;
@@ -1904,7 +1912,7 @@ int IOF30Interface::parseISO8601Time(const xmlobject &xo) {
       else ;
         // Bad format
     }
-    else if (t[k] == '+' || t[k] == '-') {
+    else if (t[k] == '+' || t[k] == '-' || t[k] == 'Z') {
       if (zIx == -1 && tIx != -1)
         zIx = k;
       else ;
@@ -1922,7 +1930,7 @@ int IOF30Interface::parseISO8601Time(const xmlobject &xo) {
       time = time.substr(0, zIx - tIx - 1);
   }
 
-  return oe.getRelativeTime(time);   
+  return oe.getRelativeTime(date, time, zone);   
 }
 
 void IOF30Interface::getProps(vector<string> &props) const {
@@ -1942,7 +1950,8 @@ void IOF30Interface::getProps(vector<string> &props) const {
   props.push_back("MeOS " + getMeosCompectVersion()); 
 }
 
-void IOF30Interface::writeResultList(xmlparser &xml, const set<int> &classes, int leg) {
+void IOF30Interface::writeResultList(xmlparser &xml, const set<int> &classes, int leg,  bool useUTC_) {
+  useGMT = useUTC_;
   vector<string> props;
   getProps(props);
 
@@ -2167,7 +2176,7 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
     if (rn == 0)
       rn = 1;
     rn += rPerson.getRaceNo();
-    xml.startTag("Result", "raceNumber", itos(rn + 1));
+    xml.startTag("Result", "raceNumber", itos(rn));
   }
 
   if (teamMember)
@@ -2178,10 +2187,10 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
     xml.write("BibNumber", bib);
 
   if (r.getStartTime() > 0)
-    xml.write("StartTime", getUTCTimeDateFromLocal(oe.getAbsTimeISO(r.getStartTime())));
+    xml.write("StartTime", oe.getAbsDateTimeISO(r.getStartTime(), true, useGMT));
 
   if (r.getFinishTime() > 0)
-    xml.write("FinishTime", getUTCTimeDateFromLocal(oe.getAbsTimeISO(r.getFinishTime())));
+    xml.write("FinishTime", oe.getAbsDateTimeISO(r.getFinishTime(), true, useGMT));
 
   if (r.getRunningTime() > 0)
     xml.write("Time", r.getRunningTime());
@@ -2207,7 +2216,7 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
         xml.write("Position", r.getPlace());
       }
       else if (teamMember) {
-        int pos = r.getTeam()->getLegPlace(r.getLegNumber());
+        int pos = r.getTeam()->getLegPlace(r.getLegNumber(), false);
         if (pos > 0)
           xml.write("Position", "type", "Leg", itos(pos));
 
@@ -2230,7 +2239,7 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
 
       int tleg = r.getLegNumber() >= 0 ? r.getLegNumber() : 0;
       if (stat == StatusOK && hasTiming) {
-        int after = r.getTotalRunningTime() - r.getClassRef()->getTotalLegLeaderTime(tleg);
+        int after = r.getTotalRunningTime() - r.getClassRef()->getTotalLegLeaderTime(tleg, true);
         if (after >= 0)
           xml.write("TimeBehind", after);
       }
@@ -2363,7 +2372,7 @@ void IOF30Interface::writeEvent(xmlparser &xml) {
   xml.write("Name", oe.getName());
   xml.startTag("StartTime");
   xml.write("Date", oe.getDate());
-  xml.write("Time", oe.getZeroTime());
+  xml.write("Time", oe.getAbsDateTimeISO(0, false, useGMT));
   xml.endTag();
 
   if (getStageNumber()) {
@@ -2374,7 +2383,7 @@ void IOF30Interface::writeEvent(xmlparser &xml) {
 
     xml.startTag("StartTime");
     xml.write("Date", oe.getDate());
-    xml.write("Time", oe.getZeroTime());
+    xml.write("Time", oe.getAbsDateTimeISO(0, false, useGMT));
     xml.endTag();
 
     xml.endTag();
@@ -2425,7 +2434,8 @@ void IOF30Interface::writeClub(xmlparser &xml, const oClub &c) {
   xml.endTag();
 }
 
-void IOF30Interface::writeStartList(xmlparser &xml, const set<int> &classes) {
+void IOF30Interface::writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC_) {
+  useGMT = useUTC_;
   vector<string> props;
   getProps(props);
 
@@ -2596,10 +2606,10 @@ void IOF30Interface::writeStart(xmlparser &xml, const oRunner &r,
     xml.write("BibNumber", bib);
 
   if (r.getStartTime() > 0)
-	{
-		string dt = oe.getAbsTimeISO(r.getStartTime());
-    xml.write("StartTime", getUTCTimeDateFromLocal(dt));
-	}
+    xml.write("StartTime", oe.getAbsDateTimeISO(r.getStartTime(), true, useGMT));
+	//	string dt = oe.getAbsTimeISO(r.getStartTime());
+  //  xml.write("StartTime", getUTCTimeDateFromLocal(dt));
+	//}
     
   pCourse crs = r.getCourse();
   if (crs && includeCourse)

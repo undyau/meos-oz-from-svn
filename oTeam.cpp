@@ -364,12 +364,16 @@ int oTeam::getLegFinishTime(int leg) const
 }
 
 int oTeam::getRunningTime() const {
-  return getLegRunningTime(-1);
+  return getLegRunningTime(-1, false);
 }
 
-int oTeam::getLegRunningTime(int leg) const
+int oTeam::getLegRunningTime(int leg, bool multidayTotal) const
 {
   leg = getLegToUse(leg);
+
+  int addon = 0;
+  if (multidayTotal)
+    addon = inputTime;
 
 	if (unsigned(leg)<Runners.size() && Runners[leg]) {
     if (Class) {
@@ -383,9 +387,8 @@ int oTeam::getLegRunningTime(int leg) const
       switch(lt) {
         case LTNormal:
           if(Runners[leg]->statusOK()) {
-            
-            int dt=leg>0 ? getLegRunningTime(leg-1)+Runners[leg]->getRunningTime():0;     
-            return max(Runners[leg]->getFinishTime()-StartTime, dt);
+            int dt = leg>0 ? getLegRunningTime(leg-1, false)+Runners[leg]->getRunningTime():0;     
+            return addon + max(Runners[leg]->getFinishTime()-StartTime, dt);
           }
           else return 0;
         break;
@@ -393,20 +396,20 @@ int oTeam::getLegRunningTime(int leg) const
         case LTParallelOptional:
         case LTParallel: //Take the longest time of this runner and the previous
           if(Runners[leg]->statusOK()) {
-            int pt=leg>0 ? getLegRunningTime(leg-1) : 0;
-            return max(Runners[leg]->getFinishTime()-StartTime, pt);
+            int pt=leg>0 ? getLegRunningTime(leg-1, false) : 0;
+            return addon + max(Runners[leg]->getFinishTime()-StartTime, pt);
           }
           else return 0;
         break;
 
         case LTExtra: //Take the best time of this runner and the previous
           if (leg==0) 
-            return max(Runners[leg]->getFinishTime()-StartTime, 0);
+            return addon + max(Runners[leg]->getFinishTime()-StartTime, 0);
           else {
-            int pt=getLegRunningTime(leg-1);
+            int pt = getLegRunningTime(leg-1, multidayTotal);
 
             if (Runners[leg]->getFinishTime()>StartTime)
-              return min(Runners[leg]->getFinishTime()-StartTime, pt);
+              return min(addon + Runners[leg]->getFinishTime()-StartTime, pt);
             else return pt;
           }  
         break;
@@ -414,9 +417,9 @@ int oTeam::getLegRunningTime(int leg) const
         case LTSum:
           if(Runners[leg]->statusOK()) {
             if (leg==0) 
-              return Runners[leg]->getRunningTime();
+              return addon + Runners[leg]->getRunningTime();
             else {
-              int prev = getLegRunningTime(leg-1);
+              int prev = getLegRunningTime(leg-1, multidayTotal);
               if (prev == 0)
                 return 0;
               else
@@ -429,17 +432,17 @@ int oTeam::getLegRunningTime(int leg) const
           if (leg==0) 
             return 0;
           else
-            return getLegRunningTime(leg-1);
+            return getLegRunningTime(leg-1, multidayTotal);
 
         break;
       }
     }
     else {
-		  int dt=max(Runners[leg]->getFinishTime()-StartTime, 0);
+		  int dt=addon + max(Runners[leg]->getFinishTime()-StartTime, 0);
 		  int dt2=0;
 
 		  if(leg>0)
-			  dt2=getLegRunningTime(leg-1)+Runners[leg]->getRunningTime();
+        dt2=getLegRunningTime(leg-1, multidayTotal)+Runners[leg]->getRunningTime();
       
 		  return max(dt, dt2);
     }
@@ -447,12 +450,12 @@ int oTeam::getLegRunningTime(int leg) const
 	return 0;
 }
 
-string oTeam::getLegRunningTimeS(int leg) const
+string oTeam::getLegRunningTimeS(int leg, bool multidayTotal) const
 {
   if (leg==-1)
     leg = Runners.size()-1;
 
-  int rt=getLegRunningTime(leg);
+  int rt=getLegRunningTime(leg, multidayTotal);
 
 	if(rt>0) {
 		char bf[16];
@@ -471,13 +474,20 @@ string oTeam::getLegRunningTimeS(int leg) const
 }
 
 
-RunnerStatus oTeam::getLegStatus(int leg) const
+RunnerStatus oTeam::getLegStatus(int leg, bool multidayTotal) const
 {
   if (leg==-1) 
     leg=Runners.size()-1;
 	
   if (unsigned(leg)>=Runners.size())
     return StatusUnknown;
+
+  if (multidayTotal) {
+    if (inputStatus == StatusUnknown)
+      return StatusUnknown;
+    RunnerStatus s = getLegStatus(leg, false);
+    return max(inputStatus, s);
+  }
 
   //Let the user specify a global team status disqualified/maxtime.
   if((leg==Runners.size()-1) && (Status==StatusDQ || Status==StatusMAX))
@@ -529,14 +539,22 @@ RunnerStatus oTeam::getLegStatus(int leg) const
 	return RunnerStatus(s);
 }
 
-const string &oTeam::getLegStatusS(int leg) const
+const string &oTeam::getLegStatusS(int leg, bool multidayTotal) const
 {
-  return oe->formatStatus(getLegStatus(leg));
+  return oe->formatStatus(getLegStatus(leg, multidayTotal));
 }
 
-string oTeam::getLegPlaceS(int leg) const
+int oTeam::getLegPlace(int leg, bool multidayTotal) const {
+  if (!multidayTotal)
+    return leg>=0 && leg<maxRunnersTeam ? _places[leg].p:_places[Runners.size()-1].p;
+  else
+    return leg>=0 && leg<maxRunnersTeam ? _places[leg].totalP:_places[Runners.size()-1].totalP;
+}
+
+
+string oTeam::getLegPlaceS(int leg, bool multidayTotal) const
 {
-	int p=getLegPlace(leg);
+	int p=getLegPlace(leg, multidayTotal);
 	char bf[16];
 	if(p>0 && p<10000){
 		sprintf_s(bf, "%d", p);
@@ -545,9 +563,9 @@ string oTeam::getLegPlaceS(int leg) const
   return _EmptyString;
 }
 
-string oTeam::getLegPrintPlaceS(int leg) const
+string oTeam::getLegPrintPlaceS(int leg, bool multidayTotal) const
 {
-  int p=getLegPlace(leg);
+  int p=getLegPlace(leg, multidayTotal);
 	char bf[16];
 	if(p>0 && p<10000){
 		sprintf_s(bf, "%d.", p);
@@ -847,10 +865,10 @@ bool oTeam::apply(bool sync, pRunner source)
             case STHunting: {
               bool setStart = false;
               if (i>0 && Runners[i-1]) {
-                int rt = this->getLegRunningTime(i-1);//Runners[i-1]->getRunningTime();
+                int rt = this->getLegRunningTime(i-1, false);
                 if (rt>0)
                   setStart = true;
-                int leaderTime = pc->getTotalLegLeaderTime(i-1);
+                int leaderTime = pc->getTotalLegLeaderTime(i-1, false);
                 int timeAfter = leaderTime > 0 ? rt - leaderTime : 0;
 
                 if(rt>0 && timeAfter>=0)
@@ -859,7 +877,7 @@ bool oTeam::apply(bool sync, pRunner source)
                 int restart=pc->getRestartTime(i);
                 int rope=pc->getRopeTime(i);
 
-                RunnerStatus hst = getLegStatus(i-1);
+                RunnerStatus hst = getLegStatus(i-1, false);
                 if (hst != StatusUnknown && hst != StatusOK) {
                   setStart = true;
                   lastStartTime = restart;
@@ -921,7 +939,7 @@ bool oTeam::apply(bool sync, pRunner source)
     setStartTime(Class->getStartData(0));
 
   setFinishTime(getLegFinishTime(-1));
-  setStatus(getLegStatus(-1));
+  setStatus(getLegStatus(-1, false));
 
   if(sync)
     synchronize(true);
@@ -1002,7 +1020,7 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
   Runners[leg]->getSplitTime(controlId, spk.status, spk.runningTimeLeg);
 
   spk.owner=Runners[leg];
-  spk.finishStatus=getLegStatus(leg);
+  spk.finishStatus=getLegStatus(leg, false);
   int st=Runners[leg]->getStartTime();
   spk.startTimeS = Runners[leg]->getStartTimeCompact();
   spk.missingStartTime = st <= 0;
@@ -1018,8 +1036,8 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
   int timeOffset=0;
   RunnerStatus inheritStatus = StatusUnknown;
   if (firstLeg>=0) {
-    timeOffset = getLegRunningTime(firstLeg);
-    inheritStatus = getLegStatus(firstLeg);
+    timeOffset = getLegRunningTime(firstLeg, false);
+    inheritStatus = getLegStatus(firstLeg, false);
   }
 
   if (inheritStatus>StatusOK)
@@ -1029,7 +1047,7 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
     if (controlId != 2)
       spk.runningTime = spk.runningTimeLeg+timeOffset;
     else
-      spk.runningTime = getLegRunningTime(requestedLeg); // Get official time
+      spk.runningTime = getLegRunningTime(requestedLeg, false); // Get official time
 
     spk.preliminaryRunningTime = spk.runningTime;
     spk.preliminaryRunningTimeLeg = spk.runningTimeLeg;
@@ -1051,12 +1069,12 @@ int oTeam::getTimeAfter(int leg) const
   if(!Class || Class->tLeaderTime.size()<=unsigned(leg))
     return -1;
 
-  int t=getLegRunningTime(leg);
+  int t=getLegRunningTime(leg, false);
 
   if (t<=0)
     return -1;
 
-  return t-Class->getTotalLegLeaderTime(leg);
+  return t-Class->getTotalLegLeaderTime(leg, false);
 }
 
 int oTeam::getLegStartTime(int leg) const
@@ -1182,7 +1200,8 @@ void oTeam::setInputData(const oTeam &t) {
   inputTime = t.getRunningTime() + t.inputTime;
   inputStatus = t.getTotalStatus();
   inputPoints = t.getRogainingPoints() + t.inputPoints;
-  inputPlace = t.tTotalPlace < 99000 ? t.tTotalPlace : 0;
+  int tp = t.getTotalPlace();
+  inputPlace = tp < 99000 ? tp : 0;
 }
 
 RunnerStatus oTeam::getTotalStatus() const {
@@ -1192,10 +1211,6 @@ RunnerStatus oTeam::getTotalStatus() const {
     return StatusDNS;
 
   return max(Status, inputStatus);
-}
-
-int oTeam::getTotalPlace() const {
-  throw std::exception("Not implemented");
 }
 
 void oEvent::getTeams(int classId, vector<pTeam> &t, bool sort) {
@@ -1532,4 +1547,13 @@ void oTeam::removeRunner(gdioutput &gdi, bool askRemoveRunner, int i) {
       oe->removeRunner(oldR);
     }
   }
+}
+
+int oTeam::getTeamFee() const {
+  int f = getDCI().getInt("Fee");
+  for (size_t k = 0; k < Runners.size(); k++) {
+    if (Runners[k])
+      f += Runners[k]->getDCI().getInt("Fee");
+  }
+  return f;
 }

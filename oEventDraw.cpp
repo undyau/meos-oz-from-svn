@@ -595,7 +595,11 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
 
   if (Vacances>0 && leg>0)
     throw std::exception("Det går endast att sätta in vakanser på sträcka 1.");
-  
+
+  if (size_t(leg) < pc->legInfo.size()) {
+    pc->legInfo[leg].startMethod = STDrawn; //Automatically change start method
+  }
+
   vector<pRunner> runners;
   runners.reserve(Runners.size());
 
@@ -1198,21 +1202,54 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
                              int maxTime, int interval, bool pairwise, bool reverse, double scale) {
   if (classId<=0)
     return;
+
+  pClass pc=getClass(classId);
+
+  if(!pc)
+    throw std::exception("Klass saknas");
+  
+  const int leg = 0;
+  if (size_t(leg) < pc->legInfo.size()) {
+    pc->legInfo[leg].startMethod = STDrawn; //Automatically change start method
+  }
+
+  vector<pRunner> trunner;
+  getRunners(classId, 0, trunner);
+
   vector<pRunner> runner;
-  getRunners(classId, 0, runner);
+  runner.reserve(trunner.size());
+  for (size_t k = 0; k< trunner.size(); k++) // Only treat specified leg
+    if (trunner[k]->tLeg == leg)
+      runner.push_back(trunner[k]);
 
   if (runner.empty())
     return;
 
+  // Make sure patrol members use the same time
+  vector<int> adjustedTimes(runner.size());
+  for (size_t k = 0; k<runner.size(); k++) {
+    if (runner[k]->inputStatus == StatusOK && runner[k]->inputTime>0) {
+      int it = runner[k]->inputTime;
+      if (runner[k]->tInTeam) {
+        for (size_t j = 0; j < runner[k]->tInTeam->Runners.size(); j++) {
+          int it2 = runner[k]->tInTeam->Runners[j]->inputTime;
+          if (it2 > 0)
+            it = max(it, it2);
+        }
+      }
+      adjustedTimes[k] = it;
+    }
+  }
+  
   vector< pair<int, int> > times(runner.size());
 
   for (size_t k = 0; k<runner.size(); k++) {
     times[k].second = k;
-    if (runner[k]->inputStatus == StatusOK && runner[k]->inputTime>0) {
+    if (runner[k]->inputStatus == StatusOK && adjustedTimes[k]>0) {
       if (scale != 1.0)
-        times[k].first = int(floor(double(runner[k]->inputTime) * scale + 0.5));
+        times[k].first = int(floor(double(adjustedTimes[k]) * scale + 0.5));
       else
-        times[k].first = runner[k]->inputTime;
+        times[k].first = adjustedTimes[k];
     }
     else {
       times[k].first = 3600 * 24 * 7 + runner[k]->inputStatus;
@@ -1273,4 +1310,3 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
   }
   
 }
-

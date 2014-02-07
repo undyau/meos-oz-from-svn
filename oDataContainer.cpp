@@ -645,11 +645,13 @@ string oDataContainer::generateSQLSet(const void *data) const
 			  sql+=bf;
       }
       else if (di.SubType == oIS8) {
-			  sprintf_s(bf, ", %s=%d", di.Name, (*((int *)vd))&0xFF);
+        char r = (*((int *)vd))&0xFF;
+			  sprintf_s(bf, ", %s=%d", di.Name, (int)r);
 			  sql+=bf;
       }
       else if (di.SubType == oIS16) {
-			  sprintf_s(bf, ", %s=%d", di.Name, (*((int *)vd))&0xFFFF);
+        short r = (*((int *)vd))&0xFFFF;
+			  sprintf_s(bf, ", %s=%d", di.Name, (int)r);
 			  sql+=bf;
       }
       else if (di.SubType != oIS64) {

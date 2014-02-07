@@ -145,7 +145,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   }
 
   GetCurrentDirectory(MAX_PATH, programPath);
-
+  
   getUserFile(settings, "meospref.xml");
 
   int rInit = (GetTickCount() / 100);
@@ -171,6 +171,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   lang.addLangResource("English", "104");
   lang.addLangResource("Svenska", "103");
   lang.addLangResource("Deutsch", "105");
+  lang.addLangResource("Dansk", "106");
 
   if (fileExist("extra.lng")) {
     lang.addLangResource("Extraspråk", "extra.lng");
@@ -210,7 +211,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
     string err;
 
-      for (size_t k = 0; k<res.size(); k++) {
+    for (size_t k = 0; k<res.size(); k++) {
       try {
         xmlparser xml;
 
@@ -220,14 +221,14 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         xmlobject xlist = xml.getObject(0);
         gEvent->getListContainer().load(MetaListContainer::InternalList, xlist);
       }
-    catch (std::exception &ex) {
+      catch (std::exception &ex) {
         string errLoc = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
         if (err.empty())
           err = errLoc;
         else
           err += "\n" + errLoc;
+      }
     }
-  }
     if (!err.empty())
       gdi_main->alert(err);
   }
@@ -820,7 +821,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//SetTimer(hWnd, 1, 5*60*1000, 0); //Autosave
 			SetTimer(hWnd, 2, 1000, 0); //Interface timeout
 			SetTimer(hWnd, 3, 2500, 0); //DataSync
-      SetTimer(hWnd, 4, 5000, 0); //Connection check
+      SetTimer(hWnd, 4, 10000, 0); //Connection check
 			break;
 
     case WM_MOUSEWHEEL: {
@@ -875,12 +876,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			else if (wParam==3) {
 				//SQL-synch only if in list-show mode.
         tabAutoSync(gdi_extra, gEvent);
+        //OutputDebugString("Sync\n");
+        //Sleep(0);
 			}
       else if (wParam==4) {
         // Verify database link
         if(gEvent)
           gEvent->verifyConnection();
-        
+        //OutputDebugString("Verify link\n");
+        //Sleep(0);
         if(gdi_main) {
           if (gEvent->hasClientChanged()) {
             gdi_main->makeEvent("Connections", "verify_connection", 0, 0, false);

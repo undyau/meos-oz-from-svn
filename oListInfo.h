@@ -79,6 +79,14 @@ enum EPostType
   lRunnerUMMasterPoint,
   lRunnerTimePlaceFixed,
   lRunnerLegNumberAlpha,
+
+  lRunnerBirthYear,
+  lRunnerAge,
+  lRunnerSex,
+  lRunnerNationality,
+  lRunnerPhone,
+  lRunnerFee,
+
   lTeamName,
   lTeamStart,
   lTeamTimeStatus,
@@ -94,6 +102,15 @@ enum EPostType
   lTeamRunnerCard,
   lTeamBib,
   lTeamStartNo,
+  lTeamFee,
+
+  lTeamTotalTime,
+  lTeamTotalTimeStatus,
+  lTeamTotalPlace,
+  lTeamTotalTimeAfter,
+  lTeamTotalTimeDiff,
+  lTeamPlaceDiff,
+  
   lPunchNamedTime,
   lPunchTime,
   lRogainingPunch,

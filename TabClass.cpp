@@ -1847,7 +1847,7 @@ void TabClass::multiCourse(gdioutput &gdi, int nLeg)
       headXPos[2]=gdi.getCX();
       string startType(string("StartType")+legno);    
       gdi.addSelection(startType, 90, 200, MultiCB);
-      oClass::fillStartTypes(gdi, startType);
+      oClass::fillStartTypes(gdi, startType, k == 0);
 
       headXPos[3]=gdi.getCX();
       gdi.addInput(string("StartData")+legno, "", 5, MultiCB);

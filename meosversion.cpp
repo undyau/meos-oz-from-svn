@@ -26,35 +26,38 @@
 //V2: ABCDEFGHIHJKMN
 int getMeosBuild() 
 {
-  string revision("$Rev: 133 $");
+  string revision("$Rev: 142 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
 //ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvx
 //V2: abcdefg
-//V3: abcdefghijklmnopq
+//V3: abcdefghijklmnopqrs
 string getMeosDate() 
 {
-  string date("$Date: 2013-01-01 11:05:43 +0100 (ti, 01 jan 2013) $");
+  string date("$Date: 2013-07-04 09:19:13 +0200 (to, 04 jul 2013) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return "";
+  return "Beta 1";
 }
 
 string getMeosFullVersion() {
   char bf[256];
   if (getBuildType().empty())
-    sprintf_s(bf, "Version X#3.0.%d, %s", getMeosBuild(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#3.1.%d, %s (+ minor Australian customisations)", getMeosBuild(), getMeosDate().c_str());
   else
-    sprintf_s(bf, "Version X#3.0.%d, %s %s", getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#3.1.%d, %s %s (+ minor Australian customisations)", getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
   return bf;
 }
 
 string getMeosCompectVersion() {
   char bf[256];
-  sprintf_s(bf, "3.0.%d (%s)", getMeosBuild(), getBuildType().c_str());
+  if (getBuildType().empty())
+    sprintf_s(bf, "3.1.%d", getMeosBuild());
+  else
+    sprintf_s(bf, "3.1.%d (%s)", getMeosBuild(), getBuildType().c_str());
   return bf;
 }
 
@@ -86,4 +89,14 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Big Foot Orienteers");
   supp.push_back("FIF Hillerød");
   supp.push_back("Anne Udd");
+  supp.push_back("OK Orinto");
+  supp.push_back("SOK Träff");
+  supp.push_back("Gamleby OK");
+  supp.push_back("Vänersborgs SK");
+  supp.push_back("Henrik Ortman, Västerås SOK");
+  supp.push_back("Leif Olofsson, Sjuntorp");
+  supp.push_back("Vallentuna/Össeby OL");
+  supp.push_back("Oskarström OK");
+  supp.push_back("OK Milan");
 }
+ 

@@ -59,7 +59,7 @@
 #include "Table.h"
 
 //Version of database
-int oEvent::dbVersion = 67;
+int oEvent::dbVersion = 68;
 
 oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 {
@@ -176,7 +176,8 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   oEventData->addVariableString("CurrencySeparator", 2, "Decimalseparator");
   oEventData->addVariableInt("CurrencyPreSymbol", oDataContainer::oIS8, "Symbolläge");
   oEventData->addVariableString("CurrencyCode", 5, "Valutakod");
-
+  oEventData->addVariableInt("UTC", oDataContainer::oIS8, "UTC");
+  
 	oDataContainer dummy(0);
 	oClubData=oRunnerData=oClassData=oCourseData=oControlData=&dummy;
 	oTeamData=&dummy;
@@ -262,7 +263,7 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
 	
   oCourseData->addVariableInt("FirstAsStart", oDataContainer::oIS8U, "Från första");
   oCourseData->addVariableInt("LastAsFinish", oDataContainer::oIS8U, "Till sista");
-	
+  
 	oClass ocl(this);
 	oClassData=new oDataContainer(sizeof (ocl.oData));
 
@@ -903,7 +904,7 @@ bool oEvent::save(const char *file)
     pw.init();
 
 	xml.openOutputT(file, true, "meosdata");
-
+  
 	xml.write("Name", Name);
 	xml.write("Date", Date);
 	xml.write("ZeroTime", ZeroTime);
@@ -1083,16 +1084,16 @@ void oEvent::restoreBackup()
 bool oEvent::open(const xmlparser &xml) {
  	xmlobject xo;
  
-	xo=xml.getObject("Date");
+	xo = xml.getObject("Date");
 	if(xo) Date=xo.get();
 
-	xo=xml.getObject("Name");
+	xo = xml.getObject("Name");
 	if(xo) Name=xo.get();
   tOriginalName.clear();
 	
   xo = xml.getObject("Annotation");
   if(xo) Annotation = xo.get();
-	
+  
   xo=xml.getObject("ZeroTime");
   ZeroTime=0;
 	if(xo) ZeroTime=xo.getInt();
@@ -1250,13 +1251,13 @@ bool oEvent::open(const xmlparser &xml) {
       setupCardHash(false); // This improves performance when there are many cards.
     oFreePunch::disableHashing = true;
     try {
-    for(it=xl.begin(); it != xl.end(); ++it){
-			if(it->is("Punch")){
-				oFreePunch p(this, 0, 0, 0);
-				p.Set(&*it);
-        addFreePunch(p);
-			}
-		}
+      for(it=xl.begin(); it != xl.end(); ++it){
+			  if(it->is("Punch")){
+				  oFreePunch p(this, 0, 0, 0);
+				  p.Set(&*it);
+          addFreePunch(p);
+			  }
+		  }
     }
     catch(...) {
       oFreePunch::disableHashing = false;
@@ -1863,7 +1864,8 @@ bool oEvent::sortTeams(SortOrder so, int leg)
   reinitializeClasses();
   oTeamList::iterator it;
 
-  if(so==ClassResult) {
+  if(so==ClassResult || so==ClassTotalResult) {
+    bool totalResult = so==ClassTotalResult;
     bool hasRunner = (leg == -1);
 	  for (it=Teams.begin(); it != Teams.end(); ++it) {
       int lg=leg;
@@ -1874,12 +1876,12 @@ bool oEvent::sortTeams(SortOrder so, int leg)
       //if(lg>=int(it->Class->getNumStages()))
       //  lg=it->Class->getLastStageIndex();
 
-		  it->_sortstatus=it->getLegStatus(lg);
-		  it->_sorttime=it->getLegRunningTime(lg);
+      it->_sortstatus=it->getLegStatus(lg, totalResult);
+      it->_sorttime=it->getLegRunningTime(lg, totalResult);
 
       // Ensure number of restarts has effect on final result
       if (lg == lastIndex)
-      it->_sorttime += it->tNumRestarts*24*3600;
+        it->_sorttime += it->tNumRestarts*24*3600;
 	  }
 
     if (!hasRunner)
@@ -2043,7 +2045,7 @@ void oEvent::calculateResults(ResultType resultType)
 			    tPlace = vPlace;
 		  }
 		  else
-			  tPlace=99000+it->Status;
+			  tPlace = 99000 + it->Status;
 
       if (!classCourseResults)
         it->tPlace = tPlace;
@@ -2128,33 +2130,19 @@ void oEvent::calculateRogainingResults()
 	}
 }
 
-bool oEvent::calculateTeamResults(int leg)
+bool oEvent::calculateTeamResults(int leg, bool totalMultiday)
 {
 	oTeamList::iterator it;
-  bool hasRunner = sortTeams(ClassResult, leg);
 
-  if(!hasRunner)
-    return false;
-/*
-	bool hasRunner=false;
-
-	for (it=Teams.begin(); it != Teams.end(); ++it) {
-    if(leg==-1 || leg<int(it->Runners.size()) )
-      hasRunner=true;
-
-    int lg=leg;
-    if(it->Class && lg>=int(it->Class->getNumStages()))
-      lg=it->Class->getLastStageIndex();
-
-		it->_sortstatus=it->getLegStatus(lg);
-		it->_sorttime=it->getLegRunningTime(lg);
-	}
+  bool hasRunner;
+  if (totalMultiday)
+    hasRunner = sortTeams(ClassTotalResult, leg);
+  else
+    hasRunner = sortTeams(ClassResult, leg);
 
   if(!hasRunner)
     return false;
 
-	Teams.sort(oTeam::compareResult);
-*/
 
 	int cClassId=0;
 	int cPlace=0;
@@ -2179,9 +2167,9 @@ bool oEvent::calculateTeamResults(int leg)
       sleg=it->Runners.size()-1;
     else
       sleg=leg;
-
+    int p;
     if (invalidClass) {
-      it->_places[sleg] = 0;
+      p = 0;
     }
     else if(it->_sortstatus==StatusOK){
 			cPlace++;
@@ -2189,21 +2177,27 @@ bool oEvent::calculateTeamResults(int leg)
 			if(it->_sorttime>cTime)
 				vPlace=cPlace;
 
-			cTime=it->_sorttime;
+			cTime = it->_sorttime;
 
-			it->_places[sleg]=vPlace;
+			p = vPlace;
 		}
-		else
-      it->_places[sleg]=99000+it->_sortstatus;
+    else {
+      p = 99000+it->_sortstatus;
+    }
+
+    if (totalMultiday)
+      it->_places[sleg].totalP = p;
+    else
+      it->_places[sleg].p = p;
 	}
   return true;
 }
 
 
-void oEvent::calculateTeamResults()
+void oEvent::calculateTeamResults(bool multidayTotal)
 {
 	for(int i=0;i<maxRunnersTeam;i++)
-		if(!calculateTeamResults(i))
+    if(!calculateTeamResults(i, multidayTotal))
       return;
 }
 
@@ -2272,29 +2266,65 @@ string oEvent::getAbsTime(DWORD time) const
 	return bf;
 }
 
-string oEvent::getAbsTimeISO(DWORD time) const
-{
-	DWORD t = ZeroTime + time;
-
-	if(int(t)<0)
-    return "2000-01-01T00:00:00+00:00";
-
-  int extraDay = t / (3600*24);
-	char bf[256];
-	sprintf_s(bf, 256, "%02d:%02d:%02d", (t/3600)%24, (t/60)%60, t%60);
-  if (extraDay == 0 ) {
-    return Date + "T" + bf;
-  }
-  else {
-    SYSTEMTIME st;
-    convertDateYMS(Date, st);
-    __int64 sec = SystemTimeToInt64Second(st);
-    sec = sec + (extraDay * 3600 * 24);
-    st = Int64SecondToSystemTime(sec);
-    return convertSystemDate(st) + "T" + bf;
-  }
+const string &oEvent::getTimeZoneString() const {
+  if (!date2LocalTZ.count(Date))
+    date2LocalTZ[Date] = ::getTimeZoneString(Date);
+  return date2LocalTZ[Date];
 }
 
+string oEvent::getAbsDateTimeISO(DWORD time, bool includeDate, bool useGMT) const
+{
+	DWORD t = ZeroTime + time;
+  string dateS, timeS;
+  if (int(t)<0) {
+    dateS = "2000-01-01";
+    if (useGMT)
+      timeS = "00:00:00Z";
+    else
+      timeS = "00:00:00" + getTimeZoneString();
+  }
+  else {
+    int extraDay;
+
+    if (useGMT) {
+      int offset = ::getTimeZoneInfo(Date);
+      t += offset;
+      if (t < 0) {
+        extraDay = -1;
+        t += 3600 * 24;
+      }
+      else {
+        extraDay = t / (3600*24);
+      }
+      char bf[64];
+      sprintf_s(bf, "%02d:%02d:%02dZ", (t/3600)%24, (t/60)%60, t%60);
+      timeS = bf;
+    }
+    else {
+      char bf[64];
+      extraDay = t / (3600*24);
+  	  sprintf_s(bf, "%02d:%02d:%02d", (t/3600)%24, (t/60)%60, t%60);
+      timeS = bf + getTimeZoneString();
+    }
+
+    if (extraDay == 0 ) {
+      dateS = Date;
+    }
+    else {
+      SYSTEMTIME st;
+      convertDateYMS(Date, st);
+      __int64 sec = SystemTimeToInt64Second(st);
+      sec = sec + (extraDay * 3600 * 24);
+      st = Int64SecondToSystemTime(sec);
+      dateS = convertSystemDate(st);
+    }
+  }
+
+  if (includeDate)
+    return dateS + "T" + timeS;
+  else
+    return timeS;
+}
 
 string oEvent::getAbsTimeHM(DWORD time) const
 {
@@ -2363,6 +2393,41 @@ int oEvent::convertAbsoluteTime(const string &m)
 	return t;
 }
 
+int oEvent::getRelativeTime(const string &date, const string &absoluteTime, const string &timeZone) const {
+
+  int atime=convertAbsoluteTime(absoluteTime);
+ 
+  if (timeZone == "Z" || timeZone == "z") {
+    SYSTEMTIME st;
+    convertDateYMS(date, st); 
+    
+    st.wHour = atime / 3600;
+    st.wMinute = (atime / 60) % 60;
+    st.wSecond = atime % 60;
+
+    SYSTEMTIME localTime;
+    memset(&localTime, 0, sizeof(SYSTEMTIME));
+    SystemTimeToTzSpecificLocalTime(0, &st, &localTime);
+
+    atime = localTime.wHour*3600 + localTime.wMinute * 60 + localTime.wSecond;
+  }
+
+	if(atime>=0 && atime<3600*24){
+		int rtime=atime-ZeroTime;
+		
+		if(rtime<=0) 
+      rtime+=3600*24;
+
+    //Don't allow times just before zero time.
+    if(rtime>3600*22)
+      return -1;
+
+		return rtime;
+	}
+	else return -1;
+}
+
+
 int oEvent::getRelativeTime(const string &m) const
 {
 	int atime=convertAbsoluteTime(m);
@@ -2408,24 +2473,24 @@ void oEvent::removeRunner(const vector<int> &ids)
   set<int> toRemove;
   for (size_t k = 0; k < ids.size(); k++) {
     int Id = ids[k];
+    pRunner r=getRunner(Id, 0);
 
-  pRunner r=getRunner(Id, 0);
-
-  if (r==0)
+    if (r==0)
       continue;
     
-  r = r->tParentRunner ? r->tParentRunner : r;
+    r = r->tParentRunner ? r->tParentRunner : r;
 
     if (toRemove.count(r->getId()))
       continue; //Already found.
 
-  //Remove a singe runner team
-  autoRemoveTeam(r);
+    //Remove a singe runner team
+    autoRemoveTeam(r);
 
-  for (size_t k=0;k<r->multiRunner.size();k++)
-    if (r->multiRunner[k])
-      toRemove.insert(r->multiRunner[k]->getId());
-  toRemove.insert(Id);
+    for (size_t k=0;k<r->multiRunner.size();k++)
+      if (r->multiRunner[k])
+        toRemove.insert(r->multiRunner[k]->getId());
+
+    toRemove.insert(Id);
   }
   
   if (toRemove.empty())
@@ -3208,10 +3273,8 @@ bool oEvent::enumerateCompetitions(const char *file, const char *filetype)
 
 
 	/*
-
-	list<CompetitionInfo> saved;
-
-	list<CompetitionInfo>::iterator it;
+  list<CompetitionInfo> saved;
+  list<CompetitionInfo>::iterator it;
 
 	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
 		if(it->Server.length()>0)
@@ -3221,7 +3284,6 @@ bool oEvent::enumerateCompetitions(const char *file, const char *filetype)
 	cinfo=saved;
 	*/
   cinfo.clear();
-	
 
 	while (more) {
 		if(fd.cFileName[0]!='.') //Avoid .. and .
@@ -4488,7 +4550,7 @@ void oEvent::generateTestCard(SICard &sic) const
       // For team runners, we require start time to get right order
       if(!it->tInTeam || it->StartTime>0) {
         r=pRunner(&*it);
-    }
+      }
     }
     --it;
   }
@@ -4635,8 +4697,8 @@ void oEvent::generateTestCompetition(int nClasses, int nRunners,
                                      bool generateTeams)
 { 
   if (nClasses > 0) {
-  oe->newCompetition("!TESTTÄVLING");
-  oe->setZeroTime("05:00:00");
+    oe->newCompetition("!TESTTÄVLING");
+    oe->setZeroTime("05:00:00");
   }
   bool useSOFTMethod = true;
   vector<string> gname;
@@ -5362,7 +5424,8 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
         t.StartTime = it->StartTime;
 
       pTeam pt = ce.addTeam(t);
-
+      memcpy(pt->oData, it->oData, sizeof(pt->oData));
+      
       pt->Runners.resize(it->Runners.size());
       for (size_t k = 0; k<it->Runners.size(); k++) {
         int id = it->Runners[k] ? it->Runners[k]->Id : 0;
@@ -5381,6 +5444,10 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
   vector<pRunner> changedClass, assignedVacant, newEntries, notTransfered, noAssign;
   set<int> dummy;
   transferResult(ce, dummy, false, changedClass, assignedVacant, newEntries, notTransfered, noAssign);
+
+  vector<pTeam> newEntriesT, notTransferedT, noAssignT;
+  transferResult(ce, newEntriesT, notTransferedT, noAssignT);
+
 
   int eventNumberCurrent = getDCI().getInt("EventNumber");
   if (eventNumberCurrent <= 0) {
@@ -5517,35 +5584,34 @@ void oEvent::transferResult(oEvent &ce,
   }
 
   if (processed.size() < int(targetRunners.size())) {
-  // Lookup by card
+    // Lookup by card
     int v;
-  setupCardHash(false);
+    setupCardHash(false);
     for (size_t k = 0; k < targetRunners.size(); k++) {
       pRunner it = targetRunners[k];
-    if (processed.lookup(it->Id, v))
-      continue;
-    if (it->CardNo > 0) {
-      pRunner r = getRunnerByCard(it->CardNo);
-
-      if (!r || used.lookup(r->Id, v))
+      if (processed.lookup(it->Id, v))
         continue;
+      if (it->CardNo > 0) {
+        pRunner r = getRunnerByCard(it->CardNo);
 
-      __int64 id1 = r->getExtIdentifier();
-      __int64 id2 = it->getExtIdentifier();
+        if (!r || used.lookup(r->Id, v))
+          continue;
 
-      if (id1>0 && id2>0 && id1 != id2)
-        continue;
-      
-      if ((id1>0 && id1==id2) || (it->Name == r->Name && it->getClub() == r->getClub())) {
-        processed.insert(it->Id, 1);      
-        used.insert(r->Id, 1);
-        it->setInputData(*r);
+        __int64 id1 = r->getExtIdentifier();
+        __int64 id2 = it->getExtIdentifier();
+
+        if (id1>0 && id2>0 && id1 != id2)
+          continue;
+        
+        if ((id1>0 && id1==id2) || (it->Name == r->Name && it->getClub() == r->getClub())) {
+          processed.insert(it->Id, 1);      
+          used.insert(r->Id, 1);
+          it->setInputData(*r);
           checkTargetClass(it, r, ce.Classes, targetVacant, changedClass);
+        }
       }
     }
-  }
-  setupCardHash(true); // Clear cache
-
+    setupCardHash(true); // Clear cache
   }
 
   int v = -1;
@@ -5562,66 +5628,65 @@ void oEvent::transferResult(oEvent &ce,
   }
 
   if (processed.size() < int(targetRunners.size()) && !remainingRunners.empty()) {
-
-  // Lookup by name / ext id
+    // Lookup by name / ext id
     vector<int> cnd;
     for (size_t k = 0; k < targetRunners.size(); k++) {
       pRunner it = targetRunners[k];
-    if (processed.lookup(it->Id, v))
-      continue;
+      if (processed.lookup(it->Id, v))
+        continue;
 
-    __int64 id1 = it->getExtIdentifier();
+      __int64 id1 = it->getExtIdentifier();
 
-    cnd.clear();
+      cnd.clear();
       for (size_t j = 0; j < remainingRunners.size(); j++) {
         pRunner src = remainingRunners[j];
         if (!src)
-        continue;
-      
-      if (id1 > 0) {
+          continue;
+        
+        if (id1 > 0) {
           __int64 id2 = src->getExtIdentifier();
-        if (id2 == id1) {
-          cnd.clear();
+          if (id2 == id1) {
+            cnd.clear();
             cnd.push_back(j);
-          break; //This is the one, if they have the same Id there will be a unique match below
+            break; //This is the one, if they have the same Id there will be a unique match below
+          }
         }
-      }
 
         if (it->Name == src->Name && it->getClub() == src->getClub())
           cnd.push_back(j);
-    }
+      }
 
-    if (cnd.size() == 1) {
+      if (cnd.size() == 1) {
         pRunner &src = remainingRunners[cnd[0]];
-      processed.insert(it->Id, 1);      
+        processed.insert(it->Id, 1);      
         used.insert(src->Id, 1);
         it->setInputData(*src);
         checkTargetClass(it, src, ce.Classes, targetVacant, changedClass);
         src = 0;
-    }
-    else if (cnd.size() > 0) { // More than one candidate
+      }
+      else if (cnd.size() > 0) { // More than one candidate
         int winnerIx = -1;
-      int point = -1;
+        int point = -1;
         for (size_t j = 0; j < cnd.size(); j++) {
           pRunner src = remainingRunners[cnd[j]];
-        int p = 0;
+          int p = 0;
           if (src->getClass() == it->getClass())
-          p += 1;
+            p += 1;
           if (src->getBirthYear() == it->getBirthYear())
-          p += 2;
-        if (p > point) {
+            p += 2;
+          if (p > point) {
             winnerIx = cnd[j];
-          point = p;
+            point = p;
+          }
         }
-      }
 
         if (winnerIx != -1) {
-        processed.insert(it->Id, 1);      
+          processed.insert(it->Id, 1);
           pRunner winner = remainingRunners[winnerIx];
           remainingRunners[winnerIx] = 0;
 
-        used.insert(winner->Id, 1);
-        it->setInputData(*winner);
+          used.insert(winner->Id, 1);
+          it->setInputData(*winner);
           checkTargetClass(it, winner, ce.Classes, targetVacant, changedClass);
         }
       }
@@ -5680,6 +5745,181 @@ void oEvent::transferResult(oEvent &ce,
       }
     }
   }
+}
+
+void oEvent::transferResult(oEvent &ce,
+                            vector<pTeam> &newEntries,
+                            vector<pTeam> &notTransfered,
+                            vector<pTeam> &noAssignmentTarget) {
+
+  inthashmap processed(ce.Teams.size());
+  inthashmap used(Teams.size());
+
+  newEntries.clear();
+  notTransfered.clear();
+  noAssignmentTarget.clear();
+
+  vector<pTeam> targetTeams;
+
+  targetTeams.reserve(ce.Teams.size());
+  for (oTeamList::iterator it = ce.Teams.begin(); it != ce.Teams.end(); ++it) {
+    if (!it->skip()) {
+      targetTeams.push_back(&*it);
+    }
+  }
+
+  calculateTeamResults(true);
+  // Lookup by id
+  for (size_t k = 0; k < targetTeams.size(); k++) {
+    pTeam it = targetTeams[k];
+    pTeam t = getTeam(it->Id);
+    if (!t)
+      continue;
+
+    __int64 id1 = t->getExtIdentifier();
+    __int64 id2 = it->getExtIdentifier();
+
+    if (id1>0 && id2>0 && id1 != id2)
+      continue;
+    
+    if ((id1>0 && id1==id2) || (it->Name == t->Name && it->getClub() == t->getClub())) {
+      processed.insert(it->Id, 1);      
+      used.insert(t->Id, 1);
+      it->setInputData(*t);
+      //checkTargetClass(it, r, ce.Classes, targetVacant, changedClass);
+    }
+  }
+
+  int v = -1;
+
+  // Store remaining runners
+  vector<pTeam> remainingTeams;
+  for (oTeamList::iterator it2 = Teams.begin(); it2 != Teams.end(); ++it2) {
+    if (it2->skip() || used.lookup(it2->Id, v))
+      continue;
+    if (it2->isVacant())
+      continue; // Ignore vacancies on source side
+
+    remainingTeams.push_back(&*it2);
+  }
+
+  if (processed.size() < int(targetTeams.size()) && !remainingTeams.empty()) {
+    // Lookup by name / ext id
+    vector<int> cnd;
+    for (size_t k = 0; k < targetTeams.size(); k++) {
+      pTeam it = targetTeams[k];
+      if (processed.lookup(it->Id, v))
+        continue;
+
+      __int64 id1 = it->getExtIdentifier();
+
+      cnd.clear();
+      for (size_t j = 0; j < remainingTeams.size(); j++) {
+        pTeam src = remainingTeams[j];
+        if (!src)
+          continue;
+        
+        if (id1 > 0) {
+          __int64 id2 = src->getExtIdentifier();
+          if (id2 == id1) {
+            cnd.clear();
+            cnd.push_back(j);
+            break; //This is the one, if they have the same Id there will be a unique match below
+          }
+        }
+
+        if (it->Name == src->Name && it->getClub() == src->getClub())
+          cnd.push_back(j);
+      }
+
+      if (cnd.size() == 1) {
+        pTeam &src = remainingTeams[cnd[0]];
+        processed.insert(it->Id, 1);      
+        used.insert(src->Id, 1);
+        it->setInputData(*src);
+        //checkTargetClass(it, src, ce.Classes, targetVacant, changedClass);
+        src = 0;
+      }
+      else if (cnd.size() > 0) { // More than one candidate
+        int winnerIx = -1;
+        int point = -1;
+        for (size_t j = 0; j < cnd.size(); j++) {
+          pTeam src = remainingTeams[cnd[j]];
+          int p = 0;
+          if (src->getClass() == it->getClass())
+            p += 1;
+          if (p > point) {
+            winnerIx = cnd[j];
+            point = p;
+          }
+        }
+
+        if (winnerIx != -1) {
+          processed.insert(it->Id, 1);
+          pTeam winner = remainingTeams[winnerIx];
+          remainingTeams[winnerIx] = 0;
+
+          used.insert(winner->Id, 1);
+          it->setInputData(*winner);
+          //checkTargetClass(it, winner, ce.Classes, targetVacant, changedClass);
+        }
+      }
+    }
+  }
+/*
+  // Transfer vacancies
+  for (size_t k = 0; k < remainingRunners.size(); k++) {
+    pRunner src = remainingRunners[k];
+    if (!src || used.lookup(src->Id, v))
+      continue;
+
+    pRunner targetVacant = ce.getRunner(src->getId(), 0);
+    if (targetVacant && targetVacant->isVacant() && compareClassName(targetVacant->getClass(), src->getClass()) ) {
+      targetVacant->setName(src->getName());
+      targetVacant->setClub(src->getClub());
+      targetVacant->setCardNo(src->getCardNo(), false);
+      targetVacant->cloneData(src);
+      assignedVacant.push_back(targetVacant);
+    }
+    else {
+      pClass dstClass = ce.getClass(src->getClassId());
+      if (dstClass && compareClassName(dstClass->getName(), src->getClass())) {
+        if (allowNewEntries.count(src->getClassId())) {
+          if (src->getClubId() > 0)
+            ce.getClubCreate(src->getClubId(), src->getClub());
+          pRunner dst = ce.addRunner(src->getName(), src->getClubId(), src->getClassId(),
+                                     src->getCardNo(), src->getBirthYear(), true);
+          dst->cloneData(src);
+          dst->setInputData(*src);
+          newEntries.push_back(dst);
+        }
+        else if (transferAllNoCompete) {
+          if (src->getClubId() > 0)
+            ce.getClubCreate(src->getClubId(), src->getClub());
+          pRunner dst = ce.addRunner(src->getName(), src->getClubId(), src->getClassId(),
+                                     0, src->getBirthYear(), true);
+          dst->cloneData(src);
+          dst->setInputData(*src);
+          dst->setStatus(StatusNotCompetiting);
+          notTransfered.push_back(dst);
+        }
+        else
+          notTransfered.push_back(src);
+      }
+    }
+  }
+
+  // Runners on target side not assigned a result
+  for (size_t k = 0; k < targetRunners.size(); k++) {
+    if (targetRunners[k] && !processed.count(targetRunners[k]->Id)) {
+      noAssignmentTarget.push_back(targetRunners[k]);
+      if (targetRunners[k]->inputStatus == StatusUnknown || 
+           (targetRunners[k]->inputStatus == StatusOK && targetRunners[k]->inputTime == 0)) {
+        targetRunners[k]->inputStatus = StatusNotCompetiting;
+      }
+    }
+
+  }*/
 }
 
 MetaListContainer &oEvent::getListContainer() const {

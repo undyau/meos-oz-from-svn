@@ -22,8 +22,8 @@
 
 #include <vector>
 
-void getLocalTimeDateFromUTC(string& date, string& time);
-string getUTCTimeDateFromLocal(string ISOdateTime);
+//void getLocalTimeDateFromUTC(string& date, string& time);
+//string getUTCTimeDateFromLocal(string ISOdateTime);
 string convertSystemTime(const SYSTEMTIME &st);
 string convertSystemTimeOnly(const SYSTEMTIME &st);
 string convertSystemDate(const SYSTEMTIME &st);
@@ -158,3 +158,9 @@ string makeValidFileName(const string &input);
 
 /** Initial capital letter. */
 void capitalize(string &str);
+
+string getTimeZoneString(const string &date);
+
+/** Return bias in seconds. UTC = local time + bias. */
+int getTimeZoneInfo(const string &date);
+

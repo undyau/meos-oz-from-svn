@@ -397,7 +397,7 @@ bool SportIdent::OpenCom(const char *com)
 	DWORD read;
 	BYTE buff[128];
   memset(buff, 0, sizeof(buff));
-	read=ReadBytes(buff, 1, si->hComm);
+	read = ReadBytes(buff, 1, si->hComm);
 
   if (read == 1 && buff[0] == 0xFF){
     Sleep(100);

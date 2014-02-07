@@ -628,7 +628,7 @@ bool oClass::addStageCourse(int iStage, pCourse pc)
 		return false;
 
 	vector<pCourse> &Stage=MultiCourse[iStage];
-
+	
   if(pc) {
     tCoursesChanged = true;
 		Stage.push_back(pc);
@@ -682,8 +682,8 @@ void oClass::getTrueStages(vector<oClass::TrueLegInfo > &stages) const
     for (size_t k = 0; k+1 < legInfo.size(); k++) {
       if (legInfo[k].trueLeg != legInfo[k+1].trueLeg) {
         stages.push_back(TrueLegInfo(k, legInfo[k].trueLeg));
+      }
     }
-  }
     stages.push_back(TrueLegInfo(legInfo.size()-1, legInfo.back().trueLeg));
 
     for (size_t k = 0; k <stages.size(); k++) {
@@ -691,9 +691,9 @@ void oClass::getTrueStages(vector<oClass::TrueLegInfo > &stages) const
       while(stages[k].nonOptional <= stages[k].first) {
         if (!legInfo[stages[k].nonOptional].isOptional())
           break;
-  else
+        else
           stages[k].nonOptional++;
-}
+      }
     }
   }
   else {
@@ -731,14 +731,16 @@ bool oClass::restartIgnored(int i) const
   return false;
 }
 
-void oClass::fillStartTypes(gdioutput &gdi, const string &name)
+void oClass::fillStartTypes(gdioutput &gdi, const string &name, bool firstLeg)
 {
   gdi.clearList(name);
 
   gdi.addItem(name, lang.tl("Starttid"), STTime);
-  gdi.addItem(name, lang.tl("Växling"), STChange);
-  gdi.addItem(name, lang.tl("Lottad"), STDrawn);
-  gdi.addItem(name, lang.tl("Jaktstart"), STHunting);
+  if (!firstLeg)
+    gdi.addItem(name, lang.tl("Växling"), STChange);
+  gdi.addItem(name, lang.tl("Tilldelad"), STDrawn);
+  if (!firstLeg)
+    gdi.addItem(name, lang.tl("Jaktstart"), STHunting);
 }
 
 StartTypes oClass::getStartType(int leg) const
@@ -1310,7 +1312,7 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
         if (leg==0) {
    			  total++;
 
-          if(it->Status!=StatusUnknown)
+          if(it->Status != StatusUnknown)
             finished++;
           else if(it->Status==StatusDNS)
             dns++;
@@ -1337,7 +1339,7 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
 			  total++;
 
         if(it->Status!=StatusUnknown || 
-          it->getLegStatus(leg)!=StatusUnknown)
+          it->getLegStatus(leg, false)!=StatusUnknown)
           finished++;
       }
 	  }	
@@ -1530,12 +1532,17 @@ int oClass::getBestInputTime(int leg) const
 }
 
 
-int oClass::getTotalLegLeaderTime(int leg) const
+int oClass::getTotalLegLeaderTime(int leg, bool includeInput) const
 {
   if (unsigned(leg)>=tLeaderTime.size())
     return 0;
-  else return 
-    tLeaderTime[leg].totalLeaderTime;
+  else {
+    if (includeInput)
+      return tLeaderTime[leg].totalLeaderTimeInput;
+    else
+      return tLeaderTime[leg].totalLeaderTime;
+
+  }
 }
 
 void oEvent::mergeClass(int classIdPri, int classIdSec)
@@ -1867,32 +1874,32 @@ ClassMetaType oClass::interpretClassType() const {
     getUserFile(path, "baseclass.xml");
     xmlparser xml;
     xml.read(path);
-      xmlobject cType = xml.getObject("BaseClassTypes");
-      xmlList xtypes;
-      cType.getObjects("Type", xtypes);
-      for (size_t k = 0; k<xtypes.size(); k++) {
-        string name = xtypes[k].getAttrib("name").get();
-        string typeS = xtypes[k].getAttrib("class").get();
-        ClassMetaType mtype = ctUnknown;
-        if (stringMatch(typeS, "normal"))
-          mtype = ctNormal;
-        else if (stringMatch(typeS, "elite"))
-          mtype = ctElite;
-        else if (stringMatch(typeS, "youth"))
-          mtype = ctYouth;
-        else if (stringMatch(typeS, "open"))
-          mtype = ctOpen;
-        else if (stringMatch(typeS, "exercise"))
-          mtype = ctExercise;
-        else if (stringMatch(typeS, "training"))
-          mtype = ctTraining;
-        else {
-          string err = "Unknown type X#" + typeS;
-          throw std::exception(err.c_str());
-        }
-        oe->classTypeNameToType[name] = mtype;
+    xmlobject cType = xml.getObject("BaseClassTypes");
+    xmlList xtypes;
+    cType.getObjects("Type", xtypes);
+    for (size_t k = 0; k<xtypes.size(); k++) {
+      string name = xtypes[k].getAttrib("name").get();
+      string typeS = xtypes[k].getAttrib("class").get();
+      ClassMetaType mtype = ctUnknown;
+      if (stringMatch(typeS, "normal"))
+        mtype = ctNormal;
+      else if (stringMatch(typeS, "elite"))
+        mtype = ctElite;
+      else if (stringMatch(typeS, "youth"))
+        mtype = ctYouth;
+      else if (stringMatch(typeS, "open"))
+        mtype = ctOpen;
+      else if (stringMatch(typeS, "exercise"))
+        mtype = ctExercise;
+      else if (stringMatch(typeS, "training"))
+        mtype = ctTraining;
+      else {
+        string err = "Unknown type X#" + typeS;
+        throw std::exception(err.c_str());
       }
+      oe->classTypeNameToType[name] = mtype;
     }
+  }
 
   if (oe->classTypeNameToType.count(type) == 1)
     return oe->classTypeNameToType[type];
@@ -2484,8 +2491,9 @@ void oClass::getStartRange(int leg, int &firstStart, int &lastStart) const {
   if (tFirstStart.empty()) {
     size_t s = getLastStageIndex() + 1;
     assert(s>0);
-    tFirstStart.resize(s, 3600 * 24 * 365);
-    tLastStart.resize(s, 0);
+    vector<int> lFirstStart, lLastStart;
+    lFirstStart.resize(s, 3600 * 24 * 365);
+    lLastStart.resize(s, 0);
     for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
       if (it->isRemoved() || it->Class != this) 
         continue;
@@ -2493,10 +2501,12 @@ void oClass::getStartRange(int leg, int &firstStart, int &lastStart) const {
         continue;
       size_t tleg = it->tLeg;
       if (tleg < s) {
-        tFirstStart[tleg] = min<unsigned>(tFirstStart[tleg], it->StartTime);
-        tLastStart[tleg] = max<signed>(tLastStart[tleg], it->StartTime);
+        lFirstStart[tleg] = min<unsigned>(lFirstStart[tleg], it->StartTime);
+        lLastStart[tleg] = max<signed>(lLastStart[tleg], it->StartTime);
       }
     }
+    swap(tLastStart, lLastStart);
+    swap(tFirstStart, lFirstStart);
   }
   if (unsigned(leg) >= tFirstStart.size())
     leg = 0;

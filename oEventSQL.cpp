@@ -134,9 +134,8 @@ bool oEvent::msSynchronize(oBase *ob)
 	}
 
   if (ret==1) {
-    sprintf_s(err, "Varning: ändringar i %s blev överskrivna", ob->getInfo().c_str());
     gdibase.RemoveFirstInfoBox("sqlwarning");
-    gdibase.addInfoBox("sqlwarning", err, 5000);
+    gdibase.addInfoBox("sqlwarning", "Varning: ändringar i X blev överskrivna#" + ob->getInfo(), 5000);
   }
 	return ret!=0;
 }

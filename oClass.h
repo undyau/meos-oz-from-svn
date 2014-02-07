@@ -121,10 +121,11 @@ protected:
   //First: best time on leg
   //Second: Total leader time (total leader)
   struct LeaderInfo {
-    LeaderInfo() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0;}
-    void reset() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0;}
+    LeaderInfo() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0; totalLeaderTimeInput = 0;}
+    void reset() {bestTimeOnLeg = 0; totalLeaderTime = 0; inputTime = 0; totalLeaderTimeInput = 0;}
     int bestTimeOnLeg;
     int totalLeaderTime;
+    int totalLeaderTimeInput; //Team total including input
     int inputTime;
   };
 
@@ -236,7 +237,7 @@ public:
   int getBestLegTime(int leg) const;
   int getBestTimeCourse(int courseId) const;
   
-  int getTotalLegLeaderTime(int leg) const;
+  int getTotalLegLeaderTime(int leg, bool includeInput) const;
 
   string getInfo() const;
   // Returns true if the class has a pool of courses
@@ -354,7 +355,7 @@ public:
 	bool fillStageCourses(gdioutput &gdi, int stage, 
                         const string &name) const;
 
-  static void fillStartTypes(gdioutput &gdi, const string &name);
+  static void fillStartTypes(gdioutput &gdi, const string &name, bool firstLeg);
   static void fillLegTypes(gdioutput &gdi, const string &name);
 
 	pCourse getCourse() const {return Course;}

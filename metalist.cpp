@@ -286,14 +286,16 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
         if (mp.type == lTeamPlace || mp.type == lRunnerPlace) {
           if (!li.calcResults) {
             oe->calculateResults(oEvent::RTClassResult);
-            oe->calculateTeamResults();
+            oe->calculateTeamResults(false);
           }
           li.calcResults = true;
         }
-        else if (mp.type == lRunnerTotalPlace) {
-          if (!li.calcTotalResults)
+        else if (mp.type == lRunnerTotalPlace || mp.type == lRunnerPlaceDiff
+                || mp.type == lTeamTotalPlace || mp.type == lTeamPlaceDiff) {
+          if (!li.calcTotalResults) {
             oe->calculateResults(oEvent::RTTotalResult);
-
+            oe->calculateTeamResults(true);
+          }
           li.calcTotalResults = true;
         }
         else if (mp.type == lRunnerRogainingPoint) {
@@ -1135,6 +1137,14 @@ void MetaList::initSymbols() {
     typeToSymbol[lRunnerUMMasterPoint] = "RunnerUMMasterPoint";
     typeToSymbol[lRunnerTimePlaceFixed] = "RunnerTimePlaceFixed";
     typeToSymbol[lRunnerLegNumberAlpha] = "RunnerLegNumberAlpha";
+
+    typeToSymbol[lRunnerBirthYear] = "RunnerBirthYear";
+    typeToSymbol[lRunnerAge] = "RunnerAge";
+    typeToSymbol[lRunnerSex] = "RunnerSex";
+    typeToSymbol[lRunnerNationality] = "RunnerNationality";
+    typeToSymbol[lRunnerPhone] = "RunnerPhone";
+    typeToSymbol[lRunnerFee] = "RunnerFee";
+
     typeToSymbol[lTeamName] = "TeamName";
     typeToSymbol[lTeamStart] = "TeamStart";
     typeToSymbol[lTeamTimeStatus] = "TeamTimeStatus";
@@ -1156,6 +1166,7 @@ void MetaList::initSymbols() {
     typeToSymbol[lTotalCounter] = "TotalCounter";
     typeToSymbol[lSubCounter] = "SubCounter";
     typeToSymbol[lSubSubCounter] = "SubSubCounter";
+    typeToSymbol[lTeamFee] = "TeamFee";
 
     typeToSymbol[lRunnerTotalTime] = "RunnerTotalTime";
     typeToSymbol[lRunnerTimePerKM] = "RunnerTimePerKM";
@@ -1164,7 +1175,14 @@ void MetaList::initSymbols() {
     typeToSymbol[lRunnerTotalTimeAfter] = "RunnerTotalTimeAfter";
     typeToSymbol[lRunnerTimeAfterDiff] = "RunnerTimeAfterDiff";
     typeToSymbol[lRunnerPlaceDiff] = "RunnerPlaceDiff";
-
+  
+    typeToSymbol[lTeamTotalTime] = "TeamTotalTime";
+    typeToSymbol[lTeamTotalTimeStatus] = "TeamTotalTimeStatus";
+    typeToSymbol[lTeamTotalPlace] = "TeamTotalPlace";
+    typeToSymbol[lTeamTotalTimeAfter] = "TeamTotalTimeAfter";
+    typeToSymbol[lTeamTotalTimeDiff] = "TeamTotalTimeDiff";
+    typeToSymbol[lTeamPlaceDiff] = "TeamPlaceDiff";
+  
     for (map<EPostType, string>::iterator it = typeToSymbol.begin();
       it != typeToSymbol.end(); ++it) {
       symbolToType[it->second] = it->first;

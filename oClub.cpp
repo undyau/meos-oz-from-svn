@@ -481,10 +481,10 @@ void oClub::addRunnerInvoiceLine(gdioutput &gdi, const pRunner r, InvoiceData &d
 
       if (type == oClassIndividRelay || type == oClassRelay) {
         int leg = r->getLegNumber();
-        if (t->getLegStatus(leg) == StatusOK)
-          ts =  t->getLegPlaceS(leg)+ " (" + r->getRunningTimeS() + ")";
+        if (t->getLegStatus(leg, false) == StatusOK)
+          ts =  t->getLegPlaceS(leg, false)+ " (" + r->getRunningTimeS() + ")";
         else
-          ts =  t->getLegStatusS(leg)+ " (" + r->getRunningTimeS() + ")";
+          ts =  t->getLegStatusS(leg, false)+ " (" + r->getRunningTimeS() + ")";
       }
       else
         ts =  r->getPrintPlaceS()+ " (" + r->getRunningTimeS() + ")";
@@ -731,7 +731,7 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
                            const string &basePath, bool onlySummary) {
   Clubs.sort();
   oClubList::const_iterator it;
-  oe->calculateTeamResults();
+  oe->calculateTeamResults(false);
   oe->sortTeams(ClassStartTime, 0);
   oe->calculateResults(RTClassResult);
   oe->sortRunners(ClassStartTime);

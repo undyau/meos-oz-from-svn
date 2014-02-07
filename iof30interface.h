@@ -50,6 +50,8 @@ class IOF30Interface {
   oEvent &oe;
 
   int cachedStageNumber;
+  
+  bool useGMT; // Use GMT when exporting
 
   void operator=(const IOF30Interface &);
 
@@ -229,7 +231,7 @@ class IOF30Interface {
   pCourse findCourse(gdioutput &gdi, const map<string, pCourse> &courses,
                      xmlobject &xPAssignment);
 public:
-  IOF30Interface(oEvent *oe_) : oe(*oe_) {cachedStageNumber = -1;}
+  IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false) {cachedStageNumber = -1;}
   virtual ~IOF30Interface() {}
 
   void readEventList(gdioutput &gdi, xmlobject &xo);
@@ -246,9 +248,9 @@ public:
 
   void readCourseData(gdioutput &gdi, const xmlobject &xo, bool updateClasses, int &courseCount, int &entFail);
 
-  void writeResultList(xmlparser &xml, const set<int> &classes, int leg);
+  void writeResultList(xmlparser &xml, const set<int> &classes, int leg, bool useUTC);
 
-  void writeStartList(xmlparser &xml, const set<int> &classes);
+  void writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC);
 
   void writeEvent(xmlparser &xml);
 

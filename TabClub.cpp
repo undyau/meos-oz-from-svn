@@ -122,7 +122,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       pClub pc=oe->getClub(lbi.data);
       if (pc) {
         gdi.clearPage(true);
-        oe->calculateTeamResults();
+        oe->calculateTeamResults(false);
         oe->sortTeams(ClassStartTime, 0);
         oe->calculateResults(oEvent::RTClassResult);
         oe->sortRunners(ClassStartTime);

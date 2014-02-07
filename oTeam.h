@@ -42,11 +42,16 @@ protected:
   // Remove runner r by force and mark as need correction
   void correctRemove(pRunner r);
 
-	int _places[maxRunnersTeam];
+  struct TeamPlace {
+    int p; // Day result
+    int totalP; // Total result
+  };
+
+	TeamPlace _places[maxRunnersTeam];
 	//unsigned _nrunners;
 	int _sorttime;
 	int _sortstatus;
-  int tTotalPlace;
+
 	string getRunners() const;
   bool matchTeam(int number, const char *s_lc) const;
   int tNumRestarts; //Number of restarts for team
@@ -63,6 +68,8 @@ protected:
   void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
 
 public:
+  /// Returns team fee (including participating runners fees)
+  int getTeamFee() const;
 
   /** Remove runner from team (and from competition)
     @param askRemoveRunner ask if runner should be removed from cmp. Otherwise just do it.
@@ -112,8 +119,8 @@ public:
   void importRunners(const vector<int> &rns);
   void importRunners(const vector<pRunner> &rns);
 
-  int getPlace() const {return getLegPlace(-1);}
-  int getTotalPlace() const;
+  int getPlace() const {return getLegPlace(-1, false);}
+  int getTotalPlace() const  {return getLegPlace(-1, true);}
 
   string getDisplayName() const;
   string getDisplayClub() const;
@@ -131,17 +138,17 @@ public:
   int getTimeAfter(int leg) const;
 
   //Get total running time after leg 
-  string getLegRunningTimeS(int leg) const;
-  int getLegRunningTime(int leg) const;
+  string getLegRunningTimeS(int leg, bool multidayTotal) const;
+  int getLegRunningTime(int leg, bool multidayTotal) const;
   int getLegPrelRunningTime(int leg) const;
 	string getLegPrelRunningTimeS(int leg) const;
   
-  RunnerStatus getLegStatus(int leg) const;
-	const string &getLegStatusS(int leg) const;
+  RunnerStatus getLegStatus(int leg, bool multidayTotal) const;
+	const string &getLegStatusS(int leg, bool multidayTotal) const;
 
-	string getLegPlaceS(int leg) const;
-  string getLegPrintPlaceS(int leg) const;
-	int getLegPlace(int leg) const { return leg>=0 && leg<maxRunnersTeam ? _places[leg]:_places[Runners.size()-1];}
+	string getLegPlaceS(int leg, bool multidayTotal) const;
+  string getLegPrintPlaceS(int leg, bool multidayTotal) const;
+	int getLegPlace(int leg, bool multidayTotal) const;
 
   static bool compareSNO(const oTeam &a, const oTeam &b);
 	static bool compareName(const oTeam &a, const oTeam &b) {return a.Name<b.Name;} 

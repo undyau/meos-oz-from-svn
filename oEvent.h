@@ -202,8 +202,11 @@ protected:
 
 	string Name;
 	string Annotation;
-	string Date;
+  string Date;
 	DWORD ZeroTime;
+
+  mutable map<string, string> date2LocalTZ;
+  const string &getTimeZoneString() const;
 
   int tCurrencyFactor;
   string tCurrencySymbol;
@@ -726,9 +729,10 @@ public:
 	void reEvaluateAll(bool DoSync);
   void reEvaluateChanged();
 
-	void exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport, 
-                       const set<int> &classes,  int leg = -1);
-	void exportIOFStartlist(IOFVersion version, const char *file, const set<int> &classes);
+	void exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport,
+                       bool useUTC,
+                       const set<int> &classes, int leg = -1);
+	void exportIOFStartlist(IOFVersion version, const char *file, bool useUTC, const set<int> &classes);
 
   bool exportOECSV(const char *file, bool byClass = true);
 	bool save();
@@ -772,6 +776,9 @@ public:
   /// Convert a clock time string to time relative zero time
 	int getRelativeTime(const string &absoluteTime) const;
 
+  /// Convert a clock time string to time relative zero time
+	int getRelativeTime(const string &date, const string &absoluteTime, const string &timeZone) const;
+
   /// Convert a clock time string (SI5 12 Hour clock) to time relative zero time
 	int getRelativeTimeFrom12Hour(const string &absoluteTime) const;
 
@@ -780,7 +787,7 @@ public:
 
   /// Get clock time from relative time
 	string getAbsTime(DWORD relativeTime) const;
-  string getAbsTimeISO(DWORD relativeTime) const;
+  string getAbsDateTimeISO(DWORD relativeTime, bool includeDate, bool useGMT) const;
 
   string getAbsTimeHM(DWORD relativeTime) const;
 
@@ -806,8 +813,8 @@ public:
 	void calculateRogainingResults();
 	
   void calculateResults(list<oSpeakerObject> &rl);
-	void calculateTeamResults();
-	bool calculateTeamResults(int leg);
+	void calculateTeamResults(bool totalMultiday);
+	bool calculateTeamResults(int leg, bool totalMultiday);
 	
 	bool sortRunners(SortOrder so);
   bool sortTeams(SortOrder so, int leg);
@@ -1009,8 +1016,6 @@ protected:
   /** type: 0 control, 1 start, 2 finish*/
 	bool addXMLControl(const xmlobject &xcontrol, int type);
 	
-
-	
 public:
 	string shortenName(string name);  // implemented in oExtendedEvent.cpp
   void setShortClubNames(bool shorten); // implemented in oExtendedEvent.cpp
@@ -1030,6 +1035,11 @@ public:
                       vector<pRunner> &newEntries,
                       vector<pRunner> &notTransfered,
                       vector<pRunner> &noAssignmentTarget);
+
+  void transferResult(oEvent &ce,
+                      vector<pTeam> &newEntries,
+                      vector<pTeam> &notTransfered,
+                      vector<pTeam> &noAssignmentTarget);
 
   /**Return false if card is not used*/
   bool checkCardUsed(gdioutput &gdi, int CardNo);
