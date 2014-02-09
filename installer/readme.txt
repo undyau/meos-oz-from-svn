@@ -1,3 +1,7 @@
+9 February 2014 (fork of 3.1.316)
+- Merge with new release of MEOS (3.1 Beta)
+
+
 8 December 2013 (fork of 3.0.311)
 - When importing IOF 3 XML entries attempt match on existing entries by name first.
 - Club names were not being included in import from XML.
