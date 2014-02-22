@@ -67,10 +67,9 @@ Australian Customisations:
 
 Bug Fixes (to be sent to MEOS owners):
 - oRunner::getLegPlace() doesn't work.
+
+Bug Fixes (sent to MEOS owner):
 - oRunner::doAdjustTimes() - splits shown incorrectly 
   when more than one control with a minimum-time.
-
-Bug Fixes (sent to MEOS owners):
-- Convert event start time from Eventor from UTC to local
-- Convert XML 3.0 start times to UTC for export to Eventor
-- TabCompetition disabled a button that didn't exist on startlist export
+- New time-zone adjustment logic failed if the supplied
+  timestamp was in hh:mm:ss format.
