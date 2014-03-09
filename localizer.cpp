@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ public:
   ~LocalizerImpl(void);
 };
 
-Localizer::Localizer(void)
+Localizer::LocalizerInternal::LocalizerInternal(void)
 {
   impl = new LocalizerImpl();
   implBase = 0;
@@ -62,7 +62,7 @@ Localizer::Localizer(void)
   user = 0;
 }
 
-Localizer::~Localizer(void)
+Localizer::LocalizerInternal::~LocalizerInternal(void)
 {
   if (user) {
     user->owning = true;
@@ -75,7 +75,8 @@ Localizer::~Localizer(void)
   }
 }
 
-void Localizer::set(Localizer &li) {
+void Localizer::LocalizerInternal::set(Localizer &lio) {
+  Localizer::LocalizerInternal &li = *lio.linternal;
   if (li.user || user)
     throw std::exception("Runtime error");
 
@@ -89,7 +90,7 @@ void Localizer::set(Localizer &li) {
   li.user = this;  
 }
 
-vector<string> Localizer::getLangResource() const {
+vector<string> Localizer::LocalizerInternal::getLangResource() const {
   vector<string> v;
   for (map<string, string>::const_iterator it = langResource.begin(); it !=langResource.end(); ++it)
     v.push_back(it->first);
@@ -97,7 +98,7 @@ vector<string> Localizer::getLangResource() const {
   return v;
 }
 
-const oWordList &Localizer::getGivenNames() const {
+const oWordList &Localizer::LocalizerInternal::getGivenNames() const {
   return impl->getGivenNames();
 }
 
@@ -112,7 +113,7 @@ LocalizerImpl::~LocalizerImpl(void)
     delete givenNames;
 }
 
-const string &Localizer::tl(const string &str) {
+const string &Localizer::LocalizerInternal::tl(const string &str) {
   bool found;
   const string *ret = &impl->translate(str, found);
   if (found || !implBase)
@@ -282,7 +283,7 @@ const oWordList &LocalizerImpl::getGivenNames() const {
 
 #ifndef MEOSDB
 
-void Localizer::loadLangResource(const string &name) {
+void Localizer::LocalizerInternal::loadLangResource(const string &name) {
   map<string,string>::iterator it = langResource.find(name);
   if (it == langResource.end())
     throw std::exception("Unknown language");
@@ -296,7 +297,7 @@ void Localizer::loadLangResource(const string &name) {
     impl->loadTable(res, name);
 }
 
-void Localizer::addLangResource(const string &name, const string &resource) {
+void Localizer::LocalizerInternal::addLangResource(const string &name, const string &resource) {
   langResource[name] = resource;
   if (implBase == 0) {
     implBase = new LocalizerImpl();
@@ -304,7 +305,7 @@ void Localizer::addLangResource(const string &name, const string &resource) {
   }
 }
 
-void Localizer::debugDump(const string &untranslated, const string &translated) const {
+void Localizer::LocalizerInternal::debugDump(const string &untranslated, const string &translated) const {
   if (implBase) {
     impl->translateAll(*implBase);
   }

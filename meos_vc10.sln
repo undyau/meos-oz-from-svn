@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "meos", "meos.vcxproj", "{B854EF2A-2BB7-4D62-B08B-96BD64B347E8}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "meosdb", "meosdb\meosdb.vcxproj", "{13A51976-5F88-471F-A1E9-259102710806}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -24,15 +22,6 @@ Global
 		{B854EF2A-2BB7-4D62-B08B-96BD64B347E8}.test|Win32.ActiveCfg = test|Win32
 		{B854EF2A-2BB7-4D62-B08B-96BD64B347E8}.test|Win32.Build.0 = test|Win32
 		{B854EF2A-2BB7-4D62-B08B-96BD64B347E8}.test|Win64.ActiveCfg = test|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Debug|Win32.ActiveCfg = Debug|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Debug|Win32.Build.0 = Debug|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Debug|Win64.ActiveCfg = Debug|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Release|Win32.ActiveCfg = Release|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Release|Win32.Build.0 = Release|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.Release|Win64.ActiveCfg = Release|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.test|Win32.ActiveCfg = Release|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.test|Win32.Build.0 = Release|Win32
-		{13A51976-5F88-471F-A1E9-259102710806}.test|Win64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

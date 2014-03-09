@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -52,6 +52,9 @@ class GDIImplFontSet;
 class Table;
 class FixedTabs;
 
+struct PageInfo;
+struct RenderedPage;
+
 typedef int (*GUICALLBACK)(gdioutput *gdi, int type, void *data);
 
 enum GDICOLOR;
@@ -65,43 +68,17 @@ enum gdiFonts;
 
 typedef list<ToolInfo> ToolList;
 
-struct PrinterObject {
-	//Printing
-  HDC hDC;
-	HGLOBAL hDevMode;
-	HGLOBAL hDevNames;
-	
-  void freePrinter();
+enum FontEncoding {
+  ANSI, Russian
+};
 
-  string Device;
-  string Driver;
-  DEVMODE DevMode;
-  set<__int64> printedPages;
-  int nPagesPrinted;
-  int nPagesPrintedTotal;
-  bool onlyChanged;
+FontEncoding interpetEncoding(const string &enc);
 
-  struct DATASET {
-	  int pWidth_mm;
-	  int pHeight_mm;
-	  double pMgBottom;
-	  double pMgTop;
-	  double pMgRight;
-	  double pMgLeft;
-
-	  int MarginX;
-	  int MarginY;
-	  int PageX;
-	  int PageY;
-	  double Scale;
-	  bool LastPage;
-  } ds;
-
-  void operator=(const PrinterObject &po);
-
-  PrinterObject();
-  ~PrinterObject();
-  PrinterObject(const PrinterObject &po);
+struct FontInfo {
+  const string *name;
+  HFONT normal;
+  HFONT bold;
+  HFONT italic;
 };
 
 class gdioutput  {
@@ -109,29 +86,32 @@ protected:
   // Flag set to true when clearPage is called.
   bool hasCleared;
   bool useTables;
-  list<TextInfo> transformedPageText;
-  __int64 globalCS;
-  TextInfo *pageInfo;
-  
+  //list<TextInfo> transformedPageText;
+  //__int64 globalCS;
+  //TextInfo *pageInfo;
+  FontEncoding fontEncoding;
+
+  int getCharSet() const;
+
   bool highContrast;
 
-  bool printHeader;
-  bool noPrintMargin;
   void deleteFonts();
   void constructor(double _scale);
 
   void updateStringPosCache();
   vector<TextInfo *> shownStrings;
 
-  void CalculateCS(TextInfo &text);
-  void printPage(PrinterObject &po, int StartY, int &EndY, bool calculate);
-  void printPage(PrinterObject &po, int nPage, int nPageMax);	
+  void enableCheckBoxLink(TextInfo &ti, bool enable);
+
+  //void CalculateCS(TextInfo &text);
+  //void printPage(PrinterObject &po, int StartY, int &EndY, bool calculate);
+  void printPage(PrinterObject &po, const PageInfo &pageInfo, RenderedPage &page);	
   bool startDoc(PrinterObject &po);
 
   bool getSelectedItem(ListBoxInfo &lbi);
-  bool doPrint(PrinterObject &po, pEvent oe);
+  bool doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe);
 
-	PrinterObject po_default;
+	PrinterObject *po_default;
 
   void restoreInternal(const RestoreInfo &ri);
 
@@ -174,8 +154,14 @@ protected:
 	list<InfoBox> IBox;
 
 	list<HWND> FocusList;
-	HWND CurrentFocus;
+	struct FucusInfo {
+    bool wasTabbed;
+    HWND hWnd;
+    FucusInfo() : wasTabbed(false), hWnd(false) {}
+    FucusInfo(HWND wnd) : wasTabbed(false), hWnd(wnd) {}
+  };
 
+  FucusInfo currentFocus;
 
 	int lineHeight;
 	HWND hWndTarget;
@@ -249,7 +235,40 @@ protected:
   void setCommandLock() const;
   void liftCommandLock() const;
 
+  struct ScreenStringInfo {
+    RECT rc;
+    string str;
+    bool reached;
+
+    ScreenStringInfo(const RECT &r, const string &s) {
+      rc = r;
+      str = s;
+      reached = false;
+    }
+  };
+
+  string listDescription;
+
+  mutable map<pair<int, int>, ScreenStringInfo> screenXYToString;
+  mutable map<string, pair<int, int> > stringToScreenXY;
+  mutable pair<int, int> snapshotMaxXY;
 public:
+  
+  const wstring &toWide(const string &input) const;
+
+  const string &toUTF8(const string &input) const;
+  const string &toUTF8(const wstring &input) const;
+
+  void setEncoding(FontEncoding encoding);
+  FontEncoding getEncoding() const;
+
+  void getFontInfo(const TextInfo &ti, FontInfo &fi) const;
+
+  /** Return true if rendering text should be skipped for 
+    this format. */
+  static bool skipTextRender(int format);
+
+  const list<TextInfo> &getTL() const {return TL;}
 
   void getEnumeratedFonts(vector< pair<string, size_t> > &output) const;
   const string &getFontName(int id);
@@ -281,7 +300,7 @@ public:
 
   bool hasEditControl() const;
 
-  void setFont(int size, const string &font);
+  void setFont(int size, const string &font, FontEncoding encoding);
 
   int getButtonHeight() const;   
   int scaleLength(int input) const {return int(scale*input + 0.5);}
@@ -320,8 +339,11 @@ public:
 	void addTable(Table *table, int x, int y);
   Table &getTable() const; //Get the (last) table. If needed, add support for named tables... 
 
-	void addToolTip(const string &Tip, HWND hWnd, RECT *rc=0);
-	HWND getToolTip(){return hWndToolTip;}
+	ToolInfo &addToolTip(const string &id, const string &tip, HWND hWnd, RECT *rc=0);
+	ToolInfo *getToolTip(const string &id);
+	ToolInfo &updateToolTip(const string &id, const string &tip);
+	
+  HWND getToolTip(){return hWndToolTip;}
 	
   void init(HWND hWnd, HWND hMainApp, HWND hTab);
 	bool openDoc(const char *doc);
@@ -331,8 +353,8 @@ public:
                        const string &defext);
 
 	bool clipOffset(int PageX, int PageY, int &MaxOffsetX, int &MaxOffsetY);
-  void addRectangle(RECT &rc, GDICOLOR Color = GDICOLOR(-1), 
-                    bool DrawBorder = true, bool addFirst = false);
+  RectangleInfo &addRectangle(RECT &rc, GDICOLOR Color = GDICOLOR(-1), 
+                              bool DrawBorder = true, bool addFirst = false);
   DWORD makeEvent(const string &id, const string &origin, 
                   DWORD data, void *extra, bool flushEvent);
 	
@@ -365,6 +387,8 @@ public:
 	HWND getHWND() const {return hWndTarget;}
 	void updateObjectPositions();
 	void drawBackground(HDC hDC, RECT &rc);
+  void renderRectangle(HDC hDC, RECT *clipRegion, const RectangleInfo &ri);
+
 	void updateScrollbars() const;
 
 	void SetOffsetY(int oy){OffsetY=oy;}
@@ -391,6 +415,9 @@ public:
 	void refresh() const;
   void refreshFast() const;
 
+  void takeShownStringsSnapshot();
+  void refreshSmartFromSnapshot();
+  
 	void dropLine(double lines=1){CurrentY+=int(lineHeight*lines); MaxY=max(MaxY, CurrentY);}
 	int getCX() const {return CurrentX;}
 	int getCY() const {return CurrentY;}
@@ -451,7 +478,9 @@ public:
 
   bool hasField(const string &id) const;
 	const string &getText(const char *id, bool acceptMissing = false) const;
-	int getTextNo(const char *id, bool acceptMissing = false) const;
+	BaseInfo &getBaseInfo(const char *id) const;
+	
+  int getTextNo(const char *id, bool acceptMissing = false) const;
   int getTextNo(const string &id, bool acceptMissing = false) const
     {return getTextNo(id.c_str(), acceptMissing);}
   
@@ -478,7 +507,7 @@ public:
 	void keyCommand(KeyCommandCode code);
 
 	LRESULT ProcessMsg(UINT iMessage, LPARAM lParam, WPARAM wParam);
-	void SetWindow(HWND hWnd){hWndTarget=hWnd;}
+	void setWindow(HWND hWnd){hWndTarget=hWnd;}
 	
   void scaleSize(double scale);
 
@@ -514,6 +543,8 @@ public:
 	ListBoxInfo &addCombo(const string &id, int width, int height, GUICALLBACK cb=0, const string &Explanation="", const string &tooltip="");
 	ListBoxInfo &addCombo(int x, int y, const string &id, int width, int height, GUICALLBACK cb=0, const string &Explanation="", const string &tooltip="");
 
+  void setListDescription(const string &desc);
+
 	TextInfo &addString(const char *id, int format, const string &text, GUICALLBACK cb=0);
   TextInfo &addString(const char *id, int yp, int xp, int format, const string &text, 
                       int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
@@ -527,15 +558,15 @@ public:
   TimerInfo &addTimeoutMilli(int timeOut, const string &id, GUICALLBACK cb);
   void timerProc(TimerInfo &timer, DWORD timeout);
 
-	void draw(HDC hDC, RECT &rc);
+	void draw(HDC hDC, RECT &windowArea, RECT &drawArea);
 
   void closeWindow();
 
 	friend int TablesCB(gdioutput *gdi, int type, void *data);
 	friend class Table;
-
-	gdioutput(double _scale);
-  gdioutput(double _scale, const PrinterObject &defprn);
+    
+	gdioutput(double _scale, FontEncoding encoding, HWND hWndTarget);
+  gdioutput(double _scale,  FontEncoding encoding, HWND hWndTarget, const PrinterObject &defprn);
 	virtual ~gdioutput();
 };
 

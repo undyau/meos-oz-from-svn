@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 #include "TabList.h"
 #include "TabRunner.h"
 #include "TabTeam.h"
+#include "TabSI.h"
 #include "TabAuto.h"
 #include "meos_util.h"
 #include <cassert>
@@ -43,6 +44,8 @@
 #include "metalist.h"
 #include "gdifonts.h"
 #include "listeditor.h"
+#include "meosexception.h"
+#include "pdfwriter.h"
 
 TabList::TabList(oEvent *poe):TabBase(poe)
 {
@@ -50,6 +53,7 @@ TabList::TabList(oEvent *poe):TabBase(poe)
   hideButtons = false;
   currentListType=EStdNone;
   listEditor = 0;
+  noReEvaluate = false;
 }
 
 TabList::~TabList(void)
@@ -77,7 +81,9 @@ void TabList::rebuildList(gdioutput &gdi)
  if (!SelectedList.empty()) {
     ButtonInfo bi;
     bi.id=SelectedList;
+    noReEvaluate = true;
     ListsCB(&gdi, GUI_BUTTON, &bi);
+    noReEvaluate = false;
   }
 }
 
@@ -111,11 +117,11 @@ int NoStartRunnerCB(gdioutput *gdi, int type, void *data)
 		pRunner p = tc.getEvent()->getRunner(id, 0);
 
 		if(p){
-			p->setStatus(StatusDNS);
+			p->setStatus(StatusDNS, true, false);
 			p->synchronize();
-			ti->CallBack=0;
-			ti->Highlight=false;
-			ti->Active=false;
+			ti->callBack=0;
+			ti->highlight=false;
+			ti->active=false;
 			ti->color=RGB(255,0,0);
 			gdi->setText(ti->id, "Ej start", true);
 		}		
@@ -132,10 +138,27 @@ int ListsCB(gdioutput *gdi, int type, void *data)
 
 void TabList::generateList(gdioutput &gdi)
 {
-  gdi.clearPage(false);
-  currentList.setCallback(ownWindow ? 0 : openRunnerTeamCB);
-  oe->generateList(gdi, true, currentList);
+  DWORD storedWidth = 0;
+  int oX = 0;
+  int oY = 0;
+  if (gdi.hasData("GeneralList")) {
+    gdi.takeShownStringsSnapshot();
+    oX=gdi.GetOffsetX();
+    oY=gdi.GetOffsetY();
+    gdi.getData("GeneralList", storedWidth);
+    gdi.restoreNoUpdate("GeneralList");    
+  }
+  else
+    gdi.clearPage(false);
   
+  gdi.setRestorePoint("GeneralList");
+  
+  currentList.setCallback(ownWindow ? 0 : openRunnerTeamCB);
+  oe->generateList(gdi, !noReEvaluate, currentList, false);
+  gdi.setOffset(oX, oY, false);    
+  int currentWidth = gdi.getWidth();
+  gdi.setData("GeneralList", currentWidth);
+
   if (!hideButtons) {
     gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), 
                   "Cancel", ownWindow ? "Stäng" : "Återgå", ListsCB, "", true, false);
@@ -144,14 +167,18 @@ void TabList::generateList(gdioutput &gdi)
                   "Print", "Skriv ut...", ListsCB, "Skriv ut listan.", true, false);
     gdi.addButton(gdi.getWidth()+20, 21+2*gdi.getButtonHeight(), gdi.scaleLength(120),
                   "HTML", "Webb...", ListsCB, "Spara för webben.", true, false);
-    int baseY = 21+2*gdi.getButtonHeight();
+    gdi.addButton(gdi.getWidth()+20, 24+3*gdi.getButtonHeight(), gdi.scaleLength(120),
+                  "PDF", "PDF...", ListsCB, "Spara som PDF.", true, false);
+    
+	
+	int baseY = 24+3*gdi.getButtonHeight();
     if (!ownWindow) {
-      gdi.addButton(gdi.getWidth()+20, 27+4*gdi.getButtonHeight(), gdi.scaleLength(120),
+      gdi.addButton(gdi.getWidth()+20, baseY + 6 + 2*gdi.getButtonHeight(), gdi.scaleLength(120),
                     "Automatic", "Automatisera", ListsCB, "Skriv ut eller exportera listan automatiskt.", true, false);
 
-      gdi.addButton(gdi.getWidth()+20, 24+3*gdi.getButtonHeight(), gdi.scaleLength(120),
+      gdi.addButton(gdi.getWidth()+20, baseY + 3 + 1*gdi.getButtonHeight(), gdi.scaleLength(120),
                     "Window", "Eget fönster", ListsCB, "Öppna i ett nytt fönster.", true, false);
-      baseY = 27+4*gdi.getButtonHeight();
+      baseY += 2*(3+gdi.getButtonHeight());
     }
         
     gdi.addButton(gdi.getWidth()+20, baseY + 3 + gdi.getButtonHeight(), gdi.scaleLength(120),
@@ -173,14 +200,33 @@ void TabList::generateList(gdioutput &gdi)
   gdi.registerEvent("GeneralList", ListsCB);
   gdi.setOnClearCb(ListsCB);
   SelectedList="GeneralList";
+
+  if (abs(int(currentWidth - storedWidth)) < 5) {
+    gdi.refreshSmartFromSnapshot();
+  }
+  else
+    gdi.refresh();
 }
 
 int TabList::listCB(gdioutput &gdi, int type, void *data)
 {
 	int index;
+  if (type==GUI_BUTTON || type==GUI_EVENT) {
+    BaseInfo *tbi = 0;
+    ButtonInfo button;
+    EventInfo evnt;
+    if (type == GUI_BUTTON) {
+      button = *(ButtonInfo *)data;
+      tbi = &button;
+    }
+    else if (type == GUI_EVENT) {
+      evnt = *(EventInfo *)data;
+      tbi = &evnt;
+    }
+    else 
+      throw 0;
 
-	if (type==GUI_BUTTON || type==GUI_EVENT) {
-		BaseInfo bi=*(BaseInfo *)data;
+		BaseInfo &bi=*tbi;
 
 		if (bi.id=="Cancel")	{
       if (ownWindow)
@@ -201,13 +247,25 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 
       string file=gdi.browseForSave(ext, "html", index);
 
-      if(!file.empty()) {
+      if (!file.empty()) {
         if (index == 1)
           gdi.writeTableHTML(file, oe->getName());
         else {
           assert(index == 2);
           gdi.writeHTML(file, oe->getName());
         }
+        gdi.openDoc(file.c_str());
+      }
+		}
+    else if (bi.id=="PDF")	{
+      vector< pair<string, string> > ext;
+      ext.push_back(make_pair("Portable Document Format (PDF)", "*.pdf"));
+
+      string file=gdi.browseForSave(ext, "pdf", index);
+
+      if (!file.empty()) {
+        pdfwriter pdf;
+        pdf.generatePDF(gdi, file, oe->getName() + ", " + currentList.getName(), oe->getDCI().getString("Organizer"), gdi.getTL());        
         gdi.openDoc(file.c_str());
       }
 		}
@@ -239,7 +297,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
         int h = gdi_new->setHighContrastMaxWidth();
         tl_new->loadPage(*gdi_new);
         double sec = 6.0;
-        double delta = h * 30. / (1000. * sec);
+        double delta = h * 20. / (1000. * sec);
         gdi_new->setAutoScroll(delta);
       }
     }
@@ -309,6 +367,19 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       set<int> lst;
       gdi.setSelection("ListSelection", lst);
     }
+    else if (bi.id=="CancelPS") {
+      gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
+    }
+    else if (bi.id=="SavePS") {
+      saveExtraLines(*oe, "SPExtra", gdi);
+
+      int aflag = (gdi.isChecked("SplitAnalysis") ? 0 : 1) + (gdi.isChecked("Speed") ? 0 : 2);
+      oe->getDI().setInt("Analysis", aflag);
+      gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
+    }
+    else if (bi.id == "PrinterSetup") {
+      ((TabSI *)gdi.getTabs().get(TSITab))->printerSetup(gdi);
+    }
     else if (bi.id=="Generate") {
       ListBoxInfo lbi;
       if (gdi.getSelectedItem("ListType", &lbi)) {
@@ -368,10 +439,10 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="GeneralList") {
       if (SelectedList=="GeneralList") {
-        int oX=gdi.GetOffsetX();
-        int oY=gdi.GetOffsetY();
+        //int oX=gdi.GetOffsetX();
+        //int oY=gdi.GetOffsetY();
         generateList(gdi);
-        gdi.setOffset(oX, oY, false);
+        //gdi.setOffset(oX, oY, false);
       }
       else
         loadGeneralList(gdi);
@@ -849,6 +920,100 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       generateList(gdi);
       gdi.refresh();
     }
+    else if (bi.id == "ImportCustom") {
+
+      MetaListContainer &lc = oe->getListContainer();
+      vector< pair<string, int> >  installedLists;
+      set<string> installedId;
+      for (int k = 0; k < lc.getNumLists(); k++) {
+        if (lc.isExternal(k)) {
+          MetaList &mc = lc.getList(k);
+          installedLists.push_back(make_pair(mc.getListName(), k));
+          mc.initUniqueIndex();
+          if (!mc.getUniqueId().empty())
+            installedId.insert(mc.getUniqueId());
+        }
+      }
+  
+      vector< pair<string, pair<string, string> > > lists;
+      lc.enumerateLists(lists);
+      if (lists.empty() && installedLists.empty()) {
+        bi.id = "BrowseList";
+        return listCB(gdi, GUI_BUTTON, &bi);
+      } 
+
+
+      gdi.clearPage(false);
+      gdi.addString("", boldLarge, "Tillgängliga listor");
+      int xx = gdi.getCX() + gdi.scaleLength(360);
+      int bx = gdi.getCX();
+      if (!installedLists.empty()) {
+        gdi.dropLine();
+        gdi.addString("", 1, "Listor i tävlingen");
+        gdi.fillRight();
+        gdi.pushX();
+        for (size_t k = 0; k < installedLists.size(); k++) {
+          gdi.addStringUT(0, installedLists[k].first).setColor(colorDarkGreen);
+          gdi.setCX(xx);
+          gdi.addString("RemoveInstalled", 0, "Ta bort", ListsCB).setExtra(installedLists[k].second);
+          gdi.addString("EditInstalled", 0, "Redigera", ListsCB).setExtra(installedLists[k].second);          
+          gdi.dropLine();
+          if (k+1 < installedLists.size()) {
+            RECT rc = {bx, gdi.getCY(),gdi.getCX(),gdi.getCY()+1};
+            gdi.addRectangle(rc, colorDarkBlue);          
+            gdi.dropLine(0.1);
+          }
+          gdi.popX();
+        }
+        gdi.fillDown();
+        gdi.popX();
+      }
+
+      if (!lists.empty()) {
+        gdi.dropLine(2);
+        gdi.addString("", 1, "Installerbara listor");
+        gdi.fillRight();
+        gdi.pushX();
+
+        for (size_t k = 0; k < lists.size(); k++) {
+          gdi.addStringUT(0, lists[k].first, 0);
+          if (!installedId.count(lists[k].second.first)) {
+            gdi.setCX(xx);
+            gdi.addString("CustomList", 0, "Lägg till", ListsCB).setColor(colorDarkGreen).setExtra(k);
+            gdi.addString("RemoveList", 0, "Radera permanent", ListsCB).setColor(colorDarkRed).setExtra(k);
+          }
+          gdi.dropLine();
+
+          if (k+1 < lists.size() && !installedId.count(lists[k].second.first)) {
+            RECT rc = {bx, gdi.getCY(),gdi.getCX(),gdi.getCY()+1};          
+            gdi.addRectangle(rc, colorDarkBlue);
+            gdi.dropLine(0.1);
+          }
+          gdi.popX();
+          
+        }
+        gdi.fillDown();
+        gdi.popX();
+      }
+
+      gdi.dropLine(2);
+      gdi.fillRight();
+      gdi.addButton("BrowseList", "Bläddra...", ListsCB);
+      gdi.addButton("Cancel", "Återgå", ListsCB);
+      gdi.refresh();
+    }
+    else if (bi.id == "BrowseList") {
+      vector< pair<string, string> > filter;
+      filter.push_back(make_pair("xml-data", "*.xml;*.meoslist"));
+      string file = gdi.browseForOpen(filter, "xml");
+      if(!file.empty()) {
+        xmlparser xml(0);
+        xml.read(file);
+        xmlobject xlist = xml.getObject(0);
+        oe->getListContainer().load(MetaListContainer::ExternalList, xlist);
+        loadPage(gdi);
+      }
+    }
 		else if (bi.id == "ResultListFT_ONATT") {
       vector< pair<string, string> > ext;
       ext.push_back(make_pair("Semikolonseparerad", "*.csv;*.txt"));
@@ -927,6 +1092,54 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
     offsetY=gdi.GetOffsetY();
     offsetX=gdi.GetOffsetX();
     return true;
+  }
+  else if (type == GUI_LINK) {
+    TextInfo ti = *(TextInfo *)data;
+    if (ti.id == "CustomList") {
+      vector< pair<string, pair<string, string> > > lists;
+      oe->getListContainer().enumerateLists(lists);
+      size_t ix = ti.getExtraSize();
+      if (ix < lists.size()) {
+        xmlparser xml(0);
+        xml.read(lists[ix].second.second);
+        xmlobject xlist = xml.getObject(0);
+        oe->getListContainer().load(MetaListContainer::ExternalList, xlist);
+      }
+      ButtonInfo bi;
+      bi.id = "ImportCustom";
+      listCB(gdi, GUI_BUTTON, &bi);  
+    }
+    else if (ti.id == "RemoveList") {
+      vector< pair<string, pair<string, string> > > lists;
+      oe->getListContainer().enumerateLists(lists);
+      size_t ix = ti.getExtraSize();
+      if (ix < lists.size()) {
+        if (gdi.ask("Vill du ta bort 'X'?#" + lists[ix].first)) {
+          DeleteFile(lists[ix].second.second.c_str());
+        }
+      }
+      ButtonInfo bi;
+      bi.id = "ImportCustom";
+      listCB(gdi, GUI_BUTTON, &bi);  
+    }
+    else if (ti.id == "RemoveInstalled") {
+      int ix = ti.getExtraInt();
+      if (gdi.ask("Vill du ta bort 'X'?#" + oe->getListContainer().getList(ix).getListName())) {
+        oe->getListContainer().removeList(ix);
+        ButtonInfo bi;
+        bi.id = "ImportCustom";
+        listCB(gdi, GUI_BUTTON, &bi);        
+      }      
+    }
+    else if (ti.id == "EditInstalled") {
+      int ix = ti.getExtraInt();
+      if (!listEditor)
+        listEditor = new ListEditor(oe);
+      gdi.clearPage(false);
+      listEditor->load(oe->getListContainer(), ix);
+      listEditor->show(gdi);
+      gdi.refresh();
+    }
   }
 
 	return 0;
@@ -1104,7 +1317,7 @@ bool TabList::loadPage(gdioutput &gdi)
   oe->checkDB();
   oe->synchronize();
 	gdi.selectTab(tabId);
-
+  noReEvaluate = false;
 	gdi.clearPage(false);
 
   if (SelectedList!="") {
@@ -1230,9 +1443,9 @@ bool TabList::loadPage(gdioutput &gdi)
     gdi.dropLine(3);
   }
 
+  
   MetaListContainer &lc = oe->getListContainer();
-  int numExt = lc.getNumLists(MetaListContainer::ExternalList); 
-  if (numExt) {
+  if (lc.getNumLists(MetaListContainer::ExternalList) > 0) {
     gdi.addString("", 1, "Egna listor");
 
 	  gdi.fillRight();
@@ -1245,11 +1458,12 @@ bool TabList::loadPage(gdioutput &gdi)
         gdi.addButton("CustomList", mc.getListName(), ListsCB).setExtra(k);
       }
     }
-    gdi.popX();
-    gdi.dropLine(3);
-    gdi.fillDown();	
   }
-
+  
+  gdi.popX();
+  gdi.dropLine(3);
+  gdi.fillDown();	
+  
   vector< pair<string, size_t> > savedParams;
   lc.getListParam(savedParams);
   if (savedParams.size() > 0) {
@@ -1313,7 +1527,8 @@ bool TabList::loadPage(gdioutput &gdi)
 	gdi.dropLine(3);
 
   gdi.addButton("GeneralList", "Alla listor...", ListsCB);
-  gdi.addButton("EditList", "Redigera lista", ListsCB);
+  gdi.addButton("EditList", "Redigera lista...", ListsCB);
+  gdi.addButton("ImportCustom", "Hantera egna listor...", ListsCB);
 
 	//gdi.registerEvent("DataUpdate", ListsEventCB);	
 	gdi.refresh();
@@ -1324,4 +1539,77 @@ bool TabList::loadPage(gdioutput &gdi)
   offsetX=0;
 	gdi.refresh();
   return true;
+}
+
+
+void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode)
+{
+	gdi.clearPage(false);
+  gdi.fillDown();
+  gdi.addString("", boldLarge, "Inställningar sträcktidsutskrift");
+  gdi.dropLine();
+
+  gdi.fillRight();
+  gdi.pushX();
+  if (returnMode == TSITab) {
+    gdi.addButton("PrinterSetup", "Skrivare...", ListsCB, "Skrivarinställningar för sträcktider");
+    gdi.dropLine(0.3);
+  }
+  bool withSplitAnalysis = (oe.getDCI().getInt("Analysis") & 1) == 0;
+  bool withSpeed = (oe.getDCI().getInt("Analysis") & 2) == 0;
+  gdi.addCheckbox("SplitAnalysis", "Med sträcktidsanalys", 0, withSplitAnalysis);
+  gdi.addCheckbox("Speed", "Med km-tid", 0, withSpeed);
+
+  gdi.popX();
+  gdi.fillDown();
+  customTextLines(oe, "SPExtra", gdi);
+
+  gdi.fillRight();
+  gdi.addButton("SavePS", "OK", ListsCB, "").setExtra(returnMode);
+  gdi.addButton("CancelPS", "Avbryt", ListsCB, "").setExtra(returnMode);
+
+  gdi.refresh();
+}
+
+void TabList::saveExtraLines(oEvent &oe, const char *dataField, gdioutput &gdi) {
+  vector< pair<string, int> > lines;
+  for (int k = 0; k < 5; k++) {
+    string row = "row"+itos(k);
+    string key = "font"+itos(k);
+    ListBoxInfo lbi;
+    gdi.getSelectedItem(key, &lbi);
+    string r = gdi.getText(row);
+    lines.push_back(make_pair(r, lbi.data));
+  }      
+  oe.setExtraLines(dataField, lines);
+}
+
+void TabList::customTextLines(oEvent &oe, const char *dataField, gdioutput &gdi) {
+  gdi.dropLine(2.5);
+  gdi.addString("", boldText, "Egna textrader");
+ 
+  vector< pair<string, size_t> > fonts;
+  vector< pair<string, int> > lines;
+
+  MetaListPost::getAllFonts(fonts);
+  oe.getExtraLines(dataField, lines);
+  
+  for (int k = 0; k < 5; k++) {
+    gdi.fillRight();
+    gdi.pushX();
+    string row = "row"+itos(k);
+    gdi.addInput(row, "", 24);
+    string key = "font"+itos(k);
+    gdi.addSelection(key, 100, 100);
+    gdi.addItem(key, fonts);
+    if (lines.size() > size_t(k)) {
+      gdi.selectItemByData(key.c_str(), lines[k].second);
+      gdi.setText(row, lines[k].first);
+    }
+    else
+      gdi.selectFirstItem(key);
+    gdi.popX();
+    gdi.fillDown();
+    gdi.dropLine(2);
+  }
 }

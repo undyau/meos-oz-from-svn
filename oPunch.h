@@ -12,7 +12,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,18 +50,27 @@ protected:
   int tIndex; // Control match index in course
   int tMatchControlId;
 	bool hasBeenPlayed;
+
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+  int getDISize() const {return -1;}
+	
 public:
+  bool isUsedInCourse() const {return isUsed;}
   void remove();
   bool canRemove() const;
 
   string getInfo() const;
 
 	bool isStart() const {return Type==PunchStart;}
+  bool isStart(int startType) const {return Type==PunchStart || Type == startType;}
 	bool isFinish() const {return Type==PunchFinish;}
+  bool isFinish(int finishType) const {return Type==PunchFinish || Type == finishType;}
   bool isCheck() const {return Type==PunchCheck;}
   int getControlNumber() const {return Type>=30 ? Type : 0;}
-  string getType() const;
-  
+  const string &getType() const;
+  static const string &getType(int t);
+  int getTypeCode() const {return Type;}
 	string getString() const ;
 	string getSimpleString() const;
 
@@ -75,14 +84,11 @@ public:
 
   string getRunningTime(int startTime) const;
 
-	enum{PunchStart=1, PunchFinish=2, PunchCheck=3};
+	enum SpecialPunch {PunchStart=1, PunchFinish=2, PunchCheck=3};
 	void decodeString(const string &s);
 	string codeString() const;
 	oPunch(oEvent *poe);
 	virtual ~oPunch();
-
-	oDataInterface getDI(void);
-  oDataConstInterface getDCI(void) const;
 
 	friend class oCard;
 	friend class oRunner;

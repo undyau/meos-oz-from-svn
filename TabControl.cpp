@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 
 #include <commctrl.h>
 #include <commdlg.h> 
+#include <algorithm>
 
 #include "oEvent.h"
 #include "xmlparser.h"
@@ -34,7 +35,7 @@
 #include "SportIdent.h"
 #include "meos_util.h"
 #include "gdifonts.h"
-
+#include "table.h"
 #include <cassert>
 
 #include "TabControl.h"
@@ -96,6 +97,8 @@ void TabControl::selectControl(gdioutput &gdi,  pControl pc)
   	
 		  gdi.enableInput("Remove");
 		  gdi.enableInput("Save");
+      gdi.enableInput("Visitors");
+      gdi.enableInput("Courses");
       gdi.enableEditControls(true);
 
       if (pc->getStatus() == oControl::StatusRogaining) {
@@ -118,6 +121,9 @@ void TabControl::selectControl(gdioutput &gdi,  pControl pc)
       
 		gdi.disableInput("Remove");
 		gdi.disableInput("Save");
+    gdi.disableInput("Visitors");
+    gdi.disableInput("Courses");
+
     gdi.enableEditControls(false);
 	}
 }
@@ -163,9 +169,126 @@ void TabControl::save(gdioutput &gdi)
 	pc->synchronize();
 	oe->fillControls(gdi, "Controls");
 
-  oe->reEvaluateAll(true);
+  oe->reEvaluateAll(set<int>(), true);
 
 	selectControl(gdi, pc);
+}
+
+static void visitorTable(Table &table, void *ptr) {
+  TabControl *view = (TabControl *)ptr;
+  view->visitorTable(table);
+}
+
+static void courseTable(Table &table, void *ptr) {
+  TabControl *view = (TabControl *)ptr;
+  view->courseTable(table);
+}
+
+void TabControl::courseTable(Table &table) const {
+  vector<pRunner> r;
+  oe->getRunners(0, 0, r, false);
+  map<int, int> runnersPerCourse;
+  for (size_t k = 0; k < r.size(); k++) {
+    pCourse c = r[k]->getCourse(false);
+    int id = c != 0 ? c->getId() : 0;
+    ++runnersPerCourse[id];
+  }
+
+  vector<pCourse> crs;
+  oe->getCourses(crs);
+
+  int ix = 1;
+  for (size_t k = 0; k < crs.size(); k++) {
+    vector<pControl> pc;
+    crs[k]->getControls(pc);
+    int used = 0;
+    for (size_t j = 0; j < pc.size(); j++) {
+      if (pc[j]->getId() == controlId) {
+        used++;
+      }
+    }
+    
+    oCourse &it = *crs[k];
+    if (used > 0) {
+      table.addRow(ix++, &it);		
+
+      int row = 0;
+      table.set(row++, it, TID_ID, itos(it.getId()), false);
+      table.set(row++, it, TID_MODIFIED, it.getTimeStamp(), false);
+
+      table.set(row++, it, TID_COURSE, crs[k]->getName(), false);   
+      table.set(row++, it, TID_INDEX, itos(used), false);
+      table.set(row++, it, TID_RUNNER, itos(runnersPerCourse[crs[k]->getId()]), false);
+    }
+  }
+}
+
+void TabControl::visitorTable(Table &table) const {
+  vector<pCard> c;
+  oe->getCards(c);
+  pControl pc = oe->getControl(controlId, false);
+
+  if (!pc)
+    return;
+  vector<int> n;
+  pc->getNumbers(n);
+  struct PI {
+    PI(int c, int type, int t) : card(c), code(type), time(t) {}
+    int card;
+    int code;
+    int time;
+    bool operator<(const PI&c) const {
+      if (card != c.card)
+        return card < c.card;
+      else if (code != c.code)
+        return code < c.code;
+      else 
+        return time < c.time;
+    }
+    bool operator==(const PI&c) const {
+      return c.card == card && c.code == code && c.time == time;
+    }
+  };
+  set<PI> registeredPunches;
+  vector<pPunch> p;
+  int ix=1;
+  for (size_t k = 0; k< c.size(); k++) {
+    oCard &it = *c[k];
+
+    it.getPunches(p);
+    //oPunch *punch = it.getPunchByType(pc->getFirstNumber()); //XXX
+
+    for (size_t j = 0; j < p.size(); j++) {
+  
+      vector<int>::iterator res = find(n.begin(), n.end(), p[j]->getTypeCode());
+      if (res != n.end()) {
+        oPunch *punch = p[j];
+        registeredPunches.insert(PI(it.cardNo(), p[j]->getTypeCode(), p[j]->getAdjustedTime()));
+        table.addRow(ix++, &it);		
+
+        int row = 0;
+        table.set(row++, it, TID_ID, itos(it.getId()), false);
+        table.set(row++, it, TID_MODIFIED, it.getTimeStamp(), false);
+
+        pRunner r = it.getOwner();
+        if (r) {
+          table.set(row++, it, TID_RUNNER, r->getName(), false);
+          table.set(row++, it, TID_COURSE, r->getCourseName(), false);          
+        }
+        else {
+          table.set(row++, it, TID_RUNNER, "-", false);
+          table.set(row++, it, TID_COURSE, "-", false);          
+        }
+        table.set(row++, it, TID_FEE, punch->isUsedInCourse() ? 
+                  lang.tl("Ja") : lang.tl("Nej"), false);
+        table.set(row++, it, TID_CARD, it.getCardNo(), false);
+
+        table.set(row++, it, TID_STATUS, punch->getTime(), false);
+        table.set(row++, it, TID_CONTROL, punch->getType(), false);
+        table.set(row++, it, TID_CODES, j>0 ? p[j-1]->getType() : "-", true);        
+      }
+    }
+  }
 }
 
 int TabControl::controlCB(gdioutput &gdi, int type, void *data)
@@ -209,6 +332,55 @@ int TabControl::controlCB(gdioutput &gdi, int type, void *data)
       if (!tableMode)
         save(gdi);
       tableMode = !tableMode;
+      loadPage(gdi);
+    }
+    else if (bi.id=="Visitors") {
+      save(gdi);
+
+      Table *table=new Table(oe, 20, "Kontroll X#" + itos(controlId), "controlvisitor");
+
+      table->addColumn("Id", 70, true, true);
+      table->addColumn("Ändrad", 70, false);
+
+	    table->addColumn("Namn", 150, false);
+      table->addColumn("Bana", 70, false);
+      table->addColumn("På banan", 70, false);
+      table->addColumn("Bricka", 70, true, true);
+
+      table->addColumn("Tidpunkt", 70, false);    
+      table->addColumn("Stämpelkod", 70, true);
+      table->addColumn("Föregående kontroll", 70, false);
+      table->setGenerator(::visitorTable, this);
+      table->setTableProp(0);
+      table->update();  
+    	gdi.clearPage(false);
+      int xp=gdi.getCX();
+      gdi.fillDown();
+      gdi.addButton("Show", "Återgå", ControlsCB);
+       gdi.addTable(table, xp, gdi.getCY());
+      gdi.refresh();
+    }
+    else if (bi.id=="Courses") {
+       Table *table=new Table(oe, 20, "Kontroll X#" + itos(controlId), "controlcourse");
+
+      table->addColumn("Id", 70, true, true);
+      table->addColumn("Ändrad", 70, false);
+
+	    table->addColumn("Bana", 70, false, true);
+      table->addColumn("Förekomst", 70, true, true);
+      table->addColumn("Antal deltagare", 70, true, true);
+      
+      table->setGenerator(::courseTable, this);
+      table->setTableProp(0);
+      table->update();  
+    	gdi.clearPage(false);
+      int xp=gdi.getCX();
+      gdi.fillDown();
+      gdi.addButton("Show", "Återgå", ControlsCB);
+       gdi.addTable(table, xp, gdi.getCY());
+      gdi.refresh();
+    }
+    else if (bi.id=="Show") {
       loadPage(gdi);
     }
 	}
@@ -311,6 +483,8 @@ bool TabControl::loadPage(gdioutput &gdi)
   gdi.disableInput("Save");
 	gdi.addButton("Remove", "Radera", ControlsCB);
 	gdi.disableInput("Remove");
+	gdi.addButton("Courses", "Banor...", ControlsCB);
+  gdi.addButton("Visitors", "Besökare...", ControlsCB);
 	gdi.addButton("Add", "Ny kontroll", ControlsCB);
 
   gdi.dropLine(2.5);

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,8 @@
 #include <algorithm>
 #include "meosexception.h"
 #include "gdifonts.h"
+
+extern oEvent *gEvent;
 
 oListParam::oListParam() {
   listCode = EStdResultList; //Just need a default
@@ -123,7 +125,8 @@ MetaList::MetaList() {
 }
 
 MetaListPost::MetaListPost(EPostType type_, EPostType align_, int leg_) : type(type_),
-    alignType(align_), leg(leg_), minimalIndent(0), alignBlock(true), blockWidth(0), font(formatIgnore)
+    alignType(align_), leg(leg_), minimalIndent(0), alignBlock(true), blockWidth(0), font(formatIgnore),
+    mergeWithPrevious(false), textAdjust(0), color(colorDefault)
 {}
   
 static int checksum(const string &str) {
@@ -133,7 +136,7 @@ static int checksum(const string &str) {
   return ret;
 }
 
-void MetaList::initUniqueIndex() {
+void MetaList::initUniqueIndex() const {
   __int64 ix = 0;
 
   for (int i = 0; i<4; i++) {
@@ -151,6 +154,9 @@ void MetaList::initUniqueIndex() {
         value = value * 31 + mp.font;
         value = value * 31 + checksum(mp.text);
         value = value * 31 + mp.minimalIndent;
+        value = value * 31 + mp.mergeWithPrevious;
+        value = value * 31 + mp.color;
+        value = value * 31 + mp.textAdjust;        
         ix = ix * 997 + value;
       }
     }
@@ -261,6 +267,7 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
   li.calcTotalResults = false;
   li.rogainingResults = false;
   li.calcCourseClassResults = false;
+  const bool isPunchList = mList.listSubType == oListInfo::EBaseTypePunches;
 
   for (int i = 0; i<4; i++) {
     const vector< vector<MetaListPost> > &lines = mList.data[i];
@@ -271,7 +278,7 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
         defaultFont = header;
       break;
       case 3: { 
-        if (mList.listSubType == oListInfo::EBaseTypePunches)
+        if (isPunchList)
           defaultFont = small;
         else
           defaultFont = italic;
@@ -351,13 +358,22 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
           }
         }
 
+        
         int width = 0;
-        if (skip.count(mp.type) == 0) {
+        if (skip.count(mp.type) == 0 && (k==0 || !mp.mergeWithPrevious)) {
           gdiFonts font = defaultFont;
           if (mp.font != formatIgnore)
             font = mp.font;
           width = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font, 
             oPrintPost::encodeFont(fontFaces[i].first, fontFaces[i].second).c_str(), large, mp.blockWidth);
+
+          size_t kk = k+1;
+          //Add merged entities
+          while (kk < cline.size() && cline[kk].mergeWithPrevious) {
+            width += li.getMaxCharWidth(oe, cline[kk].type, encode(cline[kk].text), font, 
+                          oPrintPost::encodeFont(fontFaces[i].first, fontFaces[i].second).c_str(), large, cline[kk].blockWidth);
+            kk++;
+          }
         }
 
         if (mp.alignType == lNone) {
@@ -398,12 +414,15 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
     c = pos.postAdjust();
   }
 
-  int dx = 0, next_dx = 0;
+  int dy = 0, next_dy = 0;
+  oPrintPost *last = 0;
+  oPrintPost *base = 0;
 
-  if (large == false && par.pageBreak == false) {
+  /*if (large == false && par.pageBreak == false) {*/
+  {
     for (size_t j = 0; j<mList.getHead().size(); j++) {
       const vector<MetaListPost> &cline = mList.getHead()[j];
-      next_dx = 0;
+      next_dy = 0;
       for (size_t k = 0; k<cline.size(); k++) {
         const MetaListPost &mp = cline[k];
         if (skip.count(mp.type) == 1)
@@ -420,21 +439,42 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
         if (mp.font != formatIgnore)
           font = mp.font;
 
-        li.addHead(oPrintPost(cline[k].type, text, font, 
-                              pos.get(label), dx, cline[k].leg)).
-                              setFontFace(fontFaces[MLHead].first,
+        oPrintPost &added = li.addHead(oPrintPost(mp.type, text, font|mp.textAdjust, 
+                                       pos.get(label), dy, mp.leg)).
+                                       setFontFace(fontFaces[MLHead].first,
                                           fontFaces[MLHead].second);
 
-        next_dx = max(next_dx, fontHeight[make_pair(font, MLHead)]);
+        added.fixedWidth = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font,
+                                  oPrintPost::encodeFont(fontFaces[MLHead].first,
+                                                        fontFaces[MLHead].second).c_str(),
+                                  large, mp.blockWidth);
+
+        
+        added.color = mp.color;
+        if (!mp.mergeWithPrevious)
+          base = &added;
+
+        if (last && mp.mergeWithPrevious) {
+          last->mergeWith = &added;
+          if (base) {
+            base->fixedWidth += added.fixedWidth;
+            added.fixedWidth = 0;
+          }
+        }
+        last = &added;
+
+        next_dy = max(next_dy, fontHeight[make_pair(font, MLHead)]);
       }
-      dx += next_dx;
-      next_dx = lineHeight;
+      dy += next_dy;
+      next_dy = lineHeight;
     }
   }
 
-  dx = lineHeight;
+  dy = lineHeight;
+  last = 0;
+  base = 0;
   for (size_t j = 0; j<mList.getSubHead().size(); j++) {
-    next_dx = 0;
+    next_dy = 0;
     const vector<MetaListPost> &cline = mList.getSubHead()[j];
     for (size_t k = 0; k<cline.size(); k++) {
       const MetaListPost &mp = cline[k];
@@ -446,21 +486,41 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
       if (mp.font != formatIgnore)
         font = mp.font;
 
-      li.addSubHead(oPrintPost(cline[k].type, encode(cline[k].text), font, 
-                                pos.get(label, s), dx, cline[k].leg)).
-                                setFontFace(fontFaces[MLSubHead].first,
-                                            fontFaces[MLSubHead].second);
+      oPrintPost &added = li.addSubHead(oPrintPost(mp.type, encode(mp.text), font|mp.textAdjust, 
+                                        pos.get(label, s), dy, cline[k].leg)).
+                                        setFontFace(fontFaces[MLSubHead].first,
+                                                    fontFaces[MLSubHead].second);
 
-      next_dx = max(next_dx, fontHeight[make_pair(font, MLSubHead)]);
+      added.fixedWidth = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font,
+                                            oPrintPost::encodeFont(fontFaces[MLSubHead].first,
+                                                       fontFaces[MLSubHead].second).c_str(),
+                                            large, mp.blockWidth);
+
+      added.color = mp.color;
+      if (!mp.mergeWithPrevious)
+        base = &added;
+
+      if (last && mp.mergeWithPrevious) {
+        last->mergeWith = &added;
+        if (base) {
+          base->fixedWidth += added.fixedWidth;
+          added.fixedWidth = 0;
+        }
+      }
+      last = &added;
+
+      next_dy = max(next_dy, fontHeight[make_pair(font, MLSubHead)]);
     }
-    dx += next_dx;
+    dy += next_dy;
   }
 
+  last = 0;
+  base = 0;
   int sub_dy = mList.getSubList().size() > 0 ? lineHeight/2 : 0;
-  dx = 0;
+  dy = 0;
   for (size_t j = 0; j<mList.getList().size(); j++) {
     const vector<MetaListPost> &cline = mList.getList()[j];
-    next_dx = 0;
+    next_dy = 0;
     for (size_t k = 0; k<cline.size(); k++) {
       const MetaListPost &mp = cline[k];
       if (skip.count(mp.type) == 1)
@@ -471,20 +531,40 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
       if (mp.font != formatIgnore)
         font = mp.font;
 
-      next_dx = max(next_dx, fontHeight[make_pair(font, MLList)]);
-      li.addListPost(oPrintPost(cline[k].type, encode(cline[k].text), font, 
-                                pos.get(label, s),
-                                lineHeight*j + sub_dy, cline[k].leg)).
-                                setFontFace(fontFaces[MLList].first,
-                                            fontFaces[MLList].second);
+      next_dy = max(next_dy, fontHeight[make_pair(font, MLList)]);
+      oPrintPost &added = li.addListPost(oPrintPost(mp.type, encode(mp.text), font|mp.textAdjust, 
+                                         pos.get(label, s),
+                                         dy + sub_dy, cline[k].leg)).
+                                         setFontFace(fontFaces[MLList].first,
+                                                     fontFaces[MLList].second);
+
+      added.fixedWidth = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font,
+                                       oPrintPost::encodeFont(fontFaces[MLList].first,
+                                                              fontFaces[MLList].second).c_str(),
+                                       large, mp.blockWidth);
+
+      added.color = mp.color;
+      if (!mp.mergeWithPrevious)
+        base = &added;
+
+      if (last && mp.mergeWithPrevious) {
+        last->mergeWith = &added;
+        if (base) {
+          base->fixedWidth += added.fixedWidth;
+          added.fixedWidth = 0;
+        }
+      }
+      last = &added;
     }
-    dx += next_dx;
+    dy += next_dy;
   }
 
-  dx = 0;
+  last = 0;
+  base = 0;
+  dy = 0;  
   for (size_t j = 0; j<mList.getSubList().size(); j++) {
     const vector<MetaListPost> &cline = mList.getSubList()[j];
-    next_dx = 0;
+    next_dy = 0;
     for (size_t k = 0; k<cline.size(); k++) {
       const MetaListPost &mp = cline[k];
       if (skip.count(mp.type) == 1)
@@ -494,23 +574,38 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
         font = mp.font;
 
       string label = "P" + itos(3*1000 + j*100 + k);
-      next_dx = max(next_dx, fontHeight[make_pair(font, MLSubList)]);
-      li.addSubListPost(oPrintPost(mp.type, encode(mp.text), font, 
-                                pos.get(label, s), lineHeight*j, mp.leg)).
-                                setFontFace(fontFaces[MLSubList].first,
-                                            fontFaces[MLSubList].second);
+      int xp;
+      if (isPunchList)
+        xp = pos.getOriginalPos(label, s);
+      else
+        xp = pos.get(label, s);
 
-      
-      if (mp.alignBlock) {
-        int width = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font,
+      next_dy = max(next_dy, fontHeight[make_pair(font, MLSubList)]);
+      oPrintPost &added = li.addSubListPost(oPrintPost(mp.type, encode(mp.text), font|mp.textAdjust, 
+                                            xp, dy, mp.leg)).
+                                            setFontFace(fontFaces[MLSubList].first,
+                                                        fontFaces[MLSubList].second);
+
+      added.color = mp.color;
+      if (!mp.mergeWithPrevious)
+        base = &added;
+
+      added.fixedWidth = li.getMaxCharWidth(oe, mp.type, encode(mp.text), font,
                                        oPrintPost::encodeFont(fontFaces[MLSubList].first,
                                                               fontFaces[MLSubList].second).c_str(),
                                        large, mp.blockWidth);
   
-        li.subListPost.back().fixedWidth = width;
+    
+      if (last && mp.mergeWithPrevious) {
+        last->mergeWith = &added;
+        if (base) {
+          base->fixedWidth += added.fixedWidth;
+          added.fixedWidth = 0;
+        }
       }
+      last = &added;
     }
-    dx += next_dx;
+    dy += next_dy;
   }
 
   li.listType = listType;
@@ -662,6 +757,15 @@ int Position::get(const string &name, double scale) {
   return int(pos[pmap[name]].first * scale);
 }
 
+int Position::getOriginalPos(const string &name) {
+  return pos[pmap[name]].originalPos;
+}
+
+int Position::getOriginalPos(const string &name, double scale) {
+  return int(pos[pmap[name]].originalPos * scale);
+}
+
+
 struct PosOrderIndex {
   int pos;
   int index;
@@ -768,7 +872,7 @@ bool Position::postAdjust() {
 }
 
 void MetaList::save(const string &file) const {
-  xmlparser xml;
+  xmlparser xml(0);
   xml.openOutput(file.c_str(), true);
   save(xml);
   xml.closeOut();
@@ -779,6 +883,9 @@ void MetaList::save(xmlparser &xml) const {
   xml.startTag("MeOSListDefinition");
 //  xml.write("Title", defaultTitle);
   xml.write("ListName", listName);
+  if (listOrigin.empty())
+    listOrigin = gEvent->getName() + " (" + getLocalDate() + ")";
+  xml.write("ListOrigin", listOrigin);
   xml.write("Tag", tag);
   xml.write("UID", getUniqueId());
   xml.write("SortOrder", orderToSymbol[sortOrder]);
@@ -805,7 +912,7 @@ void MetaList::save(xmlparser &xml) const {
 }
 
 void MetaList::load(const string &file) {
-  xmlparser xml;
+  xmlparser xml(0);
   xml.read(file.c_str());
   filter.clear();
   xmlobject xDef = xml.getObject("MeOSListDefinition");
@@ -817,6 +924,7 @@ void MetaList::load(const xmlobject &xDef) {
     throw meosException("Ogiltigt filformat");
 
   xDef.getObjectString("ListName", listName);
+  xDef.getObjectString("ListOrigin", listOrigin);
   xDef.getObjectString("Tag", tag);
   xDef.getObjectString("UID", uniqueIndex);
   
@@ -951,6 +1059,31 @@ const string &MetaListPost::getType() const {
   return MetaList::typeToSymbol[type];
 }
 
+const string &MetaListPost::getTextAdjust() const {
+  string &res = StringCache::getInstance().get();
+  if (textAdjust == textRight)
+    res = "Right";
+  else if (textAdjust == textCenter)
+    res = "Center";
+  else
+    res = "Left";
+  return res;
+}
+
+void MetaListPost::setTextAdjust(int align) {
+  if (align != 0 && align != textRight && align != textCenter)
+    throw meosException("Invalid argument");
+  textAdjust = align;
+}
+
+const string &MetaListPost::getColor() const {
+  return itos(color);
+}
+
+void MetaListPost::setColor(GDICOLOR c) {
+  color = c;
+}
+
 void MetaListPost::getTypes(vector< pair<string, size_t> > &types, int &currentType) const {
   currentType = type;
   types.clear();
@@ -973,6 +1106,15 @@ const string &MetaListPost::getFont() const {
 void MetaListPost::getFonts(vector< pair<string, size_t> > &fonts, int &currentFont) const {
   currentFont = font;
   fonts.clear();
+  fonts.reserve(MetaList::fontToSymbol.size());
+  for (map<gdiFonts, string>::const_iterator it =   
+    MetaList::fontToSymbol.begin(); it != MetaList::fontToSymbol.end(); ++it) {
+      fonts.push_back(make_pair(lang.tl(it->second), it->first));
+  }
+}
+
+void MetaListPost::getAllFonts(vector< pair<string, size_t> > &fonts) {
+ fonts.clear();
   fonts.reserve(MetaList::fontToSymbol.size());
   for (map<gdiFonts, string>::const_iterator it =   
     MetaList::fontToSymbol.begin(); it != MetaList::fontToSymbol.end(); ++it) {
@@ -1035,6 +1177,15 @@ void MetaListPost::serialize(xmlparser &xml) const {
   xml.write("IndentMin", minimalIndent);
   if (font != formatIgnore)
     xml.write("Font", getFont());
+  if (mergeWithPrevious)
+    xml.write("MergePrevious", "1");
+  if (textAdjust != 0)
+    xml.write("TextAdjust", getTextAdjust());
+  if (color != colorDefault) {
+    char bf[16];
+    sprintf_s(bf, "%x", color);
+    xml.write("Color", bf);
+  }
   xml.endTag();
 }
 
@@ -1070,6 +1221,21 @@ void MetaListPost::deserialize(const xmlobject &xml) {
     }
     else alignType = MetaList::symbolToType[at];
   }
+
+  mergeWithPrevious = xml.getObjectInt("MergePrevious") != 0;
+  xml.getObjectString("TextAdjust", at);
+
+  if (at == "Right")
+    textAdjust = textRight;
+  else if (at == "Center")
+    textAdjust = textCenter;
+
+  xml.getObjectString("Color", at);
+  if (!at.empty()) {
+    color = (GDICOLOR)(strtol(at.c_str(), 0, 16)&0xFFFFFF);
+    //color = GDICOLOR(atoi(at.c_str()));
+  }
+
   string f;
   xml.getObjectString("Font", f);
   if (!f.empty()) {
@@ -1162,6 +1328,12 @@ void MetaList::initSymbols() {
     typeToSymbol[lTeamStartNo] = "TeamStartNo";
     typeToSymbol[lPunchNamedTime] = "PunchNamedTime";
     typeToSymbol[lPunchTime] = "PunchTime";
+    typeToSymbol[lPunchControlNumber] = "PunchControlNumber";
+    typeToSymbol[lPunchControlCode] = "PunchControlCode";
+    typeToSymbol[lPunchLostTime] = "PunchLostTime";
+    typeToSymbol[lPunchControlPlace] = "PunchControlPlace";
+    typeToSymbol[lPunchControlPlaceAcc] = "PunchControlPlaceAcc";
+    
     typeToSymbol[lRogainingPunch] = "RogainingPunch";
     typeToSymbol[lTotalCounter] = "TotalCounter";
     typeToSymbol[lSubCounter] = "SubCounter";
@@ -1325,9 +1497,11 @@ void MetaListContainer::save(MetaListType type, xmlparser &xml) const {
 }
 
 void MetaListContainer::load(MetaListType type, const xmlobject &xDef) {
-  xmlList xList;
+  if (!xDef)
+    return;
+  xmlList xList;  
   xDef.getObjects("MeOSListDefinition", xList);
-  
+    
   if (xList.empty() && strcmp(xDef.getName(), "MeOSListDefinition") == 0)
     xList.push_back(xDef);
   
@@ -1680,6 +1854,36 @@ oListParam &MetaListContainer::getParam(int index) {
     throw meosException("Internal error");
 
   return listParam.find(index)->second;
+}
+
+void MetaListContainer::enumerateLists(vector< pair<string, pair<string, string> > > &out) const {
+  out.clear();
+  char bf[260];
+	getUserFile(bf, "");
+  vector<string> res;
+  expandDirectory(bf, "*.meoslist", res);
+  for (size_t k = 0; k < res.size(); k++) {
+    xmlparser xml(0);
+    try {
+      xml.read(res[k].c_str(), 6);
+      xmlobject xDef = xml.getObject("MeOSListDefinition");
+      string name;
+      xDef.getObjectString("ListName", name);
+      string origin;
+      xDef.getObjectString("ListOrigin", origin);
+      string uid;
+      xDef.getObjectString("UID", uid);
+
+      if (!origin.empty())
+        name += MakeDash(" - ") + origin;
+      out.push_back(make_pair(name, make_pair(uid, res[k])));
+    }
+    catch (std::exception &) { // Ignore log?!
+      out.push_back(make_pair("Error? " + res[k], make_pair("?", res[k])));
+    }
+  }
+  sort(out.begin(), out.end());
+
 }
 
 #endif

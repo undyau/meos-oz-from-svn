@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -133,7 +133,7 @@ void Download::downloadFile(const string &url, const string &file, const vector<
 
   string hdr;
   for (size_t k = 0; k<headers.size(); k++)
-    hdr += headers[k].first + ": " + headers[k].second; 
+    hdr += headers[k].first + ": " + headers[k].second + "\r\n"; 
 
   string url2 = url;
   hURL = InternetOpenUrl(hInternet, url2.c_str(), hdr.empty() ? 0 : hdr.c_str(), hdr.length(), INTERNET_FLAG_DONT_CACHE, 0);
@@ -203,7 +203,7 @@ void Download::downloadFile(const string &url, const string &file, const vector<
 		fileno=0;
 		endDownload();
 		char bf[256];
-    sprintf_s(bf, "Error opening '%s' for writing", file);
+    sprintf_s(bf, "Error opening '%s' for writing", file.c_str());
     throw std::exception(bf);
 	}
 
@@ -319,13 +319,13 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
 
   HINTERNET hRequest = HttpOpenRequest (hConnect, "POST", dest.c_str(), NULL, NULL, NULL, INTERNET_FLAG_NO_CACHE_WRITE, 0);
 
-  DWORD dwBytesRead;
-  DWORD dwBytesWritten;
+  DWORD dwBytesRead = 0;
+  DWORD dwBytesWritten = 0;
   BYTE pBuffer[4*1024]; // Read from file in 4K chunks
 
   string hdr;
   for (size_t k = 0; k<headers.size(); k++)
-    hdr += headers[k].first + ": " + headers[k].second; 
+    hdr += headers[k].first + ": " + headers[k].second + "\r\n"; 
   /*
   HttpSendRequest(hRequest, hdr.c_str(), hdr.length(), NULL, 0);
   

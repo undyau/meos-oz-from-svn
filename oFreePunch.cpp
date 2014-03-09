@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -99,9 +99,11 @@ void oFreePunch::Set(const xmlobject *xo)
 bool oFreePunch::setCardNo(int cno, bool databaseUpdate) {
   if (cno != CardNo) {
     oe->punchIndex[itype].remove(CardNo); // Remove from index
+    oe->removeFromPunchHash(CardNo, Type, Time);
     rehashPunches(*oe, CardNo, 0);
 
     CardNo = cno;
+    oe->insertIntoPunchHash(CardNo, Type, Time);
     pRunner r1 = oe->getRunner(tRunnerId, 0);
     //itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
     pRunner r2 = oe->getRunner(tRunnerId, 0);
@@ -121,15 +123,6 @@ bool oFreePunch::setCardNo(int cno, bool databaseUpdate) {
   }
   return false;
 }
-
-/*
-void oFreePunch::setData(int card, int time, int type)
-{
-	CardNo=card;
-	Time=time;
-	Type=type;
-	updateChanged();	
-}*/
 
 void oFreePunch::remove() 
 {
@@ -232,7 +225,9 @@ void oFreePunch::fillInput(int id, vector< pair<string, size_t> > &out, size_t &
 
 void oFreePunch::setTimeInt(int t, bool databaseUpdate) {
   if (t != Time) {
+    oe->removeFromPunchHash(CardNo, Type, Time);
     Time = t;
+    oe->insertIntoPunchHash(CardNo, Type, Time);
     rehashPunches(*oe, CardNo, 0);
     if (!databaseUpdate)
       updateChanged();
@@ -253,19 +248,16 @@ bool oFreePunch::setType(const string &t, bool databaseUpdate) {
       ttype = oPunch::PunchStart;
   }
   if (ttype > 0 && ttype != Type) {
-    //oe->punchIndex[itype].remove(CardNo); // Remove from index
-    //pRunner r1 = oe->getRunner(tRunnerId, 0);
+    oe->removeFromPunchHash(CardNo, Type, Time);
     Type = ttype;
-    //itype = oe->getControlIdFromPunch(Time, Type, CardNo, true, tRunnerId);
+    oe->insertIntoPunchHash(CardNo, Type, Time);
     pRunner r = oe->getRunner(tRunnerId, 0);
 
     if (r)
       r->markClassChanged();
-    //if (r2)
-    //  r2->markClassChanged();
 
     rehashPunches(*oe, CardNo, 0);
-    //oe->punchIndex[itype][CardNo] = this; // Insert into index
+
     if (!databaseUpdate)
       updateChanged();
 
@@ -353,4 +345,8 @@ void oFreePunch::rehashPunches(oEvent &oe, int cardNo, pFreePunch newPunch) {
       }
     }
   }
+}
+
+pRunner oFreePunch::getTiedRunner() const {
+  return oe->getRunner(tRunnerId, 0);
 }

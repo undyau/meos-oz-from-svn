@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -694,7 +694,7 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
 
   int minStartNo = Runners.size();
   for(unsigned k=0;k<stimes.size(); k++) {
-    runners[k]->setStartTime(stimes[k]);
+    runners[k]->setStartTime(stimes[k], true, false);
     minStartNo = min(minStartNo, runners[k]->getStartNo());
   }
 
@@ -705,7 +705,7 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
     minStartNo = nextFreeStartNo + 1;
 
   for(size_t k=0; k<runners.size(); k++) {
-    runners[k]->setStartNo(k+minStartNo);
+    runners[k]->setStartNo(k+minStartNo, false);
 	  runners[k]->synchronize();
   }
 
@@ -974,7 +974,7 @@ void oEvent::drawListClumped(int ClassID, int FirstStart, int Interval, int Vaca
 
 	for (it=Runners.begin(); it != Runners.end(); ++it)
 		if(it->Class && it->Class->Id==ClassID){
-			it->setStartTime(stimes[k++]);
+			it->setStartTime(stimes[k++], true, false);
 			it->StartNo=k;
 			it->synchronize();
 		}
@@ -1280,18 +1280,18 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
 
     if ((times[k].first - delta) < maxTime && breakIndex == -1) {
       if (!reverse)
-        r->setStartTime(firstTime + times[k].first - delta);
+        r->setStartTime(firstTime + times[k].first - delta, true, false);
       else
-        r->setStartTime(firstTime - times[k].first + reverseDelta);
+        r->setStartTime(firstTime - times[k].first + reverseDelta, true, false);
     }
     else if (!reverse) {
       if (breakIndex == -1)
         breakIndex = k;
 
       if (!pairwise)
-        r->setStartTime(restartTime + (k - breakIndex) * interval);
+        r->setStartTime(restartTime + (k - breakIndex) * interval, true, false);
       else
-        r->setStartTime(restartTime + ((k - breakIndex)/2) * interval);
+        r->setStartTime(restartTime + ((k - breakIndex)/2) * interval, true, false);
     }
     else {
       if (breakIndex == -1) {
@@ -1300,9 +1300,9 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
       }
 
       if (!pairwise)
-        r->setStartTime(restartTime + (breakIndex - k) * interval);
+        r->setStartTime(restartTime + (breakIndex - k) * interval, true, false);
       else
-        r->setStartTime(restartTime + ((breakIndex - k + odd)/2) * interval);
+        r->setStartTime(restartTime + ((breakIndex - k + odd)/2) * interval, true, false);
 
     }
 

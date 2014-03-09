@@ -1,3 +1,25 @@
+/************************************************************************
+    MeOS - Orienteering Software
+    Copyright (C) 2009-2014 Melin Software HB
+    
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+    Melin Software HB - software@melin.nu - www.melin.nu
+    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    
+************************************************************************/
+
 // oControl.h: interface for the oControl class.
 //
 //////////////////////////////////////////////////////////////////////
@@ -36,7 +58,11 @@ protected:
 	ControlStatus Status;
 	string Name;
 	bool decodeNumbers(string s);
-	BYTE oData[32];
+	
+  static const int dataSize = 32;
+  int getDISize() const {return dataSize;}
+  BYTE oData[dataSize];
+  BYTE oDataOld[dataSize];
 
   int tMissedTimeTotal;
   int tMissedTimeMax;
@@ -50,6 +76,9 @@ protected:
 
   /// Table methods
   void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected);
+
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
 public:
   void remove();
@@ -86,9 +115,6 @@ public:
    @param supportRogaining true if rogaining controls are supported
   */
   bool controlCompleted(bool supportRogaiing) const;
-
-	oDataInterface getDI(void);
-  oDataConstInterface getDCI(void) const;
 
 	string codeNumbers(char sep=';') const;
 	bool setNumbers(const string &numbers);
@@ -136,6 +162,7 @@ public:
 
   /// Return first code number (or zero)
   int getFirstNumber() const;
+  void getNumbers(vector<int> &numbers) const;
 
 	void set(const xmlobject *xo);
 	void set(int pId, int pNumber, string pName);

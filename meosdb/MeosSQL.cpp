@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 
 #include <fstream>
 #include <cassert>
+#include <typeinfo>
 
 #include "../oRunner.h"
 #include "../oEvent.h"
@@ -369,6 +370,7 @@ void MeosSQL::upgradeDB(const string &db, oDataContainer const * dc) {
 
 bool MeosSQL::openDB(oEvent *oe)
 {
+  clearReadTimes();
   errorMessage.clear();
 	if(!con.connected() && !listCompetitions(oe, false)) 
 		return false;
@@ -699,7 +701,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 				<< " ZeroTime=" << unsigned(oe->ZeroTime) << ", "
 				<< " BuildVersion=" << buildVersion << ", "
         << " Lists=" << quote << listEnc
-        <<  oe->getDI().generateSQLSet();
+        <<  oe->getDI().generateSQLSet(true);
 
     if (syncUpdate(queryset, "oEvent", oe) == opStatusFail)
       return opStatusFail;
@@ -709,7 +711,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oCard>::iterator it=oe->Cards.begin();
 		while(it!=oe->Cards.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -719,7 +721,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oClub>::iterator it=oe->Clubs.begin();
 		while(it!=oe->Clubs.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -728,7 +730,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oControl>::iterator it=oe->Controls.begin();
 		while(it!=oe->Controls.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -737,7 +739,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oCourse>::iterator it=oe->Courses.begin();
 		while(it!=oe->Courses.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -746,7 +748,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oClass>::iterator it=oe->Classes.begin();
 		while(it!=oe->Classes.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -755,7 +757,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oRunner>::iterator it=oe->Runners.begin();
 		while(it!=oe->Runners.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -765,7 +767,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oTeam>::iterator it=oe->Teams.begin();
 		while(it!=oe->Teams.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -775,7 +777,7 @@ OpFailStatus MeosSQL::SyncUpdate(oEvent *oe)
 	{
 		list<oFreePunch>::iterator it=oe->punches.begin();
 		while(it!=oe->punches.end()){
-      if (!it->isRemoved() && syncUpdate(&*it) == opStatusFail)
+      if (!it->isRemoved() && syncUpdate(&*it, true) == opStatusFail)
         return opStatusFail;
 			++it;
 		}
@@ -812,7 +814,7 @@ OpFailStatus MeosSQL::uploadRunnerDB(oEvent *oe)
       mysqlpp::Query query = con.query();
       string setId = "Id=" + itos(cdb[k].Id) + ", ";
       query << "INSERT INTO dbClub SET " << setId << "Name=" << quote << cdb[k].name 
-        <<  cdb[k].getDCI().generateSQLSet();
+        <<  cdb[k].getDCI().generateSQLSet(true);
 
       try {
         query.execute();
@@ -865,10 +867,22 @@ bool MeosSQL::storeData(oDataInterface odi, const Row &row, unsigned long &revis
 		odi.getVariableInt(varint);
 		list<oVariableInt>::iterator it_int;
     for(it_int=varint.begin(); it_int!=varint.end(); it_int++) {
-      int val = int(row[it_int->Name]);
-      if (val != *(it_int->Data)) { 
-        *(it_int->Data) = val;
-        updated = true;
+      if (it_int->data32) {
+        int val = int(row[it_int->name]);
+
+        if (val != *(it_int->data32)) { 
+          *(it_int->data32) = val;
+          updated = true;
+        }
+      }
+      else {
+        __int64 val = row[it_int->name].operator mysqlpp::ulonglong();
+        __int64 oldVal = *(it_int->data64);
+        if (val != oldVal) { 
+          memcpy(it_int->data64, &val, 8);
+          updated = true;
+        }
+
       }
     }
 	}
@@ -876,22 +890,20 @@ bool MeosSQL::storeData(oDataInterface odi, const Row &row, unsigned long &revis
 		success=false;
 	}
 
-  const int maxsize = 1024;
-  char cb[maxsize];
 	try {
 		odi.getVariableString(varstring);
 		list<oVariableString>::iterator it_string;
     for(it_string=varstring.begin(); it_string!=varstring.end(); it_string++) {
-      strncpy_s(cb, maxsize, row[it_string->Name].c_str(), it_string->MaxSize-1);
-      if (strcmp(cb, it_string->Data) != 0) {
-			  strncpy_s(it_string->Data, it_string->MaxSize, cb, it_string->MaxSize-1);
+      if (it_string->store(row[it_string->name].c_str()))
         updated = true;
-      }
     }
 	}
 	catch(const BadFieldName&){ 
 		success=false;
 	}
+
+  // Mark all data as stored in memory
+  odi.allDataStored();
 
   if (updated)
     revision++;
@@ -899,8 +911,7 @@ bool MeosSQL::storeData(oDataInterface odi, const Row &row, unsigned long &revis
 	return success;
 }
 
-OpFailStatus MeosSQL::SyncRead(oEvent *oe)
-{
+OpFailStatus MeosSQL::SyncRead(oEvent *oe) {
   OpFailStatus retValue = opStatusOK; 
   errorMessage.clear();
 
@@ -987,7 +998,7 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
 
     nSum = nClubDB + nRunnerDB + nRunner + nTeam + nCard + 50;
 
-    if (nSum > 1000)
+    if (nSum > 400)
       pw.init();
   }
 	catch (const mysqlpp::Exception& er){
@@ -1009,7 +1020,6 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
 			oe->Date = row["Date"];
 		  oe->ZeroTime = row["ZeroTime"];
 		  strcpy_s(oe->CurrentNameId, row["NameId"].c_str());
-
       oe->sqlUpdated = row["Modified"];
       oe->counter = row["Counter"];
 
@@ -1029,7 +1039,7 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
 
       oDataInterface odi=oe->getDI();
       storeData(odi, row, oe->dataRevision);
-
+      oe->changed = false;
       oe->setCurrency(-1, "", "", false); // Set currency tmp data
     }
   }
@@ -1044,7 +1054,6 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
 	
   pw.setProgress(20);
 
-  pw.setProgress(2);
   try {
     ResUse res = query.use("SELECT * FROM oClub WHERE Removed=0");
 
@@ -1106,10 +1115,10 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
 		if (res){		
 			// Get each row in result set.
 			Row row;
-			
+			set<int> tmp;
 			while (row = res.fetch_row()) {
 				oCourse c(oe, row["Id"]);
-        storeCourse(row, c, false);
+        storeCourse(row, c, tmp);
         oe->addCourse(c);
 				
         oe->sqlUpdateCourses = max(c.sqlUpdated, oe->sqlUpdateCourses);
@@ -1232,7 +1241,7 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
         pTeam at = oe->addTeam(t);
   			
         if (at) {
-          at->apply(false, 0);
+          at->apply(false, 0, true);
           at->changed = false;
           for (size_t k = 0; k<at->Runners.size(); k++) {
             if (at->Runners[k]) {
@@ -1286,7 +1295,7 @@ OpFailStatus MeosSQL::SyncRead(oEvent *oe)
         t.internalSetName(n);
         storeData(t.getDI(), row, oe->dataRevision);
 
-        oe->runnerDB->addClub(t);
+        oe->runnerDB->addClub(t, false);
 
         if (++counter % 100 == 50)
           pw.setProgress(pStart + (counter * pPart) / nClubDB);
@@ -1358,6 +1367,7 @@ void MeosSQL::storeClub(const Row &row, oClub &c)
   c.Removed = row["Removed"];
 
   c.oe->sqlChangedClubs = true;
+  synchronized(c);
   storeData(c.getDI(), row, c.oe->dataRevision);
 }
 
@@ -1372,6 +1382,7 @@ void MeosSQL::storeControl(const Row &row, oControl &c)
   c.Removed = row["Removed"];
 
   c.oe->sqlChangedControls = true;
+  synchronized(c);
   storeData(c.getDI(), row, c.oe->dataRevision);
 }
 
@@ -1385,6 +1396,14 @@ void MeosSQL::storeCard(const Row &row, oCard &c)
   c.counter = row["Counter"];
   c.Removed = row["Removed"];
 
+  pRunner r = c.getOwner();
+  if (r) {
+    r->sqlChanged = true;
+    if (r->Class)
+      r->Class->sqlChanged = true;
+  }
+
+  synchronized(c);
   c.oe->sqlChangedCards = true;
 }
 
@@ -1409,6 +1428,7 @@ void MeosSQL::storePunch(const Row &row, oFreePunch &p, bool rehash)
   if (r)
     r->markClassChanged();
 
+  synchronized(p);
  	p.oe->sqlChangedPunches = true;
 }
 
@@ -1426,7 +1446,14 @@ OpFailStatus MeosSQL::storeClass(const Row &row, oClass &c,
   set<int> cid;
   vector< vector<int> > multip;
   oClass::parseCourses(multi, multip, cid);
-  success = min(success, syncReadClassCourses(&c, row["Course"], cid, readCourses));
+  int classCourse =  row["Course"];
+  if (classCourse != 0)
+    cid.insert(classCourse);
+  if (readCourses)
+    success = min(success, syncReadClassCourses(&c, cid, readCourses));
+  if (classCourse != 0)
+    c.Course = c.oe->getCourse(row["Course"]);
+
   c.importCourses(multip);
 
   c.sqlUpdated = row["Modified"];
@@ -1439,11 +1466,12 @@ OpFailStatus MeosSQL::storeClass(const Row &row, oClass &c,
 
   c.sqlChanged = true;
   c.oe->sqlChangedClasses = true;
+  synchronized(c);
   return success;
 }
 
 OpFailStatus MeosSQL::storeCourse(const Row &row, oCourse &c,
-                                  bool readControls)
+                                  set<int> &readControls)
 {
   OpFailStatus success = opStatusOK;
   
@@ -1460,8 +1488,9 @@ OpFailStatus MeosSQL::storeCourse(const Row &row, oCourse &c,
         c.Controls[i]->changed = false;
         success = min(success, syncRead(true, c.Controls[i]));
       }
-      else if (readControls)
-		    success = min(success, syncRead(false, c.Controls[i]));
+      else
+        readControls.insert(c.Controls[i]->getId());
+		    //success = min(success, syncRead(false, c.Controls[i]));
     }
 	}
 
@@ -1472,6 +1501,7 @@ OpFailStatus MeosSQL::storeCourse(const Row &row, oCourse &c,
   storeData(c.getDI(), row, c.oe->dataRevision);
   c.changed = false;
   c.oe->sqlChangedCourses = true;
+  synchronized(c);
   return success;
 }
 
@@ -1490,9 +1520,9 @@ OpFailStatus MeosSQL::storeRunner(const Row &row, oRunner &r,
 	r.Name = row["Name"];
   r.setCardNo(row["CardNo"], false, true);
 	r.StartNo = row["StartNo"];
-	r.StartTime = row["StartTime"];
+	r.tStartTime = r.startTime = row["StartTime"];
 	r.FinishTime = row["FinishTime"];
-	r.Status = RunnerStatus(int(row["Status"]));
+	r.tStatus = r.status = RunnerStatus(int(row["Status"]));
 	
   r.inputTime = row["InputTime"];
 	r.inputPoints = row["InputPoints"];
@@ -1507,13 +1537,17 @@ OpFailStatus MeosSQL::storeRunner(const Row &row, oRunner &r,
 	
 	if (int(row["Course"])!=0) {
 		r.Course = oe->getCourse(int(row["Course"]));
+    set<int> controlIds;
 		if (!r.Course) {
 			oCourse oc(oe,  row["Course"]);
-      success = min(success, syncRead(true, &oc, readCourseCard));
+      success = min(success, syncReadCourse(true, &oc, controlIds));
 			r.Course = oe->addCourse(oc);
 		}
     else if (readCourseCard)
-      success = min(success, syncRead(false, r.Course, true));					
+      success = min(success, syncReadCourse(false, r.Course, controlIds));
+
+    if (readCourseCard)
+      success = min(success, syncReadControls(oe, controlIds));
 	}
 	else r.Course=0;
 
@@ -1598,6 +1632,7 @@ OpFailStatus MeosSQL::storeRunner(const Row &row, oRunner &r,
   r.sqlChanged = true;
   r.oe->sqlChangedRunners = true;
 
+  synchronized(r);
   return success;
 }
 
@@ -1613,9 +1648,9 @@ OpFailStatus MeosSQL::storeTeam(const Row &row, oTeam &t,
 
   t.Name=row["Name"];
 	t.StartNo=row["StartNo"];
-	t.StartTime=row["StartTime"];
+	t.tStartTime  =  t.startTime = row["StartTime"];
 	t.FinishTime=row["FinishTime"];
-  t.Status=RunnerStatus(int(row["Status"]));				
+  t.tStatus = t.status = RunnerStatus(int(row["Status"]));				
 	storeData(t.getDI(), row, oe->dataRevision);
 
   t.Removed = row["Removed"];
@@ -1681,6 +1716,7 @@ OpFailStatus MeosSQL::storeTeam(const Row &row, oTeam &t,
 
   t.sqlChanged = true;
 	t.oe->sqlChangedTeams = true;
+  synchronized(t);
   return success;
 }  	
 
@@ -1731,10 +1767,9 @@ bool MeosSQL::Remove(oBase *ob)
 		return 0;
 	}
 	
-	query << "UPDATE " << oTable << " SET Removed=1 WHERE Id= " << ob->Id;
-
-	try{
-		ResNSel res=query.execute();
+	query << "Removed=1";
+ 	try{
+    ResNSel res = updateCounter(oTable.c_str(), ob->Id, &query);
 		ob->Removed = true;
 		ob->changed = false;
     ob->reChanged = false;
@@ -1748,7 +1783,7 @@ bool MeosSQL::Remove(oBase *ob)
 }
 
 
-OpFailStatus MeosSQL::syncUpdate(oRunner *r)
+OpFailStatus MeosSQL::syncUpdate(oRunner *r, bool forceWriteAll)
 {
   errorMessage.clear();
 
@@ -1762,19 +1797,19 @@ OpFailStatus MeosSQL::syncUpdate(oRunner *r)
 	queryset << " Name=" << quote << r->Name << ", "
 			<< " CardNo=" << r->CardNo << ", "
 			<< " StartNo=" << r->StartNo << ", "
-			<< " StartTime=" << r->StartTime << ", "
+			<< " StartTime=" << r->startTime << ", "
 			<< " FinishTime=" << r->FinishTime << ", "
 			<< " Course=" << r->getCourseId() << ", "
 			<< " Class=" << r->getClassId() << ", "
 			<< " Club=" << r->getClubId() << ", "
 			<< " Card=" << r->getCardId() << ", "
-			<< " Status=" << r->getStatus() << ", "
+      << " Status=" << r->status << ", "
       << " InputTime=" << r->inputTime << ", "
       << " InputStatus=" << r->inputStatus << ", "
       << " InputPoints=" << r->inputPoints << ", "
       << " InputPlace=" << r->inputPlace << ", "
       << " MultiR=" << quote << r->codeMultiR()
-			<< r->getDI().generateSQLSet();
+      << r->getDI().generateSQLSet(forceWriteAll);
 
 	return syncUpdate(queryset, "oRunner", r);
 }
@@ -1789,6 +1824,10 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oRunner *r)
   return syncRead(forceRead, r, true, true);
 }
 
+string MeosSQL::andWhereOld(oBase *ob) {
+  return " AND (Counter!=" + itos(ob->counter) + " OR Modified!='" + ob->sqlUpdated + "')";		
+}
+
 OpFailStatus MeosSQL::syncRead(bool forceRead, oRunner *r, bool readClassClub, bool readCourseCard)
 {
   errorMessage.clear();
@@ -1799,59 +1838,60 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oRunner *r, bool readClassClub, b
 		return opStatusFail;
 
 	if(!forceRead  && !r->existInDB()) 
-    return syncUpdate(r);
+    return syncUpdate(r, true);
+
+  if(!r->changed && skipSynchronize(*r))
+    return opStatusOK;
 
 	try {
 		Query query = con.query(); 
-		query << "SELECT * FROM oRunner WHERE Id=" << r->Id;		
+    query << "SELECT * FROM oRunner WHERE Id=" << r->Id << andWhereOld(r);		
 		Result res = query.store();
 		
 		Row row;
-		if(!res.empty()){
+		if (!res.empty()) {
 			row=res.at(0);
-      if (!r->changed || isOld(row["Counter"], string(row["Modified"]), r)) {
+      // Remotly changed update!
+      OpFailStatus success=opStatusOK;
+			if (r->changed)
+        success=opStatusWarning;
 
-        OpFailStatus success=opStatusOK;
-				if (r->changed)
-          success=opStatusWarning;
+      success = min (success, storeRunner(row, *r, readCourseCard, readClassClub, true));
 
-        success = min (success, storeRunner(row, *r, readCourseCard, readClassClub, true));
-
-				r->Modified.update();
-				r->changed = false;
+			r->Modified.update();
+			r->changed = false;
 				
-				vector<int> mp;
-				r->evaluateCard(mp, 0, false);
+			vector<int> mp;
+			r->evaluateCard(true, mp, 0, false);
 
-        //Forget evaluated changes. Not our buisness to update.
-        r->changed = false;
+      //Forget evaluated changes. Not our buisness to update.
+      r->changed = false;
 
-				return success;
-			}			
-			else {
-				if(r->Card && readCourseCard) 
-					syncRead(false, r->Card);
-				if(r->Class && readClassClub)
-					syncRead(false, r->Class, readClassClub);
-				if(r->Course && readCourseCard)
-					syncRead(false, r->Course, readClassClub);
-				if(r->Club && readClassClub)
-					syncRead(false, r->Club);
+			return success;
+    }
+		else {
+			if(r->Card && readCourseCard) 
+				syncRead(false, r->Card);
+			if(r->Class && readClassClub)
+				syncRead(false, r->Class, readClassClub);
+			if(r->Course && readCourseCard) {
+        set<int> controlIds;
+				syncReadCourse(false, r->Course, controlIds);
+        if (readClassClub)
+          syncReadControls(r->oe, controlIds);
+      }
+			if(r->Club && readClassClub)
+				syncRead(false, r->Club);
 			
-				if(r->changed)
-					return syncUpdate(r);				
+			if(r->changed)
+				return syncUpdate(r, false);
 
-				vector<int> mp;
-				r->evaluateCard(mp, 0, false);
-        r->changed = false;
-        r->reChanged = false;
-				return  opStatusOK;
-			}
+			vector<int> mp;
+			r->evaluateCard(true, mp, 0, false);
+      r->changed = false;
+      r->reChanged = false;
+			return  opStatusOK;
 		} 
-		else{
-			//Something is wrong!?
-			return syncUpdate(r);
-		}
 	
 		return  opStatusOK;
 	}
@@ -1863,7 +1903,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oRunner *r, bool readClassClub, b
 	return opStatusFail;
 }
 
-OpFailStatus MeosSQL::syncUpdate(oCard *c)
+OpFailStatus MeosSQL::syncUpdate(oCard *c, bool forceWriteAll)
 {
   errorMessage.clear();
   if(CmpDataBase.empty())
@@ -1890,7 +1930,10 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oCard *c)
 		return opStatusFail;
 
   if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
+
+  if (!c->changed && skipSynchronize(*c))
+    return opStatusOK;
 
 	try{
 		Query query = con.query(); 
@@ -1913,12 +1956,12 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oCard *c)
 				return success;
 			}
 			else if(c->changed){
-				return syncUpdate(c);				
+				return syncUpdate(c, false);
 			}
 		}
 		else{
 			//Something is wrong!? Deleted?
-			return syncUpdate(c);
+			return syncUpdate(c, true);
 		}
 	
 		return  opStatusOK;
@@ -1932,8 +1975,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oCard *c)
 }
 
 
-OpFailStatus MeosSQL::syncUpdate(oTeam *t)
-{
+OpFailStatus MeosSQL::syncUpdate(oTeam *t, bool forceWriteAll) {
   errorMessage.clear();
 
   if(CmpDataBase.empty())
@@ -1946,13 +1988,13 @@ OpFailStatus MeosSQL::syncUpdate(oTeam *t)
 
 	queryset << " Name=" << quote << t->Name << ", "
 			<< " Runners=" << quote << t->getRunners() << ", "
-			<< " StartTime=" << t->StartTime << ", "
+			<< " StartTime=" << t->startTime << ", "
 			<< " FinishTime=" << t->FinishTime << ", "
 			<< " Class=" << t->getClassId() << ", "
 			<< " Club=" << t->getClubId() << ", "
 			<< " StartNo=" << t->getStartNo() << ", "
-      << " Status=" << t->Status
-			<< t->getDI().generateSQLSet();			
+      << " Status=" << t->status
+      << t->getDI().generateSQLSet(forceWriteAll);
 
 	return syncUpdate(queryset, "oTeam", t);
 }
@@ -1973,50 +2015,47 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oTeam *t, bool readRecursive)
 		return opStatusFail;
 
   if(!forceRead && !t->existInDB()) 
-    return syncUpdate(t);
+    return syncUpdate(t, true);
+
+  if (!t->changed && skipSynchronize(*t))
+    return opStatusOK;
 
 	try{
 		Query query = con.query(); 
-		query << "SELECT * FROM oTeam WHERE Id=" << t->Id;		
+    query << "SELECT * FROM oTeam WHERE Id=" << t->Id << andWhereOld(t);		
 		Result res = query.store();
 		
 		Row row;
-		if(!res.empty()){
+		if (!res.empty()) {
 			row=res.at(0);
-			if(!t->changed || isOld(row["Counter"], string(row["Modified"]), t)){
-
-        OpFailStatus success=opStatusOK;
-				if(t->changed)
-          success=opStatusWarning;
+		
+      OpFailStatus success=opStatusOK;
+			if(t->changed)
+        success=opStatusWarning;
 								
-        storeTeam(row, *t, readRecursive);
-				t->Modified.update();
-				t->changed = false;
-        t->reChanged = false;
-				return success;
-			}
-			else {
-        OpFailStatus success = opStatusOK;
-				
-        if (readRecursive) {
-          if (t->Class)
-            success = min(success, syncRead(false, t->Class, readRecursive));
-          if (t->Club)
-            success = min(success, syncRead(false, t->Club));
-          for (size_t k = 0; k<t->Runners.size(); k++) {
-            if (t->Runners[k])
-              success = min(success, syncRead(false, t->Runners[k], false, readRecursive));
-          }
-        }
-        if (t->changed)
-				  return min(success, syncUpdate(t));
-        else
-          return success;
-			}
+      storeTeam(row, *t, readRecursive);
+			t->Modified.update();
+			t->changed = false;
+      t->reChanged = false;
+			return success;
 		}
-		else{
-			//Something is wrong!? Deleted?
-			return syncUpdate(t);
+		else {
+      OpFailStatus success = opStatusOK;
+				
+      if (readRecursive) {
+        if (t->Class)
+          success = min(success, syncRead(false, t->Class, readRecursive));
+        if (t->Club)
+          success = min(success, syncRead(false, t->Club));
+        for (size_t k = 0; k<t->Runners.size(); k++) {
+          if (t->Runners[k])
+            success = min(success, syncRead(false, t->Runners[k], false, readRecursive));
+        }
+      }
+      if (t->changed)
+				return min(success, syncUpdate(t, false));
+      else
+        return success;
 		}
 	
 		return  opStatusOK;
@@ -2029,7 +2068,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oTeam *t, bool readRecursive)
 	return opStatusFail;
 }
 
-OpFailStatus MeosSQL::syncUpdate(oClass *c)
+OpFailStatus MeosSQL::syncUpdate(oClass *c, bool forceWriteAll)
 {
   errorMessage.clear();
 
@@ -2044,7 +2083,7 @@ OpFailStatus MeosSQL::syncUpdate(oClass *c)
 		<< " Course=" << c->getCourseId() << ","
 		<< " MultiCourse=" << quote << c->codeMultiCourse() << ","
     << " LegMethod=" << quote << c->codeLegMethod() 
-		<< c->getDI().generateSQLSet();
+    << c->getDI().generateSQLSet(forceWriteAll);
 
 	return syncUpdate(queryset, "oClass", c);
 }
@@ -2064,45 +2103,47 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oClass *c, bool readCourses)
 		return opStatusFail;
 
   if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
+
+  if (!c->changed && skipSynchronize(*c))
+    return opStatusOK;
 
 	try {
 		Query query = con.query(); 
-		query << "SELECT * FROM oClass WHERE Id=" << c->Id;		
+		query << "SELECT * FROM oClass WHERE Id=" << c->Id << andWhereOld(c);		
 		Result res = query.store();
 		
 		Row row;
 		if(!res.empty()){
 			row=res.at(0);
-			if(!c->changed || isOld(row["Counter"], string(row["Modified"]), c)){
+      OpFailStatus success = opStatusOK;
 
-        OpFailStatus success = opStatusOK;
-
-				if (c->changed)	
-          success=opStatusWarning;
+			if (c->changed)	
+        success=opStatusWarning;
 									
-        storeClass(row, *c, readCourses);
+      storeClass(row, *c, readCourses);
 	
-				c->Modified.update();
-				c->changed = false;
-        c->reChanged = false;
-				return opStatusOK;
-			}
-			else if (readCourses) {
+			c->Modified.update();
+			c->changed = false;
+      c->reChanged = false;
+			return opStatusOK;
+		}
+		else {
+      OpFailStatus success = opStatusOK;
+      if (readCourses) {
         set<int> d;
-        OpFailStatus success = syncReadClassCourses(c, c->getCourseId(), 
-                                    c->getMCourseIdSet(d), readCourses);
+        c->getMCourseIdSet(d);
+        if (c->getCourseId() != 0)
+          d.insert(c->getCourseId());
+        success = syncReadClassCourses(c, d, true);
+      }
 
-				if(c->changed)
-					return min(success, syncUpdate(c));				
-			}
-      else 
-        return syncUpdate(c);
+      if(c->changed && !forceRead)
+				success = min(success, syncUpdate(c, false));
+
+      return success;
 		}
-		else{
-			//Something is wrong!? Deleted?
-			return syncUpdate(c);
-		}
+
 		return opStatusOK;
 	}
 	catch (const mysqlpp::Exception& er){
@@ -2113,44 +2154,119 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oClass *c, bool readCourses)
 	return opStatusFail;
 }
 
-OpFailStatus MeosSQL::syncReadClassCourses(oClass *c, int cno, 
-                                           const set<int> &multi,
-                                           bool readRecursive)
-{
+OpFailStatus MeosSQL::syncReadClassCourses(oClass *c, const set<int> &courses,
+                                           bool readRecursive) {
   OpFailStatus success = opStatusOK;
-	oEvent *oe = c->oe;
-
-  if (cno!=0) {
-	  c->Course=oe->getCourse(cno);
-  	
-	  if (!c->Course) {
-		  oCourse oc(oe, cno);
-		  success = min(success, syncRead(true, &oc, readRecursive));
-      c->Course = oe->addCourse(oc);
-	  }
-    else if (readRecursive)
-	    success = min(success, syncRead(false, c->Course, true));					
-  }
-  else 
-    c->Course=0;
-
-  //Update courses for multicourse
-  for(set<int>::const_iterator it=multi.begin(); it!=multi.end(); ++it) {
-    if (*it!=0) {
-      pCourse pc = oe->getCourse(*it);  					
-	    if(!pc){
-		    oCourse oc(oe, *it);
-        success = min(success, syncRead(true, &oc, readRecursive));
-        oe->addCourse(oc);
- 	    }
-      else if (readRecursive)
-	      success = min(success, syncRead(false, pc, true));					
+  if (courses.empty())
+    return success;
+  oEvent *oe = c->oe;
+  try {
+    Query query = con.query();
+    string in;
+    for(set<int>::const_iterator it=courses.begin(); it!=courses.end(); ++it) {
+      if(!in.empty())
+        in += ",";
+      in += itos(*it);
     }
+    query << "SELECT Id, Counter, Modified FROM oCourse WHERE Id IN (" << in << ")";		
+    Result res = query.store();
+    set<int> processedCourses(courses);
+    set<int> controlIds;
+    for (size_t k = 0; k < res.size(); k++) {
+      Row row = res.at(k);
+      int id = row["Id"];
+      int counter = row["Counter"];
+      string modified = row["Modified"];
+
+      pCourse pc = oe->getCourse(id);
+      if (!pc) {
+        oCourse oc(oe, id);
+        success = min(success, syncReadCourse(true, &oc, controlIds));
+        oe->addCourse(oc);
+      }
+      else if (pc->changed || isOld(counter, modified, pc)) {
+        success = min(success, syncReadCourse(false, pc, controlIds));
+      }
+      else {
+        for (int m = 0; m <pc->nControls; m++)
+          if (pc->Controls[m])
+            controlIds.insert(pc->Controls[m]->getId());
+      }
+      processedCourses.erase(id);
+    }
+
+    // processedCourses should now be empty. The only change it is not empty is that
+    // there are locally added courses that are not on the server (which is an error).
+    for(set<int>::iterator it = processedCourses.begin(); it != processedCourses.end(); ++it) {
+      assert(false);
+      pCourse pc = oe->getCourse(*it);
+      if (pc) {
+        success = min(success, syncUpdate(pc, true));
+      }
+    }
+
+    if (readRecursive)
+      success = min(success, syncReadControls(oe, controlIds));
+
+    return success;
   }
-  return success;
+  catch (const mysqlpp::Exception& er){
+    alert(string(er.what())+" [SYNCREAD oClassCourse]");
+    return opStatusFail;
+  }
 }
 
-OpFailStatus MeosSQL::syncUpdate(oClub *c)
+OpFailStatus MeosSQL::syncReadControls(oEvent *oe, const set<int> &controls) {
+  OpFailStatus success = opStatusOK;
+    if (controls.empty())
+    return success;
+   try {
+     Query query = con.query();
+     string in;
+     for(set<int>::const_iterator it=controls.begin(); it!=controls.end(); ++it) {
+       if(!in.empty())
+         in += ",";
+       in += itos(*it);
+     }
+		 query << "SELECT Id, Counter, Modified FROM oControl WHERE Id IN (" << in << ")";		
+		 Result res = query.store();
+     set<int> processedControls(controls);
+     for (size_t k = 0; k < res.size(); k++) {
+       Row row = res.at(k);
+       int id = row["Id"];
+       int counter = row["Counter"];
+       string modified = row["Modified"];
+
+       pControl pc = oe->getControl(id, false);
+	     if (!pc) {
+		     oControl oc(oe, id);
+         success = min(success, syncRead(true, &oc));
+         oe->addControl(oc);
+ 	     }
+       else if (pc->changed || isOld(counter, modified, pc)) {
+	       success = min(success, syncRead(false, pc));
+       }
+       processedControls.erase(id);
+     }
+
+     // processedCourses should now be empty, unless there are local controls not yet added.
+     for(set<int>::iterator it = processedControls.begin(); it != processedControls.end(); ++it) {
+        pControl pc = oe->getControl(*it, false);
+	      if (pc) {
+          success = min(success, syncUpdate(pc, true));
+        }
+     }
+
+     return success;
+   }
+	 catch (const mysqlpp::Exception& er){
+		 alert(string(er.what())+" [SYNCREAD oClass]");
+		 return opStatusFail;
+	 }
+}
+
+
+OpFailStatus MeosSQL::syncUpdate(oClub *c, bool forceWriteAll)
 {
   errorMessage.clear();
 
@@ -2161,7 +2277,7 @@ OpFailStatus MeosSQL::syncUpdate(oClub *c)
 		return opStatusFail;
 	mysqlpp::Query queryset = con.query();
 	queryset << " Name=" << quote << c->name
-			<< c->getDI().generateSQLSet();			
+    << c->getDI().generateSQLSet(forceWriteAll);
 
 	return syncUpdate(queryset, "oClub", c);
 }
@@ -2177,7 +2293,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oClub *c)
 		return opStatusFail;
 
   if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
 
 	try{
 		Query query = con.query(); 
@@ -2200,12 +2316,12 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oClub *c)
 				return success;
 			}
 			else if(c->changed){
-				return syncUpdate(c);				
+				return syncUpdate(c, false);
 			}
 		}
 		else{
 			//Something is wrong!? Deleted?
-			return syncUpdate(c);
+			return syncUpdate(c, true);
 		}
 		return opStatusOK;
 	}
@@ -2217,8 +2333,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oClub *c)
 	return opStatusFail;
 }
 
-OpFailStatus MeosSQL::syncUpdate(oControl *c)
-{
+OpFailStatus MeosSQL::syncUpdate(oControl *c, bool forceWriteAll) {
   errorMessage.clear();
 
   if(CmpDataBase.empty())
@@ -2231,7 +2346,7 @@ OpFailStatus MeosSQL::syncUpdate(oControl *c)
 	queryset << " Name=" << quote << c->Name << ", "
 		<< " Numbers=" << quote << c->codeNumbers() << ","
 		<< " Status=" << c->Status
-		<< c->getDI().generateSQLSet();
+		<< c->getDI().generateSQLSet(forceWriteAll);
 
 	return syncUpdate(queryset, "oControl", c);
 }
@@ -2247,36 +2362,31 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oControl *c)
 		return opStatusFail;
 
   if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
 
 	try{
 		Query query = con.query(); 
-		query << "SELECT * FROM oControl WHERE Id=" << c->Id;		
+		query << "SELECT * FROM oControl WHERE Id=" << c->Id << andWhereOld(c);		
 		Result res = query.store();
 		
 		Row row;
 		if(!res.empty()){
 			row=res.at(0);
-			if(!c->changed || isOld(row["Counter"], string(row["Modified"]), c)){
+		
+      OpFailStatus success=opStatusOK;
+			if(c->changed)	
+        success=opStatusWarning;
 
-        OpFailStatus success=opStatusOK;
-				if(c->changed)	
-          success=opStatusWarning;
-
-        storeControl(row, *c);
+      storeControl(row, *c);
 				
-				c->Modified.update();
-				c->changed=false;
-				return success;
-			}
-			else if(c->changed){
-				return syncUpdate(c);				
-			}
+			c->Modified.update();
+			c->changed=false;
+			return success;
 		}
-		else {
-			//Something is wrong!? Deleted?
-			return syncUpdate(c);
+		else if (c->changed) {
+			return syncUpdate(c, false);
 		}
+		
 		return opStatusOK;
 	}
 	catch (const mysqlpp::Exception& er){
@@ -2286,12 +2396,17 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oControl *c)
 	return opStatusFail; 
 }
 
-OpFailStatus MeosSQL::syncUpdate(oCourse *c)
+OpFailStatus MeosSQL::syncUpdate(oCourse *c, bool forceWriteAll)
 {
   errorMessage.clear();
 
   if(CmpDataBase.empty())
 		return opStatusFail;
+
+  bool isTMP = c->sqlUpdated == "TMP";
+  assert(!isTMP);
+  if (isTMP)
+    return opStatusFail;
 
 	if(!c || !con.connected())
 		return opStatusFail;
@@ -2300,19 +2415,20 @@ OpFailStatus MeosSQL::syncUpdate(oCourse *c)
 		<< " Length=" << unsigned(c->Length) << ", "
 		<< " Controls=" << quote << c->getControls() << ", "
     << " Legs=" << quote << c->getLegLengths()
-		<< c->getDI().generateSQLSet();
+		<< c->getDI().generateSQLSet(true);
 	
 	return syncUpdate(queryset, "oCourse", c);
 }
 
 OpFailStatus MeosSQL::syncRead(bool forceRead, oCourse *c)
 {
-  return syncRead(forceRead, c, true);
+  set<int> controls;
+  OpFailStatus res = syncReadCourse(forceRead, c, controls);
+  res = min( res, syncReadControls(c->oe, controls));
+  return res;
 }
 
-OpFailStatus MeosSQL::syncRead(bool forceRead, oCourse *c, 
-                               bool readControls)
-{
+OpFailStatus MeosSQL::syncReadCourse(bool forceRead, oCourse *c, set<int> &readControls) {
   errorMessage.clear();
 
   if(CmpDataBase.empty())
@@ -2321,50 +2437,53 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oCourse *c,
 	if(!c || !con.connected())
 		return opStatusFail;
 
+  bool isTMP = c->sqlUpdated == "TMP";
+  assert(!isTMP);
+  if (isTMP)
+    return opStatusFail;
+
 	if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
+
+  if (!c->changed && skipSynchronize(*c))
+    return opStatusOK; // Skipped readout
 
 	try{
 		Query query = con.query(); 
-		query << "SELECT * FROM oCourse WHERE Id=" << c->Id;		
+		query << "SELECT * FROM oCourse WHERE Id=" << c->Id << andWhereOld(c);		
 		Result res = query.store();
 		
 		Row row;
-		if(!res.empty()){
-			row=res.at(0);
-			if (!c->changed || isOld(row["Counter"], string(row["Modified"]), c)){
-
-        OpFailStatus success = opStatusOK;
-				if (c->changed)	
-          success = opStatusWarning;
+		if (!res.empty()) {
+		  row=res.at(0);
+		 
+      OpFailStatus success = opStatusOK;
+			if (c->changed)	
+        success = opStatusWarning;
 								
-        storeCourse(row, *c, readControls);
+      storeCourse(row, *c, readControls);
 				
-				c->Modified.update();
-				c->changed=false;
-        c->reChanged=false;
-				return success;
+			c->Modified.update();
+			c->changed=false;
+      c->reChanged=false;
+			return success;
+		}
+		else {
+      OpFailStatus success = opStatusOK;
+				
+      // Plain read controls
+			for (int i=0;i<c->nControls; i++) {
+        if (c->Controls[i])
+          readControls.insert(c->Controls[i]->getId());
+					//success = min(success, syncRead(false, c->Controls[i]));
 			}
-			else {
-        OpFailStatus success = opStatusOK;
-				
-        // Plain read controls
-				for (int i=0;i<c->nControls; i++) {
-          if (c->Controls[i])
-					  success = min(success, syncRead(false, c->Controls[i]));
-				}
 
-				if(c->changed)
-					return min(success, syncUpdate(c));
-        else 
-          return success;
-			}
+      if(c->changed && !forceRead)
+				return min(success, syncUpdate(c, false));
+      else 
+        return success;
 		}
-		else{
-			//Something is wrong!? Deleted?
-			return syncUpdate(c);
-		}
-	
+
 		return opStatusOK;
 	}
 	catch (const mysqlpp::Exception& er){
@@ -2375,7 +2494,7 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oCourse *c,
 	return opStatusFail;
 }
 
-OpFailStatus MeosSQL::syncUpdate(oFreePunch *c)
+OpFailStatus MeosSQL::syncUpdate(oFreePunch *c, bool forceWriteAll)
 {
   errorMessage.clear();
 
@@ -2407,37 +2526,33 @@ OpFailStatus MeosSQL::syncRead(bool forceRead, oFreePunch *c, bool rehash)
 		return opStatusFail;
 
   if(!forceRead && !c->existInDB()) 
-    return syncUpdate(c);
+    return syncUpdate(c, true);
+
+  if (!c->changed && skipSynchronize(*c))
+    return opStatusOK;
 
 	try{
 		Query query = con.query(); 
-		query << "SELECT * FROM oPunch WHERE Id=" << c->Id;		
+    query << "SELECT * FROM oPunch WHERE Id=" << c->Id << andWhereOld(c);		
 		Result res = query.store();
 		
 		Row row;
-		if(!res.empty()){
+		if (!res.empty()) {
 			row=res.at(0);
-			if(!c->changed || isOld(row["Counter"], string(row["Modified"]), c)){
-
-        OpFailStatus success = opStatusOK;
-				if(c->changed)	
-          success = opStatusWarning;
+		  OpFailStatus success = opStatusOK;
+		  if(c->changed)	
+        success = opStatusWarning;
 				
-        storePunch(row, *c, rehash);
+      storePunch(row, *c, rehash);
 
-				c->Modified.update();
-				c->changed=false;
-				return success;
-			}
-			else if(c->changed) {
-				return syncUpdate(c);				
-			}
+			c->Modified.update();
+			c->changed=false;
+			return success;
 		}
-		else{
-			//Something is wrong!? Deleted?
-			return syncUpdate(c);
+		else if(c->changed) {
+			return syncUpdate(c, false);
 		}
-	
+
 		return opStatusOK;
 	}
 	catch (const mysqlpp::Exception& er){
@@ -2461,6 +2576,9 @@ OpFailStatus MeosSQL::updateTime(const char *oTable, oBase *ob)
 		ob->sqlUpdated=res.at(0)["Modified"];
     ob->counter = res.at(0)["Counter"];
 		ob->changed=false; //Mark as saved.
+    // Mark all data as stored in memory
+    if (ob->getDISize() >= 0)
+      ob->getDI().allDataStored();
     return opStatusOK;
 	}
   else {
@@ -2469,9 +2587,47 @@ OpFailStatus MeosSQL::updateTime(const char *oTable, oBase *ob)
   }
 }
 
+static int nUpdate = 0;
+
+mysqlpp::ResNSel MeosSQL::updateCounter(const char *oTable, int id, mysqlpp::Query *updateqry) {
+  Query query = con.query();
+  
+  try {
+    query.exec(string("LOCK TABLES ") + oTable + string(" WRITE"));
+    query << "SELECT MAX(Counter) FROM " << oTable;
+    int counter = query.store().at(0).at(0) + 1;
+
+    query.reset();
+    query << "UPDATE " << oTable << " SET Counter=" << counter;
+
+    if (updateqry != 0) 
+      query << "," << updateqry->str();
+
+    query << " WHERE Id=" << id;
+
+    mysqlpp::ResNSel res = query.execute();
+
+    query.exec("UNLOCK TABLES");
+
+    query.reset();
+    query << "UPDATE oCounter SET " << oTable << "=GREATEST(" << counter << "," << oTable << ")";
+    query.execute();
+    return res;
+  }
+  catch(...) {
+    query.exec("UNLOCK TABLES");
+    throw;
+  }
+}
+
+
 OpFailStatus MeosSQL::syncUpdate(mysqlpp::Query &updateqry, 
                                  const char *oTable, oBase *ob)
 {
+  nUpdate++;
+  if (nUpdate % 100 == 99)
+    OutputDebugString((itos(nUpdate) +" updates\n").c_str());
+
   assert(ob->getEvent());
   if (!ob->getEvent())
     return opStatusFail;
@@ -2513,12 +2669,9 @@ OpFailStatus MeosSQL::syncUpdate(mysqlpp::Query &updateqry,
         if (ob->Id != res.insert_id)
           ob->changeId((int)res.insert_id);
 
-  		  query.reset();
-        query << "UPDATE oCounter, " << oTable << " SET " 
-              << oTable << "=" << oTable << "+1, Counter=" << oTable
-              << "+1 WHERE Id=" << ob->Id;
-        query.execute();
+        updateCounter(oTable, ob->Id, 0);
 			  ob->oe->updateFreeId(ob);
+
   			return updateTime(oTable, ob);
 			}
       else {
@@ -2527,13 +2680,8 @@ OpFailStatus MeosSQL::syncUpdate(mysqlpp::Query &updateqry,
       }
 		}
 		else {
-      query << "UPDATE oCounter, " << oTable << " SET " 
-          << oTable << "=" << oTable << "+1, "
-          << "Counter=" << oTable << ", "
-				  << updateqry.str();
-  		query << " WHERE Id=" << ob->Id;
 
-			mysqlpp::ResNSel res=query.execute();
+      mysqlpp::ResNSel res = updateCounter(oTable, ob->Id, &updateqry);
 
 			if(res){
 				if(res.rows==0){
@@ -2553,11 +2701,7 @@ OpFailStatus MeosSQL::syncUpdate(mysqlpp::Query &updateqry,
               return opStatusFail;
             }
 
-            query.reset();
-            query << "UPDATE oCounter, " << oTable << " SET "
-                  << oTable << "=" << oTable << "+1, Counter=" << oTable
-                  << " WHERE Id=" << ob->Id;
-            query.execute();
+            updateCounter(oTable, ob->Id, 0);
 					}
 				}
 			}
@@ -2583,8 +2727,7 @@ bool MeosSQL::checkOldVersion(oEvent *oe, Row &row) {
   return false;
 }
 
-OpFailStatus MeosSQL::SyncEvent(oEvent *oe)
-{
+OpFailStatus MeosSQL::SyncEvent(oEvent *oe) {
   errorMessage.clear();
   OpFailStatus retValue = opStatusOK;
 	if(!con.connected())
@@ -2650,7 +2793,7 @@ OpFailStatus MeosSQL::SyncEvent(oEvent *oe)
                  << " BuildVersion=IF(BuildVersion<" << 
                       buildVersion << "," << buildVersion << ",BuildVersion), "
                  << " Lists=" << quote << listEnc
-			           <<  oe->getDI().generateSQLSet();
+			           <<  oe->getDI().generateSQLSet(false);
 
   		  syncUpdate(queryset, "oEvent", oe);
 
@@ -2682,7 +2825,7 @@ OpFailStatus MeosSQL::SyncEvent(oEvent *oe)
                << " BuildVersion=IF(BuildVersion<" << 
                     buildVersion << "," << buildVersion << ",BuildVersion)," 
                << " Lists=" << quote << listEnc
-	             <<  oe->getDI().generateSQLSet();
+	             <<  oe->getDI().generateSQLSet(false);
 
 	    syncUpdate(queryset, "oEvent", oe);
       
@@ -2732,12 +2875,11 @@ bool MeosSQL::syncListRunner(oEvent *oe)
 	try{		
 		Query query = con.query();
 		
-		query << "SELECT Id, Counter, Modified, Removed FROM oRunner";
+		/*query << "SELECT Id, Counter, Modified, Removed FROM oRunner";
 		query << " WHERE Counter > " << oe->sqlCounterRunners;
-    query << " OR Modified > '" << oe->sqlUpdateRunners << "'";
-
-		Result res = query.store();
-		
+    query << " OR Modified > '" << oe->sqlUpdateRunners << "'";*/
+    Result res = query.store(selectUpdated("oRunner", oe->sqlUpdateRunners, oe->sqlCounterRunners));
+				
 		if (res) {		
 			for (int i=0; i<res.num_rows(); i++) {
 				Row row=res.at(i);
@@ -2792,12 +2934,13 @@ bool MeosSQL::syncListClass(oEvent *oe)
 
 	try{		
 		Query query = con.query();
-		
+	/*	
 		query << "SELECT Id, Counter, Modified, Removed FROM oClass";
     query << " WHERE Counter > " << oe->sqlCounterClasses;
-    query << " OR Modified > '" << oe->sqlUpdateClasses << "'";
+    query << " OR Modified > '" << oe->sqlUpdateClasses << "'";*/
 
-		Result res = query.store();
+		//Result res = query.store();
+    Result res = query.store(selectUpdated("oClass", oe->sqlUpdateClasses, oe->sqlCounterClasses));
 		
 		if (res) {
 
@@ -2850,11 +2993,10 @@ bool MeosSQL::syncListClub(oEvent *oe)
 	try{		
 		Query query = con.query();
 		
-		query << "SELECT Id, Counter, Modified, Removed FROM oClub";
+		/*query << "SELECT Id, Counter, Modified, Removed FROM oClub";
 		query << " WHERE Counter > " << oe->sqlCounterClubs;
-    query << " OR Modified > '" << oe->sqlUpdateClubs << "'";
-
-		Result res = query.store();
+    query << " OR Modified > '" << oe->sqlUpdateClubs << "'";*/
+    Result res = query.store(selectUpdated("oClub", oe->sqlUpdateClubs, oe->sqlCounterClubs));
 		
 		if (res) {		
 			for(int i=0; i<res.num_rows(); i++){
@@ -2902,14 +3044,16 @@ bool MeosSQL::syncListCourse(oEvent *oe)
 
 	try{		
 		Query query = con.query();
-		
+		/*
 		query << "SELECT Id, Counter, Modified, Removed FROM oCourse";
 		query << " WHERE Counter > " << oe->sqlCounterCourses;
     query << " OR Modified > '" << oe->sqlUpdateCourses << "'";
-
-		Result res = query.store();
+    */
+		Result res = query.store(selectUpdated("oCourse", oe->sqlUpdateCourses, oe->sqlCounterCourses));
+		
 		
 		if (res) {
+      set<int> tmp;
 			for(int i=0; i<res.num_rows(); i++){
 				Row row=res.at(i);
         int counter = row["Counter"];
@@ -2927,11 +3071,11 @@ bool MeosSQL::syncListCourse(oEvent *oe)
 
           if (c==0) {
             oCourse oc(oe, Id);
-            syncRead(true, &oc, false);
+            syncReadCourse(true, &oc, tmp);
             oe->addCourse(oc);
           } 
 					else if (isOld(counter, modified, c))
-					  syncRead(false, c, false);
+            syncReadCourse(false, c, tmp);
 				}
         oe->sqlCounterCourses = max(counter, oe->sqlCounterCourses);
         oe->sqlUpdateCourses = max(modified, oe->sqlUpdateCourses);
@@ -2945,7 +3089,6 @@ bool MeosSQL::syncListCourse(oEvent *oe)
 	return true;
 }
 
-
 bool MeosSQL::syncListCard(oEvent *oe)
 {
   errorMessage.clear();
@@ -2956,11 +3099,11 @@ bool MeosSQL::syncListCard(oEvent *oe)
 	try{		
 		Query query = con.query();
 		
-		query << "SELECT Id, Counter, Modified, Removed FROM oCard";
-		query << " WHERE Counter > " << oe->sqlCounterCards;
-    query << " OR Modified > '" << oe->sqlUpdateCards << "'";
+		/*query << "SELECT Id, Counter, Modified, Removed FROM oCard";
+		query << " WHERE Counter>0 AND (Counter>" << oe->sqlCounterCards;
+    query << " OR Modified>'" << oe->sqlUpdateCards << "')";*/
 
-		Result res = query.store();
+    Result res = query.store(selectUpdated("oCard", oe->sqlUpdateCards, oe->sqlCounterCards));
 		
 		if (res) {
 			for (int i=0; i<res.num_rows(); i++) {
@@ -3009,11 +3152,13 @@ bool MeosSQL::syncListControl(oEvent *oe)
 	try{		
 		Query query = con.query();
 		
-		query << "SELECT Id, Counter, Modified, Removed FROM oControl";
+		/*query << "SELECT Id, Counter, Modified, Removed FROM oControl";
 		query << " WHERE Counter > " << oe->sqlCounterControls;
-    query << " OR Modified > '" << oe->sqlUpdateControls << "'";
+    query << " OR Modified > '" << oe->sqlUpdateControls << "'";*/
 
-		Result res = query.store();
+    Result res = query.store(selectUpdated("oControl", oe->sqlUpdateControls, oe->sqlCounterControls));
+	
+		//Result res = query.store();
 		
 		if (res) {		
 			for(int i=0; i<res.num_rows(); i++){
@@ -3063,11 +3208,11 @@ bool MeosSQL::syncListPunch(oEvent *oe)
 	try{		
 		Query query = con.query();
 		
-		query << "SELECT Id, Counter, Modified, Removed FROM oPunch";
+		/*query << "SELECT Id, Counter, Modified, Removed FROM oPunch";
 		query << " WHERE Counter > " << oe->sqlCounterPunches;
-    query << " OR Modified > '" << oe->sqlUpdatePunches << "' ORDER BY Id";
-
-		Result res = query.store();
+    query << " OR Modified > '" << oe->sqlUpdatePunches << "' ORDER BY Id";*/
+    Result res = query.store(selectUpdated("oPunch", oe->sqlUpdatePunches, oe->sqlCounterPunches) + " ORDER BY Id");
+	  //Result res = query.store();
 		
 		if (res) {
 			for(int i=0; i<res.num_rows(); i++){
@@ -3120,12 +3265,12 @@ bool MeosSQL::syncListTeam(oEvent *oe)
 
 	try{		
 		Query query = con.query();
-		
+		/*
 		query << "SELECT Id, Counter, Modified, Removed FROM oTeam";
 		query << " WHERE Counter > " << oe->sqlCounterTeams;
-    query << " OR Modified > '" << oe->sqlUpdateTeams << "'";
+    query << " OR Modified > '" << oe->sqlUpdateTeams << "'";*/
 
-		Result res = query.store();
+    Result res = query.store(selectUpdated("oTeam", oe->sqlUpdateTeams, oe->sqlCounterTeams));
 		
 		if (res) {		
 			for (int i=0; i<res.num_rows(); i++) {
@@ -3153,7 +3298,7 @@ bool MeosSQL::syncListTeam(oEvent *oe)
             t = oe->addTeam(ot);
             if (t) { 
               syncRead(true, t, false);
-              t->apply(false, 0);
+              t->apply(false, 0, false);
               t->changed = false;
             }
 					}
@@ -3168,6 +3313,15 @@ bool MeosSQL::syncListTeam(oEvent *oe)
 		return false;
 	}
 	return true;
+}
+
+string MeosSQL::selectUpdated(const char *oTable, const string &updated, int counter) {
+  string p1 = string("SELECT Id, Counter, Modified, Removed FROM ") + oTable;
+
+  string q = "(" + p1 + " WHERE Counter>" + itos(counter) + ") UNION ALL ("+ 
+                   p1 + " WHERE Modified>'" + updated + "' AND Counter<" + itos(counter) + " AND Counter>0)";
+
+  return q;
 }
 
 bool MeosSQL::checkConnection(oEvent *oe)
@@ -3311,17 +3465,122 @@ bool MeosSQL::dropDatabase(oEvent *oe)
 }
 
 void MeosSQL::importLists(oEvent *oe, const char *bf) {
-  xmlparser xml;
+  xmlparser xml(0);
   xml.readMemory(bf, 0);
   oe->listContainer->clearExternal();
   oe->listContainer->load(MetaListContainer::ExternalList, xml.getObject("Lists")); 
 }
 
 void MeosSQL::encodeLists(const oEvent *oe, string &listEnc) const {
-  xmlparser parser;
+  xmlparser parser(0);
   parser.openMemoryOutput(true);
   parser.startTag("Lists");
   oe->listContainer->save(MetaListContainer::ExternalList, parser);
   parser.endTag();
   parser.getMemoryOutput(listEnc);
+}
+
+void MeosSQL::clearReadTimes() {
+  readTimes.clear();
+}
+
+int getTypeId(const oBase &ob)
+{
+	if(typeid(ob)==typeid(oRunner)){		
+		return 1;
+	}
+	else if(typeid(ob)==typeid(oClass)){
+		return 2;
+	}
+	else if(typeid(ob)==typeid(oCourse)){
+		return 3;
+	}
+	else if(typeid(ob)==typeid(oControl)){
+		return 4;
+	}
+	else if(typeid(ob)==typeid(oClub)){
+		return 5;
+	}
+	else if(typeid(ob)==typeid(oCard)){
+		return 6;
+	}
+  else if(typeid(ob)==typeid(oFreePunch)){
+		return 7;
+	}
+  else if(typeid(ob)==typeid(oTeam)){
+		return 8;
+	}
+	else if(typeid(ob)==typeid(oEvent)){
+    return 9;
+	}
+  return -1;
+}
+static int skipped = 0, notskipped = 0, readent = 0;
+
+void MeosSQL::synchronized(const oBase &entity) {
+  int id = getTypeId(entity);
+  readTimes[make_pair(id, entity.getId())] = GetTickCount();
+  readent++;
+  if (readent % 100 == 99)
+    OutputDebugString("Read 100 entities\n");
+}
+
+bool MeosSQL::skipSynchronize(const oBase &entity) const {
+  int id = getTypeId(entity);
+  map<pair<int, int>, DWORD>::const_iterator res = readTimes.find(make_pair(id, entity.getId()));
+
+  if (res != readTimes.end()) {
+    DWORD t = GetTickCount();
+    if (t > res->second && (t - res->second) < 1000) {
+      skipped++;
+      return true;
+    }
+  }
+
+  notskipped++;
+  return false;
+}
+
+int MeosSQL::getModifiedMask(oEvent &oe) {
+  try {
+    Query query = con.query();
+    int res = 0; 
+    Result store_res = query.store("SELECT * FROM oCounter");
+	  if(store_res.num_rows()>0) {
+      Row r = store_res.at(0);
+      int ctrl = r["oControl"];
+      int crs = r["oCourse"];
+      int cls = r["oClass"];
+      int card = r["oCard"];
+      int club = r["oClub"];
+      int punch = r["oPunch"];
+      int runner = r["oRunner"];
+      int t = r["oTeam"];
+      int e = r["oEvent"];
+
+      if (ctrl > oe.sqlCounterControls)
+        res |= oLControlId;
+      if (crs > oe.sqlCounterCourses)
+        res |= oLCourseId;
+      if (cls > oe.sqlCounterClasses)
+        res |= oLClassId;
+      if (card > oe.sqlCounterCards)
+        res |= oLCardId;
+      if (club > oe.sqlCounterClubs)
+        res |= oLClubId;
+      if (punch > oe.sqlCounterPunches)
+        res |= oLPunchId;
+      if (runner > oe.sqlCounterRunners)
+        res |= oLRunnerId;
+      if (t > oe.sqlCounterTeams)
+        res |= oLTeamId;
+      if (e > oe.counter)
+        res |= oLEventId;
+
+      return res;
+    }
+  }
+  catch(...) {
+  }
+  return -1;
 }

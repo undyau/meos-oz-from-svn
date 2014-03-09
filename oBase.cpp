@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -103,4 +103,21 @@ string oBase::getTimeStamp() const {
 
 void oBase::changeId(int newId) {
   Id = newId;
+}
+
+oDataInterface oBase::getDI(void) {
+  pvoid data;
+  pvoid olddata;
+  pvectorstr strData;
+  oDataContainer &dc = getDataBuffers(data, olddata, strData);
+  return dc.getInterface(data, getDISize(), this);
+}
+
+oDataConstInterface oBase::getDCI(void) const
+{
+  pvoid data;
+  pvoid olddata;
+  pvectorstr strData;
+  oDataContainer &dc = getDataBuffers(data, olddata, strData);
+  return dc.getConstInterface(data, getDISize(), this);
 }

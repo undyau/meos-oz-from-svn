@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,6 +37,12 @@ public:
 	virtual ~BaseInfo() {}
 	string id;
 
+  virtual HWND getControlWindow() const = 0;
+  
+  virtual void refresh() {
+    InvalidateRect(getControlWindow(), 0, true);
+  }
+
 	BaseInfo &setExtra(void *e) {extra=e; return *this;}
   BaseInfo &setExtra(const void *e) {extra=(void *)e; return *this;}
   
@@ -71,19 +77,29 @@ public:
 
   GUICALLBACK onClear;
 	GUICALLBACK postClear;
+
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 class RectangleInfo : public BaseInfo
 {
 private:
-  DWORD color;  
+  DWORD color;
+  DWORD color2;
 	bool drawBorder;
 	RECT rc;
-
+  DWORD borderColor;
+  bool border3D;
 public:
-	RectangleInfo(): color(0), drawBorder(false) {memset(&rc, 0, sizeof(RECT));}
-  RectangleInfo &setColor(GDICOLOR c) {color = c; return *this;}	
+	RectangleInfo(): color(0), color2(0), borderColor(0), border3D(false), drawBorder(false) {memset(&rc, 0, sizeof(RECT));}
+  RectangleInfo &setColor(GDICOLOR c) {color = c; return *this;}
+  RectangleInfo &setColor2(GDICOLOR c) {color2 = c; return *this;}
+  RectangleInfo &set3D(bool is3d) {border3D = is3d; return *this;}
+  RectangleInfo &setBorderColor(GDICOLOR c) {borderColor = c; return *this;}
   friend class gdioutput;
+
+  
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 
@@ -94,6 +110,8 @@ public:
 	int xp;
 	int yp;
 	Table *table;	
+  
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 
@@ -101,15 +119,23 @@ class TextInfo : public BaseInfo
 {
 public:
   
-	TextInfo():format(0), color(0), xlimit(0), HasTimer(false),
-		HasCapture(false), CallBack(0), Highlight(false), 
-		Active(false), reserveHeight(0) {}
+	TextInfo():format(0), color(0), xlimit(0), hasTimer(false),
+		hasCapture(false), callBack(0), highlight(false), 
+		active(false), lineBreakPrioity(0), 
+    absPrintX(0), absPrintY(0), realWidth(0) {
+      textRect.left = 0; textRect.right = 0; 
+      textRect.top = 0; textRect.bottom = 0;
+  }
 
   TextInfo &setColor(GDICOLOR c) {color = c; return *this;}
 	TextInfo &changeFont(const string &fnt) {font = fnt; return *this;} //Note: size not updated
 	
-  int getHeight() {return max(int(TextRect.bottom-TextRect.top), reserveHeight);}
+  int getHeight() {return int(textRect.bottom-textRect.top);}
   gdiFonts getGdiFont() const {return gdiFonts(format & 0xFF);}
+  // Sets absolute print coordinates in [mm]
+  TextInfo &setAbsPrintPos(int x, int y) {
+    absPrintX = x; absPrintY = y; return *this;
+  }
 	string text;
 	string font;
 
@@ -119,17 +145,23 @@ public:
 	int format;	
 	DWORD color;
 	int xlimit;
+  int lineBreakPrioity;
+  int absPrintX;
+  int absPrintY;
 
-	bool HasTimer;
-	DWORD ZeroTime;
-	DWORD TimeOut;
+	bool hasTimer;
+	DWORD zeroTime;
+	DWORD timeOut;
 
-	bool HasCapture;
-	GUICALLBACK CallBack;
-	RECT TextRect;
-	bool Highlight;
-	bool Active;
-  int reserveHeight;
+	bool hasCapture;
+	GUICALLBACK callBack;
+	RECT textRect;
+  int realWidth; // The calculated actual width of the string in pixels
+	bool highlight;
+	bool active;
+
+  
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 class ButtonInfo : public BaseInfo
@@ -163,6 +195,9 @@ public:
   ButtonInfo &fixedCorner() {fixedRightTop = true; return *this;}
 	GUICALLBACK CallBack;
   friend class gdioutput;
+
+  
+  HWND getControlWindow() const {return hWnd;}
 };
 
 class InputInfo : public BaseInfo
@@ -179,9 +214,14 @@ public:
   InputInfo &isEdit(bool e) {isEditControl=e; return *this;}
   InputInfo &setBgColor(GDICOLOR c) {bgColor = c; return *this;}
   InputInfo &setFgColor(GDICOLOR c) {fgColor = c; return *this;}
+  GDICOLOR getBgColor() const {return bgColor;}
+  GDICOLOR getFgColor() const {return fgColor;}
+
   InputInfo &setPassword(bool pwd);
   HWND hWnd;
 	GUICALLBACK CallBack;
+
+  HWND getControlWindow() const {return hWnd;}
 private:
   GDICOLOR bgColor;
   GDICOLOR fgColor;
@@ -212,6 +252,8 @@ public:
   void ignore(bool ig) {ignoreCheck=ig;}
   ListBoxInfo &isEdit(bool e) {isEditControl=e; return *this;}
 
+  
+  HWND getControlWindow() const {return hWnd;}
 private:
   bool isEditControl;
   bool writeLock;
@@ -248,6 +290,8 @@ public:
   const string &getOrigin() {return origin;}
   EventInfo();
 	GUICALLBACK CallBack;
+
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 class TimerInfo : public BaseInfo
@@ -261,6 +305,8 @@ public:
  	GUICALLBACK CallBack;
   friend class gdioutput;
   friend void CALLBACK gdiTimerProc(HWND hWnd, UINT a, UINT_PTR ptr, DWORD b);
+
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 };
 
 
@@ -279,13 +325,16 @@ public:
 	bool HasTCapture;
 
 	DWORD TimeOut;
+  
+  HWND getControlWindow() const {throw std::exception("Unsupported");}
 }; 
 
 typedef list<TextInfo> TIList;
 
 struct ToolInfo {
-  TOOLINFO ti;
-  string tip;
+  string name;
+  TOOLINFOW ti;
+  wstring tip;
   int id;
 };
 

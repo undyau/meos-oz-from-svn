@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -160,7 +160,14 @@ protected:
   // True when courses was changed on this client. Used to update course pool  bindings
   bool tCoursesChanged;
 
+  // Used to force show of full multi course dialog
+  bool tShowMultiDialog;
+
+  static const int dataSize = 256;
+  int getDISize() const {return dataSize;}
+
   BYTE oData[256];
+  BYTE oDataOld[256];
 
   //Multicourse data
 	string codeMultiCourse() const;
@@ -199,7 +206,25 @@ protected:
   /** Get/calculate sort index from candidate */
   int getSortIndex(int candidate);
 
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
 public:
+  
+  bool isParallel(size_t leg) {
+    if (leg < legInfo.size())
+      return legInfo[leg].isParallel();
+    else
+      return false;
+  }
+
+  bool isOptional(size_t leg) {
+    if (leg < legInfo.size())
+      return legInfo[leg].isOptional();
+    else
+      return false;
+  }
+
   ClassStatus getClassStatus() const;
 
   ClassMetaType interpretClassType() const;
@@ -209,14 +234,16 @@ public:
   void remove();
   bool canRemove() const;
 
+  void forceShowMultiDialog(bool force) {tShowMultiDialog = force;}
+
   /// Return first and last start of runners in class
   void getStartRange(int leg, int &firstStart, int &lastStart) const;
 
   /** Return true if pure rogaining class, with time limit (sort results by points) */
   bool isRogaining() const;
 
-  /** Get the place for the specified leg (0 == start/finish) and time. 0 if not found */
-  int getLegPlace(pControl from, pControl to, int time) const;
+  /** Get the place for the specified leg (CommonControl of course == start/finish) and time. 0 if not found */
+  int getLegPlace(int from, int to, int time) const;
 
   /** Get accumulated leg place */
   int getAccLegPlace(int courseId, int controlNo, int time) const; 
@@ -309,12 +336,21 @@ public:
   void setFreeStart(bool freeStart);
   bool hasFreeStart() const; 
 
+  void setDirectResult(bool directResult);
+  bool hasDirectResult() const; 
+
+
 	string getClassResultStatus() const;
 
 	bool isCourseUsed(int Id) const;
   string getLength(int leg) const;
 
+  // True if the multicourse structure is in use
 	bool hasMultiCourse() const {return MultiCourse.size()>0;}
+
+  // True if there is a true multicourse usage.
+  bool hasTrueMultiCourse() const;
+
 	unsigned getNumStages() const {return MultiCourse.size();}
   /** Get the set of true legs, identifying parallell legs etc. Returns indecs into 
    legInfo of the last leg of the true leg (first), and true leg (second).*/
@@ -335,9 +371,7 @@ public:
   void setNumStages(int no);
 
 	bool operator<(const oClass &b){return tSortIndex<b.tSortIndex;}
-	oDataInterface getDI(void);
-  oDataConstInterface getDCI(void) const;
-
+	
   // Get total number of runners running this class.
   // Use checkFirstLeg to only check the number of runners running leg 1.
 	int getNumRunners(bool checkFirstLeg) const;
@@ -358,10 +392,11 @@ public:
   static void fillStartTypes(gdioutput &gdi, const string &name, bool firstLeg);
   static void fillLegTypes(gdioutput &gdi, const string &name);
 
-	pCourse getCourse() const {return Course;}
+	pCourse getCourse(bool getSampleFromRunner = false) const;
+
   void getCourses(int leg, vector<pCourse> &courses) const;
   
-  pCourse getCourse(int leg, unsigned fork=0) const;
+  pCourse getCourse(int leg, unsigned fork=0, bool getSampleFromRunner = false) const;
 	int getCourseId() const {if(Course) return Course->getId(); else return 0;}
 	void setCourse(pCourse c);
 

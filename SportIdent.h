@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -164,9 +164,9 @@ protected:
   int MonitorTCPSI(WORD port, int localZeroTime);
 	
 public:
-  SI_StationInfo *FindStation(string com);
+  SI_StationInfo *findStation(const string &com);
 
-	string GetInfoString(const string &com);
+	string getInfoString(const string &com);
 	bool IsPortOpen(const string &com);
 	void SetZeroTime(DWORD zt);
 	bool AutoDetect(list<int> &ComPorts);

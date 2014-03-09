@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -55,18 +55,31 @@ protected:
 	int CardNo;
 	DWORD ReadId; //Identify a specific read-out
 
+  const static DWORD ConstructedFromPunches = 1;
+
   pRunner tOwner;
 	oPunch *getPunch(const pPunch punch);
+
+  int getDISize() const {return -1;}
+	
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
+  static bool comparePunchTime(oPunch *p1, oPunch *p2);
+
 public:
+
+  // Returns true if the card was constructed from punches.
+  bool isConstructedFromPunches() {return ConstructedFromPunches == ReadId;}
+
+  // Setup a card from the runner's punches
+  void setupFromRadioPunches(oRunner &r);
 
   void remove();
   bool canRemove() const;
 
   pair<int, int> getTimeRange() const;
   
-  oDataInterface getDI(void);
-  oDataConstInterface getDCI(void) const;
-
   string getInfo() const;
 
   void addTableRow(Table &table) const;
@@ -96,9 +109,12 @@ public:
   oPunch *getPunchById(int id) const;
   oPunch *getPunchByIndex(int ix) const;
 
+  // Get all punches
+  void getPunches(vector<pPunch> &punches) const;
   // Return split time to previous matched control
   string getRogainingSplit(int ix, int startTime) const;
 
+  int cardNo() const {return CardNo;}
   string getCardNo() const;
 	void setCardNo(int c);
 	void importPunches(string s);

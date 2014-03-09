@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,14 +32,14 @@
 #include "Localizer.h"
 #include "meosException.h"
 
-oDataContainer::oDataContainer(int maxsize)
-{
-	DataPointer=0;
-	DataMaxSize=maxsize;
+oDataContainer::oDataContainer(int maxsize) {
+	dataPointer = 0;
+	dataMaxSize = maxsize;
+  stringIndexPointer = 0;
+  stringArrayIndexPointer = 2;
 }
 
-oDataContainer::~oDataContainer(void)
-{
+oDataContainer::~oDataContainer(void) {
 }
 
 oDataInfo::oDataInfo() {
@@ -51,16 +51,19 @@ oDataInfo::oDataInfo() {
   tableIndex = 0;
   decimalSize = 0;
   decimalScale = 1;
+  dataDefiner = 0;
   memset(Description, 0, sizeof(Description));
 }
 
 oDataInfo::~oDataInfo() {
 }
 
-void oDataContainer::addVariableInt(const char *name, oIntSize isize, const char *description)
-{
+oDataInfo &oDataContainer::addVariableInt(const char *name, 
+                                    oIntSize isize, const char *description,
+                                    const oDataDefiner *dataDef) {
 	oDataInfo odi;
-	odi.Index=DataPointer;	
+  odi.dataDefiner = dataDef;
+	odi.Index=dataPointer;	
 	strcpy_s(odi.Name, name);
   strcpy_s(odi.Description, description);
 	
@@ -72,89 +75,140 @@ void oDataContainer::addVariableInt(const char *name, oIntSize isize, const char
 	odi.Type=oDTInt;
 	odi.SubType=isize;
 
-	if(DataPointer+odi.Size<=DataMaxSize){
-		DataPointer+=odi.Size;
-		addVariable(odi);
+	if(dataPointer+odi.Size<=dataMaxSize){
+		dataPointer+=odi.Size;
+		return addVariable(odi);
 	}
 	else 
     throw std::exception("oDataContainer: Out of bounds.");
 }
 
-void oDataContainer::addVariableDecimal(const char *name, const char *descr, int fixedDeci) {
-  addVariableInt(name, oISDecimal, descr);
-  Index[name].decimalSize = fixedDeci;
-  int &s = Index[name].decimalScale;
+oDataInfo &oDataContainer::addVariableDecimal(const char *name, const char *descr, int fixedDeci) {
+  oDataInfo &odi = addVariableInt(name, oISDecimal, descr);
+  odi.decimalSize = fixedDeci;
+  int &s = odi.decimalScale;
   s = 1;
   for (int k = 0; k < fixedDeci; k++)
     s*=10;
+
+  return odi;
 }
 
-void oDataContainer::addVariableString(const char *name, int maxChar, const char *descr)
+oDataInfo &oDataContainer::addVariableString(const char *name, const char *descr, const oDataDefiner *dataDef) {
+  return addVariableString(name, -1, descr, dataDef);
+}
+
+oDataInfo &oDataContainer::addVariableString(const char *name, int maxChar, 
+                                       const char *descr, const oDataDefiner *dataDef)
 {
 	oDataInfo odi;
-	odi.Index = DataPointer;	
+	odi.dataDefiner = dataDef;
 	strcpy_s(odi.Name,name);
   strcpy_s(odi.Description,descr);
-	odi.Size = maxChar+1;
-	odi.Type = oDTString;
-  odi.SubType = oSSString;
+	if (maxChar > 0) {
+    odi.Index = dataPointer;	
+    odi.Size = maxChar+1;
+	  odi.Type = oDTString;
+    odi.SubType = oSSString;
 
-	if(DataPointer+odi.Size<=DataMaxSize){
-		DataPointer+=odi.Size;
-		addVariable(odi);
-	}
-  else 
-    throw std::exception("oDataContainer: Out of bounds.");
+	  if(dataPointer+odi.Size<=dataMaxSize){
+		  dataPointer+=odi.Size;
+		  return addVariable(odi);
+	  }
+    else 
+      throw std::exception("oDataContainer: Out of bounds.");
+  }
+  else {
+    odi.Index = stringIndexPointer++;	
+    odi.Size = 0;
+	  odi.Type = oDTStringDynamic;
+    odi.SubType = oSSString;
+    return addVariable(odi);
+  }
 }
 
-void oDataContainer::addVariableEnum(const char *name, int maxChar, const char *descr, 
+
+
+oDataInfo &oDataContainer::addVariableEnum(const char *name, int maxChar, const char *descr, 
                      const vector< pair<string, string> > enumValues) {
-  addVariableString(name, maxChar, descr);
-  oDataInfo &odi = Index[name];
+  oDataInfo &odi = addVariableString(name, maxChar, descr);   
   odi.SubType = oSSEnum;
   for (size_t k = 0; k<enumValues.size(); k++)
     odi.enumDescription.push_back(enumValues[k]);
+  return odi;
 }
 
-void oDataContainer::addVariable(oDataInfo &odi)
-{
+oDataInfo &oDataContainer::addVariable(oDataInfo &odi) {
 	if(findVariable(odi.Name))
 		throw std::exception("oDataContainer: Variable already exist.");
 
-  Index[odi.Name]=odi;
-  ordered.push_back(odi.Name);
+  //index[odi.Name]=odi;
+  index.insert(hash(odi.Name), ordered.size());
+  ordered.push_back(odi);
+  return ordered.back();
 }
 
-oDataInfo *oDataContainer::findVariable(const char *Name) 
-{
-  map<string, oDataInfo>::iterator it=Index.find(Name);
+int oDataContainer::hash(const char *name) {
+  int res = 0;
+  while(*name != 0) {
+    res = 31 * res + *name;
+    name++;
+  }
+  return res;
+}
 
-  if(it==Index.end())
+oDataInfo *oDataContainer::findVariable(const char *name) {
+/*  map<string, oDataInfo>::iterator it=index.find(Name);
+
+  if(it == index.end())
     return 0;
   else return &(it->second);
 
+	return 0;*/
+  int res;
+  if (index.lookup(hash(name), res)) {
+    return &ordered[res];
+  }
 	return 0;
+
 }
 
-const oDataInfo *oDataContainer::findVariable(const char *Name) const
-{
-  if (Name == 0)
-    return 0;
-  map<string, oDataInfo>::const_iterator it=Index.find(Name);
 
-  if(it==Index.end())
+
+const oDataInfo *oDataContainer::findVariable(const char *name) const
+{
+  if (name == 0)
+    return 0;
+  /*map<string, oDataInfo>::const_iterator it=index.find(Name);
+
+  if(it == index.end())
     return 0;
   else return &(it->second);
-
+  */
+  int res;
+  if (index.lookup(hash(name), res)) {
+    return &ordered[res];
+  }
 	return 0;
 }
 
-void oDataContainer::initData(void *data, int datasize)
-{
-	if(datasize<DataPointer)
+void oDataContainer::initData(oBase *ob, int datasize) {
+	if(datasize<dataPointer)
 		throw std::exception("oDataContainer: Buffer too small.");
 
-	memset(data, 0, DataPointer);
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+	memset(data, 0, dataPointer);
+  memset(oldData, 0, dataPointer);
+
+  if (stringIndexPointer > 0 || stringArrayIndexPointer>2) {
+    vector< vector<string> > &str = *strptr;
+    str.clear();
+    str.resize(stringArrayIndexPointer);
+    str[0].resize(stringIndexPointer);
+    str[1].resize(stringIndexPointer);
+  }
 }
 
 bool oDataContainer::setInt(void *data, const char *Name, int V)
@@ -237,37 +291,61 @@ __int64 oDataContainer::getInt64(const void *data, const char *Name) const
 }
 
 
-bool oDataContainer::setString(void *data, const char *Name, const string &V)
+bool oDataContainer::setString(oBase *ob, const char *name, const string &V)
 {
-	oDataInfo *odi=findVariable(Name);
+	oDataInfo *odi=findVariable(name);
 
 	if(!odi) 
     throw std::exception("oDataContainer: Variable not found.");
 
-	if(odi->Type!=oDTString) 
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+
+	if(odi->Type == oDTString) { 
+	  LPBYTE vd=LPBYTE(data)+odi->Index;	
+
+	  if(strcmp((char *)vd, V.c_str())!=0){
+		  strncpy_s((char *)vd, odi->Size, V.c_str(), odi->Size-1);
+		  return true;
+	  }
+	  else return false;//Not modified
+  }
+  else if(odi->Type == oDTStringDynamic) { 
+    string &str = (*strptr)[0][odi->Index];
+    if (str == V)
+      return false; // Same string
+    
+    str = V;
+    return true;
+  }
+  else
     throw std::exception("oDataContainer: Variable of wrong type.");
 
-	LPBYTE vd=LPBYTE(data)+odi->Index;	
-
-	if(strcmp((char *)vd, V.c_str())!=0){
-		strncpy_s((char *)vd, odi->Size, V.c_str(), odi->Size-1);
-		return true;
-	}
-	else return false;//Not modified
 }
 
-string oDataContainer::getString(const void *data, const char *Name) const
-{
+const string &oDataContainer::getString(const oBase *ob, const char *Name) const {
 	const oDataInfo *odi=findVariable(Name);
+
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
 
 	if(!odi) 
     throw std::exception("oDataContainer: Variable not found.");
 
-	if(odi->Type!=oDTString) 
+	if(odi->Type == oDTString) { 
+	  LPBYTE vd=LPBYTE(data)+odi->Index;
+    string &res = StringCache::getInstance().get();
+    res = (char *) vd;
+	  return res;
+  }
+  else if(odi->Type == oDTStringDynamic) { 
+    string &str = (*strptr)[0][odi->Index];
+    return str;
+  }
+  else
     throw std::exception("oDataContainer: Variable of wrong type.");
-
-	LPBYTE vd=LPBYTE(data)+odi->Index;
-	return string((char *)vd);
 }
 
 
@@ -296,7 +374,7 @@ bool oDataContainer::setDate(void *data, const char *Name, const string &V)
 	else return false;//Not modified
 }
 
-string oDataContainer::getDate(const void *data, 
+const string &oDataContainer::getDate(const void *data, 
                                const char *Name) const
 {
 	const oDataInfo *odi=findVariable(Name);
@@ -316,19 +394,21 @@ string oDataContainer::getDate(const void *data,
 	else
 		sprintf_s(bf, "%04d", C/10000);
 			
-	return string(bf);
+  string &res = StringCache::getInstance().get();
+  res = bf;
+	return res;
 }
 
-bool oDataContainer::write(const void *data, xmlparser &xml) const 
-{
+bool oDataContainer::write(const oBase *ob, xmlparser &xml) const {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+
 	xml.startTag("oData");
 
-	map<string, oDataInfo>::const_iterator it;
 
-	it=Index.begin();
-
-	while (it!=Index.end()) {
-    const oDataInfo &di=it->second;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
     if(di.Type==oDTInt){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
       if (di.SubType != oIS64) {
@@ -342,11 +422,14 @@ bool oDataContainer::write(const void *data, xmlparser &xml) const
         xml.write64(di.Name, nr);
       }
 		}
-		else if(di.Type==oDTString){
+		else if(di.Type == oDTString){
 			LPBYTE vd=LPBYTE(data)+di.Index;	
 			xml.write(di.Name, (char *)vd);
 		}
-		++it;
+    else if (di.Type == oDTStringDynamic) {
+      const string &str = (*strptr)[0][di.Index];
+      xml.write(di.Name, str);
+    }
 	}
 	
 	xml.endTag();
@@ -354,8 +437,11 @@ bool oDataContainer::write(const void *data, xmlparser &xml) const
 	return true;
 }
 
-void oDataContainer::set(void *data, const xmlobject &xo)
-{
+void oDataContainer::set(oBase *ob, const xmlobject &xo) {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+
 	xmlList xl;
   xo.getObjects(xl);
 
@@ -365,36 +451,48 @@ void oDataContainer::set(void *data, const xmlobject &xo)
 
 		oDataInfo *odi=findVariable(it->getName());
 
-		if(odi){
-			if(odi->Type==oDTInt){
+		if (odi) {
+			if(odi->Type == oDTInt){
 				LPBYTE vd=LPBYTE(data)+odi->Index;
         if (odi->SubType != oIS64)
 				  *((int *)vd) = it->getInt();
         else
           *((__int64 *)vd) = it->getInt64();
 			}
-			else if(odi->Type==oDTString){
+			else if (odi->Type == oDTString) {
 				LPBYTE vd=LPBYTE(data)+odi->Index;	
 				strncpy_s((char *)vd, odi->Size, it->get(), odi->Size-1);
 			}
+      else if (odi->Type == oDTStringDynamic) {
+			  string &str = (*strptr)[0][odi->Index];
+        str = it->get();
+      }
 		}
 	}
+
+  allDataStored(ob);
 }
 
 void oDataContainer::buildDataFields(gdioutput &gdi) const
 {
-  buildDataFields(gdi, ordered);
+  vector<string> fields;
+  for (size_t k = 0; k < ordered.size(); k++)
+    fields.push_back(ordered[k].Name);
+
+  buildDataFields(gdi, fields);
 }
 
 void oDataContainer::buildDataFields(gdioutput &gdi, const vector<string> &fields) const
 {
 	for (size_t k=0;k<fields.size();k++) {
-    map<string, oDataInfo>::const_iterator it=Index.find(fields[k]);
+    //map<string, oDataInfo>::const_iterator it=index.find(fields[k]);
+    const oDataInfo *odi = findVariable(fields[k].c_str());
 
-    if (it==Index.end())
+    //if (it==index.end())
+    if (odi == 0)
       throw std::exception( ("Bad key: " + fields[k]).c_str());
 
-    const oDataInfo &di=it->second;
+    const oDataInfo &di=*odi;
 		string Id=di.Name+string("_odc");
 
 		if(di.Type==oDTInt){
@@ -406,16 +504,17 @@ void oDataContainer::buildDataFields(gdioutput &gdi, const vector<string> &field
 		else if(di.Type==oDTString){
       gdi.addInput(Id, "", min(di.Size+2, 30), 0, string(di.Description) +":");
 		}
+    else if(di.Type==oDTStringDynamic){
+      gdi.addInput(Id, "", 30, 0, string(di.Description) +":");
+		}
 	}
 }
 
 int oDataContainer::getDataAmountMeasure(const void *data) const
 {
   int amount = 0;
-	map<string, oDataInfo>::const_iterator it;
-	it=Index.begin();
-	while (it!=Index.end()) {
-    const oDataInfo &di=it->second;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
 		if (di.Type==oDTInt) {
     	LPBYTE vd=LPBYTE(data)+di.Index;				    
 			int nr;
@@ -427,19 +526,19 @@ int oDataContainer::getDataAmountMeasure(const void *data) const
 			LPBYTE vd=LPBYTE(data)+di.Index;	
       amount += strlen((char *)vd);
 		}
-		++it;
+
 	}
   return amount;
 }	
 
-void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput &gdi) const
+void oDataContainer::fillDataFields(const oBase *ob, gdioutput &gdi) const
 {
-	map<string, oDataInfo>::const_iterator it;
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
 
-	it=Index.begin();
-
-	while(it!=Index.end()){
-    const oDataInfo &di=it->second;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
 	
 		string Id=di.Name+string("_odc");
 		if(di.Type==oDTInt){
@@ -469,23 +568,24 @@ void oDataContainer::fillDataFields(const oBase *ob, const void *data, gdioutput
 			LPBYTE vd=LPBYTE(data)+di.Index;	
       gdi.setText(Id.c_str(), (char *)vd);
 		}
-		++it;
+    else if(di.Type==oDTStringDynamic){
+			const string &str = (*strptr)[0][di.Index];
+      gdi.setText(Id.c_str(), str);
+		}
 	}
 }
 
-bool oDataContainer::saveDataFields(const oBase *ob, void *data, gdioutput &gdi)
-{
-	map<string, oDataInfo>::iterator it;
+bool oDataContainer::saveDataFields(oBase *ob, gdioutput &gdi) {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
 
-	it=Index.begin();
-
-	while(it!=Index.end()){
-    const oDataInfo &di=it->second;
+  for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
 
 		string Id=di.Name+string("_odc");
 
     if (!gdi.hasField(Id)) {
-      ++it;
       continue;
     }
 		if(di.Type==oDTInt){
@@ -515,14 +615,29 @@ bool oDataContainer::saveDataFields(const oBase *ob, void *data, gdioutput &gdi)
       }
 
 			LPBYTE vd=LPBYTE(data)+di.Index;
-			*((int *)vd)=no;							
+      int oldNo = *((int *)vd);
+      if (oldNo != no) {
+			  *((int *)vd)=no;
+        ob->updateChanged();
+      }
 		}
-		else if(di.Type==oDTString){
+		else if (di.Type == oDTString) {
 			LPBYTE vd=LPBYTE(data)+di.Index;	
-			
-      strncpy_s((char *)vd, di.Size, gdi.getText(Id.c_str()).c_str(), di.Size-1);
+			string oldS = (char *)vd;
+      string newS = gdi.getText(Id.c_str());
+      if (oldS != newS) {
+        strncpy_s((char *)vd, di.Size, newS.c_str(), di.Size-1);
+        ob->updateChanged();
+      }
 		}
-		++it;
+    else if (di.Type == oDTStringDynamic) {
+      string &oldS = (*strptr)[0][di.Index];
+      string newS = gdi.getText(Id.c_str());
+      if (oldS != newS) {
+        oldS = newS;
+        ob->updateChanged();
+      }
+		}
 	}
 
 	return true;
@@ -560,9 +675,14 @@ string oDataContainer::C_TINYINTU(const string &name)
 
 string oDataContainer::C_STRING(const string &name, int len)
 {
-	char bf[16];
-	sprintf_s(bf, "%d", len);
-	return " "+name+" VARCHAR("+ bf +") NOT NULL DEFAULT '', ";
+  if (len>0) {
+	  char bf[16];
+    sprintf_s(bf, "%d", len);
+	  return " "+name+" VARCHAR("+ bf +") NOT NULL DEFAULT '', ";
+  }
+  else {
+    return " "+name+" MEDIUMTEXT NOT NULL, ";
+  }
 }
 
 string oDataContainer::SQL_quote(const char *in)
@@ -571,8 +691,10 @@ string oDataContainer::SQL_quote(const char *in)
 	int o=0;
 
 	while(*in && o<250){
-		if(*in=='\'') out[o++]='\'';		
-		if(*in=='\\') out[o++]='\\';
+		if(*in=='\'') 
+      out[o++]='\'';		
+		if(*in=='\\') 
+      out[o++]='\\';
 		out[o++]=*in;
 
 		in++;
@@ -583,38 +705,38 @@ string oDataContainer::SQL_quote(const char *in)
 }
 
 string oDataContainer::generateSQLDefinition(const std::set<string> &exclude) const {
-	map<string, oDataInfo>::const_iterator it;
-	it=Index.begin();
-
 	string sql;
   bool addSyntx = !exclude.empty();
 
-	while (it!=Index.end()) {
-    if (exclude.count(it->first) == 0) {
+	for (size_t k = 0; k < ordered.size(); k++) {
+    if (exclude.count(ordered[k].Name) == 0) {
       if (addSyntx)
          sql += "ADD COLUMN ";
-
-      const oDataInfo &di=it->second;
+      
+      const oDataInfo &di = ordered[k];
+      string name = di.Name;
 		  if(di.Type==oDTInt){
         if(di.SubType==oIS32 || di.SubType==oISDate || di.SubType==oISCurrency || 
            di.SubType==oISTime || di.SubType==oISDecimal)
-				  sql+=C_INT(it->first);
+				  sql+=C_INT(name);
 			  else if(di.SubType==oIS16)
-				  sql+=C_SMALLINT(it->first);
+				  sql+=C_SMALLINT(name);
 			  else if(di.SubType==oIS8)
-				  sql+=C_TINYINT(it->first);
+				  sql+=C_TINYINT(name);
 			  else if(di.SubType==oIS64)
-				  sql+=C_INT64(it->first);
+				  sql+=C_INT64(name);
         else if(di.SubType==oIS16U)
-				  sql+=C_SMALLINTU(it->first);
+				  sql+=C_SMALLINTU(name);
 			  else if(di.SubType==oIS8U)
-				  sql+=C_TINYINTU(it->first);
+				  sql+=C_TINYINTU(name);
 		  }
 		  else if(di.Type==oDTString){
-        sql+=C_STRING(it->first, di.Size-1);
+        sql+=C_STRING(name, di.Size-1);
+		  }
+      else if(di.Type==oDTStringDynamic || di.Type==oDTStringArray){
+        sql+=C_STRING(name, -1);
 		  }
     }
-		++it;
 	}
 
   if (addSyntx && !sql.empty())
@@ -623,17 +745,67 @@ string oDataContainer::generateSQLDefinition(const std::set<string> &exclude) co
 	  return sql;
 }
 
+bool oDataContainer::isModified(const oDataInfo &di, 
+                                const void *data, 
+                                const void *oldData, 
+                                vector< vector<string> > *strptr) const {
+      
+  if (di.Type == oDTInt) {
+	  LPBYTE vd=LPBYTE(data)+di.Index;
+    LPBYTE vdOld=LPBYTE(oldData)+di.Index;
+    if (di.SubType != oIS64) {
+			return memcmp(vd, vdOld, 4) != 0;
+    }
+    else {
+      return memcmp(vd, vdOld, 8) != 0;
+    }
+	}
+	else if(di.Type == oDTString){
+		char * vd=(char *)(data)+di.Index;	
+		char * vdOld=(char *)(oldData)+di.Index;
+    return strcmp(vd, vdOld) != 0;
+	}
+  else if(di.Type == oDTStringDynamic){
+    const string &newS = (*strptr)[0][di.Index];
+    const string &oldS = (*strptr)[1][di.Index];
+    return newS != oldS;
+	}
+  else if(di.Type == oDTStringArray){
+    const vector<string> &newS = (*strptr)[di.Index];
+    const vector<string> &oldS = (*strptr)[di.Index+1];
+    return newS != oldS;
+	}
+  else 
+    return true;
+}
 
-string oDataContainer::generateSQLSet(const void *data) const
-{
-	map<string, oDataInfo>::const_iterator it;
+void oDataContainer::allDataStored(const oBase *ob) {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+  memcpy(oldData, data, ob->getDISize());
+  if (stringIndexPointer > 0 || stringArrayIndexPointer > 2) {
+    for (size_t k = 0; k < stringArrayIndexPointer; k+=2) {
+      (*strptr)[k+1] = (*strptr)[k];
+    }
+  }
+}
 
-	it=Index.begin();
+string oDataContainer::generateSQLSet(const oBase *ob, bool forceSetAll) const {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
+	
 	string sql;
 	char bf[256];
 
-	while(it!=Index.end()){
-    const oDataInfo &di=it->second;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
+    
+    if (!forceSetAll && !isModified(di, data, oldData, strptr)) {
+      continue;
+    }
+
 		if (di.Type==oDTInt) {
 			LPBYTE vd=LPBYTE(data)+di.Index;
       if (di.SubType == oIS8U) {
@@ -665,68 +837,83 @@ string oDataContainer::generateSQLSet(const void *data) const
 			  sql+=bf;
       }
 		}
-		else if(di.Type==oDTString){
+		else if (di.Type==oDTString) {
 			LPBYTE vd=LPBYTE(data)+di.Index;	
-			//gdi.setText(Id, (char *)vd);
 			sprintf_s(bf, ", %s='%s'", di.Name, SQL_quote((char *)vd).c_str());
 			sql+=bf;
+		}  
+    else if (di.Type==oDTStringDynamic) {
+      const string &str = (*strptr)[0][di.Index];	
+			sprintf_s(bf, ", %s='%s'", di.Name, SQL_quote(str.c_str()).c_str());
+			sql+=bf;
 		}
-		++it;
+    else if (di.Type==oDTStringArray) {
+      const string str = encodeArray((*strptr)[di.Index]);	
+			sprintf_s(bf, ", %s='%s'", di.Name, SQL_quote(str.c_str()).c_str());
+			sql+=bf;
+		}
 	}
 	return sql;
 }
 
 
 void oDataContainer::getVariableInt(const void *data, 
-                                    list<oVariableInt> &var) const
-{
-	map<string, oDataInfo>::const_iterator it;
-
-	it=Index.begin();
+                                    list<oVariableInt> &var) const {
 	var.clear();
 
-	while(it!=Index.end()){
-    const oDataInfo &di=it->second;
-		if(di.Type==oDTInt){
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
+
+		if (di.Type == oDTInt) {
 			LPBYTE vd=LPBYTE(data)+di.Index;				
 			
 			oVariableInt vi;
-			memcpy(vi.Name, di.Name, sizeof(vi.Name));
-			vi.Data=(int *)vd;			
+			memcpy(vi.name, di.Name, sizeof(vi.name));
+      if (di.SubType != oIS64)
+        vi.data32 = (int *)vd;
+      else
+        vi.data64 = (__int64 *)vd;
 			var.push_back(vi);		
 		}
-	
-		++it;
 	}
 }
 
 
-void oDataContainer::getVariableString(const void *data, 
+void oDataContainer::getVariableString(const oBase *ob, 
                                        list<oVariableString> &var) const
 {
-	map<string, oDataInfo>::const_iterator it;
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
 
-	it=Index.begin();
 	var.clear();
 
-	while(it!=Index.end()){
-    const oDataInfo &di=it->second;
-		if(di.Type==oDTString){
-			LPBYTE vd=LPBYTE(data)+di.Index;				
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
+
+		if (di.Type == oDTString){
+			char * vd=(char *)(data)+di.Index;				
 			
-			oVariableString vs;
-			memcpy(vs.Name, di.Name, sizeof(vs.Name));
-			vs.Data=(char *)vd;			
-			vs.MaxSize=di.Size;
+			oVariableString vs(vd, di.Size);
+			memcpy(vs.name, di.Name, sizeof(vs.name));
 			var.push_back(vs);		
-		}	
-		++it;
+		}
+    else if (di.Type == oDTStringDynamic) {
+			oVariableString vs((*strptr)[0], di.Index);
+			memcpy(vs.name, di.Name, sizeof(vs.name));
+			var.push_back(vs);		
+		}
+    else if (di.Type == oDTStringArray) {
+      oVariableString vs((*strptr)[di.Index]);
+			memcpy(vs.name, di.Name, sizeof(vs.name));
+			var.push_back(vs);		
+		}
 	}
 }
 
 oDataInterface oDataContainer::getInterface(void *data, int datasize, oBase *ob)
 {
-	if(datasize<DataPointer) throw std::exception("Out Of Bounds.");
+	if(datasize<dataPointer) throw std::exception("Out Of Bounds.");
 
 	return oDataInterface(this, data, ob);
 }
@@ -734,7 +921,7 @@ oDataInterface oDataContainer::getInterface(void *data, int datasize, oBase *ob)
 oDataConstInterface oDataContainer::getConstInterface(const void *data, int datasize, 
                                                       const oBase *ob) const
 {
-	if(datasize<DataPointer) throw std::exception("Out Of Bounds.");
+	if(datasize<dataPointer) throw std::exception("Out Of Bounds.");
 
 	return oDataConstInterface(this, data, ob);
 }
@@ -765,14 +952,14 @@ oDataInterface::~oDataInterface(void)
 
 void oDataContainer::buildTableCol(Table *table)
 {
-	map<string, oDataInfo>::iterator it;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    oDataInfo &di=ordered[kk];
 
-	it=Index.begin();
-
-	while (it!=Index.end()) {
-    oDataInfo &di=it->second;
-
-		if(di.Type==oDTInt){
+    if (di.dataDefiner)  {
+      int w = strlen(di.Description)*6;
+      di.tableIndex = di.dataDefiner->addTableColumn(table, di.Description, w);
+    }
+		else if (di.Type == oDTInt) {
       bool right = di.SubType == oISCurrency;
       bool numeric = di.SubType != oISDate && di.SubType != oISTime;
       int w;
@@ -784,7 +971,7 @@ void oDataContainer::buildTableCol(Table *table)
       w = max(int(strlen(di.Description))*6, w);
       di.tableIndex = table->addColumn(di.Description, w, numeric, right);
 		}
-		else if(di.Type==oDTString){
+		else if(di.Type == oDTString) {
       int w = max(max(di.Size+1, int(strlen(di.Description)))*6, 70);
 
       for (size_t k = 0; k < di.enumDescription.size(); k++)
@@ -792,7 +979,10 @@ void oDataContainer::buildTableCol(Table *table)
 
       di.tableIndex = table->addColumn(di.Description, w, false);
 		}
-		++it;
+    else if(di.Type == oDTStringDynamic) {
+      int w = 64*6;
+      di.tableIndex = table->addColumn(di.Description, w, false);
+		}
 	}
 }
 
@@ -845,16 +1035,20 @@ bool oDataContainer::formatNumber(int nr, const oDataInfo &di, char bf[64]) cons
   }
 }
 
-int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &table, bool canEdit) const
-{
-	map<string, oDataInfo>::const_iterator it;
+int oDataContainer::fillTableCol(const oBase &owner, Table &table, bool canEdit) const {
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  owner.getDataBuffers(data, oldData, strptr);
+
   int nextIndex = 0;
-	it=Index.begin();
   char bf[64];
 	oBase &ob = *(oBase *)&owner;
-  while(it!=Index.end()){
-    const oDataInfo &di=it->second;
-		if (di.Type==oDTInt) {
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
+    if (di.dataDefiner != 0) {
+      table.set(di.tableIndex, ob, 1000+di.tableIndex, di.dataDefiner->formatData(&ob), canEdit);
+    }
+    else if (di.Type==oDTInt) {
 			LPBYTE vd=LPBYTE(data)+di.Index;
       if (di.SubType != oIS64) {
         int nr;
@@ -889,24 +1083,36 @@ int oDataContainer::fillTableCol(const void *data, const oBase &owner, Table &ta
         table.set(di.tableIndex, *((oBase*)&owner), 1000+di.tableIndex, str, true, cellSelection);
       }
 		}
+    else if (di.Type == oDTStringDynamic) {
+      const string &str = (*strptr)[0][di.Index];
+      table.set(di.tableIndex, *((oBase*)&owner), 1000+di.tableIndex, str, canEdit, cellEdit);
+    }
     nextIndex = di.tableIndex + 1;   
-		++it;
 	}
   return nextIndex;
 }
 
-bool oDataContainer::inputData(oBase *ob, void *data, int id, 
+bool oDataContainer::inputData(oBase *ob, int id, 
                                const string &input, int inputId, 
                                string &output, bool noUpdate)
 {
-  map<string, oDataInfo>::iterator it;
-  it=Index.begin();
+  void *data, *oldData;
+  vector< vector<string> > *strptr;
+  ob->getDataBuffers(data, oldData, strptr);
 
-	while (it!=Index.end()) {
-    const oDataInfo &di=it->second;
+	for (size_t kk = 0; kk < ordered.size(); kk++) {
+    const oDataInfo &di=ordered[kk];
 
     if (di.tableIndex+1000==id) {
-		  if (di.Type==oDTInt) {
+      if (di.dataDefiner) {
+        const string &src = di.dataDefiner->formatData(ob);
+        output = di.dataDefiner->setData(ob, input);
+        bool ch = output != src;
+        if (ch && noUpdate == false)
+          ob->synchronize(true);
+        return ch;
+      }
+		  else if (di.Type==oDTInt) {
         LPBYTE vd=LPBYTE(data)+di.Index;
         
         int no = 0;
@@ -1005,8 +1211,24 @@ bool oDataContainer::inputData(oBase *ob, void *data, int id,
 
         return false;
       }
+      else if (di.Type == oDTStringDynamic) {
+        string &vd = (*strptr)[0][di.Index];	
+
+        if (vd != input) {
+          vd = input;  
+          ob->updateChanged();
+          if (noUpdate == false)
+            ob->synchronize(true);
+
+          output = (*strptr)[0][di.Index];
+          return true;
+        }
+        else 
+          output=input;
+
+        return false;
+      }
 	  }
-		++it;
 	}
   return true;
 }
@@ -1015,18 +1237,15 @@ void oDataContainer::fillInput(const void *data, int id, const char *name,
                                vector< pair<string, size_t> > &out, size_t &selected) const {
 
 
-  map<string, oDataInfo>::const_iterator it;
-  it = Index.begin();
   const oDataInfo * info = findVariable(name);
   
   if (!info) {
-	  while (it!=Index.end()) {
-      const oDataInfo &di=it->second;
+	  for (size_t kk = 0; kk < ordered.size(); kk++) {
+      const oDataInfo &di=ordered[kk];
       if (di.tableIndex+1000==id && di.Type == oDTString && di.SubType == oSSEnum) {
         info = &di;
         break;
       }
-      ++it;
     }
   }
 
@@ -1044,13 +1263,45 @@ void oDataContainer::fillInput(const void *data, int id, const char *name,
     throw meosException("Invalid enum");
 }
 
-bool oDataContainer::setEnum(void *data, const char *name, int selectedIndex) {
+bool oDataContainer::setEnum(oBase *ob, const char *name, int selectedIndex) {
   const oDataInfo * info = findVariable(name);
   
   if (info  && info->Type == oDTString && info->SubType == oSSEnum) {
     if (size_t(selectedIndex - 1) < info->enumDescription.size()) {
-      return setString(data, name, info->enumDescription[selectedIndex-1].first);
+      return setString(ob, name, info->enumDescription[selectedIndex-1].first);
     }
   }
   throw meosException("Invalid enum");
+}
+
+bool oVariableString::store(const char *in) {
+  if (data) {
+    char cb[1024];
+    strncpy_s(cb, maxSize, in, maxSize-1);
+    if (strcmp(cb, data) != 0) {
+		  strncpy_s(data, maxSize, cb, maxSize-1);
+      return true;
+    }
+    return false;
+  }
+  else {
+    vector<string> &str = *strData;
+    if (strIndex>=0) {
+      if (str[strIndex] != in) {
+        str[strIndex] = in;
+        return true;
+      }
+      else
+        return false;
+    }
+  }
+
+  return false;
+}
+
+string oDataContainer::encodeArray(const vector<string> &input) {
+  return "";//XXX
+}
+  
+void oDataContainer::decodeArray(const string &input, vector<string> &output) {
 }

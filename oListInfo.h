@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include <set>
 #include <vector>
 #include "oBase.h"
+#include "gdifonts.h"
 
 typedef oEvent *pEvent;
 
@@ -113,6 +114,12 @@ enum EPostType
   
   lPunchNamedTime,
   lPunchTime,
+  lPunchControlNumber,
+  lPunchControlCode,
+  lPunchLostTime,
+  lPunchControlPlace,
+  lPunchControlPlaceAcc,
+  
   lRogainingPunch,
   lTotalCounter,
   lSubCounter,
@@ -179,8 +186,7 @@ enum EFilterList
 
 enum gdiFonts;
 
-struct oPrintPost
-{
+struct oPrintPost {
   oPrintPost();
   oPrintPost(EPostType type_, const string &format_, 
                        int style_, int dx_, int dy_, int index_=0);
@@ -190,7 +196,8 @@ struct oPrintPost
   EPostType type;
   string text;
   string fontFace;
-  int format;  
+  int format;
+  GDICOLOR color;
   int dx;
   int dy;
   int index;
@@ -200,6 +207,7 @@ struct oPrintPost
     return *this;
   }
   int fixedWidth;
+  const oPrintPost *mergeWith; // Merge text with this output
 };
 
 class gdioutput;

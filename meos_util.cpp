@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,67 +25,18 @@
 #include <math.h>
 #include "meos_util.h"
 
-/*void getLocalTimeDateFromUTC(string& date, string& time)
-{
-	SYSTEMTIME utc = {0};	
-	if (date[4] != '-' || date[7] != '-' || time[2] != ':' || time[5] != ':' ||
-		date.length() != 10 || time.length() != 8)
-		return;  // unexpected format, leave as is
 
-	utc.wYear = atoi(date.substr(0,4).c_str());
-	utc.wMonth = atoi(date.substr(5,2).c_str());
-	utc.wDay = atoi(date.substr(8,2).c_str());
-	utc.wHour = atoi(time.substr(0,2).c_str());
-	utc.wMinute = atoi(time.substr(3,2).c_str());
-	utc.wSecond = atoi(time.substr(6,2).c_str());
+StringCache globalStringCache;
 
-	TIME_ZONE_INFORMATION TimeZoneInfo;
-	GetTimeZoneInformation( &TimeZoneInfo );
-	SYSTEMTIME local = {0};	
-
-	if (!SystemTimeToTzSpecificLocalTime( &TimeZoneInfo,
-																	 &utc,
-																	 &local ))
-		return;
-
-  char bf[32];
-	sprintf_s(bf, "%d-%02d-%02d", local.wYear, local.wMonth, local.wDay);
-	date = bf;
-	sprintf_s(bf, "%02d:%02d:%02d", local.wHour, local.wMinute, local.wSecond);
-	time = bf;
+DWORD mainThreadId = -1;
+StringCache &StringCache::getInstance() {
+  DWORD id = GetCurrentThreadId();
+  if (mainThreadId == -1)
+    mainThreadId = id;
+  else if (mainThreadId != id)
+    throw std::exception("Thread access error");
+  return globalStringCache;
 }
-
-string getUTCTimeDateFromLocal(string ISODateTime)
-{
-	string date = ISODateTime.substr(0,10);
-	string time = ISODateTime.substr(11,8);
-
-	SYSTEMTIME local = {0};	
-	if (date[4] != '-' || date[7] != '-' || time[2] != ':' || time[5] != ':' ||
-		date.length() != 10 || time.length() != 8)
-		return ISODateTime;  // unexpected format, leave as is
-
-	local.wYear = atoi(date.substr(0,4).c_str());
-	local.wMonth = atoi(date.substr(5,2).c_str());
-	local.wDay = atoi(date.substr(8,2).c_str());
-	local.wHour = atoi(time.substr(0,2).c_str());
-	local.wMinute = atoi(time.substr(3,2).c_str());
-	local.wSecond = atoi(time.substr(6,2).c_str());
-
-	TIME_ZONE_INFORMATION TimeZoneInfo;
-	GetTimeZoneInformation( &TimeZoneInfo );
-	SYSTEMTIME utc = {0};	
-
-	if (!TzSpecificLocalTimeToSystemTime( &TimeZoneInfo,
-																	 &local,
-																	 &utc ))
-		return ISODateTime;
-
-  char bf[32];
-	sprintf_s(bf, "%d-%02d-%02dT%02d:%02d:%02d", 
-			utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
-	return string(bf);
-}*/
 
 string getLocalTime()
 {
@@ -454,8 +405,7 @@ int convertAbsoluteTimeMS(const string &m)
 }
 
 //Generate +-MM:SS or +-HH:MM:SS
-string getTimeMS(int m)
-{
+const string &getTimeMS(int m) {
 	char bf[32];
   int am = abs(m);
   if (am < 3600)
@@ -466,14 +416,17 @@ string getTimeMS(int m)
     m = 0;
     sprintf_s(bf, "-");
   }
+  string &res = StringCache::getInstance().get();
   if (m<0)
-    return bf; // with minus
+    res = bf; // with minus
   else 
-    return bf + 1;
+    res = bf + 1;
+
+  return res;
 }
 
-string formatTime(int rt)
-{
+const string &formatTime(int rt) {
+  string &res = StringCache::getInstance().get();
   if(rt>0 && rt<3600*48) {
 		char bf[16];
 		if(rt>=3600)
@@ -481,20 +434,27 @@ string formatTime(int rt)
 		else
 			sprintf_s(bf, 16, "%d:%02d", (rt/60), rt%60);
 
-		return bf;
+    res = bf;
+		return res;
 	}
-	return "-";
+  char ret[2] = {BYTE(0x96), 0}; 
+  res = ret;
+	return res;
 }
 
-string formatTimeHMS(int rt)
-{
+const string &formatTimeHMS(int rt) {
+  
+  string &res = StringCache::getInstance().get();
   if(rt>=0) {
-		char bf[16];
+		char bf[32];
 	  sprintf_s(bf, 16, "%02d:%02d:%02d", rt/3600,(rt/60)%60, rt%60);
 
-		return bf;
+    res = bf;
+		return res;
 	}
-	return "-";
+  char ret[2] = {BYTE(0x96), 0}; 
+  res = ret;
+	return res;
 }
 
 string formatTimeIOF(int rt, int zeroTime)
@@ -561,11 +521,13 @@ string FormatRank(int rank)
 	return r;
 }
 
-string itos(int i)
+const string &itos(int i)
 {
 	char bf[32];
 	_itoa_s(i, bf, 10);
-	return bf;
+  string &res = StringCache::getInstance().get();
+  res = bf;
+	return res;
 }
 
 string itos(unsigned int i)
@@ -1051,6 +1013,8 @@ bool compareClassName(const string &a, const string &b)
     ++bs;
   }
 
+  int tail_len = strlen(as);
+
   // Check remaining
   while (*as) {
     int achar = toLowerStripped(*as);
@@ -1062,6 +1026,9 @@ bool compareClassName(const string &a, const string &b)
     if (lasttype <= 1) // The short name ended with a digit.
       return false;   // We cannot allow more chars.
     
+    if (lasttype == 2 && tail_len == 1) // Do not match shortened names such has H and HL
+      return false;
+
     if (achar>='0' && achar<='9')
       return false; // Never allow more digits
 
@@ -1321,25 +1288,52 @@ bool matchNumber(int a, const char *b) {
   return false;
 }
 
-string makeValidFileName(const string &input) {
+string makeValidFileName(const string &input, bool strict) {
   string out;
   out.reserve(input.size());
-  for (size_t k = 0; k < input.length(); k++) {
-    int b = input[k];
-    if ( (b>='0' && b<='9') || (b>='a' && b<='z') || (b>='A' && b<='Z') || b == '_' || b=='.' )
-      out.push_back(b);
-    else if (b == ' ' ||  b == ',')
-      out.push_back('_');
-    else {
-      b = toLowerStripped(b);
-      if ( char(b) == 'ö')
-        b = 'o';
-      else if (char(b) == 'ä' || char(b) == 'å')
-        b = 'a';
-      out.push_back(b);
+
+  if (strict) {
+    for (size_t k = 0; k < input.length(); k++) {
+      int b = input[k];
+      if ( (b>='0' && b<='9') || (b>='a' && b<='z') || (b>='A' && b<='Z') || b == '_' || b=='.' )
+        out.push_back(b);
+      else if (b == ' ' ||  b == ',')
+        out.push_back('_');
+      else {
+        b = toLowerStripped(b);
+        if ( char(b) == 'ö')
+          b = 'o';
+        else if (char(b) == 'ä' || char(b) == 'å' || char(b)== 'à' || char(b)== 'á' || char(b)== 'â' || char(b)== 'ã' || char(b)== 'æ')
+          b = 'a';
+        else if (char(b) == 'ç')
+          b = 'c';
+        else if (char(b) == 'è' || char(b) == 'é' || char(b) == 'ê' || char(b) == 'ë')
+          b = 'e';
+        else if (char(b) == 'ð')
+          b = 't';
+        else if (char(b) == 'ï' || char(b) == 'ì' || char(b) == 'ï' || char(b) == 'î' || char(b) == 'í')
+          b = 'i';
+        else if (char(b) == 'ò' || char(b) == 'ó' || char(b) == 'ô' || char(b) == 'õ' || char(b) == 'ø')
+          b = 'o';
+        else if (char(b) == 'ù' || char(b) == 'ú' || char(b) == 'û' || char(b) == 'ü')
+          b = 'u';
+        else if (char(b) == 'ý')
+          b = 'y'; 
+        else
+          b = '-';
+
+        out.push_back(b);
+      }
     }
   }
-
+  else {
+     for (size_t k = 0; k < input.length(); k++) {
+      unsigned b = input[k];
+      if (b < 32 || b == '*' || b == '?' || b==':' || b=='/' || b == '\\')
+        b = '_';
+      out.push_back(b);
+     }
+  }
   return out;
 }
 
@@ -1355,6 +1349,8 @@ void capitalize(string &str) {
       c = 'Ä';
     else if (c == 'å')
       c = 'Å';
+    else if (c == 'é')
+      c = 'É';
 
     str[0] = c;
   }

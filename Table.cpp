@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -73,6 +73,9 @@ Table::Table(oEvent *oe_, int rowH,
 
   clearOnHide = true;
   doAutoSelectColumns = true;
+
+  generator = 0;
+  generatorPtr = 0;
 }
 
 Table::~Table(void)
@@ -143,8 +146,8 @@ void Table::moveColumn(int src, int target)
 }
 
 void Table::reserve(size_t siz) {
-  Data.reserve(siz);
-  sortIndex.reserve(siz);
+  Data.reserve(siz+3);
+  sortIndex.reserve(siz+3);
 }
 void Table::addRow(int rowId, oBase *object)
 {  
@@ -685,7 +688,7 @@ bool Table::keyCommand(gdioutput &gdi, KeyCommandCode code) {
       gdi.refresh();
     }
     else if (code == KC_PRINT) {
-      gdioutput gdiPrint(gdi.getScale());	
+      gdioutput gdiPrint(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());	
 	    gdiPrint.clearPage(false);
       gdiPrint.print(getEvent(), this);
     }
@@ -1434,8 +1437,8 @@ void Table::print(gdioutput &gdi, HDC hDC, int dx, int dy)
     ti.format = boldSmall;
     ti.text =  Titles[i].name;
     gdi.calcStringSize(ti, hDC);
-    widths[j] = max<int>(widths[j], ti.TextRect.right-ti.TextRect.left);
-    rh = max<int>(rh, ti.TextRect.bottom-ti.TextRect.top);
+    widths[j] = max<int>(widths[j], ti.textRect.right-ti.textRect.left);
+    rh = max<int>(rh, ti.textRect.bottom-ti.textRect.top);
   }
   const int extra = 10;
 
@@ -1450,8 +1453,8 @@ void Table::print(gdioutput &gdi, HDC hDC, int dx, int dy)
         ti.text = ct;
         gdi.calcStringSize(ti, hDC);
         widths[j] = max<int>(widths[j], 
-          int(1.1*(ti.TextRect.right-ti.TextRect.left)+extra));
-        rh = max<int>(rh, ti.TextRect.bottom-ti.TextRect.top);
+          int(1.1*(ti.textRect.right-ti.textRect.left)+extra));
+        rh = max<int>(rh, ti.textRect.bottom-ti.textRect.top);
       }
     }
 	}
@@ -1718,8 +1721,13 @@ void Table::update()
 
   clearCellSelection(0);
 
-  TableUpdateInfo tui;
-  oe->generateTableData(internalName, *this, tui);
+  if (generator == 0) {
+    TableUpdateInfo tui;
+    oe->generateTableData(internalName, *this, tui);
+  }
+  else {
+    generator(*this, generatorPtr);
+  }
 
   //Refilter all
   for (size_t k=0;k<nTitles;k++) 
@@ -2085,7 +2093,7 @@ void Table::autoAdjust(gdioutput &gdi) {
   int sum = 0;
   for (size_t k = 0; k<Titles.size(); k++) {
     int w = 20;
-    int minlen = 8;
+    int minlen = 0;
     int diff = Titles[k].isnumeric ? 0 : 4;
     size_t dsize = Data.size();
     for (size_t r = 0; r < dsize; r++) {
@@ -2096,9 +2104,13 @@ void Table::autoAdjust(gdioutput &gdi) {
       const string &str = r != 1 ? c.contents : filterText;
       int len = str.length();
       if (len > minlen - diff) {        
-        DrawText(hDC, str.c_str(), len, &rc, DT_CALCRECT|DT_NOPREFIX);
+        if (Titles[k].isnumeric && r>2)
+          DrawText(hDC, (str + "55").c_str(), len, &rc, DT_CALCRECT|DT_NOPREFIX);
+        else
+          DrawText(hDC, str.c_str(), len, &rc, DT_CALCRECT|DT_NOPREFIX);
         w = max<int>(w, rc.right - rc.left);
-        minlen = max(len, minlen);
+        if (r>2)
+          minlen = max(len, minlen);
       }      
     }
     Titles[k].baseWidth = int( (w + 25)/ gdi.getScale());   

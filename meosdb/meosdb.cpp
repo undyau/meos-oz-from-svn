@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -65,9 +65,19 @@ int MEOSDB_API getMeosVersion()
 }
 
 MeosSQL msql;
- 
+static int nSynchList = 0;
+static int nSynchEnt = 0;
+
+int getListMask(oEvent &oe) {
+  return msql.getModifiedMask(oe);
+}
+
 bool MEOSDB_API msSynchronizeList(oEvent *oe, int lid)
 {
+  nSynchList++;
+  if (nSynchList % 100 == 99)
+    OutputDebugString("Synchronized 100 lists\n");
+
 	if(lid==oLRunnerId)
 		return msql.syncListRunner(oe);
 	else if(lid==oLClassId)
@@ -91,38 +101,42 @@ bool MEOSDB_API msSynchronizeList(oEvent *oe, int lid)
 int MEOSDB_API msSynchronizeUpdate(oBase *obj)
 {
 	if(typeid(*obj)==typeid(oRunner)){		
-		return msql.syncUpdate((oRunner *) obj );
+		return msql.syncUpdate((oRunner *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oClass)){
-		return msql.syncUpdate((oClass *) obj);
+		return msql.syncUpdate((oClass *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oCourse)){
-		return msql.syncUpdate((oCourse *) obj);
+		return msql.syncUpdate((oCourse *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oControl)){
-		return msql.syncUpdate((oControl *) obj);
+		return msql.syncUpdate((oControl *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oClub)){
-		return msql.syncUpdate((oClub *) obj);
+		return msql.syncUpdate((oClub *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oCard)){
-		return msql.syncUpdate((oCard *) obj);
+		return msql.syncUpdate((oCard *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oFreePunch)){
-		return msql.syncUpdate((oFreePunch *) obj);
+		return msql.syncUpdate((oFreePunch *) obj, false);
 	}
 	else if(typeid(*obj)==typeid(oEvent)){
 
 		return msql.SyncUpdate((oEvent *) obj);
 	}
 	else if(typeid(*obj)==typeid(oTeam)){
-		return msql.syncUpdate((oTeam *) obj);
+		return msql.syncUpdate((oTeam *) obj, false);
 	}
 	return 0;
 }
 
 int MEOSDB_API msSynchronizeRead(oBase *obj)
 {
+  nSynchEnt++;
+  if (nSynchEnt % 100 == 99)
+    OutputDebugString("Synchronized 100 entities\n");
+
 	if(typeid(*obj)==typeid(oRunner)){		
 		return msql.syncRead(false, (oRunner *) obj );
 	}

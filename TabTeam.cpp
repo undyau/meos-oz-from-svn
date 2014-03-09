@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -86,7 +86,7 @@ int TabTeam::searchCB(gdioutput &gdi, int type, void *data) {
       if (timeToFill < 50 || (filterMore && (timeToFill * lastFilter.size())/nr < 50))
         showNow = true;
       else {// Delay filter 
-        gdi.addTimeoutMilli(500, "Search: " + expr, runnerSearchCB).setExtra((void *)inputId);
+        gdi.addTimeoutMilli(500, "Search: " + expr, teamSearchCB).setExtra((void *)inputId);
       }
     }
   }
@@ -271,14 +271,14 @@ bool TabTeam::save(gdioutput &gdi, bool dontReloadTeams) {
 	if (t) {				
 		t->setName(name);
     const string &bib = gdi.getText("StartNo");
-    t->setBib(bib, atoi(bib.c_str()) > 0); 
+    t->setBib(bib, atoi(bib.c_str()) > 0, false); 
 		t->setStartTimeS(gdi.getText("Start"));
 		t->setFinishTimeS(gdi.getText("Finish"));
 
     if (oe->useEconomy())
       t->getDI().setInt("Fee", oe->interpretCurrency(gdi.getText("Fee")));
     
-    t->apply(false, 0);
+    t->apply(false, 0, false);
 
 		ListBoxInfo lbi;
 		gdi.getSelectedItem("Club", &lbi);
@@ -304,8 +304,8 @@ bool TabTeam::save(gdioutput &gdi, bool dontReloadTeams) {
 	  
     if (sIn == StatusUnknown && t->getStatus() == StatusDNS)
       t->setTeamNoStart(false);
-    else
-		  t->setStatus((RunnerStatus)lbi.data);
+    else if ((RunnerStatus)lbi.data != t->getStatus())
+		  t->setStatus((RunnerStatus)lbi.data, true, false);
    	        
 		gdi.getSelectedItem("RClass", &lbi);
 		t->setClassId(lbi.data);
@@ -331,11 +331,11 @@ bool TabTeam::save(gdioutput &gdi, bool dontReloadTeams) {
             sprintf_s(bf2, "SI%d", i);					
 					  int cardNo = gdi.getTextNo(bf2);
             
-            if(r) {
+            if (r) {
               bool newName = name != r->getName();
-
+              int oldId = int(gdi.getExtra(bf));
               // Same runner set
-              if (int(gdi.getExtra(bf))==r->getId()) {
+              if (oldId == r->getId()) {
                 if (newName) {
                   r->updateFromDB(name, r->getClubId(), r->getClassId(), 
                                   cardNo, 0);
@@ -348,7 +348,7 @@ bool TabTeam::save(gdioutput &gdi, bool dontReloadTeams) {
                 else
                   r->getDI().setInt("CardFee", 0);
 
-                r->synchronize();
+                r->synchronize(true);
                 continue;
               }
 
@@ -471,7 +471,7 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       gdi.fillRight();
       gdi.addSelection("SelectR", 180, 300, TeamCB);
       gdi.fillDown();
-      gdi.addButton("SelectRunner", "OK", TeamCB).setExtra(LPVOID(leg));
+      gdi.addButton("SelectRunner", "OK", TeamCB).setExtra(leg);
       oe->fillRunners(gdi, "SelectR", false, 0);
       pTeam t = oe->getTeam(teamId);
       pRunner r = t ? t->getRunner(leg) : 0;
@@ -512,7 +512,7 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
       }
 
       pTeam t = oe->addTeam(oe->getAutoTeamName());
-      t->setStartNo(oe->getFreeStartNo());
+      t->setStartNo(oe->getFreeStartNo(), false);
       
       ListBoxInfo lbi;
       gdi.getSelectedItem("RClass", &lbi);
@@ -597,7 +597,7 @@ int TabTeam::teamCB(gdioutput &gdi, int type, void *data)
                 || t->getNumRunners()==pc->getNumStages()) )
 					loadTeamMembers(gdi, 0,0,t);
 				else
-					loadTeamMembers(gdi, bi.data, 0, 0);
+					loadTeamMembers(gdi, bi.data, 0, t);
 			}
 			else loadTeamMembers(gdi, bi.data, 0, 0);
 		}
@@ -757,7 +757,7 @@ bool TabTeam::loadPage(gdioutput &gdi)
   shownDistinctRunners = 0;
 
   oe->checkDB();
-  oe->reEvaluateAll(true);
+  oe->reEvaluateAll(set<int>(), true);
 
 	gdi.selectTab(tabId);
 	gdi.clearPage(false);
@@ -777,8 +777,8 @@ bool TabTeam::loadPage(gdioutput &gdi)
   gdi.pushX();
   gdi.fillRight();
 
-  gdi.registerEvent("SearchRunner", runnerSearchCB).setKeyCommand(KC_FIND);
-  gdi.registerEvent("SearchRunnerBack", runnerSearchCB).setKeyCommand(KC_FINDBACK);
+  gdi.registerEvent("SearchRunner", teamSearchCB).setKeyCommand(KC_FIND);
+  gdi.registerEvent("SearchRunnerBack", teamSearchCB).setKeyCommand(KC_FINDBACK);
   gdi.addInput("SearchText", "", 17, teamSearchCB, "", "Sök på namn, bricka eller startnummer.").isEdit(false).setBgColor(colorLightCyan).ignore(true);
   gdi.dropLine(-0.2);
 //  gdi.addButton("Search", "Sök", TeamCB, "Sök på namn, bricka eller startnummer.").isEdit(false);
@@ -790,7 +790,7 @@ bool TabTeam::loadPage(gdioutput &gdi)
   gdi.popX();
 	gdi.fillDown();
 	gdi.addListBox("Teams", 250, 400, TeamCB, "", "").isEdit(false).ignore(true);
-	//oe->fillTeams(gdi, "Teams");
+  gdi.setInputFocus("Teams");
   fillTeamList(gdi);
 	
   gdi.fillRight();	

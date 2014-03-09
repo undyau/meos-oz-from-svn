@@ -64,6 +64,8 @@ protected:
   unsigned int serverPort;
 
 	bool isOld(int counter, const string &time, oBase *ob);
+  string andWhereOld(oBase *ob);
+
 	OpFailStatus updateTime(const char *oTable, oBase *ob);
   // Update object in database with fixed query. If useId is false, Id is ignored (used
 	OpFailStatus syncUpdate(mysqlpp::Query &updateqry, const char *oTable, oBase *ob);
@@ -76,14 +78,14 @@ protected:
   void setDefaultDB();
 
   // Update the courses of a class.
-  OpFailStatus syncReadClassCourses(oClass *c, int cno, 
-                                    const set<int> &multi,
+  OpFailStatus syncReadClassCourses(oClass *c,const set<int> &courses,
                                     bool readRecursive);
   OpFailStatus syncRead(bool forceRead, oTeam *t, bool readRecursive);
   OpFailStatus syncRead(bool forceRead, oRunner *r, bool readClassClub, bool readCourseCard);
-  OpFailStatus syncRead(bool forceRead, oCourse *c, bool readControls);
+  OpFailStatus syncReadCourse(bool forceRead, oCourse *c, set<int> &readControls);
 	OpFailStatus syncRead(bool forceRead, oClass *c, bool readCourses);
-	
+	OpFailStatus syncReadControls(oEvent *oe, const set<int> &controlIds);
+
   void storeClub(const mysqlpp::Row &row, oClub &c);
   void storeControl(const mysqlpp::Row &row, oControl &c);
   void storeCard(const mysqlpp::Row &row, oCard &c);
@@ -97,7 +99,7 @@ protected:
                            bool readClassClub, 
                            bool readRunners);
   OpFailStatus storeCourse(const mysqlpp::Row &row, oCourse &c,
-                           bool readControls);
+                           set<int> &readControls);
   OpFailStatus storeClass(const mysqlpp::Row &row, oClass &c,
                            bool readCourses);
 
@@ -107,6 +109,14 @@ protected:
 
   void warnOldDB();
   bool checkOldVersion(oEvent *oe, mysqlpp::Row &row);
+
+  map<pair<int, int>, DWORD> readTimes;
+  void clearReadTimes();
+  void synchronized(const oBase &entity);
+  bool skipSynchronize(const oBase &entity) const;
+
+  mysqlpp::ResNSel updateCounter(const char *oTable, int id, mysqlpp::Query *updateqry);
+  string selectUpdated(const char *oTable, const string &updated, int counter);
 
 public:
   bool dropDatabase(oEvent *oe);
@@ -143,29 +153,31 @@ public:
 	OpFailStatus SyncUpdate(oEvent *oe);
 	OpFailStatus SyncRead(oEvent *oe);
 
-	OpFailStatus syncUpdate(oRunner *r);
+	OpFailStatus syncUpdate(oRunner *r, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oRunner *r);
 
-	OpFailStatus syncUpdate(oCard *c);
+	OpFailStatus syncUpdate(oCard *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oCard *c);
 
-	OpFailStatus syncUpdate(oClass *c);
+	OpFailStatus syncUpdate(oClass *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oClass *c);
 	
-	OpFailStatus syncUpdate(oClub *c);
+	OpFailStatus syncUpdate(oClub *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oClub *c);
 
-	OpFailStatus syncUpdate(oCourse *c);
+	OpFailStatus syncUpdate(oCourse *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oCourse *c);
 	
-	OpFailStatus syncUpdate(oControl *c);
+	OpFailStatus syncUpdate(oControl *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oControl *c);
 
-	OpFailStatus syncUpdate(oFreePunch *c);
+	OpFailStatus syncUpdate(oFreePunch *c, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oFreePunch *c, bool rehash);
 
-	OpFailStatus syncUpdate(oTeam *t);
+	OpFailStatus syncUpdate(oTeam *t, bool forceWriteAll);
 	OpFailStatus syncRead(bool forceRead, oTeam *t);
+
+  int getModifiedMask(oEvent &oe);
 
 	MeosSQL(void);
 	virtual ~MeosSQL(void);

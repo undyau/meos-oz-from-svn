@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -302,14 +302,11 @@ string oControl::getName() const
 	}
 }
 
-oDataInterface oControl::getDI(void)
-{
-	return oe->oControlData->getInterface(oData, sizeof(oData), this);
-}
-
-oDataConstInterface oControl::getDCI(void) const
-{
-	return oe->oControlData->getConstInterface(oData, sizeof(oData), this);
+oDataContainer &oControl::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
+  data = (pvoid)oData;
+  olddata = (pvoid)oDataOld;
+  strData = 0;
+  return *oe->oControlData;
 }
 
 void oEvent::fillControls(gdioutput &gdi, const string &id, int type)
@@ -554,7 +551,7 @@ void oEvent::setupMissedControlTime() {
   for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved())
       continue;
-    pCourse pc = it->getCourse();
+    pCourse pc = it->getCourse(true);
     if (!pc)
       continue;
     it->getSplitAnalysis(delta);
@@ -707,7 +704,7 @@ void oControl::addTableRow(Table &table) const {
   table.set(row++, it, 52, nv > 0 ? formatTime(getMissedTimeTotal()/nv) : "-", false);
   table.set(row++, it, 53, nv > 0 ? formatTime(getMissedTimeMedian()) : "-", false);
   	
-  oe->oControlData->fillTableCol(oData, it, table, true);
+  oe->oControlData->fillTableCol(it, table, true);
 }
 
 bool oControl::inputData(int id, const string &input, 
@@ -716,7 +713,7 @@ bool oControl::inputData(int id, const string &input,
   synchronize(false);
     
   if(id>1000) {
-    return oe->oControlData->inputData(this, oData, id, input, inputId, output, noUpdate);
+    return oe->oControlData->inputData(this, id, input, inputId, output, noUpdate);
   }
   switch(id) {
     case TID_CONTROL:
@@ -762,4 +759,20 @@ void oControl::remove()
 bool oControl::canRemove() const 
 {
   return !oe->isControlUsed(Id);
+}
+
+void oEvent::getControls(vector<pControl> &c) const {
+  c.clear();
+  for (oControlList::const_iterator it = Controls.begin(); it != Controls.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+    c.push_back(pControl(&*it));
+  }
+}
+  
+void oControl::getNumbers(vector<int> &numbers) const {
+  numbers.resize(nNumbers);
+  for (int i = 0; i < nNumbers; i++) {
+    numbers[i] = Numbers[i];
+  }
 }

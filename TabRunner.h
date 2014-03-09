@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
     
 ************************************************************************/
 #include "tabbase.h"
+#include "Printer.h"
 
 class Table;
 
@@ -77,6 +78,11 @@ private:
 
   void showVacancyList(gdioutput &gdi, const string &method="", int classId=0);
   void showCardsList(gdioutput &gdi);
+
+  bool canSetStart(pRunner r) const;
+  bool canSetFinish(pRunner r) const;
+
+  void warnDuplicateCard(gdioutput &gdi, int cno, pRunner r);
 
 public:
   void showInForestList(gdioutput &gdi);

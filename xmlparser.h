@@ -10,7 +10,7 @@
 #endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@ class xmlobject;
 
 typedef vector<xmlobject> xmlList;
 class xmlparser;
+class gdioutput;
 
 const int buff_pre_alloc = 1024 * 10;
 
@@ -105,6 +106,9 @@ protected:
 
   ProgressWindow *progress;
   int lastIndex;
+
+  gdioutput *utfConverter;
+
 public:
   void access(int index);
 
@@ -131,6 +135,7 @@ public:
              bool propValue, const string &value);
   void write(const char *tag, const char *prop, 
              const char *propValue, const string &value);
+  void write(const char *tag, const vector< pair<string, string> > &propValue, const string &value);
 
   void write(const char *tag, const string &value);
   void write(const char *tag, int value);
@@ -144,14 +149,17 @@ public:
   void startTag(const char *tag, const vector<string> &propvalue);
 
 	void endTag();
-	void closeOut();
+	int closeOut();
 	void openOutput(const char *file, bool useCutMode);
   void openOutputT(const char *file, bool useCutMode, const string &type);
   
   void openMemoryOutput(bool useCutMode);
   void getMemoryOutput(string &res);
 
-  xmlparser();
+  
+  const string &encodeXML(const string &input);
+
+  xmlparser(gdioutput *utfConverter);
 	virtual ~xmlparser();
 
   friend class xmlobject;

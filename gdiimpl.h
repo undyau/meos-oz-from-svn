@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #pragma once
 
 class gdioutput;
+struct FontInfo;
 
 class GDIImplFontSet {
   HFONT Huge;
@@ -42,10 +43,14 @@ class GDIImplFontSet {
   
   string gdiName;
   mutable vector<double> avgWidthCache;
+  int charSet;
 public:
+  static float baseSize(int format, float scale);
+  void getInfo(FontInfo &fi) const;
+
   GDIImplFontSet();
   virtual ~GDIImplFontSet();
-  void init(double scale, const string &font, const string &gdiName);
+  void init(double scale, int charSet, const string &font, const string &gdiName);
   void selectFont(HDC hDC, int format) const;
   HFONT getGUIFont() const {return pfMedium;}
   double getAvgFontWidth(const gdioutput &gdi, gdiFonts font) const;

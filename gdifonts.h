@@ -41,9 +41,8 @@ enum gdiFonts {
   formatIgnore = 1000,
 };
 
-
 const int pageNewPage=100;
-const int pageReserveHeight=101;
+//const int pageReserveHeight=101;
 const int pagePageInfo=102;
 
 const int textRight=256;
@@ -67,5 +66,6 @@ enum GDICOLOR {colorRed = RGB(128,0,0),
               colorLightMagenta = RGB(255, 200, 255),
               colorMediumRed = RGB(255,200,200),
               colorMediumDarkRed = RGB(240,120,120),
-              
+              colorWindowBar = -2,
               colorDefault = -1};
+

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -145,7 +145,7 @@ pTeam oEvent::addTeam(const string &pname, int ClubId, int ClassId)
   oe->updateTabs();
 
   Teams.back().getEntryDate(false);// Store entry time
-  Teams.back().apply(false, 0);
+  Teams.back().apply(false, 0, false);
 	return &Teams.back();
 }
 
@@ -628,7 +628,7 @@ bool oTeam::adjustMultiRunners(bool sync)
     }
   }
 
-  return apply(sync, 0);
+  return apply(sync, 0, false);
 }
 
 

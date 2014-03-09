@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -230,6 +230,14 @@ class IOF30Interface {
   
   pCourse findCourse(gdioutput &gdi, const map<string, pCourse> &courses,
                      xmlobject &xPAssignment);
+
+  string writeControl(xmlparser &xml, const oControl &c, set<string> &writtenId);
+
+  void writeCourseInfo(xmlparser &xml, const oCourse &c);
+
+  void writeFullCourse(xmlparser &xml, const oCourse &c, 
+                         const map<int, string> &ctrlId2ExportId);
+
 public:
   IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false) {cachedStageNumber = -1;}
   virtual ~IOF30Interface() {}
@@ -253,5 +261,8 @@ public:
   void writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC);
 
   void writeEvent(xmlparser &xml);
+
+  void writeCourses(xmlparser &xml);
+
 
 };

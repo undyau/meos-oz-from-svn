@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@ class ProgressWindow {
 
   HANDLE thread;
   mutable CRITICAL_SECTION syncObj;
+  volatile bool terminate;
+  volatile bool running;
 
   bool initialized;
   int lastPrg;

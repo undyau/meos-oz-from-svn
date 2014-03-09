@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 ************************************************************************/
 #include "tabbase.h"
 #include "SportIdent.h"
+#include "Printer.h"
 
 struct PunchInfo;
 class csvparser;
@@ -76,22 +77,37 @@ class TabSI :
   int lastClassId;
   int lastClubId;
   int lastFee;
-
+  
+  int inputId;
+      
   void showReadPunches(gdioutput &gdi, vector<PunchInfo> &punches, set<string> &dates);
   void showReadCards(gdioutput &gdi, vector<SICard> &cards);
 
   void showManualInput(gdioutput &gdi);
+  void showAssignCard(gdioutput &gdi, bool showHelp);
+
+  pRunner getRunnerByIdentifier(int id) const;
+  mutable inthashmap identifierToRunnerId;
+  mutable int minRunnerId;
+  void tieCard(gdioutput &gdi);
 
   // Insert card without converting times and with/without runner
   void processInsertCard(const SICard &csic);
 
-  void printerSetup(gdioutput &gdi);
+  
   void generateSplits(const pRunner r, gdioutput &gdi);
   int logcounter;
   csvparser *logger;
 
   string insertCardNumberField;
+
+  void insertSICardAux(gdioutput &gdi, SICard &sic);
+
 public:
+
+  static SportIdent &getSI(gdioutput &gdi);
+  void printerSetup(gdioutput &gdi);
+
   int siCB(gdioutput &gdi, int type, void *data);
 
   void logCard(const SICard &card);

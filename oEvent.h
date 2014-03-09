@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -61,7 +61,8 @@ class oFreeImport;
 class oWordList;
 class ClassConfigInfo;
 enum EPostType;
-
+struct SocketPunchInfo;
+class DirectSocket;
 template<class T> class intkeymap;
 
 struct oCounter {
@@ -164,9 +165,9 @@ typedef bool (__cdecl* OPENDB_FCN)(void);
 typedef int  (__cdecl* SYNCHRONIZE_FCN)(oBase *obj);
 typedef bool (__cdecl* SYNCHRONIZELIST_FCN)(oBase *obj, int lid);
 
-enum oListId {oLRunnerId=1, oLClassId=2, oLCourseId=3, 
-              oLControlId=4, oLClubId=5, oLCardId=6, 
-              oLPunchId=7, oLTeamId=8 };
+enum oListId {oLRunnerId=1, oLClassId=2, oLCourseId=4, 
+              oLControlId=8, oLClubId=16, oLCardId=32, 
+              oLPunchId=64, oLTeamId=128, oLEventId=256};
 
 
 class Table;
@@ -237,7 +238,6 @@ protected:
   intkeymap<pRunner> runnerById;
 
   RunnerDB *runnerDB;
-	//oRunnerList RunnerDatabase;
 	oCardList Cards;
 
 	oFreePunchList punches;
@@ -284,8 +284,7 @@ protected:
   bool needRefreshClass(int classId);
   bool needReEvaluate();
 
-  //Used to avoid multiple resync during auto lists.
-  bool autoSequence; 
+  DirectSocket *directSocket;
 
 	int getFreeRunnerId();
 	int getFreeClassId();
@@ -319,20 +318,6 @@ protected:
 	char CurrentFile[260];
 	char CurrentNameId[64];
 
-	//Dynamic SQL-connection.
-/*	SYNCHRONIZE_FCN msMonitor;	
-  SYNCHRONIZE_FCN msOpenDatabase;	
-	SYNCHRONIZE_FCN msUploadRunnerDB;
-  SYNCHRONIZE_FCN msConnectToServer;
-	SYNCHRONIZE_FCN msSynchronizeUpdate;
-	SYNCHRONIZE_FCN msSynchronizeRead;
-	SYNCHRONIZE_FCN msRemove;
-  SYNCHRONIZE_FCN msDropDatabase;
-	SYNCHRONIZELIST_FCN msSynchronizeList;
-  ERRORMESG_FCN msGetErrorState;
-  OPENDB_FCN msResetConnection;
-  OPENDB_FCN msReConnect;
-*/
 
   static int dbVersion;
 	string MySQLServer;
@@ -364,7 +349,14 @@ protected:
   set<int> timelineClasses;
   set<int> modifiedClasses;
 
-	BYTE oData[1024];
+  static const int dataSize = 1024;
+  int getDISize() const {return dataSize;}
+  BYTE oData[dataSize];
+  BYTE oDataOld[dataSize];
+  vector< vector<string> > dynamicData;
+
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
   //Precalculated. Used in list processing.
   vector<int> currentSplitTimes;
@@ -374,6 +366,11 @@ protected:
   map<string, string> eventProperties;
 
   bool tUseStartSeconds;
+
+  set< pair<int,int> > readPunchHash;
+  void insertIntoPunchHash(int card, int code, int time);
+  void removeFromPunchHash(int card, int code, int time);
+  bool isInPunchHash(int card, int code, int time);
 
   void generateStatisticsPart(gdioutput &gdi, const vector<oEvent::ClassMetaType> &type,
                               const set<int> &feeLimit, int actualFee, bool useReducedFee, 
@@ -411,9 +408,24 @@ protected:
 
   // Internal list method
   void generateListInternal(gdioutput &gdi, const oListInfo &li, bool formatHead);
-  
+
+  /** Format a string for a list. */
+  const string &formatListStringAux(const oPrintPost &pp, const oListParam &par,
+                                    const pTeam t, const pRunner r, const pClub c,
+                                    const pClass pc, oCounter &counter) const;
+
 public:
 
+  bool hasDirectSocket() const {return directSocket != 0;}
+
+  DirectSocket &getDirectSocket();
+
+  void advancePunchInformation(const vector<gdioutput *> &gdi, vector<SocketPunchInfo> &pi);
+
+  // Sets and returns extra lines (string, style) to be printed on the split print, invoice, ...
+  void setExtraLines(const char *attrib, const vector<pair<string, int> > &lines);
+  void getExtraLines(const char *attrib, vector<pair<string, int> > &lines) const;
+  
   RunnerDB &getRunnerDatabase() const {return *runnerDB;}
   void getDBRunnersInEvent(intkeymap<pClass> &runners) const;
   MetaListContainer &getListContainer() const;
@@ -489,9 +501,9 @@ public:
   void generateCompetitionReport(gdioutput &gdi);
 
   
-  // HTML if n > 10.
+  // To file if n > 10.
   enum InvoicePrintType {IPTAllPrint=1, IPTAllHTML=11, IPTNoMailPrint=2,
-                         IPTNonAcceptedPrint=3, IPTElectronincHTML=12};
+                         IPTNonAcceptedPrint=3, IPTElectronincHTML=12, IPTAllPDF=13};
   
   void printInvoices(gdioutput &gdi, InvoicePrintType type, 
                      const string &basePath, bool onlySummary);
@@ -583,23 +595,23 @@ public:
 	int getFreeStartNo() const;
 	void generatePreReport(gdioutput &gdi);
 
-  void generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li);
+  void generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li, bool updateScrollBars);
   void generateListInfo(oListParam &par, int lineHeight, oListInfo &li);
   void generateListInfo(EStdListType lt, const gdioutput &gdi, int classId, oListInfo &li);
 
   /** Format a string for a list. Returns true of output is not empty*/
-  bool formatListString(const oPrintPost &pp, string &out, const oListParam &par,
-                        const pTeam t, const pRunner r, const pClub c,
+  const string &formatListString(const oPrintPost &pp, const oListParam &par,
+                                 const pTeam t, const pRunner r, const pClub c,
                         const pClass pc, oCounter &counter) const;
   void calculatePrintPostKey(const list<oPrintPost> &ppli, gdioutput &gdi, const oListParam &par,
                              const pTeam t, const pRunner r, const pClub c,
                              const pClass pc, oCounter &counter, string &key);
-  bool formatListString(EPostType type, string &out, const pRunner r) const;
+  const string &formatListString(EPostType type, const pRunner r) const;
 
  /** Format a print post. Returns true of output is not empty*/
   bool formatPrintPost(const list<oPrintPost> &pp, gdioutput &gdi, const oListParam &par, 
                        const pTeam t, const pRunner r, const pClub c,
-                       const pClass pc, oCounter &counter);
+                       const pClass pc, oCounter &counter, bool avoidBreakBefore);
   void listGeneratePunches(const list<oPrintPost> &ppli, gdioutput &gdi, const oListParam &par,  
                            pTeam t, pRunner r, pClub club, pClass cls); 
   void getListTypes(map<EStdListType, oListInfo> &listMap, int filter);
@@ -610,12 +622,6 @@ public:
 
 	void checkOrderIdMultipleCourses(int ClassId);
 
-	oDataInterface getDI() 
-      {return oEventData->getInterface(oData, sizeof(oData), this);}
-	
-  oDataConstInterface getDCI() const
-      {return oEventData->getConstInterface(oData, sizeof(oData), this);}
-	
 	void addBib(int ClassId, int leg, int FirstNumber);
 
 	//Speaker functions.
@@ -625,7 +631,8 @@ public:
 
   // Get set of controls with registered punches
   void getFreeControls(set<int> &controlId) const;
-	pFreePunch addFreePunch(int time, int type, int card);
+  // Returns the added punch, of null of already added.
+	pFreePunch addFreePunch(int time, int type, int card, bool updateRunner);
   pFreePunch addFreePunch(oFreePunch &fp);
 
   /** Internal version of start order optimizer */
@@ -635,7 +642,6 @@ public:
 
 protected:
   int getControlIdFromPunch(int time, int type, int card, bool markClassChanged, int &runnerId);
-  void rebuildPunchIndex();
   static void drawSOFTMethod(vector<pRunner> &runners, bool handleBlanks=true);
   bool enumerateBackups(const char *file, const char *filetype, int type);
   intkeymap<pRunner> cardHash;
@@ -643,6 +649,9 @@ protected:
   bool readOnly;
 	virtual void writeExtraXml(xmlparser &xml){};
 	virtual void readExtraXml(const xmlparser &xml) {};
+
+  map<pair<int, int>, oFreePunch> advanceInformationPunches;
+
 public:
 
   bool isReadOnly() const {return readOnly;}
@@ -689,8 +698,8 @@ public:
   void getPunchesForRunner(int runnerId, vector<pFreePunch> &punches) const;
 
 	//Returns true if data is changed.
-	bool autoSynchronizeLists(bool SyncPunches);
-	bool synchronizeList(oListId id);
+	bool autoSynchronizeLists(bool syncPunches);
+	bool synchronizeList(oListId id, bool preSyncEvent = true, bool postSyncEvent = true);
 
 	void generateInForestList(gdioutput &gdi, GUICALLBACK cb, 
                             GUICALLBACK cb_nostart);
@@ -707,7 +716,7 @@ public:
                          int classId, int birthYear) const;
 
   void updateRunnerDatabase();
-	void updateRunnerDatabase(pRunner r);
+	void updateRunnerDatabase(pRunner r, map<int, int> &clubIdMap);
 
 	bool exportONattResults(gdioutput &gdi, const string &file);
 	int getFirstStart(int ClassId=0);
@@ -716,6 +725,7 @@ public:
 	pCard getCard(int Id) const;
   pCard getCardByNumber(int cno) const;
 	bool isCardRead(const SICard &card) const;
+  void getCards(vector<pCard> &cards);
 
   /** Try to find the class that best matches the card. 
       Negative return = missing controls
@@ -724,9 +734,9 @@ public:
 	int findBestClass(const SICard &card, vector<pClass> &classes) const;
 	string getCurrentTimeS() const;
 
-	void reEvaluateClass(int ClassId, bool DoSync);
-	void reEvaluateCourse(int CourseId, bool DoSync);
-	void reEvaluateAll(bool DoSync);
+	//void reEvaluateClass(const set<int> &classId, bool doSync);
+	void reEvaluateCourse(int courseId, bool doSync);
+	void reEvaluateAll(const set<int> &classId, bool doSync);
   void reEvaluateChanged();
 
 	void exportIOFSplits(IOFVersion version, const char *file, bool oldStylePatrolExport,
@@ -786,7 +796,7 @@ public:
   static int convertAbsoluteTime(const string &m);
 
   /// Get clock time from relative time
-	string getAbsTime(DWORD relativeTime) const;
+	const string &getAbsTime(DWORD relativeTime) const;
   string getAbsDateTimeISO(DWORD relativeTime, bool includeDate, bool useGMT) const;
 
   string getAbsTimeHM(DWORD relativeTime) const;
@@ -865,7 +875,11 @@ public:
 
   pRunner getRunner(int Id, int stage) const;
 	pRunner getRunnerByCard(int cardNo, bool onlyRunnerWithNoCard = false, bool ignoreRunnersWithNoStart = false) const;
-  pRunner getRunnerByStartNo(int startNo) const;
+  /** Finds a runner by start number (linear search). If several runners has same bib/number try to get the right one:
+       findWithoutCardNo false : find first that has not finished
+       findWithoutCardNo true : find first with no card.
+  */
+  pRunner getRunnerByStartNo(int startNo, bool findWithoutCardNo) const;
 
   pRunner getRunnerByName(const string &pname, const string &pclub="") const;
 	
@@ -928,7 +942,7 @@ public:
 	pClass addClass(oClass &c);	
  	pClass getClassCreate(int Id, const string &CreateName);
   pClass getClass(const string &Name) const;
-  void getClasses(vector<pClass> &classes);
+  void getClasses(vector<pClass> &classes) const;
   pClass getBestClassMatch(const string &Name) const;
   bool getClassesFromBirthYear(int year, PersonSex sex, vector<int> &classes) const;
   pClass getClass(int Id) const;
@@ -971,6 +985,9 @@ public:
 	pCourse getCourseCreate(int Id);
 	pCourse getCourse(const string &name) const;
   pCourse getCourse(int Id) const;
+
+  void getCourses(vector<pCourse> &courses) const;
+  void getControls(vector<pControl> &controls) const;
 
   void fillCourses(gdioutput &gdi, const string &id, bool simple = false);
 	const vector< pair<string, size_t> > &fillCourses(vector< pair<string, size_t> > &out, bool simple = false);

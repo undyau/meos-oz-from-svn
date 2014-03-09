@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -160,18 +160,18 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 			//Club is autocreated...
 			pTeam team=event.addTeam(string(sp[OSclub])+" "+string(sp[OSdesc]), ClubId,  ClassId);
 			
-			team->setStartNo(atoi(sp[OSstno]));
+			team->setStartNo(atoi(sp[OSstno]), false);
 
 			if(strlen(sp[12])>0)
-				team->setStatus( ConvertOEStatus( atoi(sp[OSstatus]) ) );
+				team->setStatus( ConvertOEStatus( atoi(sp[OSstatus]) ), true, false);
 
-			team->setStartTime( event.convertAbsoluteTime(sp[OSstart]) );
+			team->setStartTime(event.convertAbsoluteTime(sp[OSstart]), true, false);
 
 			if(strlen(sp[OStime])>0)
 				team->setFinishTime( event.convertAbsoluteTime(sp[OSstart])+event.convertAbsoluteTime(sp[OStime])-event.getZeroTimeNum() );
 
 			if(team->getStatus()==StatusOK && team->getFinishTime()==0)
-				team->setStatus(StatusUnknown);
+				team->setStatus(StatusUnknown, true, false);
 			
 			unsigned rindex=Offset;
 
@@ -198,14 +198,14 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 					DI.setInt("CardFee", event.getDCI().getInt("CardFee"));
 		
 				//r->setCardNo(atoi(sp[rindex+OSRcard]), false);
-				r->setStartTime( event.convertAbsoluteTime(sp[rindex+OSRstart]) );
+				r->setStartTime(event.convertAbsoluteTime(sp[rindex+OSRstart]), true, false);
 				r->setFinishTime( event.convertAbsoluteTime(sp[rindex+OSRfinish]) );
 
 				if(strlen(sp[rindex+OSRstatus])>0)
-					r->setStatus( ConvertOEStatus( atoi(sp[rindex+OSRstatus]) ) );
+					r->setStatus( ConvertOEStatus( atoi(sp[rindex+OSRstatus]) ), true, false);
 
 				if(r->getStatus()==StatusOK && r->getRunningTime()==0)
-					r->setStatus(StatusUnknown);
+					r->setStatus(StatusUnknown, true, false);
 
         r->addClassDefaultFee(false);
 
@@ -219,7 +219,7 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 			if(pc && runner>(int)pc->getNumStages())
 				pc->setNumStages(runner);
 
-      team->apply(true, 0);
+      team->apply(true, 0, false);
 		}
 	}
 	fin.close();
@@ -382,14 +382,14 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       pr->setClubId(pclub ? pclub->getId():0);
 			pr->setCardNo( atoi(sp[OEcard]), false );
 			
-			pr->setStartTime( event.convertAbsoluteTime(sp[OEstart]) );
-			pr->setFinishTime( event.convertAbsoluteTime(sp[OEfinish]) );
+			pr->setStartTime(event.convertAbsoluteTime(sp[OEstart]), true, false);
+			pr->setFinishTime(event.convertAbsoluteTime(sp[OEfinish]));
 
 			if(strlen(sp[OEstatus])>0)
-				pr->setStatus( ConvertOEStatus( atoi(sp[OEstatus]) ) );
+				pr->setStatus( ConvertOEStatus( atoi(sp[OEstatus]) ), true, false);
 
 			if(pr->getStatus()==StatusOK && pr->getRunningTime()==0)
-				pr->setStatus(StatusUnknown);
+				pr->setStatus(StatusUnknown, true, false);
 
       //Autocreate class if it does not exist...
 			int classId=atoi(sp[OEclassno]);
@@ -404,9 +404,9 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 			int stno=atoi(sp[OEstno]);
 
 			if(stno>0)
-				pr->setStartNo(stno);
+				pr->setStartNo(stno, false);
 			else
-				pr->setStartNo(nimport);
+				pr->setStartNo(nimport, false);
 
 			oDataInterface DI=pr->getDI();
 
@@ -415,7 +415,7 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 			DI.setString("Nationality", sp[OEnat]);
       
       if (sp.size()>OEbib)
-        pr->setBib(sp[OEbib], false);
+        pr->setBib(sp[OEbib], false, false);
 
 			if (sp.size()>=38) {//ECO
 				DI.setInt("Fee", atoi(sp[OEfee]));
@@ -424,7 +424,7 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 			}
 
 			if (sp.size()>=40) {//Course
-        if(pr->getCourse() == 0){
+        if(pr->getCourse(false) == 0){
 					const char *cid=sp[OEcourseno];
           const int courseid=atoi(cid);
           if (courseid>0) {
@@ -695,12 +695,13 @@ bool csvparser::ImportRAID(oEvent &event, const char *file)
       int ClubId=0;
 			//Create class with this class number...		
 			int ClassId=atoi(sp[RAIDclassid]);
-			event.getClassCreate(ClassId, sp[RAIDclass]);
+			pClass pc = event.getClassCreate(ClassId, sp[RAIDclass]);
+      ClassId = pc->getId();
 
 			//Club is autocreated...
 			pTeam team=event.addTeam(sp[RAIDteam], ClubId,  ClassId);
 			
-			team->setStartNo(atoi(sp[RAIDid]));
+			team->setStartNo(atoi(sp[RAIDid]), false);
 			team->getDI().setInt("SortIndex", atoi(sp[RAIDcanoe]));
 				
 			oDataInterface teamDI=team->getDI();
@@ -713,14 +714,14 @@ bool csvparser::ImportRAID(oEvent &event, const char *file)
       pRunner r2=event.addRunner(sp[RAIDrunner2], ClubId, ClassId, 0, 0, false);
 			team->setRunner(1, r2, false);
 						
-			pClass pc=event.getClass(ClassId);
+      if (pc) {
+			  if(pc->getNumStages()<2)
+			    pc->setNumStages(2);
 
-      if(pc && pc->getNumStages()<2)
-			  pc->setNumStages(2);
-
-      pc->setLegType(0, LTNormal);
-      pc->setLegType(1, LTIgnore);
-      team->apply(true, 0);
+        pc->setLegType(0, LTNormal);
+        pc->setLegType(1, LTIgnore);
+      }
+      team->apply(true, 0, false);
 		}
 	}
 	fin.close();

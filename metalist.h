@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,10 +34,12 @@ class oEvent;
 class Position 
 {
   struct PosInfo {
-    PosInfo(int f, int wid) : first(f), width(wid), aligned(false) {}
+    PosInfo(int f, int wid) : first(f), width(wid), aligned(false), originalPos(f) {}
     int first;   // Actual position
     int width;   // Original block width
     bool aligned;// True if aligned
+    const int originalPos; // Original position
+    void operator=(const PosInfo &) {throw std::exception("Unsupported");}
   };
   map<string, int> pmap;
   vector< PosInfo > pos; // Pair of position, specified (minimal) width
@@ -59,6 +61,8 @@ public:
   
   int get(const string &name);
   int get(const string &name, double scale);
+  int getOriginalPos(const string &name);
+  int getOriginalPos(const string &name, double scale);
 
   void indent(int ind);
 };
@@ -76,8 +80,10 @@ private:
   int minimalIndent;
   bool alignBlock; // True if the next item should also be align (table style block)
   int blockWidth;
-  gdiFonts font;
-
+  bool mergeWithPrevious;
+  gdiFonts font;  
+  int textAdjust; // 0, textRight, textCenter
+  GDICOLOR color;
 public:
 
   MetaListPost(EPostType type_, EPostType align_ = lNone, int leg_ = -1);
@@ -87,6 +93,7 @@ public:
   MetaListPost &align(EPostType align_, bool alignBlock_ = true) {alignType = align_; alignBlock = alignBlock_; return *this;}
   MetaListPost &align(bool alignBlock_ = true) {return align(lAlignNext, alignBlock_);}
   MetaListPost &alignText(const string &t) {alignWithText = t; return *this;}
+  MetaListPost &mergePrevious(bool m_=true) {mergeWithPrevious = m_; return *this;}
   
   MetaListPost &indent(int ind) {minimalIndent = ind; return *this;}
   
@@ -103,6 +110,8 @@ public:
   
   int getMinimalIndent() const {return minimalIndent;}
   bool getAlignBlock() const {return alignBlock;} 
+  bool isMergePrevious() const {return mergeWithPrevious;} 
+  
   int getBlockWidth() const {return blockWidth;}
 
   const string &getFont() const;
@@ -110,6 +119,15 @@ public:
   
   void getFonts(vector< pair<string, size_t> > &fonts, int &currentFont) const;
  
+  const string &getTextAdjust() const;
+  int getTextAdjustNum() const {return textAdjust;} 
+  void setTextAdjust(int align);
+  const string &getColor() const;
+  void setColor(GDICOLOR color);
+  GDICOLOR getColorValue() const {return color;}
+  
+  static void getAllFonts(vector< pair<string, size_t> > &fonts);
+
   friend class MetaList;
 };
 
@@ -119,8 +137,9 @@ private:
   vector< pair<string, int> > fontFaces;
 
   string listName;
+  mutable string listOrigin;
   string tag;
-  string uniqueIndex;
+  mutable string uniqueIndex;
 
   bool hasResults_;
 
@@ -161,8 +180,12 @@ public:
   MetaList();
   virtual ~MetaList() {}
 
-  void initUniqueIndex();
-  const string &getUniqueId() const {return uniqueIndex;}
+  void initUniqueIndex() const;
+  const string &getUniqueId() const {
+    if (uniqueIndex.empty())
+      initUniqueIndex();
+    return uniqueIndex;
+  }
 
   void getFilters(vector< pair<string, bool> > &filters) const;
   void setFilters(const vector<bool> &filters);
@@ -289,4 +312,6 @@ public:
 
   bool interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par, 
                  int lineHeight, oListInfo &li) const;
+
+  void enumerateLists(vector< pair<string, pair<string, string> > > &out) const; 
 };

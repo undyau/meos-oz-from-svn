@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,8 +37,11 @@ protected:
   vector<pRunner> Runners;
 	void setRunnerInternal(int k, pRunner r); 
 
-	BYTE oData[96];
-
+  static const int dataSize = 96;
+  int getDISize() const {return dataSize;}
+	BYTE oData[dataSize];
+  BYTE oDataOld[dataSize];
+  
   // Remove runner r by force and mark as need correction
   void correctRemove(pRunner r);
 
@@ -67,6 +70,9 @@ protected:
 
   void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
 
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
 public:
   /// Returns team fee (including participating runners fees)
   int getTeamFee() const;
@@ -94,15 +100,17 @@ public:
   bool canRemove() const;
 
   void prepareRemove();
-	oDataInterface getDI(void);
-  oDataConstInterface getDCI(void) const;
-
+	
   bool skip() const {return isRemoved();}
   void setTeamNoStart(bool dns);
 	// If apply is triggered by a runner, don't go further than that runner.
-  bool apply(bool sync, pRunner source);
-  bool apply(bool sync);
-	void evaluate(bool sync);
+  bool apply(bool sync, pRunner source, bool setTmpOnly);
+  
+  
+  void quickApply();
+	
+  void evaluate(bool sync);
+  
   bool adjustMultiRunners(bool sync);
 
   int getRogainingPoints() const;
@@ -126,7 +134,7 @@ public:
   string getDisplayClub() const;
 
   string getBib() const;
-  void setBib(const string &bib, bool updateStartNo);
+  void setBib(const string &bib, bool updateStartNo, bool setTmpOnly);
 
   int getLegStartTime(int leg) const;
 	string getLegStartTimeS(int leg) const;

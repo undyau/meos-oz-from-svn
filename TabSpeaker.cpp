@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -421,7 +421,7 @@ void TabSpeaker::splitAnalysis(gdioutput &gdi, int xp, int yp, pRunner r)
   for (size_t j = 0; j<delta.size(); ++j) {
     if (delta[j] > 0) {
       if (pc == 0) {
-        pc = r->getCourse();
+        pc = r->getCourse(true);
         if (pc == 0)
           break;
       }
@@ -440,7 +440,7 @@ void TabSpeaker::splitAnalysis(gdioutput &gdi, int xp, int yp, pRunner r)
     }
   }
   if (first) {
-    gdi.addString("", yp, xp, 0, "Bomfritt lopp / underlag saknas").setColor(colorDarkGreen);
+    gdi.addString("", yp, xp, 0, "Inga bommar registrerade").setColor(colorDarkGreen);
   }
 }
 
@@ -451,7 +451,13 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   if(!pc)
     return;
 
-  gdi.restore("classes", true);
+  bool keepLegs = false;
+  if (gdi.hasField("Leg")) {
+    gdi.restore("LegSelection", true);
+    keepLegs = true;
+  }
+  else
+    gdi.restore("classes", true);
   pCourse course=0;      
 
   int h,w;
@@ -473,12 +479,19 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   pc->getTrueStages(stages);
   int leg = selectedControl[pc->getId()].getLeg();
   if (stages.size()>1) {
-    gdi.addSelection(cx, cy+2, "Leg", int(bw/gdi.getScale())-5, 100, tabSpeakerCB);
+    if (!keepLegs) {
+      gdi.setData("CurrentY", cy);
+      gdi.addSelection(cx, cy+2, "Leg", int(bw/gdi.getScale())-5, 100, tabSpeakerCB);
 
-    for (size_t k=0; k<stages.size(); k++) {      
-      gdi.addItem("Leg", lang.tl("Sträcka X#" + itos(stages[k].second)), stages[k].first);
+      for (size_t k=0; k<stages.size(); k++) {      
+        gdi.addItem("Leg", lang.tl("Sträcka X#" + itos(stages[k].second)), stages[k].first);
+      }
+      gdi.selectItemByData("Leg", leg);
+      gdi.setRestorePoint("LegSelection");
     }
-    gdi.selectItemByData("Leg", leg);
+    else {
+      gdi.getData("CurrentY", *(DWORD*)&cy);
+    }
     cb+=1;
     cx+=1*bw;
   }
@@ -496,12 +509,12 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
   }
 
   if(pc->hasMultiCourse())
-    course=pc->getCourse(courseLeg);
+    course = pc->getCourse(courseLeg, 0, true);
   else
-    course=pc->getCourse();
+    course = pc->getCourse(true);
 
-  list<pControl> controls;
-  list<pControl>::iterator it;
+  vector<pControl> controls;
+  vector<pControl>::iterator it;
 
   if(course)						
 	  course->getControls(controls);
@@ -714,7 +727,7 @@ void TabSpeaker::storeManualTime(gdioutput &gdi)
   lastControl=gdi.getText("Control");
   int r_no=gdi.getTextNo("Runner");
   string time=gdi.getText("Time");
-  pRunner r=oe->getRunnerByStartNo(r_no);
+  pRunner r=oe->getRunnerByStartNo(r_no, false);
 
   if(!r)
     r=oe->getRunnerByCard(r_no);
@@ -726,7 +739,7 @@ void TabSpeaker::storeManualTime(gdioutput &gdi)
     sino=r->getCardNo();
   }
   else
-    Name="Okänd";
+    Name = lang.tl("Okänd");
 
   if (time.empty())
     time=getLocalTimeOnly();
@@ -741,11 +754,10 @@ void TabSpeaker::storeManualTime(gdioutput &gdi)
     throw std::exception(bf);
   }
 
-  pFreePunch fp=oe->addFreePunch(itime, punch, sino);
-  fp->synchronize();
+  oe->addFreePunch(itime, punch, sino, true);
            
   gdi.restore("manual", false);
-  gdi.addString("", 0, "Löpare: X, kontroll: Y, kl Z#" + Name + "#" + itos(punch) + "#" +  oe->getAbsTime(itime));
+  gdi.addString("", 0, "Löpare: X, kontroll: Y, kl Z#" + Name + "#" + oPunch::getType(punch) + "#" +  oe->getAbsTime(itime));
 
   manualTimePage(gdi);
 }
@@ -778,8 +790,8 @@ void TabSpeaker::loadPriorityClass(gdioutput &gdi, int classId) {
 }
 
 void TabSpeaker::savePriorityClass(gdioutput &gdi) {
-  oe->synchronizeList(oLRunnerId);
-  oe->synchronizeList(oLTeamId);
+  oe->synchronizeList(oLRunnerId, true, false);
+  oe->synchronizeList(oLTeamId, false, true);
 
   for (size_t k = 0; k<runnersToSet.size(); k++) {
     pRunner r = oe->getRunner(runnersToSet[k], 0);

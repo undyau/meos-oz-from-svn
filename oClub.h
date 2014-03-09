@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,10 +49,26 @@ class Table;
 class oClub : public oBase
 {
 protected:
+
+  struct InvoiceLine {
+    InvoiceLine() : fee(0), rent(0), paid(0) {}
+    vector< pair<int, pair<bool, string> > > xposAndString;
+    int fee;
+    int rent;
+    int paid;
+    void addString(int xpos, const string &str, bool right = false) {
+      xposAndString.push_back(make_pair(xpos, make_pair(right, str)));
+    }
+  };
+
 	string name;
   vector<string> altNames;
   string tPrettyName;
-	BYTE oData[384];
+
+  static const int dataSize = 384;
+  int getDISize() const {return dataSize;}
+	BYTE oData[dataSize];
+  BYTE oDataOld[dataSize];
 
   int tNumRunners;
   int tFee;
@@ -75,7 +91,6 @@ protected:
   struct InvoiceData {
     int yp;
     int xs;
-    int nameIndent;
     int adrPos;
     int clsPos;
     bool multiDay;
@@ -93,9 +108,24 @@ protected:
     }
   };
 
-  void addRunnerInvoiceLine(gdioutput &gdi, const pRunner r, InvoiceData &data, bool inTeam) const;
-  void addTeamInvoiceLine(gdioutput &gdi, const pTeam r, InvoiceData &data) const;
+  void addInvoiceLine(gdioutput &gdi, const InvoiceLine &lines, InvoiceData &data) const;
+
+  void addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData &data, list<InvoiceLine> &lines) const;
+  void addTeamInvoiceLine(const pTeam r, const InvoiceData &data, list<InvoiceLine> &lines) const;
+
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
 public:
+
+  /** Assign invoice numbers to all clubs. */
+  static void assignInvoiceNumber(oEvent &oe, bool reset);
+
+  static int getFirstInvoiceNumber(oEvent &oe);
+
+  /** Remove all clubs from a competion (and all belong to club relations)*/
+  static void clearClubs(oEvent &oe);
+
   static void buildTableCol(oEvent *oe, Table *t);
   void addTableRow(Table &table) const;
 
@@ -105,13 +135,10 @@ public:
   void updateFromDB();
 
   bool operator<(const oClub &c) {return name<c.name;}
-  void generateInvoice(gdioutput &gdi, int number, int &toPay, int &hasPaid) const;
+  void generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid);
 
   string getInfo() const {return "Klubb " + name;}
   bool sameClub(const oClub &c); 
-
-	oDataInterface getDI();
-  oDataConstInterface getDCI() const;
 
   const string &getName() const {return name;}
 

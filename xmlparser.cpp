@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,12 +29,14 @@
 #include "meos_util.h"
 #include "progress.h"
 #include "meosexception.h"
+#include "gdioutput.h"
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
 
-xmlparser::xmlparser()
+xmlparser::xmlparser(gdioutput *utfConverter_) : utfConverter(utfConverter_)
 {
   progress = 0;
   lastIndex = 0;
@@ -54,7 +56,6 @@ xmlparser::~xmlparser()
 inline bool isBlankSpace(char b) {
   return b == ' ' || b == '\t' || b == '\n' || b == '\r';
 }
-
 
 void xmlparser::setProgress(HWND hWnd)
 {
@@ -79,6 +80,14 @@ xmlobject::~xmlobject()
 	//MessageBox(NULL, name.c_str(), "Destroying: ", MB_OK);
 
 //	if(objects) delete objects;
+}
+
+
+const string &xmlparser::encodeXML(const string &input) {
+  if (utfConverter)
+    return ::encodeXML(utfConverter->toUTF8(input));
+  else
+    return ::encodeXML(input);
 }
 
 void xmlparser::write(const char *tag, const string &Value)
@@ -131,6 +140,25 @@ void xmlparser::write(const char *tag, const char *Property, const string &PropV
 	if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
+
+void xmlparser::write(const char *tag, const vector< pair<string, string> > &propValue, const string &value) {
+  if(!cutMode || value != "" || !propValue.empty())	{		
+    fOut() << "<" << tag;
+    for (size_t k = 0; k < propValue.size(); k++) {
+      fOut() << " " << propValue[k].first << "=\"" << encodeXML(propValue[k].second) << "\"";
+    }
+    if (!value.empty()) {
+		  fOut() << ">" << encodeXML(value)	
+             << "</" << tag << ">" << endl;
+    }
+    else
+      fOut() << "/>" << endl;
+	}
+	if (!fOut().good())
+    throw meosException("Writing to XML file failed.");
+
+}
+
 
 void xmlparser::write(const char *tag, const char *prop, 
                       bool propValue, const string &value) {
@@ -233,7 +261,10 @@ void xmlparser::openMemoryOutput(bool useCutMode) {
   cutMode = useCutMode;
   toString = true;
   foutString.clear();
-  fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";  
+  if (utfConverter)
+    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";  
+  else
+    fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";  
 
   string out = foutString.str();
 }
@@ -259,7 +290,10 @@ void xmlparser::openOutputT(const char *file, bool useCutMode, const string &typ
 	if(foutFile.bad())
     throw meosException(string("Writing to XML file failed: ") + string(file));
 
-	fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
+  if (utfConverter)
+    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";  
+  else
+    fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
 
   if (!type.empty()) {
     startTag(type.c_str());
@@ -267,12 +301,15 @@ void xmlparser::openOutputT(const char *file, bool useCutMode, const string &typ
 	return;
 }
 
-void xmlparser::closeOut()
+int xmlparser::closeOut()
 {
 	while(tagStackPointer>0)
 		endTag();
 
+  int len = foutFile.tellp();
 	foutFile.close();
+
+  return len;
 }
 
 xmldata::xmldata(const char *t, char *d) : tag(t), data(d)

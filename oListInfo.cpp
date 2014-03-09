@@ -1,6 +1,6 @@
 /********************i****************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -64,7 +64,9 @@ oPrintPost::oPrintPost()
   format=0;
   type=lString;
   index=-1;
-  fixedWidth=0;
+  fixedWidth = 0;
+  mergeWith = 0;
+  color = colorDefault;
 }
 
 oPrintPost::oPrintPost(EPostType type_, const string &text_, 
@@ -76,7 +78,9 @@ oPrintPost::oPrintPost(EPostType type_, const string &text_,
   format=format_;
   type=type_;
   index=index_;
-  fixedWidth=0;
+  fixedWidth = 0;
+  mergeWith = 0;
+  color = colorDefault;
 }
 
 
@@ -92,7 +96,7 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
                                const char *fontFace,
                                bool large, int minSize) 
 {
-  string out;
+  //string out;
   oPrintPost pp;
   pp.text = format;
   pp.type = type;
@@ -137,7 +141,7 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
     if (it->isRemoved())
       continue;
 
-    oe->formatListString(pp, out, par, 0, 0, 0, pClass(&*it), c);
+    const string &out = oe->formatListString(pp, par, 0, 0, 0, pClass(&*it), c);
     width = max(width, int(out.length()));
   }
 
@@ -155,7 +159,7 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
     }
 
     while (numIter-- > 0) {
-      oe->formatListString(pp, out, par, it->tInTeam, pRunner(&*it), it->Club, it->Class, c);
+      const string &out = oe->formatListString(pp, par, it->tInTeam, pRunner(&*it), it->Club, it->Class, c);
       width = max(width, int(out.length()));
       if (numIter>0)
         c.level3++;
@@ -165,25 +169,7 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
   double s = 1.0;
 
   s = oe->gdibase.getRelativeFontScale(font, fontFace);
-  /*oe->gdibase.scrollTo(0,0);
-
-  if (font == fontSmall)
-    s = 0.7;
-  else if (font == italicSmall)
-    s = 0.7;
-  else if (font == boldSmall)
-    s = 0.8;
-  else if (font == boldText)
-    s = 1.1;
-  else if (font == boldLarge)
-    s = 1.7;
-  else if (font == boldHuge)
-    s = 2.5;
-  else if (font == fontMedium)
-    s = 0.8;
-  else if (font == fontMediumPlus)
-    s = 1.2;
-*/
+  
   if (width>0 && !large)
     return int(s*(w*6.0+20.0));
   else if (width>0 && large)
@@ -192,19 +178,45 @@ int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
     return 0;
 }
 
-bool oEvent::formatListString(EPostType type, string &out, const pRunner r) const
+const string & oEvent::formatListString(EPostType type, const pRunner r) const
 {
   oPrintPost pp;
   oCounter ctr;
   oListParam par;
   par.legNumber = r->tLeg;
   pp.type = type;
-  return formatListString(pp, out, par, r->tInTeam, r, r->Club, r->Class, ctr);
+  return formatListString(pp, par, r->tInTeam, r, r->Club, r->Class, ctr);
 }
 
-bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListParam &par,
-                              const pTeam t, const pRunner r, const pClub c,
-                              const pClass pc, oCounter &counter) const
+const string &oEvent::formatListString(const oPrintPost &pp, const oListParam &par,
+                                       const pTeam t, const pRunner r, const pClub c,
+                                       const pClass pc, oCounter &counter) const {
+  const oPrintPost *cpp = &pp;
+  const string *tmp = 0;
+  string *out = 0;
+  while (cpp) {
+    if (tmp) {
+      if (!out) {
+        out = &StringCache::getInstance().get();
+        *out = "";
+      }
+      out->append(*tmp);
+    }
+    tmp = &formatListStringAux(*cpp, par, t, r, c, pc, counter);
+    cpp = cpp->mergeWith;
+  }
+
+  if (out) {
+    out->append(*tmp);
+    return *out;
+  }
+  else
+    return *tmp;
+}
+
+const string &oEvent::formatListStringAux(const oPrintPost &pp, const oListParam &par,
+                                          const pTeam t, const pRunner r, const pClub c,
+                                          const pClass pc, oCounter &counter) const
 {
   
   char bf[512];
@@ -240,27 +252,28 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       if(pc && !invalidClass) {
         int total, finished,  dns;
         oe->getNumClassRunners(pc->getId(), par.legNumber, total, finished, dns);
-        sprintf_s(bf, "(%d/%d)", finished, total);
+        sprintf_s(bf, "(%d / %d)", finished, total);
       }
       break;
     case lCourseLength:
       if (r) {
-        pCourse crs = r->getCourse();
+        pCourse crs = r->getCourse(false);
         int len = crs ? crs->getLength() : 0;
         if (len > 0)
           sprintf_s(bf, "%d", len); 
       }
     break;
     case lCourseName:
+    case lRunnerCourse:
       if (r) {
-        pCourse crs = r->getCourse();
+        pCourse crs = r->getCourse(false);
         if (crs)
           sptr = &crs->getName();
       }
     break;
     case lCourseClimb:
       if (r) {
-        pCourse crs = r->getCourse();
+        pCourse crs = r->getCourse(false);
         int len = crs ? crs->getDCI().getInt("Climb") : 0;
         if (len > 0)
           sprintf_s(bf, "%d", len); 
@@ -337,21 +350,21 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       }
       break;
     case lRunnerTime:
-      if(r && !invalidClass) strcpy_s(bf, r->getRunningTimeS().c_str());
+      if(r && !invalidClass) sptr = &r->getRunningTimeS();
       break;
     case lRunnerTimeStatus:
       if(r) {
         if (invalidClass)
           sptr = &lang.tl("Struken");
         else if(r->getStatus()==StatusOK && pc && !pc->getNoTiming())
-          strcpy_s(bf, r->getRunningTimeS().c_str() );
+          sptr = &r->getRunningTimeS();
         else
-          strcpy_s(bf, r->getStatusS().c_str() );
+          sptr = &r->getStatusS();
       }
       break;
     case lRunnerTimePerKM:
       if(r && !invalidClass && r->statusOK()) {
-        const pCourse pc = r->getCourse();
+        const pCourse pc = r->getCourse(false);
         if (pc) {
           int t = r->getRunningTime();
           int len = pc->getLength();
@@ -372,17 +385,17 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         if(r->getTotalStatus()==StatusOK && pc && !pc->getNoTiming())
           strcpy_s(bf, r->getTotalRunningTimeS().c_str() );
         else
-          strcpy_s(bf, r->getTotalStatusS().c_str() );
+          sptr = &r->getTotalStatusS();
       }
       break;
     case lRunnerTempTimeStatus:
       if (invalidClass)
           sptr = &lang.tl("Struken");
       else if(r) {
-        if(r->tStatus==StatusOK && pc && !pc->getNoTiming())
-          strcpy_s(bf, formatTime(r->tRT).c_str() );
+        if(r->tempStatus==StatusOK && pc && !pc->getNoTiming())
+          strcpy_s(bf, formatTime(r->tempRT).c_str() );
         else
-          strcpy_s(bf, formatStatus(r->tStatus).c_str() );
+          strcpy_s(bf, formatStatus(r->tempStatus).c_str() );
       }
       break;
     case lRunnerPlace:
@@ -438,7 +451,7 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
     case lRunnerTimeAfter:
       if (r && pc && !invalidClass) {
         int tleg=r->tLeg>=0 ? r->tLeg:0;
-        if (r->Status==StatusOK &&  pc && !pc->getNoTiming() 
+        if (r->tStatus==StatusOK &&  pc && !pc->getNoTiming() 
               && r->getRunningTime() > pc->getBestLegTime(tleg)) {
           int after=r->getRunningTime()-pc->getBestLegTime(tleg);
           sprintf_s(bf, "+%d:%02d", after/60, after%60);
@@ -457,8 +470,8 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       break;
     case lRunnerClassCourseTimeAfter:
       if (r && pc && !invalidClass) {
-        pCourse crs = r->getCourse();
-        if (crs && r->Status==StatusOK && !pc->getNoTiming()) {
+        pCourse crs = r->getCourse(false);
+        if (crs && r->tStatus==StatusOK && !pc->getNoTiming()) {
           int after = r->getRunningTime() - pc->getBestTimeCourse(crs->getId());
           if (after > 0)
             sprintf_s(bf, "+%d:%02d", after/60, after%60);
@@ -485,15 +498,15 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       }
       break;
     case lRunnerMissedTime:
-      if (r && r->Status == StatusOK && pc && !pc->getNoTiming() && !invalidClass) {
+      if (r && r->tStatus == StatusOK && pc && !pc->getNoTiming() && !invalidClass) {
         strcpy_s(bf, r->getMissedTimeS().c_str());
       }
       break;
     case lRunnerTempTimeAfter:
       if (r && pc) {
-        if (r->tStatus==StatusOK &&  pc && !pc->getNoTiming() 
-              && r->tRT>pc->tLegLeaderTime) {
-          int after=r->tRT-pc->tLegLeaderTime;
+        if (r->tempStatus==StatusOK &&  pc && !pc->getNoTiming() 
+              && r->tempRT>pc->tLegLeaderTime) {
+          int after=r->tempRT-pc->tLegLeaderTime;
           sprintf_s(bf, "+%d:%02d", after/60, after%60);
         }
       }
@@ -509,10 +522,6 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         if(rank>0)
           strcpy_s(bf, FormatRank(rank).c_str());          
       }
-      break;
-    case lRunnerCourse:
-      if(r && r->getCourse()) 
-        sptr = &r->getCourse()->getName();
       break;
     case lRunnerBib:
       if(r) {
@@ -602,7 +611,7 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         if(t->getLegStatus(pp.index, false)==StatusOK)
           strcpy_s(bf, t->getLegRunningTimeS(pp.index, false).c_str() );
         else
-          strcpy_s(bf, t->getLegStatusS(pp.index, false).c_str() );
+          sptr = &t->getLegStatusS(pp.index, false);
       }
       break; 
     case lTeamRogainingPoint:
@@ -726,35 +735,70 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
         sprintf_s(bf, "%d", r->getStartNo());
       break;
     case lPunchNamedTime:
-      if(r && r->Card && r->getCourse() && !invalidClass) {
-        const pCourse crs = r->getCourse();
+      if(r && r->Card && r->getCourse(true) && !invalidClass) {
+        const pCourse crs = r->getCourse(true);
         const oControl *ctrl=crs->getControl(counter.level3);
         if (!ctrl || ctrl->isRogaining(crs->hasRogaining()))
           break;
-        if (r->getPunchTime(counter.level3)>0 && ctrl->hasName()) {
+        if (r->getPunchTime(counter.level3, false)>0 && ctrl->hasName()) {
           sprintf_s(bf, "%s: %s (%s)", ctrl->getName().c_str(),
             r->getNamedSplitS(counter.level3).c_str(),
-            r->getPunchTimeS(counter.level3).c_str());
+            r->getPunchTimeS(counter.level3, false).c_str());
         }
       }
       break;
     case lPunchTime:
-      if(r && r->Card && r->getCourse() && !invalidClass) {
-        const pCourse crs=r->getCourse();
+    case lPunchControlNumber:
+    case lPunchControlCode:
+    case lPunchLostTime:
+    case lPunchControlPlace:
+    case lPunchControlPlaceAcc:
+
+      if(r && r->Card && r->getCourse(true) && !invalidClass) {
+        const pCourse crs=r->getCourse(true);
         int nCtrl = crs->getNumControls();
         if (counter.level3 != nCtrl) { // Always allow finish
         const oControl *ctrl=crs->getControl(counter.level3);
         if (!ctrl || ctrl->isRogaining(crs->hasRogaining()))
           break;
         }
-
-        if (r->getPunchTime(counter.level3)>0) {
-          sprintf_s(bf, "%s (%s)", 
-            r->getSplitTimeS(counter.level3).c_str(),
-            r->getPunchTimeS(counter.level3).c_str());
+        if (pp.type == lPunchTime) { 
+          if (r->getPunchTime(counter.level3, false)>0) {
+            sprintf_s(bf, "%s (%s)", 
+              r->getSplitTimeS(counter.level3, false).c_str(),
+              r->getPunchTimeS(counter.level3, false).c_str());
+          }
+          else {
+            sprintf_s(bf, MakeDash("- (-)").c_str());
+          }
         }
-        else 
-          sprintf_s(bf, "- (-)");
+        else if (pp.type == lPunchControlNumber) {
+          sprintf_s(bf, crs->getControlOrdinal(counter.level3).c_str());
+        } 
+        else if (pp.type == lPunchControlCode) {
+          const oControl *ctrl=crs->getControl(counter.level3);
+          if (ctrl) {
+            if (ctrl->getStatus() == oControl::StatusMultiple) {
+              string str = ctrl->getStatusS();
+              sprintf_s(bf, "%s.", str.substr(0, 1).c_str());
+            }
+            else
+              sprintf_s(bf, "%d", ctrl->getFirstNumber());
+          }
+        }
+        else if (pp.type == lPunchControlPlace) {
+          int p = r->getLegPlace(counter.level3);
+          if (p>0)
+            sprintf_s(bf, "%d", p);
+        }
+        else if (pp.type == lPunchControlPlaceAcc) {
+          int p = r->getLegPlaceAcc(counter.level3);
+          if (p>0)
+            sprintf_s(bf, "%d", p);
+        }
+        else if (pp.type == lPunchLostTime) {
+          strcpy_s(bf, r->getMissedTimeS(counter.level3).c_str());
+        }
       }
       break;
     case lSubSubCounter:
@@ -779,16 +823,16 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
       sptr = c != 0 ? &c->getDisplayName() : 0;
       break;
     case lRogainingPunch:
-      if(r && r->Card && r->getCourse()) {
-        const pCourse crs = r->getCourse();
+      if(r && r->Card && r->getCourse(false)) {
+        const pCourse crs = r->getCourse(false);
         const pPunch punch = r->Card->getPunchByIndex(counter.level3);
         if (punch && punch->tRogainingIndex>=0) {
           const pControl ctrl = crs->getControl(punch->tRogainingIndex);
           if (ctrl) {
             sprintf_s(bf, "%d, %dp, %s (%s)", 
                       punch->Type, ctrl->getRogainingPoints(),
-                      r->Card->getRogainingSplit(counter.level3, r->StartTime).c_str(),
-                      punch->getRunningTime(r->StartTime).c_str());
+                      r->Card->getRogainingSplit(counter.level3, r->tStartTime).c_str(),
+                      punch->getRunningTime(r->tStartTime).c_str());
           }
         }
       }
@@ -796,33 +840,38 @@ bool oEvent::formatListString(const oPrintPost &pp, string &out, const oListPara
   }
 
   if(pp.type!=lString && (sptr==0 || sptr->empty()) && bf[0]==0) 
-    out.clear();
+    return _EmptyString;
   else if(sptr) {
     if(pp.text.empty())
-      out=*sptr;
+      return *sptr;
     else {
       sprintf_s(bf, pp.text.c_str(), sptr->c_str());
-      out=bf;
+      string &res = StringCache::getInstance().get();
+      res = bf;
+      return res;
     }
   }
   else {
-    if(pp.text.empty())
-      out=bf;
+    if(pp.text.empty()) {
+      string &res = StringCache::getInstance().get();
+      res = bf;
+      return res;
+    }
     else {
       char bf2[512];
       sprintf_s(bf2, pp.text.c_str(), bf);
-      out=bf2;
+      string &res = StringCache::getInstance().get();
+      res = bf2;
+      return res;
     }
   }
-  return !out.empty();
 }
 
 bool oEvent::formatPrintPost(const list<oPrintPost> &ppli, gdioutput &gdi, const oListParam &par,
                               const pTeam t, const pRunner r, const pClub c,
-                              const pClass pc, oCounter &counter)
+                              const pClass pc, oCounter &counter, bool keepToghether)
 {
   list<oPrintPost>::const_iterator ppit;
-  string text;
 	int y=gdi.getCY(); 
 	int x=gdi.getCX();
   bool updated=false;
@@ -830,10 +879,17 @@ bool oEvent::formatPrintPost(const list<oPrintPost> &ppli, gdioutput &gdi, const
     const oPrintPost &pp=*ppit;
     int limit = 0;
     
+    bool keepNext = false;
+    //Skip merged entities
+    while (ppit != ppli.end() && ppit->mergeWith != 0)
+      ++ppit;
+   
+    // Main increment below
     if( ++ppit != ppli.end() && ppit->dy==pp.dy)
       limit = ppit->dx - pp.dx;
+    else
+      keepNext = true;
 
-    //if(pp.fixedWidth>0)
     limit=max(pp.fixedWidth, limit);
 
     assert(limit>=0);
@@ -841,20 +897,34 @@ bool oEvent::formatPrintPost(const list<oPrintPost> &ppli, gdioutput &gdi, const
     if(!rr && t)
       rr=t->getRunner(pp.index);
 
-    updated |= formatListString(pp, text, par, t, rr, c, pc, counter);
-
+    const string &text = formatListString(pp, par, t, rr, c, pc, counter);
+    updated |= !text.empty();
+    TextInfo *ti = 0;
     if(!text.empty()) {
-      if (pp.type == lRunnerName && rr)
-        gdi.addStringUT(y+gdi.scaleLength(pp.dy), x+gdi.scaleLength(pp.dx), pp.format, text, 
-        gdi.scaleLength(limit), par.cb, pp.fontFace.c_str()).setExtra(rr);
-      else if (pp.type == lTeamName && t)
-        gdi.addStringUT(y+gdi.scaleLength(pp.dy), x+gdi.scaleLength(pp.dx), pp.format, text, 
-                        gdi.scaleLength(limit), par.cb, pp.fontFace.c_str()).setExtra(t);
-      else
-        gdi.addStringUT(y + gdi.scaleLength(pp.dy), x + gdi.scaleLength(pp.dx), 
-                        pp.format, text, gdi.scaleLength(limit), 0, pp.fontFace.c_str());
+      if ( (pp.type == lRunnerName || pp.type == lRunnerCompleteName ||
+            pp.type == lRunnerFamilyName || pp.type == lRunnerGivenName || 
+            pp.type == lTeamRunner || (pp.type == lPatrolNameNames && !t)) && rr) {
+        ti = &gdi.addStringUT(y+gdi.scaleLength(pp.dy), x+gdi.scaleLength(pp.dx), pp.format, text, 
+        gdi.scaleLength(limit), par.cb, pp.fontFace.c_str());
+        ti->setExtra(rr);
+      }
+      else if ((pp.type == lTeamName || pp.type == lPatrolNameNames) && t) {
+        ti = &gdi.addStringUT(y+gdi.scaleLength(pp.dy), x+gdi.scaleLength(pp.dx), pp.format, text, 
+                              gdi.scaleLength(limit), par.cb, pp.fontFace.c_str());
+        ti->setExtra(t);
+      }
+      else {
+        ti = &gdi.addStringUT(y + gdi.scaleLength(pp.dy), x + gdi.scaleLength(pp.dx), 
+                              pp.format, text, gdi.scaleLength(limit), 0, pp.fontFace.c_str());
+      }
+      if (ti && keepToghether)
+        ti->lineBreakPrioity = -1;
 
+      if (pp.color != colorDefault)
+        ti->setColor(pp.color);
     }
+    keepToghether |= keepNext;
+    
   }  
 
   return updated; 
@@ -866,15 +936,17 @@ void oEvent::calculatePrintPostKey(const list<oPrintPost> &ppli, gdioutput &gdi,
 {
   key.clear();
   list<oPrintPost>::const_iterator ppit;
-  string text;
   for (ppit=ppli.begin();ppit!=ppli.end(); ++ppit) {
     const oPrintPost &pp=*ppit;
     pRunner rr = r;    
     if(!rr && t)
       rr=t->getRunner(pp.index);
 
-    formatListString(pp, text, par, t, rr, c, pc, counter);
+    const string &text = formatListString(pp, par, t, rr, c, pc, counter);
     key += text;
+    //Skip merged entities
+    while (ppit != ppli.end() && ppit->mergeWith != 0)
+      ++ppit;
   }   
 }
 
@@ -884,25 +956,22 @@ void oEvent::listGeneratePunches(const list<oPrintPost> &ppli, gdioutput &gdi, c
   if(!r || ppli.empty()) 
     return;
 
-  pCourse crs=r->getCourse();
+  pCourse crs=r->getCourse(true);
 
   bool filterNamed = false;
   int h = gdi.getLineHeight();
+  int w=0;
 
   for (list<oPrintPost>::const_iterator it = ppli.begin(); it != ppli.end(); ++it) {
     if (it->type == lPunchNamedTime)
       filterNamed = true;
-    else if (it->type == lPunchTime) {
-      filterNamed = false;
-      break;
-    }
-    h = max(h, gdi.getLineHeight(it->getFont(), it->fontFace.c_str()));
+    h = max(h, gdi.getLineHeight(it->getFont(), it->fontFace.c_str()) + gdi.scaleLength(it->dy));
+    w = max(w, gdi.scaleLength(it->fixedWidth + it->dx));
   }
 
   if(!crs)
     return;
 
-  int w=gdi.scaleLength(ppli.front().fixedWidth);
   int xlimit=gdi.getCX()+ gdi.scaleLength(600);
 
   if (w>0) {
@@ -943,7 +1012,7 @@ void oEvent::listGeneratePunches(const list<oPrintPost> &ppli, gdioutput &gdi, c
     }
     
     if (!skip[k]) { 
-      updated |= formatPrintPost(ppli, gdi, par, t, r, club, cls, counter);
+      updated |= formatPrintPost(ppli, gdi, par, t, r, club, cls, counter, true);
       neednewline |= updated;
     }
 
@@ -958,37 +1027,58 @@ void oEvent::listGeneratePunches(const list<oPrintPost> &ppli, gdioutput &gdi, c
   }
 }
 
-void oEvent::generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li)
-{ 
+void oEvent::generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li, bool updateScrollBars) { 
   if (reEvaluate)
-    reEvaluateAll(false);
+    reEvaluateAll(set<int>(), false);
 
   oe->calcUseStartSeconds();
   oe->updateComputerTime();
 
+  string listname;
   if (!li.Head.empty()) {
     oCounter counter;
-    string name;
-    formatListString(li.Head.front(), name, li.lp, 0, 0, 0, 0, counter);
+    const string &name = formatListString(li.Head.front(), li.lp, 0, 0, 0, 0, counter);
+    listname = name;
     li.lp.updateDefaultName(name);
   }
+  bool addHead = !li.lp.pageBreak && !li.lp.useLargeSize;
+  size_t nClassesSelected = li.lp.selection.size();
+  if (nClassesSelected!=0 && nClassesSelected < min(Classes.size(), Classes.size()/2+5) ) {
+    // Non-trivial class selection:
+    Classes.sort();
+    string cls;
+    for (oClassList::iterator it = Classes.begin(); it != Classes.end(); ++it) {
+      if (li.lp.selection.count(it->getId())) {
+        cls += MakeDash(" - ");
+        cls += it->getName();
+      }
+    }
+    listname += cls;
+  }
 
-  generateListInternal(gdi, li, true);
+  if (li.lp.legNumber != -1) {
+    listname += lang.tl(" Sträcka X#" + itos(li.lp.legNumber + 1));
+  }
+
+  generateListInternal(gdi, li, addHead);
   oListInfo *next = li.next;
   while(next) {
     generateListInternal(gdi, *next, false);
     next = next->next;
   }
+
+  gdi.setListDescription(listname);
+  if (updateScrollBars)
+    gdi.updateScrollbars();
 }
 
-void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool formatHead)
-{
+void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool formatHead) {
 
   oCounter counter;
   //Render header
   
   if (formatHead)
-    formatPrintPost(li.Head, gdi, li.lp, 0,0,0,0, counter);
+    formatPrintPost(li.Head, gdi, li.lp, 0,0,0,0, counter, false);
   
   if (li.fixedType) {
     generateFixedList(gdi, li);
@@ -1038,7 +1128,7 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
     //bool lastLeg = li.lp.legNumber < 0;
 
 	  for (it=Runners.begin(); it != Runners.end(); ++it) {	
-      if (it->isRemoved() || it->Status == StatusNotCompetiting)
+      if (it->isRemoved() || it->tStatus == StatusNotCompetiting)
         continue;
 
       if (it->legToRun() != li.lp.legNumber && li.lp.legNumber!=-1)
@@ -1048,7 +1138,7 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
 			  continue;
       
       if(li.filter(EFilterExcludeDNS))
-        if (it->Status==StatusDNS)
+        if (it->tStatus==StatusDNS)
           continue;
 
       if (li.filter(EFilterVacant)) {
@@ -1061,9 +1151,9 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
       }
 
       if(li.filter(EFilterHasResult))
-        if(li.lp.useControlIdResultTo==0 && it->Status==StatusUnknown)
+        if(li.lp.useControlIdResultTo==0 && it->tStatus==StatusUnknown)
           continue;
-        else if( (li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && it->tStatus!=StatusOK)
+        else if( (li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && it->tempStatus!=StatusOK)
           continue;
 
       if(li.filter(EFilterRentCard) && it->getDI().getInt("CardFee")==0)
@@ -1082,16 +1172,16 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
         if (li.lp.pageBreak) {
           if (!oldKey.empty()) 
             gdi.addStringUT(gdi.getCY()-1, 0, pageNewPage, "");
-          
-          gdi.addStringUT(pagePageInfo, it->getClass());
         }
+        gdi.addStringUT(pagePageInfo, it->getClass());
+
         oldKey.swap(newKey);
         counter.level2=0;
         counter.level3=0;
-        formatPrintPost(li.subHead, gdi, li.lp, it->tInTeam, &*it, it->Club, it->Class, counter);
+        formatPrintPost(li.subHead, gdi, li.lp, it->tInTeam, &*it, it->Club, it->Class, counter, false);
 	    }
       if (li.lp.filterMaxPer==0 || counter.level2<li.lp.filterMaxPer) {
-        formatPrintPost(li.listPost, gdi, li.lp, it->tInTeam, &*it, it->Club, it->Class, counter);
+        formatPrintPost(li.listPost, gdi, li.lp, it->tInTeam, &*it, it->Club, it->Class, counter, false);
         
         if(li.listSubType==li.EBaseTypePunches) {
           listGeneratePunches(li.subListPost, gdi, li.lp, it->tInTeam, &*it, it->Club, it->Class); 
@@ -1114,14 +1204,14 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
 
     oTeamList::iterator it;
 	  for (it=Teams.begin(); it != Teams.end(); ++it) {
-      if (it->isRemoved() || it->Status == StatusNotCompetiting)
+      if (it->isRemoved() || it->tStatus == StatusNotCompetiting)
         continue;
 
       if (!li.lp.selection.empty() && li.lp.selection.count(it->getClassId())==0)
 			  continue;
 
       if(li.filter(EFilterExcludeDNS))
-        if (it->Status==StatusDNS)
+        if (it->tStatus==StatusDNS)
           continue;
 
       if (li.filter(EFilterVacant))
@@ -1136,37 +1226,36 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
       if(li.filter(EFilterHasResult) && it->getLegStatus(li.lp.legNumber, false)==StatusUnknown)
         continue;
 
-//		  if (it->getClassId()!=Id) {
       string newKey;
       calculatePrintPostKey(li.subHead, gdi, li.lp, &*it, 0, it->Club, it->Class, counter, newKey);
       if (newKey != oldKey) {
         if(li.lp.pageBreak) {
           if(!oldKey.empty()) 
             gdi.addStringUT(gdi.getCY()-1, 0, pageNewPage, "");
-          
-          gdi.addStringUT(pagePageInfo, it->getClass());
         }
+        gdi.addStringUT(pagePageInfo, it->getClass());
+
         oldKey.swap(newKey);
-        //Id=it->getClassId();
-        //classCounter=0;
         counter.level2=0;
         counter.level3=0;
-        formatPrintPost(li.subHead, gdi, li.lp, &*it, 0, it->Club, it->Class, counter);
+        formatPrintPost(li.subHead, gdi, li.lp, &*it, 0, it->Club, it->Class, counter, false);
 		  }
       ++counter;
       if (li.lp.filterMaxPer==0 || counter.level2<=li.lp.filterMaxPer) {
         counter.level3=0;
-        formatPrintPost(li.listPost, gdi, li.lp, &*it, 0, it->Club, it->Class, counter);
+        formatPrintPost(li.listPost, gdi, li.lp, &*it, 0, it->Club, it->Class, counter, false);
   
         if(li.subListPost.empty())
           continue;
 
         if(li.listSubType==li.EBaseTypeRunner) {
-          for (int k=0;k<int(it->Runners.size());k++) {
+          int nr = int(it->Runners.size());
+          for (int k=0;k<nr;k++) {
             if(it->Runners[k]) {
-              if(it->Runners[k]->Status!=StatusUnknown || !li.filter(EFilterHasResult)) {
+              if(it->Runners[k]->tStatus!=StatusUnknown || !li.filter(EFilterHasResult)) {
+                bool suitableBreak = k<2 || (k+2)>=nr;
                 formatPrintPost(li.subListPost, gdi, li.lp, &*it, it->Runners[k], 
-                              it->Club, it->Class, counter);
+                              it->Club, it->Class, counter, suitableBreak);
               }
               counter.level3++;
             }
@@ -1220,7 +1309,7 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
       bool startClub = false;
       pRunner pLeader = 0;
       for (rit = Runners.begin(); rit != Runners.end(); ++rit) {
-        if (rit->skip() || rit->Status == StatusNotCompetiting)
+        if (rit->isRemoved() || rit->tStatus == StatusNotCompetiting)
           continue;
 
         if (rit->legToRun() != li.lp.legNumber && li.lp.legNumber!=-1)
@@ -1230,13 +1319,13 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
 			    continue;
       
         if(li.filter(EFilterExcludeDNS))
-          if (rit->Status==StatusDNS)
+          if (rit->tStatus==StatusDNS)
             continue;
 
         if(li.filter(EFilterHasResult)) {
-          if(li.lp.useControlIdResultTo==0 && rit->Status==StatusUnknown)
+          if(li.lp.useControlIdResultTo==0 && rit->tStatus==StatusUnknown)
             continue;
-          else if((li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && rit->tStatus!=StatusOK)
+          else if((li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && rit->tempStatus!=StatusOK)
             continue;
         }
 
@@ -1249,17 +1338,17 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
                 gdi.addStringUT(gdi.getCY()-1, 0, pageNewPage, "");
               else
                 first = false;
-              gdi.addStringUT(pagePageInfo, it->getName());
             }
+            gdi.addStringUT(pagePageInfo, it->getName());
             counter.level2=0;
             counter.level3=0;
-            formatPrintPost(li.subHead, gdi, li.lp, 0, 0, &*it, 0, counter);
+            formatPrintPost(li.subHead, gdi, li.lp, 0, 0, &*it, 0, counter, false);
             startClub = true;
           }
           ++counter;
           if (li.lp.filterMaxPer==0 || counter.level2<=li.lp.filterMaxPer) {
             counter.level3=0;
-            formatPrintPost(li.listPost, gdi, li.lp, 0, &*rit, &*it, rit->Class, counter);
+            formatPrintPost(li.listPost, gdi, li.lp, 0, &*rit, &*it, rit->Class, counter, false);
             if(li.subListPost.empty())
               continue;
           }
@@ -1267,7 +1356,6 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
       }//Runners
     }//Clubs
   }
-	gdi.updateScrollbars();
 }
 
 void oEvent::fillListTypes(gdioutput &gdi, const string &name, int filter)
@@ -1873,8 +1961,8 @@ void oEvent::generateListInfo(oListParam &par, int lineHeight, oListInfo &li)
       generateNBestHead(par, li, 25+lh);
 
       pos.add("place", 25);
-      pos.add("name", li.getMaxCharWidth(this, lPatrolNameNames, "", normalText));
-      pos.add("club", li.getMaxCharWidth(this, lPatrolClubNameNames, "", normalText));
+      pos.add("name", li.getMaxCharWidth(this, lPatrolNameNames, "", normalText, 0, false, 25));
+      pos.add("club", li.getMaxCharWidth(this, lPatrolClubNameNames, "", normalText, 0, false, 25));
       pos.add("status", 50);
       pos.add("after", 50);
       pos.add("missed", 50);

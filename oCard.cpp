@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@
 #include "table.h"
 #include "Localizer.h"
 #include "meos_util.h"
+
+#include <algorithm>
 
 #include "SportIdent.h"
 //////////////////////////////////////////////////////////////////////
@@ -197,9 +199,11 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
     punchRemain=ctrl->getNumMulti();
 
   map<int, pPunch> rogainingIndex;
-  for (it=Punches.begin(); it != Punches.end(); ++it) {			
-    if (it->tRogainingIndex >= 0)
-      rogainingIndex[it->tRogainingIndex] = &*it;
+  if (crs) {
+    for (it=Punches.begin(); it != Punches.end(); ++it) {			
+      if (it->tRogainingIndex >= 0)
+        rogainingIndex[it->tRogainingIndex] = &*it;
+    }
   }
 
 	for (it=Punches.begin(); it != Punches.end(); ++it){			
@@ -211,13 +215,13 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
 			}
 		}
 
-    if (it->tRogainingIndex != -1)
+    if (crs && it->tRogainingIndex != -1)
       continue;    
 
     {
 		  if(it->isStart())  
 			  hasStart=true;
-      else if(it->isUsed && !it->isFinish() &&  !it->isCheck()) {
+      else if(crs && it->isUsed && !it->isFinish() &&  !it->isCheck()) {
         while(ctrl && it->tMatchControlId!=ctrl->getId()) {
           if (ctrl->isRogaining(hasRogaining)) {
             if (rogainingIndex.count(matchPunch) == 1)
@@ -237,7 +241,7 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
         }
       }
       
-      if(it->isUsed || (showFinish && it->isFinish()) || (showStart && it->isStart())) {
+      if((!crs || it->isUsed) || (showFinish && it->isFinish()) || (showStart && it->isStart())) {
         if (it->isFinish() && hasRogaining && crs) { 
           while (ctrl) {
             if (ctrl->isRogaining(hasRogaining)) {
@@ -460,6 +464,18 @@ pCard oEvent::getCard(int Id) const
 	return 0;
 }
 
+void oEvent::getCards(vector<pCard> &c) {
+  synchronizeList(oLCardId);
+  c.clear();
+  c.reserve(Cards.size());
+
+  for (oCardList::iterator it = Cards.begin(); it != Cards.end(); ++it) {
+    if (!it->isRemoved())
+     c.push_back(&*it);
+  }
+}
+
+
 pCard oEvent::addCard(const oCard &oc)
 {
   if (oc.Id<=0)
@@ -525,8 +541,8 @@ void oEvent::generateCardTableData(Table &table, oCard *addCard)
   }
 
  	oCardList::iterator it;	
-	synchronizeList(oLCardId);
-  synchronizeList(oLRunnerId);
+	synchronizeList(oLCardId, true, false);
+  synchronizeList(oLRunnerId, false, true);
 
   for (it=Cards.begin(); it!=Cards.end(); ++it) {
     if(!it->isRemoved()) {
@@ -569,13 +585,7 @@ void oCard::addTableRow(Table &table) const {
   table.set(row++, it, TID_COURSE, npunch, false, cellEdit);
 }
 
-oDataInterface oCard::getDI() 
-{
-  throw std::exception("Unsupported");
-}
-
-oDataConstInterface oCard::getDCI() const
-{
+oDataContainer &oCard::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
   throw std::exception("Unsupported");
 }
 
@@ -634,4 +644,30 @@ pair<int, int> oCard::getTimeRange() const {
     }
   }
   return t;
+}
+
+void oCard::getPunches(vector<pPunch> &punches) const {
+  punches.clear();
+  punches.reserve(Punches.size());
+  for(oPunchList::const_iterator it = Punches.begin(); it != Punches.end(); ++it) {
+    punches.push_back(pPunch(&*it));
+  }
+}
+
+bool oCard::comparePunchTime(oPunch *p1, oPunch *p2) {
+  return p1->Time < p2->Time;
+}
+
+void oCard::setupFromRadioPunches(oRunner &r) {
+  oe->synchronizeList(oLPunchId, true, true);
+  vector<pFreePunch> p;
+  oe->getPunchesForRunner(r.getId(), p);
+
+  sort(p.begin(), p.end(), comparePunchTime);
+
+  for (size_t k = 0; k < p.size(); k++)
+    addPunch(p[k]->Type, p[k]->Time, 0);
+
+  CardNo = r.getCardNo();
+  ReadId = ConstructedFromPunches; //Indicates
 }

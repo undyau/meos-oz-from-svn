@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,8 +27,17 @@
 #include <set>
 
 #include "oBase.h"
+#include "inthashmap.h"
 
 class Table;
+
+class oDataDefiner {
+public:
+  virtual ~oDataDefiner() {}
+  virtual const string &formatData(oBase *obj) const = 0;
+  virtual string setData(oBase *obj, const string &input) const = 0;
+  virtual int addTableColumn(Table *table, const string &description, int minWidth) const = 0;
+};
 
 struct oDataInfo {
 	char Name[20];
@@ -41,22 +50,30 @@ struct oDataInfo {
   int decimalSize;
   int decimalScale;
   vector< pair<string, string> > enumDescription;
-
+  const oDataDefiner *dataDefiner;
   oDataInfo();
   ~oDataInfo();
 };
 
-struct oVariableInt
-{
-	char Name[20];
-	int* Data;
+struct oVariableInt {
+	char name[20];
+	int *data32;
+  __int64 *data64;
+  oVariableInt() : data32(0), data64(0) {name[0] = 0;}
 };
 
-struct oVariableString
-{
-	char Name[20];
-	char* Data;
-	int MaxSize;
+class oVariableString {
+  public:
+    oVariableString(char *buff, int size) : data(buff), maxSize(size), strData(0), strIndex(-2) {}
+    oVariableString(vector<string> &vec) : data(0), maxSize(0), strData(&vec), strIndex(-1) {}
+    oVariableString(vector<string> &vec, int position) : data(0), maxSize(0), strData(&vec), strIndex(position) {}
+    char name[20];
+    bool store(const char *str);
+  private:
+	  char *data;
+	  int maxSize;
+    vector<string> *strData;
+    int strIndex; //-1 means array, otherwise string in fixed position 
 };
 
 class oBase;
@@ -67,21 +84,34 @@ class gdioutput;
 class oDataInterface;
 class oDataConstInterface;
 
-class oDataContainer
-{
+class oDataContainer {
 protected:
-	enum oDataType{oDTInt=1, oDTString=2};
-	//void *Data;
-	int DataMaxSize;
-	int DataPointer;
-	map<string, oDataInfo> Index;
-  vector<string> ordered;
+	enum oDataType{oDTInt=1, oDTString=2, oDTStringDynamic=3, oDTStringArray=4};
+	int dataMaxSize;
+	int dataPointer;
+  size_t stringIndexPointer;
+  size_t stringArrayIndexPointer;
 
-  oDataInfo *findVariable(const char *Name);
+	//map<string, oDataInfo> index;
+  //vector<string> ordered;
+  inthashmap index;
+  vector<oDataInfo> ordered;
+
+  static int hash(const char *name);
+
+  oDataInfo *findVariable(const char *name);
 	const oDataInfo *findVariable(const char *Name) const;
   bool formatNumber(int nr, const oDataInfo &di, char bf[64]) const;
 
-	void addVariable(oDataInfo &odi);
+  static string encodeArray(const vector<string> &input);
+  static void decodeArray(const string &input, vector<string> &output);
+
+  bool isModified(const oDataInfo &di, 
+                                const void *data, 
+                                const void *oldData, 
+                                vector< vector<string> > *strptr) const;
+
+  oDataInfo &addVariable(oDataInfo &odi);
 	static string C_INT(const string & name);
 	static string C_INT64(const string & name);
 	static string C_SMALLINT(const string & name);
@@ -98,23 +128,27 @@ public:
     return generateSQLDefinition(std::set<string>());
   }
 	
-  string generateSQLSet(const void *data) const;
-	void getVariableInt(const void *data, list<oVariableInt> &var) const;
-	void getVariableString(const void *data, list<oVariableString> &var) const;
+  string generateSQLSet(const oBase *ob, bool forceSetAll) const;
+ 
+  void allDataStored(const oBase *ob);
+  void getVariableInt(const void *data, list<oVariableInt> &var) const;
+	void getVariableString(const oBase *data, list<oVariableString> &var) const;
 
 	oDataInterface getInterface(void *data, int datasize, oBase *ob);
   oDataConstInterface getConstInterface(const void *data, int datasize, 
                                         const oBase *ob) const;
 
-	void addVariableInt(const char *name, oIntSize isize, const char *descr);
-  void addVariableDecimal(const char *name, const char *descr, int fixedDeci);
-	void addVariableDate(const char *name,  const char *descr){addVariableInt(name, oISDate, descr);}
-  void addVariableCurrency(const char *name,  const char *descr){addVariableInt(name, oISCurrency, descr);}
-	void addVariableString(const char *name, int MaxChar, const char *descr);
-  void addVariableEnum(const char *name, int maxChar, const char *descr, 
+  oDataInfo &addVariableInt(const char *name, oIntSize isize, const char *descr, const oDataDefiner *dataDef = 0);
+  oDataInfo &addVariableDecimal(const char *name, const char *descr, int fixedDeci);
+	oDataInfo &addVariableDate(const char *name,  const char *descr){return addVariableInt(name, oISDate, descr);}
+  oDataInfo &addVariableCurrency(const char *name,  const char *descr){return addVariableInt(name, oISCurrency, descr);}
+	oDataInfo &addVariableString(const char *name, int maxChar, const char *descr, const oDataDefiner *dataDef = 0);
+  oDataInfo &addVariableString(const char *name, const char *descr, const oDataDefiner *dataDef = 0);
+    
+  oDataInfo &addVariableEnum(const char *name, int maxChar, const char *descr, 
                                   const vector< pair<string, string> > enumValues);
 
-	void initData(void *data, int datasize);
+	void initData(oBase *ob, int datasize);
 
 	bool setInt(void *data, const char *Name, int V);
 	int getInt(const void *data, const char *Name) const;
@@ -122,14 +156,14 @@ public:
   bool setInt64(void *data, const char *Name, __int64 V);
 	__int64 getInt64(const void *data, const char *Name) const;
 
-	bool setString(void *data, const char *Name, const string &V);
-	string getString(const void *data, const char *Name) const;
+	bool setString(oBase *ob, const char *name, const string &v);
+	const string &getString(const oBase *ob, const char *name) const;
 
 	bool setDate(void *data, const char *Name, const string &V);
-	string getDate(const void *data, const char *Name) const;
+	const string &getDate(const void *data, const char *Name) const;
 
-	bool write(const void *data, xmlparser &xml) const;
-	void set(void *data, const xmlobject &xo);
+	bool write(const oBase *ob, xmlparser &xml) const;
+	void set(oBase *ob, const xmlobject &xo);
 
   // Get a measure of how much data is stored in this record.
   int getDataAmountMeasure(const void *data) const;
@@ -137,17 +171,17 @@ public:
 	void buildDataFields(gdioutput &gdi) const;
   void buildDataFields(gdioutput &gdi, const vector<string> &fields) const;
 
-	void fillDataFields(const oBase *ob, const void *data, gdioutput &gdi) const;
-	bool saveDataFields(const oBase *ob, void *data, gdioutput &gdi);
+	void fillDataFields(const oBase *ob, gdioutput &gdi) const;
+	bool saveDataFields(oBase *ob, gdioutput &gdi);
 
-  int fillTableCol(const void *data, const oBase &owner, Table &table, bool canEdit) const;
+  int fillTableCol(const oBase &owner, Table &table, bool canEdit) const;
   void buildTableCol(Table *table);
-	bool inputData(oBase *ob, void *data, int id, const string &input, int inputId, string &output, bool noUpdate);
+	bool inputData(oBase *ob, int id, const string &input, int inputId, string &output, bool noUpdate);
 
   // Use id (table internal) or name
   void fillInput(const void *data, int id, const char *name, vector< pair<string, size_t> > &out, size_t &selected) const;
 
-  bool setEnum(void *data, const char *name, int selectedIndex);
+  bool setEnum(oBase *ob, const char *name, int selectedIndex);
 
   oDataContainer(int maxsize);
 	virtual ~oDataContainer(void);
@@ -189,11 +223,11 @@ public:
 		{return oDC->getInt64(Data, Name);}
 
 	inline bool setStringNoUpdate(const char *Name, const string &Value)
-		{return oDC->setString(Data, Name, Value);}
+		{return oDC->setString(oB, Name, Value);}
 
 	inline bool setString(const char *Name, const string &Value)		
 	{
-		if(oDC->setString(Data, Name, Value)){
+		if(oDC->setString(oB, Name, Value)){
 			oB->updateChanged();
 			return true;
 		}
@@ -201,7 +235,7 @@ public:
 	}
 
 	inline string getString(const char *Name) const
-		{return oDC->getString(Data, Name);}
+		{return oDC->getString(oB, Name);}
 
 	inline bool setDate(const char *Name, const string &Value)		
 	{
@@ -222,10 +256,10 @@ public:
 		{oDC->buildDataFields(gdi, fields);}
 
 	inline void fillDataFields(gdioutput &gdi) const
-		{oDC->fillDataFields(oB, Data, gdi);}
+		{oDC->fillDataFields(oB, gdi);}
 
 	inline bool saveDataFields(gdioutput &gdi) 
-		{return oDC->saveDataFields(oB, Data, gdi);}
+		{return oDC->saveDataFields(oB, gdi);}
 
   inline string generateSQLDefinition() const
     {return oDC->generateSQLDefinition(std::set<string>());}
@@ -233,30 +267,34 @@ public:
   inline string generateSQLDefinition(const std::set<string> &exclude) const
 		{return oDC->generateSQLDefinition(exclude);}
 
-	inline string generateSQLSet() const
-		{return oDC->generateSQLSet(Data);}
+	inline string generateSQLSet(bool forceSetAll) const
+		{return oDC->generateSQLSet(oB, forceSetAll);}
 
+  // Mark all data as stored in db
+  inline void allDataStored()
+		{return oDC->allDataStored(oB);}
+  
 	inline void getVariableInt(list<oVariableInt> &var) const
 		{oDC->getVariableInt(Data, var);}
 
 	inline void getVariableString(list<oVariableString> &var) const
-		{oDC->getVariableString(Data, var);}
+		{oDC->getVariableString(oB, var);}
 
 	inline void initData()
-		{oDC->initData(Data, oDC->DataMaxSize);}
+		{oDC->initData(oB, oDC->dataMaxSize);}
 
 	inline bool write(xmlparser &xml) const
-		{return oDC->write(Data, xml);}
+		{return oDC->write(oB, xml);}
 
 	inline void set(const xmlobject &xo)
-		{oDC->set(Data, xo);}
+		{oDC->set(oB, xo);}
 
   void fillInput(const char *name, vector< pair<string, size_t> > &out, size_t &selected) const {
     oDC->fillInput(Data, -1, name, out, selected);
   }
 
   bool setEnum(const char *name, int selectedIndex) {
-    if (oDC->setEnum(Data, name, selectedIndex) ) {
+    if (oDC->setEnum(oB, name, selectedIndex) ) {
 			oB->updateChanged();
 			return true;
 		}
@@ -284,10 +322,10 @@ public:
   inline __int64 getInt64(const char *Name) const
 		{return oDC->getInt64(Data, Name);}
 
-	inline string getString(const char *Name) const
-		{return oDC->getString(Data, Name);}
+	inline const string &getString(const char *Name) const
+		{return oDC->getString(oB, Name);}
 
-  inline string getDate(const char *Name) const
+  inline const string &getDate(const char *Name) const
 		{return oDC->getDate(Data, Name);}
 
 	inline int getInt(const string &name) const
@@ -297,7 +335,7 @@ public:
 		{return oDC->getInt64(Data, name.c_str());}
 
 	inline string getString(const string &name) const
-		{return oDC->getString(Data, name.c_str());}
+		{return oDC->getString(oB, name.c_str());}
 
   inline string getDate(const string &name) const
 		{return oDC->getDate(Data, name.c_str());}
@@ -306,7 +344,7 @@ public:
 		{oDC->buildDataFields(gdi);}
 
 	inline void fillDataFields(gdioutput &gdi) const
-		{oDC->fillDataFields(oB, Data, gdi);}
+		{oDC->fillDataFields(oB, gdi);}
 
   inline string generateSQLDefinition() const
 		{return oDC->generateSQLDefinition(set<string>());}
@@ -314,17 +352,17 @@ public:
 	inline string generateSQLDefinition(const set<string> &exclude) const
 		{return oDC->generateSQLDefinition(exclude);}
 
-	inline string generateSQLSet() const
-		{return oDC->generateSQLSet(Data);}
+	inline string generateSQLSet(bool forceSetAll) const
+		{return oDC->generateSQLSet(oB, forceSetAll);}
 
 	inline void getVariableInt(list<oVariableInt> &var) const
 		{oDC->getVariableInt(Data, var);}
 
 	inline void getVariableString(list<oVariableString> &var) const
-		{oDC->getVariableString(Data, var);}
+		{oDC->getVariableString(oB, var);}
 
   inline bool write(xmlparser &xml) const
-		{return oDC->write(Data, xml);}
+		{return oDC->write(oB, xml);}
 
   int getDataAmountMeasure() const
     {return oDC->getDataAmountMeasure(Data);}

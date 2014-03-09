@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -29,32 +29,46 @@ class LocalizerImpl;
 class oWordList;
 
 class Localizer {
-private:
-  map<string, string> langResource;
-  LocalizerImpl *impl;  
-  LocalizerImpl *implBase;  
+  class LocalizerInternal {
+  private:
+    map<string, string> langResource;
+    LocalizerImpl *impl;  
+    LocalizerImpl *implBase;  
   
-  bool owning;
-  Localizer *user;
+    bool owning;
+    LocalizerInternal *user;
+
+  public:
+
+    void debugDump(const string &untranslated, const string &translated) const;
+ 
+    vector<string> getLangResource() const;
+    void loadLangResource(const string &name);
+    void addLangResource(const string &name, const string &resource);
+
+    /** Translate string */
+    const string &tl(const string &str);
+
+    void set(Localizer &li);
+
+    /** Get database with given names */
+    const oWordList &getGivenNames() const;
+ 
+    LocalizerInternal();
+    ~LocalizerInternal();
+  };
+private:
+  LocalizerInternal *linternal;
 
 public:
+  LocalizerInternal &get() {return *linternal;}
+  const string &tl(const string &str) {return linternal->tl(str);};
 
-  void debugDump(const string &untranslated, const string &translated) const;
- 
-  vector<string> getLangResource() const;
-  void loadLangResource(const string &name);
-  void addLangResource(const string &name, const string &resource);
+  void init() {linternal = new LocalizerInternal();}
+  void unload() {delete linternal; linternal = 0;}
 
-  /** Translate string */
-  const string &tl(const string &str);
-
-  void set(Localizer &li);
-
-  /** Get database with given names */
-  const oWordList &getGivenNames() const;
- 
-  Localizer();
-  ~Localizer();
+  Localizer() : linternal(0) {}
+  ~Localizer() {unload();}
 };
 
 extern Localizer lang;

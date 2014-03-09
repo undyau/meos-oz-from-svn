@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@
 #include "oExtendedEvent.h"  // Added to support BF customisations
 #include "meosException.h"
 #include "meosdb/sqltypes.h"
+#include "socket.h"
 
 #include <Shellapi.h>
 #include <algorithm>
@@ -275,6 +276,10 @@ void TabCompetition::loadConnectionPage(gdioutput &gdi)
       oe->fillCompetitions(gdi, "LocalCmp", 1);
       gdi.selectItemByData("LocalCmp", oe->getPropertyInt("LastCompetition", 0));
       
+      gdi.addCheckbox("UseDirectSocket", "Skicka och ta emot snabb förhandsinformation om stämplingar och resultat", 
+                      0, oe->getPropertyInt("UseDirectSocket", true) != 0);
+
+      gdi.dropLine();
       gdi.fillRight();
       gdi.addButton("OpenCmp", "Öppna tävling", CompetitionCB);    
       gdi.addButton("Repair", "Reparera vald tävling", CompetitionCB);
@@ -484,6 +489,12 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         exportSetup();
         gdi.alert("Inställningarna har exporterats.");
       }
+    }
+    else if (bi.id=="Test") {
+      /*InfoCompetition infoCmp(1);
+      infoCmp.synchronize(*oe);
+      string res;
+      infoCmp.getDiffXML(res);*/
     }
     else if (bi.id=="Report") {
       gdi.clearPage(true);
@@ -837,6 +848,10 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       if(oe->uploadSynchronize())
         gdi.setWindowTitle(oe->getTitleName());
 
+      if (oe->isClient() && oe->getPropertyInt("UseDirectSocket", true) != 0) {
+        oe->getDirectSocket().startUDPSocketThread(gdi.getMain());
+      }
+
 			loadConnectionPage(gdi);
     }
     else if (bi.id == "MultiEvent") {
@@ -1186,7 +1201,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       removeTempFile(zipped);
       gdi.addString("", 1, "Klart");
 
-      xmlparser xml;
+      xmlparser xml(0);
       xml.read(result.c_str());
       xmlobject obj = xml.getObject("ImportStartListResult");
       if (obj) {
@@ -1267,7 +1282,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       removeTempFile(zipped);
       gdi.addString("", 1, "Klart");
 
-      xmlparser xml;
+      xmlparser xml(0);
       xml.read(result.c_str());
       xmlobject obj = xml.getObject("ImportResultListResult");
       if (obj) {
@@ -1598,10 +1613,11 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       gdi.addString("", 2, "Fri anmälningsimport");
       gdi.addString("", 10, "help:33940");
       gdi.dropLine(0.5);
-      gdi.addInputBox("EntryText", 450, 280, entryText, 0, "");
+      gdi.addInputBox("EntryText", 550, 280, entryText, 0, "");
       gdi.dropLine(0.5);
       gdi.fillRight();
       gdi.addButton("PreviewImport", "Granska inmatning", CompetitionCB, "tooltip:analyze");
+      gdi.addButton("Cancel", "Avbryt", CompetitionCB);
       gdi.addButton("Paste", "Klistra in", CompetitionCB, "tooltip:paste");
       gdi.addButton("ImportFile", "Importera fil...", CompetitionCB, "tooltip:import");
       gdi.addButton("ImportDB", "Bygg databaser...", CompetitionCB, "tooltip:builddata");
@@ -1703,8 +1719,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           par.legNumber = -1;
           oListInfo li;
           oe->generateListInfo(par,  gdi.getLineHeight(), li);
-          gdioutput tGdi(gdi.getScale());
-          oe->generateList(tGdi, true, li);
+          gdioutput tGdi(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());
+          oe->generateList(tGdi, true, li, false);
           tGdi.writeTableHTML(save, oe->getName());
           tGdi.openDoc(save.c_str());
         }
@@ -1776,8 +1792,8 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           par.legNumber = -1;
           oListInfo li;
           oe->generateListInfo(par,  gdi.getLineHeight(), li);
-          gdioutput tGdi(gdi.getScale());
-          oe->generateList(tGdi, true, li);
+          gdioutput tGdi(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());
+          oe->generateList(tGdi, true, li, false);
           tGdi.writeTableHTML(save, oe->getName());
           tGdi.openDoc(save.c_str());
         }
@@ -1912,10 +1928,16 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         if(frontPage)
 				  loadPage(gdi);
         else {
+          oe->setProperty("UseDirectSocket", gdi.isChecked("UseDirectSocket"));
           oe->verifyConnection();
           oe->validateClients();
           loadConnectionPage(gdi);
         }
+
+        if (oe->isClient() && oe->getPropertyInt("UseDirectSocket", true) != 0) {
+            oe->getDirectSocket().startUDPSocketThread(gdi.getMain());
+        }
+
         return 0;
       }
 		}
@@ -2151,13 +2173,15 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
     else if (lbi.id=="TextSize") {
       int textSize = lbi.data;
       oe->setProperty("TextSize", textSize);
-      gdi.setFont(textSize, oe->getPropertyString("TextFont", "Arial"));
+      gdi.setFont(textSize, oe->getPropertyString("TextFont", "Arial"), interpetEncoding(lang.tl("encoding")));
       PostMessage(gdi.getTarget(), WM_USER + 2, TCmpTab, 0); 
     }
     else if (lbi.id == "Language") {
-      lang.loadLangResource(lbi.text);
+      lang.get().loadLangResource(lbi.text);
       oe->updateTabs(true);
       oe->setProperty("Language", lbi.text);
+      //gdi.setEncoding(interpetEncoding(lang.tl("encoding")));
+      gdi.setFont(oe->getPropertyInt("TextSize", 0), oe->getPropertyString("TextFont", "Arial"), interpetEncoding(lang.tl("encoding")));
       PostMessage(gdi.getTarget(), WM_USER + 2, TCmpTab, 0); 
     }
     else if (lbi.id == "PreEvent") {
@@ -2287,7 +2311,7 @@ void TabCompetition::copyrightLine(gdioutput &gdi) const
 
   gdi.dropLine(0.4);
   gdi.fillDown(); 
-  gdi.addString("", 0, MakeDash("#Copyright © 2007-2013 Melin Software HB"));
+  gdi.addString("", 0, MakeDash("#Copyright © 2007-2014 Melin Software HB"));
   gdi.dropLine(1);
   gdi.popX();
 
@@ -2300,13 +2324,15 @@ void TabCompetition::loadAboutPage(gdioutput &gdi) const
   gdi.clearPage(false);
   gdi.addString("", 2, MakeDash("Om MeOS - ett Mycket Enkelt OrienteringsSystem")).setColor(colorDarkBlue);
   gdi.dropLine(2);
-  gdi.addStringUT(1, MakeDash("Copyright © 2007-2012 Melin Software HB"));
+  gdi.addStringUT(1, MakeDash("Copyright © 2007-2014 Melin Software HB"));
   gdi.dropLine();
   gdi.addStringUT(10, "The database connection used is MySQL++\nCopyright "
                         "(c) 1998 by Kevin Atkinson, (c) 1999, 2000 and 2001 by MySQL AB,"
                         "\nand (c) 2004-2007 by Educational Technology Resources, Inc.\n"
                         "The database used is MySQL, Copyright (c) 2008 Sun Microsystems, Inc."
-                        "\n\nGerman Translation by Erik Nilsson-Simkovics");
+                        "\n\nGerman Translation by Erik Nilsson-Simkovics"
+                        "\n\nDanish Translation by Michael Leth Jess and Chris Bagge"
+                        "\n\nRussian Translation by Paul A. Kazakov");
   
   gdi.dropLine();
   gdi.addString("", 0, "Det här programmet levereras utan någon som helst garanti. Programmet är ");
@@ -2442,7 +2468,10 @@ bool TabCompetition::loadPage(gdioutput &gdi)
 
     gdi.addButton("Settings", "Tävlingsinställningar", CompetitionCB);
 		gdi.addButton("Report", "Tävlingsrapport", CompetitionCB);
-	  
+#ifdef _DEBUG
+	  gdi.addButton("Test", "Test", CompetitionCB);
+#endif
+
     gdi.fillDown();
     gdi.popX();
 
@@ -2552,15 +2581,15 @@ void TabCompetition::textSizeControl(gdioutput &gdi) const
   //gdi.addString("", 0, "Textstorlek:");
    
   gdi.addSelection(id, 90, 200, CompetitionCB, "Textstorlek:");
-  gdi.addItem(id, lang.tl("Normal"), 0);
-  gdi.addItem(id, lang.tl("Stor"), 1);
-  gdi.addItem(id, lang.tl("Större"), 2);
-  gdi.addItem(id, lang.tl("Störst"), 3);
+  gdi.addItem(id, "Normal", 0);
+  gdi.addItem(id, "Stor", 1);
+  gdi.addItem(id, "Större", 2);
+  gdi.addItem(id, "Störst", 3);
   gdi.selectItemByData(id, s);
 
   id = "Language";
   gdi.addSelection(id, 90, 200, CompetitionCB, "Språk:");
-  vector<string> ln = lang.getLangResource();
+  vector<string> ln = lang.get().getLangResource();
   string current = oe->getPropertyString("Language", "English");  
   int ix = -1;
   for (size_t k = 0; k<ln.size(); k++) {
@@ -2628,7 +2657,7 @@ int TabCompetition::getOrganizer(bool updateEvent) {
 
   int clubId = 0;
 
-  xmlparser xml;
+  xmlparser xml(0);
   xmlList xmlEvents;
   try {
     xml.read(file.c_str());
@@ -2704,7 +2733,7 @@ void TabCompetition::getEventorCompetitions(gdioutput &gdi,
   while (dwl.isWorking()) {
     Sleep(100);
   }
-  xmlparser xml;
+  xmlparser xml(0);
   xmlList xmlEvents;
   
   try {
@@ -3063,7 +3092,7 @@ void TabCompetition::welcomeToMeOS(gdioutput &gdi) {
   gdi.fillRight();
   const char *id = "Language";
   gdi.addSelection(id, 90, 200, CompetitionCB);
-  vector<string> ln = lang.getLangResource();
+  vector<string> ln = lang.get().getLangResource();
   string current = oe->getPropertyString("Language", "Svenska");  
   int ix = -1;
   for (size_t k = 0; k<ln.size(); k++) {

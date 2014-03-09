@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -42,12 +42,18 @@ protected:
   bool hideButtons;
   bool ownWindow;
   ListEditor *listEditor;
+
+  bool noReEvaluate;
 public:
 	bool loadPage(gdioutput &gdi);
   int listCB(gdioutput &gdi, int type, void *data);
   void loadGeneralList(gdioutput &gdi);
   void rebuildList(gdioutput &gdi);
   void settingsResultList(gdioutput &gdi);
+
+  static void splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode);
+  static void customTextLines(oEvent &oe, const char *dataField, gdioutput &gdi);
+  static void saveExtraLines(oEvent &oe, const char *dataField, gdioutput &gdi);
 
 	TabList(oEvent *oe);
 	~TabList(void);

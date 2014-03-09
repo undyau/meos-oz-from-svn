@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@
 #include <winsock2.h>
 #include "localizer.h"
 #include "meos_util.h"
+#include "oPunch.h"
 
 #include <iostream>
 //////////////////////////////////////////////////////////////////////
@@ -242,14 +243,12 @@ bool SportIdent::ReadSystemDataOldProtocoll(SI_StationInfo *si, int retry)
 	return true;
 }
 
-bool SportIdent::OpenComListen(const char *com, DWORD BaudRate)
-{
+bool SportIdent::OpenComListen(const char *com, DWORD BaudRate) {
 	CloseCom(com);
 
-	SI_StationInfo *si=FindStation(com);
+	SI_StationInfo *si = findStation(com);
 
-	if(!si)
-	{
+	if (!si) {
 		SI_Info[n_SI_Info].ComPort=com;
 		SI_Info[n_SI_Info].ThreadHandle=0;
 		si=&SI_Info[n_SI_Info];
@@ -307,7 +306,7 @@ bool SportIdent::tcpAddPort(int port, DWORD zeroTime)
 {
   CloseCom("TCP");
 
-	SI_StationInfo *si=FindStation("TCP");
+	SI_StationInfo *si = findStation("TCP");
 
 	if(!si)	{
 		SI_Info[n_SI_Info].ComPort="TCP";
@@ -326,7 +325,7 @@ bool SportIdent::OpenCom(const char *com)
 {
 	CloseCom(com);
 
-	SI_StationInfo *si=FindStation(com);
+	SI_StationInfo *si = findStation(com);
 
 	if(!si)	{
 		SI_Info[n_SI_Info].ComPort=com;
@@ -461,10 +460,10 @@ bool SportIdent::OpenCom(const char *com)
 }
 
 
-SI_StationInfo *SportIdent::FindStation(string com)
+SI_StationInfo *SportIdent::findStation(const string &com)
 {
 	for(int i=0;i<n_SI_Info; i++)
-		if(com==SI_Info[i].ComPort)
+		if(com == SI_Info[i].ComPort)
 			return &SI_Info[i];
 
 	return 0;
@@ -479,7 +478,7 @@ void SportIdent::CloseCom(const char *com)
 	}
 	else
 	{
-		SI_StationInfo *si=FindStation(com);
+		SI_StationInfo *si = findStation(com);
 
     if (si && si->ComPort=="TCP") {
       if(tcpPortOpen) {
@@ -763,8 +762,19 @@ int SportIdent::MonitorTCPSI(WORD port, int localZeroTime)
       int r=0;
       while (r!=-1 && tcpPortOpen) {
 
+        DWORD timeout = GetTickCount() + 1000;
+        int iter = 0;
         while(r!=SOCKET_ERROR && r<15 && tcpPortOpen) {
           r=recv(client, temp, 15, MSG_PEEK);
+          iter++;
+          if (iter > 10) {
+            if (GetTickCount() > timeout) {
+              break;
+            }
+            else
+              iter = 0;
+          }
+          Sleep(0);
         }
 
         r=recv(client, temp, 15, 0);
@@ -777,7 +787,34 @@ int SportIdent::MonitorTCPSI(WORD port, int localZeroTime)
           op.SICardNo=*(DWORD *)(&temp[3]);
           op.CodeDay=*(DWORD *)(&temp[7]);
           op.CodeTime=*(DWORD *)(&temp[11]);
-          AddPunch(op.CodeTime/10, op.CodeNo, op.SICardNo, 0);
+
+          if (op.Type == 64 &&  op.CodeNo>1 &&  op.CodeNo<=192 && op.CodeTime == 0) {
+            // Recieved card
+            int nPunch = op.CodeNo;
+            vector<SIPunch> punches(nPunch);
+            r = recv(client, (char*)&punches[0], 8 * nPunch, 0);
+            if (r == 8 * nPunch) {
+              SICard card;
+              card.CheckPunch.Code = -1;
+              card.StartPunch.Code = -1;
+              card.FinishPunch.Code = -1;
+              card.CardNumber = op.SICardNo;              
+              for (int k = 0; k < nPunch; k++) {
+                punches[k].Time /= 10;
+                if (punches[k].Code == oPunch::PunchStart)
+                  card.StartPunch = punches[k];
+                else if (punches[k].Code == oPunch::PunchFinish)
+                  card.FinishPunch = punches[k];
+                else if (punches[k].Code == oPunch::PunchCheck)
+                  card.CheckPunch = punches[k];
+                else
+                  card.Punch[card.nPunch++] = punches[k];
+              }
+              AddCard(card);
+            }
+          }
+          else
+            AddPunch(op.CodeTime/10, op.CodeNo, op.SICardNo, 0);
         }
         else r=-1;
 
@@ -857,7 +894,6 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
 							if(bf[8]&0x1) Time=3600*12;
 							Time+=MAKEWORD(bf[10], bf[9]);
 
-							//AddPunch(Time, si.StationNumber, Card, si.StationMode);
               AddPunch(Time, Station, Card, si.StationMode);
 							//char str[128];
 							//sprintf_s(str, "%d, %02d:%02d", Card, Time/60, Time%60);
@@ -1722,15 +1758,27 @@ void SportIdent::AddPunch(DWORD Time, int Station, int Card, int Mode)
 	SICard sic;
 	memset(&sic, 0, sizeof(sic));
 	sic.CardNumber=Card;
-	
+	sic.StartPunch.Code = -1;
+  sic.CheckPunch.Code = -1;
+  sic.FinishPunch.Code = -1;
+
 	if(Mode==0){
 		if(Station>30){
 			sic.Punch[0].Code=Station;
 			sic.Punch[0].Time=Time;
 			sic.nPunch=1;
 		}	
+    else if (Station == oPunch::PunchStart) {
+			sic.StartPunch.Time = Time;
+      sic.StartPunch.Code = oPunch::PunchStart;
+		}
+    else if (Station == oPunch::PunchCheck) {
+      sic.CheckPunch.Time = Time;
+      sic.CheckPunch.Code = oPunch::PunchCheck;
+		}
 		else{
 			sic.FinishPunch.Time=Time;
+      sic.FinishPunch.Code = oPunch::PunchFinish;
 		}
 	}
 	else{
@@ -1739,8 +1787,17 @@ void SportIdent::AddPunch(DWORD Time, int Station, int Card, int Mode)
 			sic.Punch[0].Time=Time;
 			sic.nPunch=1;
 		}	
+    else if (Mode == 3) {
+			sic.StartPunch.Time=Time;
+      sic.StartPunch.Code = 3;
+		}
+    else if (Mode == 10) {
+      sic.CheckPunch.Time=Time;
+      sic.CheckPunch.Code = 10;
+		}
 		else{
 			sic.FinishPunch.Time=Time;
+      sic.FinishPunch.Code = 1;
 		}
 	}
 	sic.PunchOnly=true;
@@ -1789,7 +1846,7 @@ void start_si_thread(void *ptr)
 
 void SportIdent::StartMonitorThread(const char *com)
 {
-	SI_StationInfo *si=FindStation(com);
+	SI_StationInfo *si = findStation(com);
 
   if(si && (si->hComm || si->ComPort=="TCP"))
 	{
@@ -1822,7 +1879,7 @@ void checkport_si_thread(void *ptr)
 		*port=0; //No SI found here
   else {
     bool valid = true;
-    SI_StationInfo *sii = si.FindStation(bf);
+    SI_StationInfo *sii = si.findStation(bf);
     if (sii) {
       if (sii->StationNumber>=1024 || sii->StationMode>10 ||
               !(sii->AutoSend || sii->HandShake))
@@ -1889,7 +1946,7 @@ void SportIdent::SetZeroTime(DWORD zt)
 
 bool SportIdent::IsPortOpen(const string &com)
 {
-	SI_StationInfo *si=FindStation(com);
+	SI_StationInfo *si = findStation(com);
 
   if(si && si->ComPort=="TCP")
     return tcpPortOpen && serverSocket;
@@ -1897,9 +1954,9 @@ bool SportIdent::IsPortOpen(const string &com)
 	  return si!=0 && si->hComm && si->ThreadHandle;
 }
 
-string SportIdent::GetInfoString(const string &com)
+string SportIdent::getInfoString(const string &com)
 {
-	SI_StationInfo *si=FindStation(com);
+	SI_StationInfo *si = findStation(com);
 
   if (com=="TCP") {
     if (!si || !tcpPortOpen || !serverSocket)

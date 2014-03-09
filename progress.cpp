@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,6 +50,8 @@ ProgressWindow::ProgressWindow(HWND hWndParent)
   subStart = 0;
   subEnd = 1000;
   hWnd = hWndParent;
+  terminate = false;
+  running = false;
 }
 
 void ProgressWindow::init() 
@@ -78,11 +80,20 @@ ProgressWindow::~ProgressWindow()
 {
   if (initialized) {
     setProgress(1000);
-    Sleep(100);
     EnterCriticalSection(&syncObj);
-    TerminateThread(thread, 0);
+    terminate = true;
 	  LeaveCriticalSection(&syncObj);
-	  CloseHandle(thread);
+	  
+    int maxCount = 100;
+    while (maxCount-- > 0 && running) {
+      Sleep(20);
+    }
+    EnterCriticalSection(&syncObj);
+    if (running)
+      TerminateThread(thread, 0);
+	  LeaveCriticalSection(&syncObj);
+
+//	  CloseHandle(thread);
 	  DeleteCriticalSection(&syncObj);
 
     DestroyWindow(hWnd);
@@ -91,12 +102,16 @@ ProgressWindow::~ProgressWindow()
 
 void ProgressWindow::process()
 {
-  while (true) {
+  running = true;
+  while (!terminate) {
     EnterCriticalSection(&syncObj);
-    draw(GetTickCount()/40);
+    if (!terminate)
+      draw(GetTickCount()/40);
 	  LeaveCriticalSection(&syncObj);
-    Sleep(25);
+    if (!terminate)
+      Sleep(33);
   }
+  running = false;
 }
 
 void ProgressWindow::draw(int count)

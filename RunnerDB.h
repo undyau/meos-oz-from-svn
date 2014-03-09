@@ -7,7 +7,7 @@
 #include <hash_set>
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -158,7 +158,8 @@ public:
   void clearRunners();
   void clearClubs();
 
-  void addClub(oClub &c);
+  /** Add a club. Create a new Id if necessary*/
+  int addClub(oClub &c, bool createNewId);
   RunnerDBEntry *addRunner(const char *name, __int64 extId, 
                            int club, int card);
   
@@ -178,7 +179,7 @@ public:
   void loadRunners(const char *file);
   void loadClubs(const char *file);
   
-  void updateAdd(const oRunner &r);
+  void updateAdd(const oRunner &r, map<int, int> &clubIdMap);
 
   void importClub(oClub &club, bool matchName);
   void compactifyClubs();
@@ -193,6 +194,10 @@ class oDBRunnerEntry : public oBase {
 private: 
   RunnerDB *db;
   int index;
+protected:
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+  virtual int getDISize() const {return 0;}
 
 public:
 
@@ -213,8 +218,4 @@ public:
   bool canRemove() const;
 
   string getInfo() const {return "Database Runner";}
-
-  // Null implementations
-  oDataInterface getDI();
-  oDataConstInterface getDCI() const;
 };

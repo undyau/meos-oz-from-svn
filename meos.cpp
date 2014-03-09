@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@
 #include "random.h"
 #include "metalist.h"
 #include "gdiconstants.h"
+#include "socket.h"
 #include "oExtendedEvent.h"
 
 gdioutput *gdi_main=0;
@@ -81,7 +82,7 @@ void Setup(bool overwrite);
 
 // Global Variables:
 HINSTANCE hInst; // current instance
-TCHAR szTitle[MAX_LOADSTRING]; // The title bar text
+CHAR szTitle[MAX_LOADSTRING]; // The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING]; // The title bar text
 TCHAR szWorkSpaceClass[MAX_LOADSTRING]; // The title bar text
 
@@ -119,6 +120,10 @@ void LoadClassPage(gdioutput &gdi)
   LoadPage("Klasser");
 }
 
+void dumpLeaks() {
+  _CrtDumpMemoryLeaks();
+}
+
 void LoadPage(gdioutput &gdi, TabType type) {
   gdi.setWaitCursor(true);
   TabBase *t = gdi.getTabs().get(type);
@@ -131,19 +136,23 @@ void LoadPage(gdioutput &gdi, TabType type) {
 static char settings[260];
 // Startup path
 static char programPath[MAX_PATH];
-  
+
 int APIENTRY WinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPSTR     lpCmdLine,
                      int       nCmdShow)
 {
+  atexit(dumpLeaks);	//
 	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
-  
+
   if (strstr(lpCmdLine, "-s") != 0) {
     Setup(true);
     exit(0);
   }
 
+  lang.init();
+  StringCache::getInstance().init();
+    
   GetCurrentDirectory(MAX_PATH, programPath);
   
   getUserFile(settings, "meospref.xml");
@@ -156,7 +165,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	MSG msg;
 	HACCEL hAccelTable;
 
-	gdi_main=new gdioutput(1.0);
+	gdi_main=new gdioutput(1.0, ANSI, 0);
   gdi_extra.push_back(gdi_main);
 
   try {
@@ -168,19 +177,20 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   }
   gEvent->loadProperties(settings);
   
-  lang.addLangResource("English", "104");
-  lang.addLangResource("Svenska", "103");
-  lang.addLangResource("Deutsch", "105");
-  lang.addLangResource("Dansk", "106");
+  lang.get().addLangResource("English", "104");
+  lang.get().addLangResource("Svenska", "103");
+  lang.get().addLangResource("Deutsch", "105");
+  lang.get().addLangResource("Dansk", "106");
+  lang.get().addLangResource("Russian", "107");
 
   if (fileExist("extra.lng")) {
-    lang.addLangResource("Extraspråk", "extra.lng");
+    lang.get().addLangResource("Extraspråk", "extra.lng");
   }
   else {
     char lpath[260];
     getUserFile(lpath, "extra.lng");
     if (fileExist(lpath))
-      lang.addLangResource("Extraspråk", lpath);
+      lang.get().addLangResource("Extraspråk", lpath);
   }
   
   string defLang = gEvent->getPropertyString("Language", "Svenska");
@@ -194,10 +204,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   gEvent->setProperty("Language", defLang);
 
   try {
-    lang.loadLangResource(defLang);
+    lang.get().loadLangResource(defLang);
   }
   catch (std::exception &) {
-    lang.loadLangResource("Svenska");
+    lang.get().loadLangResource("English");
   }
 
   try {
@@ -208,12 +218,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 #ifdef _DEBUG
     expandDirectory(".\\Lists\\", "*.lxml", res);
 #endif
-
     string err;
 
     for (size_t k = 0; k<res.size(); k++) {
       try {
-        xmlparser xml;
+        xmlparser xml(0);
 
         strcpy_s(listpath, res[k].c_str());
         xml.read(listpath);
@@ -244,8 +253,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	MyRegisterClass(hInstance);  
   registerToolbar(hInstance);
 
+  string encoding = lang.tl("encoding");
   gdi_main->setFont(gEvent->getPropertyInt("TextSize", 0),
-                    gEvent->getPropertyString("TextFont", "Arial"));
+                  gEvent->getPropertyString("TextFont", "Arial"), interpetEncoding(encoding));
 
 	// Perform application initialization:
 	if (!InitInstance (hInstance, nCmdShow)) {
@@ -259,24 +269,22 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	gdi_main->init(hWndWorkspace, hWndMain, hMainTab);
 	gdi_main->getTabs().get(TCmpTab)->loadPage(*gdi_main);
 	
-  //createExtraWindow(hInst);
   // Install a hook procedure to monitor the message stream for mouse 
   // messages intended for the controls in the dialog box. 
   g_hhk = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, 
-      (HINSTANCE) NULL, GetCurrentThreadId()); 
+      (HINSTANCE) NULL, GetCurrentThreadId());
 
 	hAccelTable = LoadAccelerators(hInstance, (LPCTSTR)IDC_MEOS);
 
   initMySQLCriticalSection(true);
 	// Main message loop:
-	while (GetMessage(&msg, NULL, 0, 0)) 
-	{
-		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) 
-		{
+	while (GetMessage(&msg, NULL, 0, 0)) {
+		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 	}
+
   tabAutoRegister(0);
   tabList->clear();
   delete tabList;
@@ -304,10 +312,12 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   removeTempFiles();
 
   #ifdef _DEBUG
-    lang.debugDump("untranslated.txt", "translated.txt");
+    lang.get().debugDump("untranslated.txt", "translated.txt");
   #endif
 
-	//_CrtDumpMemoryLeaks();
+  StringCache::getInstance().clear();
+  lang.unload();
+  
 
 	return msg.wParam;
 }
@@ -412,6 +422,9 @@ void flushEvent(const string &id, const string &origin, DWORD data, void *extra)
 
 LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
 {
+  if (code<0)
+    return CallNextHookEx(0, code, wParam, lParam);
+
   gdioutput *gdi = 0;
 
   if (size_t(currentFocusIx) < gdi_extra.size())
@@ -427,15 +440,17 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
   bool shiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) == 0x8000;
   
 	//if(code<0) return CallNextHookEx(
-	if(wParam==VK_TAB && (lParam& (1<<31)))
-	{
-		SHORT state=GetKeyState(VK_SHIFT);
-    if(gdi) {
-		  if(state&(1<<16))
-			  gdi->TabFocus(-1);
-		  else
-			  gdi->TabFocus(1);
+	if(wParam==VK_TAB) {
+    if ( (lParam& (1<<31)))	{
+		  SHORT state=GetKeyState(VK_SHIFT);
+      if(gdi) {
+		    if(state&(1<<16))
+			    gdi->TabFocus(-1);
+		    else
+			    gdi->TabFocus(1);
+      }
     }
+    return 1;
 	}
   else if(wParam==VK_RETURN && (lParam & (1<<31))) {
 		if(gdi)
@@ -535,9 +550,7 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
       gdi->keyCommand(KC_SLOWDOWN);
   }
 
-		//MessageBeep(-1);
-		
-	return 0;
+  return 0;
 }
 //
 //   FUNCTION: InitInstance(HANDLE, int)
@@ -647,9 +660,9 @@ gdioutput *createExtraWindow(const string &title, int max_x, int max_y)
 	
 	ShowWindow(hWnd, SW_SHOWNORMAL);
 	UpdateWindow(hWnd);
-  gdioutput *gdi = new gdioutput(1.0);
+  gdioutput *gdi = new gdioutput(1.0, gdi_main->getEncoding(), hWnd);
   gdi->setFont(gEvent->getPropertyInt("TextSize", 0),
-               gEvent->getPropertyString("TextFont", "Arial"));
+               gEvent->getPropertyString("TextFont", "Arial"), gdi_main->getEncoding());
 
   gdi->init(hWnd, hWnd, 0);
 
@@ -698,6 +711,9 @@ void CallBackINPUT(gdioutput *gdi, int type, void *data)
 }*/
 
 void InsertSICard(gdioutput &gdi, SICard &sic);
+
+#define TabCtrl_InsertItemW(hwnd, iItem, pitem)   \
+    (int)SNDMSG((hwnd), TCM_INSERTITEMW, (WPARAM)(int)(iItem), (LPARAM)(const TC_ITEM *)(pitem))
 
 //static int xPos=0, yPos=0;
 void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker, 
@@ -759,13 +775,14 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
     if (skipLists && (it->getType() == typeid(TabList) || it->getType() == typeid(TabAuto)))
       continue;
 
-		TCITEM ti;
-		char bf[256];
-		strcpy_s(bf, lang.tl(it->name).c_str());
-		ti.pszText=bf;
+		TCITEMW ti;
+		//char bf[256];
+		//strcpy_s(bf, lang.tl(it->name).c_str());
+    ti.pszText=(LPWSTR)gdi_main->toWide(lang.tl(it->name)).c_str();
 		ti.mask=TCIF_TEXT;			
 		it->setId(id++);
-		TabCtrl_InsertItem(hMainTab, it->id, &ti);
+
+		TabCtrl_InsertItemW(hMainTab, it->id, &ti);
 	}
 
   if (to && (to->id)>=0)
@@ -943,8 +960,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 
-		case WM_USER://MessageBox(hWnd, "SI REC", NULL, MB_OK);
-
+		case WM_USER:
 			//The card has been read and posted to a synchronized 
 			//queue by different thread. Read and process this card.
       {
@@ -957,6 +973,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			MessageBox(hWnd, "Kommunikationen med en SI-enhet avbröts.", "SportIdent", MB_OK);
       break;
             
+    case WM_USER + 3: {
+      if (!gEvent)
+        break;
+          
+      if (gEvent->hasDirectSocket()) {
+        OutputDebugString("Advance punch info\n");
+        vector<SocketPunchInfo> pi;
+        gEvent->getDirectSocket().getPunchQueue(pi);
+        gEvent->advancePunchInformation(gdi_extra, pi);
+      }
+      break;
+    }
 		case WM_COMMAND:
 			wmId    = LOWORD(wParam); 
 			wmEvent = HIWORD(wParam); 
@@ -1039,11 +1067,14 @@ void scrollVertical(gdioutput *gdi, int yInc, HWND hWnd) {
     ScrollArea.bottom+=gdi->getHeight();
     ScrollArea.right=gdi->getWidth()-gdi->GetOffsetX()+15;
     ScrollArea.left = -2000;
-		gdi->SetOffsetY(yPos);				
+		gdi->SetOffsetY(yPos);
 	
+    bool inv = true; //Inv = false works only for lists etc. where there are not controls in the scroll area.
+
+    RECT invalidArea;
 		ScrollWindowEx (hWnd, 0,  -yInc, 
 			&ScrollArea, &ClipArea, 
-			(HRGN) NULL, (LPRECT) NULL, SW_INVALIDATE|SW_SCROLLCHILDREN); 
+			(HRGN) NULL, &invalidArea, SW_SCROLLCHILDREN | (inv ? SW_INVALIDATE : 0)); 
     
    //	gdi->UpdateObjectPositions();
 
@@ -1051,11 +1082,55 @@ void scrollVertical(gdioutput *gdi, int yInc, HWND hWnd) {
 		si.fMask  = SIF_POS; 
 		si.nPos   = yPos; 
 	
-		SetScrollInfo(hWnd, SB_VERT, &si, TRUE); 				
-	  UpdateWindow (hWnd);		
+		SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+
+    if (inv)
+	    UpdateWindow(hWnd);
+    else {
+      HDC hDC = GetDC(hWnd);
+      IntersectClipRect(hDC, invalidArea.left, invalidArea.top, invalidArea.right, invalidArea.bottom);
+      gdi->draw(hDC, ScrollArea, invalidArea);
+      ReleaseDC(hWnd, hDC);
+    }
   }
 }
 
+void updateScrollInfo(HWND hWnd, gdioutput &gdi, int nHeight, int nWidth) {
+  SCROLLINFO si;
+	si.cbSize = sizeof(si);
+	si.fMask = SIF_PAGE|SIF_RANGE;
+			
+  int maxx, maxy;
+  gdi.clipOffset(nWidth, nHeight, maxx, maxy);
+
+  si.nMin=0;
+
+  if(maxy>0) {
+    si.nMax=maxy+nHeight;
+    si.nPos=gdi.GetOffsetY();
+    si.nPage=nHeight; 
+  }
+  else {
+    si.nMax=0;
+    si.nPos=0;
+    si.nPage=0;
+  }
+	SetScrollInfo(hWnd, SB_VERT, &si, true);
+ 
+  si.nMin=0;
+  if(maxx>0) {        
+    si.nMax=maxx+nWidth;
+    si.nPos=gdi.GetOffsetX();
+    si.nPage=nWidth; 
+	}
+  else {
+    si.nMax=0;
+    si.nPos=0;
+    si.nPage=0;
+  }
+
+  SetScrollInfo(hWnd, SB_HORZ, &si, true);
+}
 
 LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -1079,14 +1154,16 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			break;
 
 		case WM_SIZE:
-  		SCROLLINFO si;
-			si.cbSize=sizeof(si);
-			si.fMask=SIF_PAGE|SIF_RANGE;
+  		//SCROLLINFO si;
+			//si.cbSize=sizeof(si);
+			//si.fMask=SIF_PAGE|SIF_RANGE;
 			
 			int nHeight;
       nHeight = HIWORD(lParam); 
       int nWidth;
       nWidth = LOWORD(lParam);
+      updateScrollInfo(hWnd, *gdi, nHeight, nWidth);
+      /*
 
       int maxx, maxy;
       gdi->clipOffset(nWidth, nHeight, maxx, maxy);
@@ -1117,10 +1194,8 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
         si.nPage=0;
       }
       SetScrollInfo(hWnd, SB_HORZ, &si, true);
-
+      */
       InvalidateRect(hWnd, NULL, true);
-			//gdi.refresh();__NO NO NO recursive
-			//gdi.Up
 			break;
     case WM_KEYDOWN:
       //gdi->keyCommand(;
@@ -1179,7 +1254,7 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			} 
 
       scrollVertical(gdi, yInc, hWnd);
-
+      gdi->storeAutoPos(gdi->GetOffsetY());
  			break;
 		}		
 
@@ -1268,6 +1343,7 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
     case WM_MOUSEWHEEL: {
       int dz = GET_WHEEL_DELTA_WPARAM(wParam);
       scrollVertical(gdi, -dz, hWnd);
+      gdi->storeAutoPos(gdi->GetOffsetY());
       }
       break;
 
@@ -1336,8 +1412,9 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			hdc = BeginPaint(hWnd, &ps);
 			RECT rt;
 			GetClientRect(hWnd, &rt);
-			if(gdi)
-				gdi->draw(hdc, rt);
+
+      if(gdi && (ps.rcPaint.right|ps.rcPaint.left|ps.rcPaint.top|ps.rcPaint.bottom) != 0 )
+				gdi->draw(hdc, rt, ps.rcPaint);
 			EndPaint(hWnd, &ps);
 			break;
 

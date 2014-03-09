@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,6 +32,10 @@
 
 enum CellType {cellEdit, cellSelection, cellAction, cellCombo};
 enum KeyCommandCode;
+
+class Table;
+typedef void (*GENERATETABLEDATA)(Table &table, void *ptr);
+
 
 struct TableUpdateInfo {
   bool doAdd;
@@ -116,6 +120,9 @@ struct TableSortIndex;
 class Table
 {
 protected:
+  GENERATETABLEDATA generator;
+  void *generatorPtr;
+
   bool doAutoSelectColumns;
 
   int t_xpos;
@@ -235,6 +242,11 @@ protected:
 
   bool compareRow(int indexA, int indexB) const;
 public:
+  void setGenerator(GENERATETABLEDATA gen, void *genPtr) {
+    generatorPtr = genPtr;
+    generator = gen;
+  }
+
   void clear();
   void setClearOnHide(bool coh) {clearOnHide = coh;}
   int getNumDataRows() const;

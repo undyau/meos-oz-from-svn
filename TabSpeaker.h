@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -58,7 +58,8 @@ private:
   oTimeLine::Priority watchLevel;
   int watchNumber;
 
-  void generateControlList(gdioutput &gdi, int classId);
+  void generateControlList(gdioutput &gdi, int classId);  
+  void generateControlListForLeg(gdioutput &gdi, int classId, int leg);
 
   string lastControl;
   

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,9 +21,36 @@
 ************************************************************************/
 
 #include <vector>
+#include <map>
 
-//void getLocalTimeDateFromUTC(string& date, string& time);
-//string getUTCTimeDateFromLocal(string ISOdateTime);
+class StringCache {
+private:
+  vector<std::string> cache;
+  size_t ix;
+
+  vector<std::wstring> wcache;
+  size_t wix;
+public:
+  static StringCache &getInstance();
+
+  void init() {cache.resize(256); wcache.resize(256);}
+  void clear() {cache.clear(); wcache.clear();}
+
+  std::string &get() {
+    if ( (++ix) >= cache.size() )
+      ix = 0;
+    int lx = ix;
+    return cache[lx];
+  }
+
+  std::wstring &wget() {
+    if ( (++wix) >= wcache.size() )
+      wix = 0;
+    int lx = wix;
+    return wcache[lx];
+  }
+};
+
 string convertSystemTime(const SYSTEMTIME &st);
 string convertSystemTimeOnly(const SYSTEMTIME &st);
 string convertSystemDate(const SYSTEMTIME &st);
@@ -37,9 +64,9 @@ int getRelativeDay();
 /// Get time and date in a format that forms a part of a filename
 string getLocalTimeFileName();
 
-string getTimeMS(int m);
-string formatTime(int rt);
-string formatTimeHMS(int rt);
+const string &getTimeMS(int m);
+const string &formatTime(int rt);
+const string &formatTimeHMS(int rt);
 string formatTimeIOF(int rt, int zeroTime);
 
 int convertDateYMS(const string &m);
@@ -63,7 +90,7 @@ void split(const string &line, const string &separators, vector<string> &split_v
 string MakeDash(const string &t);
 string MakeDash(const char *t);
 string FormatRank(int rank);
-string itos(int i);
+const string &itos(int i);
 string itos(unsigned long i);
 string itos(unsigned int i);
 string itos(__int64 i);
@@ -154,7 +181,7 @@ PersonSex interpretSex(const string &sex);
 
 string encodeSex(PersonSex sex);
 
-string makeValidFileName(const string &input);
+string makeValidFileName(const string &input, bool strict);
 
 /** Initial capital letter. */
 void capitalize(string &str);

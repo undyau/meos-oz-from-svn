@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,7 +31,8 @@
 #include <limits>
 #include "Localizer.h"
 #include "meos_util.h"
-
+#include "meosexception.h"
+#include <cassert>
 #include "gdioutput.h"
 
 //////////////////////////////////////////////////////////////////////
@@ -45,6 +46,7 @@ oCourse::oCourse(oEvent *poe) : oBase(poe)
 	getDI().initData();
 	nControls=0;
 	Length=0;
+  clearCache();
 	Id=oe->getFreeCourseId();
 }
 
@@ -53,9 +55,9 @@ oCourse::oCourse(oEvent *poe, int id) : oBase(poe)
 	getDI().initData();
 	nControls=0;
 	Length=0;
+  clearCache();
   if (id == 0)
     id = oe->getFreeCourseId();
-
 	Id=id;
   oe->qFreeCourseId = max(id, oe->qFreeCourseId);
 }
@@ -228,24 +230,19 @@ pControl oCourse::doAddControl(int Id)
 	if (nControls<NControlsMax) {
     pControl c=oe->getControl(Id, true);
     if (c==0)
-      throw std::exception("Felaktig kontroll");
+      throw meosException("Felaktig kontroll");
 		Controls[nControls++]=c;
     return c;
 	}
-  else throw std::exception("För många kontroller.");
+  else 
+    throw meosException("För många kontroller.");
 }
 
-void oCourse::importControls(const string &ctrls)
-{
+void oCourse::splitControls(const string &ctrls, vector<int> &nr) {
 	const char *str=ctrls.c_str();
 
-  int oldNC = nControls;
-  vector<int> oldC;
-  for (int k = 0; k<nControls; k++)
-    oldC.push_back(Controls[k] ? Controls[k]->getId() : 0);
-
-	nControls = 0;
-
+  nr.clear();
+	
 	while (*str) {
 		int cid=atoi(str);
 
@@ -253,8 +250,23 @@ void oCourse::importControls(const string &ctrls)
 		while(*str && (*str==';' || *str==',' || *str==' ')) str++;		
 
 		if(cid>0)
-			doAddControl(cid);
+      nr.push_back(cid);
 	}
+}
+
+void oCourse::importControls(const string &ctrls) {
+  int oldNC = nControls;
+  vector<int> oldC;
+  for (int k = 0; k<nControls; k++)
+    oldC.push_back(Controls[k] ? Controls[k]->getId() : 0);
+
+	nControls = 0;
+
+  vector<int> newC;
+  splitControls(ctrls, newC);
+
+  for (size_t k = 0; k< newC.size(); k++)
+    doAddControl(newC[k]);
 
   bool changed = nControls != oldNC;
 
@@ -275,7 +287,7 @@ void oCourse::importLegLengths(const string &legs)
     legLengths[k] = atoi(splits[k].c_str());
 }
 
-oControl *oCourse::getControl(int index)
+oControl *oCourse::getControl(int index) const
 {
 	if(index>=0 && index<nControls)
 		return Controls[index];
@@ -327,9 +339,10 @@ bool oCourse::fillCourse(gdioutput &gdi, const string &name)
 	return true;
 }
 
-void oCourse::getControls(list<pControl> &pc)
+void oCourse::getControls(vector<pControl> &pc)
 {
 	pc.clear();
+  pc.reserve(nControls);
 	for(int k=0;k<nControls;k++){
 		pc.push_back(Controls[k]);
 	}
@@ -386,14 +399,11 @@ void oCourse::setLength(int le)
 	}
 }
 
-oDataInterface oCourse::getDI(void)
-{
-	return oe->oCourseData->getInterface(oData, sizeof(oData), this);
-}
-
-oDataConstInterface oCourse::getDCI(void) const
-{
-	return oe->oCourseData->getConstInterface(oData, sizeof(oData), this);
+oDataContainer &oCourse::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
+  data = (pvoid)oData;
+  olddata = (pvoid)oDataOld;
+  strData = 0;
+  return *oe->oCourseData;
 }
 
 pCourse oEvent::getCourseCreate(int Id)
@@ -503,8 +513,8 @@ string oCourse::getStart() const
 
 void oEvent::calculateNumRemainingMaps()
 {
-  synchronizeList(oLCourseId);
-  synchronizeList(oLRunnerId);
+  synchronizeList(oLCourseId, true, false);
+  synchronizeList(oLRunnerId, false, true);
 
   for (oCourseList::iterator cit=Courses.begin();
     cit!=Courses.end();++cit) {
@@ -518,7 +528,7 @@ void oEvent::calculateNumRemainingMaps()
 	list<oRunner>::const_iterator it;
 	for (it=Runners.begin(); it != Runners.end(); ++it)
     if(!it->isRemoved() && it->getStatus()!=StatusDNS){
-      pCourse pc = it->getCourse();
+      pCourse pc = it->getCourse(false);
 
       if (pc && pc->tMapsRemaining != numeric_limits<int>::min())
         pc->tMapsRemaining--;	
@@ -572,18 +582,30 @@ double oCourse::getPartOfCourse(int start, int end) const
 }
 
 
-string oCourse::getControlOrdinal(int controlIndex) const
+const string &oCourse::getControlOrdinal(int controlIndex) const
 {
-  if (controlIndex == nControls)
+  if ( (controlIndex + 1 == nControls && useLastAsFinish())  || controlIndex == nControls)
     return lang.tl("Mål");
-  int o = 1;
+
+  if (oe->dataRevision != cacheDataRevision)
+    clearCache();
+
+  if (size_t(controlIndex) < cachedControlOrdinal.size() && !cachedControlOrdinal[controlIndex].empty())
+    return cachedControlOrdinal[controlIndex];
+
+  if (controlIndex > nControls)
+    throw meosException("Invalid index");
+  cachedControlOrdinal.resize(nControls);
+
+  int o = useFirstAsStart() ? 0 : 1;
   bool rogaining = hasRogaining();
 
   for (int k = 0; k<controlIndex && k<nControls; k++) {
     if (Controls[k] && !Controls[k]->isRogaining(rogaining))
       o++;
   }
-  return itos(o);
+  cachedControlOrdinal[controlIndex] = itos(o);
+  return cachedControlOrdinal[controlIndex];
 }
 
 void oCourse::setRogainingPointsPerMinute(int p)
@@ -612,6 +634,7 @@ int oCourse::calculateReduction(int overTime) const
 
 void oCourse::setMinimumRogainingPoints(int p)
 {
+  cachedHasRogaining = 0;
   getDI().setInt("RPointLimit", p);
 }
 
@@ -622,6 +645,7 @@ int oCourse::getMinimumRogainingPoints() const
 
 void oCourse::setMaximumRogainingTime(int p)
 {
+  cachedHasRogaining = 0;
   if (p == NOTIME)
     p = 0;
   getDI().setInt("RTimeLimit", p);
@@ -633,7 +657,21 @@ int oCourse::getMaximumRogainingTime() const
 }
 
 bool oCourse::hasRogaining() const {
-  return getMaximumRogainingTime() > 0 || getMinimumRogainingPoints() > 0;
+  if (oe->dataRevision != cacheDataRevision)
+    clearCache();
+
+  if (cachedHasRogaining>0)
+    return cachedHasRogaining == 2;
+
+  bool r = getMaximumRogainingTime() > 0 || getMinimumRogainingPoints() > 0;
+  cachedHasRogaining = r ? 2 : 1;
+  return r;
+}
+
+void oCourse::clearCache() const {
+  cachedHasRogaining = 0;
+  cachedControlOrdinal.clear();
+  cacheDataRevision = oe->dataRevision;
 }
 
 string oCourse::getCourseProblems() const 
@@ -711,4 +749,253 @@ int oCourse::getStartPunchType() const {
     return Controls[0]->Numbers[0];
   else
     return oPunch::PunchStart;
+}
+
+void oEvent::getCourses(vector<pCourse> &crs) const{
+  crs.clear();
+  for (oCourseList::const_iterator it = Courses.begin(); it != Courses.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+    crs.push_back(pCourse(&*it));
+  }
+}
+
+int oCourse::getCommonControl() const {
+  return getDCI().getInt("CControl");
+}
+
+void oCourse::setCommonControl(int ctrlId) {
+  if (ctrlId != 0) {
+    int found = 0;
+    for (int k = 0; k < nControls; k++) {
+      if (Controls[k]->getId() == ctrlId)
+        found++;
+    }
+    if (found == 0)
+      throw meosException("Kontroll X finns inte på banan#" + itos(ctrlId));
+  }
+  getDI().setInt("CControl", ctrlId);
+}
+
+pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const {
+  /*adaptedToOriginalCardOrder.resize(nControls + 1);
+  for (int k = 0; k < nControls + 1; k++)
+    adaptedToOriginalCardOrder[k] = k;*/
+  int cc = getCommonControl();
+  if (cc == 0)
+    return pCourse(this);
+
+  vector<int> ccIndex;
+  vector< vector<pControl> > loopKeys;
+  if (!constructLoopKeys(cc, loopKeys, ccIndex))
+    return pCourse(this);
+
+  vector< vector<int> > punchSequence;
+  
+  vector<pPunch> punches;
+  card.getPunches(punches);
+
+  punchSequence.push_back(vector<int>());
+  for (size_t k = 0; k < punches.size(); k++) {
+    int code = punches[k]->getTypeCode();
+    if (code < 10)
+      continue; // Start, Finish etc.
+    if (code == cc && !punchSequence.back().empty())
+      punchSequence.push_back(vector<int>());
+    else
+      punchSequence.back().push_back(code);
+  }
+
+  vector<int> assignedKeys(loopKeys.size(), -1);
+
+  for (size_t k = 0; k < punchSequence.size(); k++) {
+    bool done = false;
+    for (size_t j = 0; j < loopKeys.size(); j++) {
+      if (assignedKeys[j] == -1 && matchLoopKey(punchSequence[k], loopKeys[j])) {
+        assignedKeys[j] = k;
+        done = true;
+        break;
+      }
+    }
+    if (!done) {
+      // Check if an already assigned key matches the current loop
+      int undone = -1;
+      size_t start = loopKeys.size();
+      for (size_t j = 0; j < loopKeys.size(); j++) {
+        if (matchLoopKey(punchSequence[k], loopKeys[j])) {
+          // Push that key away and try it somewhere else
+          undone = assignedKeys[j];
+          start = j + 1;
+          assignedKeys[j] = k;
+          done = true;
+          break;
+        }
+      }
+
+      // Try an already assigned key later
+      for (size_t j = start; undone != -1 && j < loopKeys.size(); j++) {
+         if (matchLoopKey(punchSequence[undone], loopKeys[j])) {
+           swap(assignedKeys[j], undone);
+         }
+      }
+    }
+  }
+
+  //set<int> loops;
+  //for (size_t k = 0; k < ccIndex.size(); k++)
+  //  loops.insert(k);
+  vector<int> loopOrder;
+  map<int, int> keyToIndex;
+  assert(ccIndex.size() == assignedKeys.size());
+  for (size_t k = 0; k < assignedKeys.size(); k++) {
+    if (assignedKeys[k] != -1) {
+      keyToIndex[assignedKeys[k]] = k;
+    }
+  }
+
+  for (map<int, int>::iterator it = keyToIndex.begin(); it != keyToIndex.end(); ++it) {
+    loopOrder.push_back(it->second);
+  }
+  
+  int checksum = (ccIndex.size() * (ccIndex.size()-1))/2;
+
+  // Add remaining, unmatched, loops in defined order
+  for (size_t k = 0; k < ccIndex.size(); k++) {
+    if (assignedKeys[k] == -1)
+      loopOrder.push_back(k);
+    checksum-=loopOrder[k];
+  }
+  assert(checksum == 0 && loopOrder.size() == ccIndex.size());
+
+  tmpCourse.cacheDataRevision = cacheDataRevision;
+  tmpCourse.cachedControlOrdinal.clear();
+  tmpCourse.cachedHasRogaining = cachedHasRogaining;
+  memcpy(tmpCourse.oData, oData, sizeof(oData));
+  tmpCourse.nControls = 0;
+  tmpCourse.Length = Length;
+  tmpCourse.Name = Name;
+  tmpCourse.sqlUpdated = "TMP"; // Mark as tmp to prevent accidental write to DB
+  tmpCourse.tMapToOriginalOrder.clear();
+  tmpCourse.tMapToOriginalOrder.reserve(nControls+1);
+
+  if (useFirstAsStart()) {
+    tmpCourse.tMapToOriginalOrder.push_back(0);
+    tmpCourse.Controls[tmpCourse.nControls++] = Controls[0];
+    if (0 < legLengths.size())
+      tmpCourse.legLengths.push_back(legLengths[0]);
+  }
+
+  int endIx = useLastAsFinish() ? nControls - 1 : nControls;
+
+  for (size_t k = 0; k< loopOrder.size(); k++) {
+    int start = ccIndex[loopOrder[k]];
+    int end = size_t(loopOrder[k] + 1) < ccIndex.size() ? ccIndex[loopOrder[k] + 1] : endIx;
+    for (int i = start + 1; i < end; i++) {
+      tmpCourse.tMapToOriginalOrder.push_back(i);
+      tmpCourse.Controls[tmpCourse.nControls++] = Controls[i];
+      if (size_t(i) < legLengths.size())
+        tmpCourse.legLengths.push_back(legLengths[i]);
+    }
+    tmpCourse.tMapToOriginalOrder.push_back(end);
+    if (k + 1 < loopOrder.size()) {
+      int currentCC = ccIndex[k+1];
+      //tmpCourse.tMapToOriginalOrder.push_back(currentCC);
+      tmpCourse.Controls[tmpCourse.nControls++] = Controls[currentCC];
+      if (size_t(end) < legLengths.size())
+        tmpCourse.legLengths.push_back(legLengths[end]);
+    }
+  }
+
+  if (useLastAsFinish()) {
+    //tmpCourse.tMapToOriginalOrder.push_back(nControls - 1);
+    tmpCourse.tMapToOriginalOrder.push_back(nControls);
+    tmpCourse.Controls[tmpCourse.nControls++] = Controls[nControls - 1];
+    if (size_t(nControls-1) < legLengths.size())
+      tmpCourse.legLengths.push_back(legLengths[nControls-1]);
+  }
+
+  //tmpCourse.tMapToOriginalOrder.push_back(nControls);
+
+  assert(tmpCourse.nControls == nControls);
+  assert(tmpCourse.tMapToOriginalOrder.size() == nControls + 1);
+  
+  if (!legLengths.empty()) {
+    tmpCourse.legLengths.push_back(legLengths.back());
+    assert(tmpCourse.legLengths.size() == legLengths.size());
+  }
+  tmpCourse.Id = Id;
+  return &tmpCourse;
+}
+
+bool oCourse::isAdapted() const {
+  return tMapToOriginalOrder.size() > 0;
+}
+
+int oCourse::getAdaptionId() const {
+  int key = 0;
+  for (size_t j = 0; j < tMapToOriginalOrder.size(); j++)
+    key = key * 97 + tMapToOriginalOrder[j];
+  return key;
+}
+
+bool oCourse::matchLoopKey(const vector<int> &punches, const vector<pControl> &key) {
+  size_t ix = -1;
+  for (size_t k = 0; k < key.size(); k++) {
+    int code = key[k]->getFirstNumber(); 
+    while (++ix < punches.size()) {
+      if (punches[ix] == code) {
+        code = -1;
+        break;
+      }
+    }
+    if (code != -1)
+      return false;
+  }
+  return true;
+}
+
+bool oCourse::constructLoopKeys(int cc, vector< vector<pControl> > &loopKeys, vector<int> &ccIndex) const {  
+  int startIx = useFirstAsStart() ? 1 : 0;
+  int endIx = useLastAsFinish() ? nControls : nControls-1;
+
+  ccIndex.push_back(startIx-1);
+  for (int k = startIx; k < endIx; k++) {
+    if (Controls[k]->getId() == cc)
+      ccIndex.push_back(k);
+  }
+  if (ccIndex.size() <= 1)
+    return false;
+
+  loopKeys.clear();
+  loopKeys.resize(ccIndex.size());
+
+  int keyIndex = 1;
+  bool changed = true;
+  bool enough = false;
+  while(changed && !enough) {
+    changed = false;
+    for (size_t k = 0; k < ccIndex.size(); k++) {
+      int keyIx = ccIndex[k] + keyIndex;
+      int nextIx = (k + 1) < ccIndex.size() ? ccIndex[k+1] : nControls;
+      if (keyIx < nextIx && Controls[keyIx]->getStatus() == oControl::StatusOK && Controls[keyIx]->nNumbers == 1) {
+        loopKeys[k].push_back(Controls[keyIx]);
+        changed = true;
+      }
+    }
+    keyIndex++;
+    if (changed) {
+      enough = false;
+      set<__int64> hashes;
+      for (size_t k = 0; k < loopKeys.size(); k++) {
+        __int64 h = loopKeys[k].size();
+        for (size_t j = 0; j < loopKeys[k].size(); j++) {
+          h = h * 997 + loopKeys[k][j]->Numbers[0];
+        }
+        hashes.insert(h);
+      }
+      enough = hashes.size() == loopKeys.size();
+    }
+  }
+ 
+  return enough;
 }

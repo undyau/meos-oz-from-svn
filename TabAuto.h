@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 
 #include "tabbase.h"
 #include "gdioutput.h"
+#include "Printer.h"
 #include <string>
 #include "oListInfo.h"
 
@@ -35,20 +36,41 @@ class oEvent;
 
 enum AutoSyncType {SyncNone, SyncTimer, SyncDataUp};
 
+enum Machines {
+  mPunchMachine,
+  mPrintResultsMachine,
+  mSplitsMachine,
+  mPrewarningMachine,
+  mOnlineResults,
+  mOnlineInput,
+};
+
 class AutoMachine
 {
-public:
+protected:
+  bool editMode;
+
+  void settingsTitle(gdioutput &gdi, char *title);
+  enum IntervalType {IntervalNone, IntervalMinute, IntervalSecond};
+  void startCancelInterval(gdioutput &gdi, char *startCommand, bool created, IntervalType type, const string &interval);
+
+public: 
+  static AutoMachine* construct(Machines);
+  void setEditMode(bool em) {editMode = em;}
 	string name;
 	DWORD interval; //Interval seconds
 	DWORD timeout; //Timeout (TickCount)
   bool synchronize;
   bool synchronizePunches;
+  virtual void settings(gdioutput &gdi, oEvent &oe, bool created) = 0;
+  virtual void save(oEvent &oe, gdioutput &gdi) {}
 	virtual void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) = 0;
+  virtual bool isEditMode() const {return editMode;}
 	virtual void status(gdioutput &gdi) = 0;
 	virtual bool stop() {return true;}
   virtual AutoMachine *clone() const = 0;
   AutoMachine(const string &s) : name(s), interval(0), timeout(0), 
-                      synchronize(false), synchronizePunches(false) {}
+            synchronize(false), synchronizePunches(false), editMode(false) {}
 	virtual ~AutoMachine() = 0 {}
 };
 
@@ -78,6 +100,8 @@ public:
   }
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
+ 
   PrintResultMachine(int v):AutoMachine("Resultatutskrift") {
     interval=v; 
     pageBreak = true; 
@@ -114,6 +138,7 @@ protected:
   set<int> controls;
   set<int> controlsSI;
 public:
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
   PrewarningMachine *clone() const {return new PrewarningMachine(*this);} 
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
@@ -128,6 +153,7 @@ protected:
   int callCount;
   HANDLE hThread;
 public:
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
   MySQLReconnect *clone() const {return new MySQLReconnect(*this);} 
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
@@ -146,6 +172,7 @@ protected:
   int radio;
 public:
   PunchMachine *clone() const {return new PunchMachine(*this);} 
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
 	PunchMachine():AutoMachine("Stämplingsautomat"), radio(0) {}
@@ -161,11 +188,13 @@ protected:
   int leg;
 public:
   SplitsMachine *clone() const {return new SplitsMachine(*this);} 
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
 	SplitsMachine() : AutoMachine("Sträcktider/WinSplits"), leg(-1) {}
   friend class TabAuto;
 };
+
 
 
 class TabAuto :
@@ -180,20 +209,22 @@ private:
   bool synchronizePunches;
   void updateSyncInfo();
 
-	list<AutoMachine *> Machines;
+	list<AutoMachine *> machines;
 	void setTimer(AutoMachine *am);
 
 	void timerCallback(gdioutput &gdi);
   void syncCallback(gdioutput &gdi);
+
+  void settings(gdioutput &gdi, AutoMachine *sm, Machines type);
+
 public:
 	
 	AutoMachine *getMachine(const string &name);
 	bool stopMachine(AutoMachine *am);
   void killMachines();
-  void addMachine(const AutoMachine &am)
-  {
-    Machines.push_back(am.clone());
-    setTimer(Machines.back());
+  void addMachine(const AutoMachine &am) {
+    machines.push_back(am.clone());
+    setTimer(machines.back());
   }
 
 	int processButton(gdioutput &gdi, const ButtonInfo &bu);

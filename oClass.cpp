@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -59,6 +59,7 @@ oClass::oClass(oEvent *poe): oBase(poe)
   tMaxTime = 0;
   tCoursesChanged = false;
   tStatusRevision = 0;
+  tShowMultiDialog = false;
 }
 
 oClass::oClass(oEvent *poe, int id): oBase(poe)
@@ -78,6 +79,7 @@ oClass::oClass(oEvent *poe, int id): oBase(poe)
   tMaxTime = 0;
   tCoursesChanged = false;
   tStatusRevision = 0;
+  tShowMultiDialog = false;
 }
 
 oClass::~oClass()
@@ -358,6 +360,19 @@ int oClass::getNumRunners(bool checkFirstLeg) const
 void oClass::setCourse(pCourse c)
 {
 	if(Course!=c){
+    if (MultiCourse.size() == 1) {
+      // MultiCourse wich is in fact only one course, (e.g. for fixed start time in class). Keep in synch.
+      if (c != 0) {
+        if (MultiCourse[0].size() == 1)
+          MultiCourse[0][0] = c;
+        else if (MultiCourse[0].size() == 0)
+          MultiCourse[0].push_back(c);
+      }
+      else {
+        if (MultiCourse[0].size() == 1)
+          MultiCourse[0].pop_back();
+      }
+    }
 		Course=c;
     tCoursesChanged = true;
 		updateChanged();
@@ -377,14 +392,11 @@ void oClass::setName(const string &name)
 	}
 }
 
-oDataInterface oClass::getDI(void)
-{
-	return oe->oClassData->getInterface(oData, sizeof(oData), this);
-}
-
-oDataConstInterface oClass::getDCI(void) const
-{
-	return oe->oClassData->getConstInterface(oData, sizeof(oData), this);
+oDataContainer &oClass::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
+  data = (pvoid)oData;
+  olddata = (pvoid)oDataOld;
+  strData = 0;
+  return *oe->oClassData;
 }
 
 pClass oEvent::getClassCreate(int Id, const string &CreateName) 
@@ -492,15 +504,21 @@ bool oEvent::getClassesFromBirthYear(int year, PersonSex sex, vector<int> &class
 }
   
 
-void oEvent::getClasses(vector<pClass> &classes) {
-  Classes.sort();
+
+static bool clsSortFunction (pClass i, pClass j) {
+  return (*i < *j); 
+}
+
+void oEvent::getClasses(vector<pClass> &classes) const {
   classes.clear();
-  for (oClassList::iterator it = Classes.begin(); it != Classes.end(); ++it) {
+  for (oClassList::const_iterator it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
       continue;
 
     classes.push_back(pClass(&*it));
   }
+
+  sort(classes.begin(), classes.end(), clsSortFunction);
 }
   
 
@@ -1016,7 +1034,15 @@ const vector< pair<string, size_t> > &oEvent::fillClasses(vector< pair<string, s
     oRunnerList::iterator rit;
     
 	  for (rit=Runners.begin(); rit != Runners.end(); ++rit) {
-      if(rit->StartTime==0)
+      bool needTime = true;
+      if (rit->isRemoved())
+        continue;
+
+      if (rit->Class) {
+        if (rit->Class->getNumStages() > 0 && rit->Class->getStartType(rit->tLeg) != STDrawn)
+          needTime = false;
+      }
+      if(rit->tStartTime==0 && needTime)
         undrawn.insert(rit->getClassId());
       hasRunner.insert(rit->getClassId());
     }
@@ -1049,9 +1075,12 @@ const vector< pair<string, size_t> > &oEvent::fillClasses(vector< pair<string, s
         
         if(undrawn.count(it->getId()) || !hasRunner.count(it->getId()))        
           sprintf_s(bf, "%s", it->Name.c_str());
-        else
-          sprintf_s(bf, "%s\t[S]", it->Name.c_str());
-        
+        else {
+          if (it->MultiCourse.size() > 0 && it->getStartType(0) == STTime)
+            sprintf_s(bf, "%s\t%s", it->Name.c_str(), it->getStartDataS(0).c_str());
+          else
+            sprintf_s(bf, "%s\t[S]", it->Name.c_str());
+        }
         out.push_back(make_pair(string(bf), it->Id));
         //gdi.addItem(name, bf, it->Id);
       }
@@ -1080,7 +1109,7 @@ void oEvent::getNotDrawnClasses(set<int> &classes, bool someMissing)
 
   synchronizeList(oLRunnerId);
   for (rit=Runners.begin(); rit != Runners.end(); ++rit) {
-    if (rit->StartTime>0)
+    if (rit->tStartTime>0)
       drawn.insert(rit->getClassId());
     else if (someMissing)
       classes.insert(rit->getClassId());
@@ -1215,6 +1244,14 @@ string oClass::getClassResultStatus() const
 	return bf;
 }
 
+bool oClass::hasTrueMultiCourse() const {
+  if (MultiCourse.empty())
+    return false;
+  return MultiCourse.size()>1 || hasCoursePool() || tShowMultiDialog ||
+         (MultiCourse.size()==1 && MultiCourse[0].size()>1);
+}
+
+
 string oClass::getLength(int leg) const
 {
   char bf[64];
@@ -1251,13 +1288,39 @@ string oClass::getLength(int leg) const
   return string();
 }
 
-pCourse oClass::getCourse(int leg, unsigned fork) const
+pCourse oClass::getCourse(int leg, unsigned fork, bool getSampleFromRunner) const
 {
   if(unsigned(leg)<MultiCourse.size()){
     if(!MultiCourse[leg].empty())
       return MultiCourse[leg][fork % MultiCourse[leg].size()];
   }
-  return 0;
+  if (!getSampleFromRunner)
+    return 0;
+  else {
+    pCourse res = 0;
+    for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
+      if (it->Class == this && it->Course) {
+        if (it->tLeg == leg)
+          return it->Course;
+        else
+          res = it->Course; // Might find better candidate later
+      }
+    }
+    return res;
+  }
+}
+
+pCourse oClass::getCourse(bool getSampleFromRunner) const {
+  pCourse res;
+  if (MultiCourse.size() == 1 && MultiCourse[0].size() == 1)
+    res = MultiCourse[0][0];
+  else
+    res = Course;
+
+  if (!res && getSampleFromRunner)
+    res = getCourse(0,0, true);
+
+  return res;
 }
 
 void oClass::getCourses(int leg, vector<pCourse> &courses) const {
@@ -1312,9 +1375,9 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
         if (leg==0) {
    			  total++;
 
-          if(it->Status != StatusUnknown)
+          if(it->tStatus != StatusUnknown)
             finished++;
-          else if(it->Status==StatusDNS)
+          else if(it->tStatus==StatusDNS)
             dns++;
         }
         else {
@@ -1322,9 +1385,9 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
           const pRunner r=it->getMultiRunner(tleg);
           if (r) {
     			  total++;
-            if (r->Status!=StatusUnknown)
+            if (r->tStatus!=StatusUnknown)
               finished++;
-            else if(it->Status==StatusDNS)
+            else if(it->tStatus==StatusDNS)
               dns++;
           }
         }
@@ -1338,7 +1401,7 @@ void oEvent::getNumClassRunners(int id, int leg, int &total, int &finished, int 
       if(it->getClassId()==id) {	
 			  total++;
 
-        if(it->Status!=StatusUnknown || 
+        if(it->tStatus!=StatusUnknown || 
           it->getLegStatus(leg, false)!=StatusUnknown)
           finished++;
       }
@@ -1492,7 +1555,7 @@ void oClass::updateChangedCoursePool() {
     }
     else {
       bool correctCourse = crs[it->tLeg].count(it->Course) > 0;
-      if ((!correctCourse || (correctCourse && it->Status == StatusMP)) && it->Card) {
+      if ((!correctCourse || (correctCourse && it->tStatus == StatusMP)) && it->Card) {
         it->Card->getSICard(card);
         pCourse crs = selectCourseFromPool(it->tLeg, card);
         if (crs != it->Course) {
@@ -1807,6 +1870,17 @@ bool oClass::hasFreeStart() const
   return getDCI().getInt("FreeStart") != 0;
 }
 
+void oClass::setDirectResult(bool quick)
+{
+  getDI().setInt("DirectResult", quick);
+}
+
+bool oClass::hasDirectResult() const 
+{
+  return getDCI().getInt("DirectResult") != 0;
+}
+
+
 void oClass::setType(const string &start)
 {
   getDI().setString("ClassType", start);
@@ -1872,7 +1946,7 @@ ClassMetaType oClass::interpretClassType() const {
     // Lazy readout of baseclasstypes
     char path[_MAX_PATH];
     getUserFile(path, "baseclass.xml");
-    xmlparser xml;
+    xmlparser xml(0);
     xml.read(path);
     xmlobject cType = xml.getObject("BaseClassTypes");
     xmlList xtypes;
@@ -2085,7 +2159,7 @@ void oClass::addTableRow(Table &table) const {
   table.set(row++, *it, TID_MODIFIED, getTimeStamp(), false);
 
   table.set(row++, *it, TID_CLASSNAME, getName(), true);
-  oe->oClassData->fillTableCol(oData, *this, table, true);
+  oe->oClassData->fillTableCol(*this, table, true);
 }
 
 
@@ -2096,7 +2170,7 @@ bool oClass::inputData(int id, const string &input,
   synchronize(false);
     
   if(id>1000) {
-    return oe->oClassData->inputData(this, oData, id, input, 
+    return oe->oClassData->inputData(this, id, input, 
                                        inputId, output, noUpdate);
   }
   switch(id) {
@@ -2438,6 +2512,10 @@ int LegResult::getTime(int from, int to) const
 
 void oClass::clearSplitAnalysis() 
 {
+#ifdef _DEBUG
+  if (!tSplitAnalysisData.empty())
+    OutputDebugString(("Clear splits " + Name + "\n").c_str());
+#endif
   tFirstStart.clear();
   tLastStart.clear();
 
@@ -2466,11 +2544,9 @@ void oClass::insertLegPlace(int from, int to, int time, int place)
   }
 }
 
-int oClass::getLegPlace(pControl from, pControl to, int time) const 
+int oClass::getLegPlace(int ifrom, int ito, int time) const 
 {
   if (tLegTimeToPlace) {
-    int ito = to ? to->getId() : 0;
-    int ifrom = from ? from->getId() : 0;
     int key = time + (ito + ifrom*256)*8013;
     int place;
     if (tLegTimeToPlace->lookup(key, place))
@@ -2480,7 +2556,11 @@ int oClass::getLegPlace(pControl from, pControl to, int time) const
 }
 
 void oClass::insertAccLegPlace(int courseId, int controlNo, int time, int place)
-{
+{ /*
+  char bf[256];
+  sprintf_s(bf, "Insert to %d, %d, time %d\n", courseId, controlNo, time);
+  OutputDebugString(bf);
+  */
   if (tLegAccTimeToPlace) {
     int key = time + (controlNo + courseId*128)*16013;
     tLegAccTimeToPlace->insert(key, place); 
@@ -2501,8 +2581,8 @@ void oClass::getStartRange(int leg, int &firstStart, int &lastStart) const {
         continue;
       size_t tleg = it->tLeg;
       if (tleg < s) {
-        lFirstStart[tleg] = min<unsigned>(lFirstStart[tleg], it->StartTime);
-        lLastStart[tleg] = max<signed>(lLastStart[tleg], it->StartTime);
+        lFirstStart[tleg] = min<unsigned>(lFirstStart[tleg], it->tStartTime);
+        lLastStart[tleg] = max<signed>(lLastStart[tleg], it->tStartTime);
       }
     }
     swap(tLastStart, lLastStart);
@@ -2516,7 +2596,11 @@ void oClass::getStartRange(int leg, int &firstStart, int &lastStart) const {
 }
 
 int oClass::getAccLegPlace(int courseId, int controlNo, int time) const 
-{
+{/*
+  char bf[256];
+  sprintf_s(bf, "Get from %d,  %d, time %d\n", courseId, controlNo, time);
+  OutputDebugString(bf);
+  */
   if (tLegAccTimeToPlace) {
     int key = time + (controlNo + courseId*128)*16013;
     int place;
@@ -2527,8 +2611,7 @@ int oClass::getAccLegPlace(int courseId, int controlNo, int time) const
 }
 
 
-void oClass::calculateSplits() 
-{
+void oClass::calculateSplits() {
   clearSplitAnalysis();
   set<pCourse> cSet;
   map<int, vector<int> > legToTime;
@@ -2544,7 +2627,7 @@ void oClass::calculateSplits()
 
   LegResult legRes;
   LegResult legBestTime;
-
+  
   for (set<pCourse>::iterator cit = cSet.begin(); cit!= cSet.end(); ++cit)  { 
     pCourse pc = *cit;
     // Store all split times in a matrix
@@ -2559,11 +2642,11 @@ void oClass::calculateSplits()
     for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
       if (it->isRemoved() || it->Class != this)
         continue;
-      pCourse tpc = it->getCourse();
+      pCourse tpc = it->getCourse(false);
       if (tpc != pc || tpc == 0)
         continue;
 
-      const vector<SplitData> &sp = it->getSplitTimes();
+      const vector<SplitData> &sp = it->getSplitTimes(true);
       const int s = min<int>(nc, sp.size());
 
       for (int k = 0; k < s; k++) {
@@ -2575,17 +2658,16 @@ void oClass::calculateSplits()
         }
       }
     }
-
     for (oRunnerList::iterator it = oe->Runners.begin(); it != oe->Runners.end(); ++it) {
       if (it->isRemoved() || it->Class != this)
         continue;
       
-      pCourse tpc = it->getCourse();
+      pCourse tpc = it->getCourse(false);
 
       if (tpc != pc)
         continue;
 
-      const vector<SplitData> &sp = it->getSplitTimes();
+      const vector<SplitData> &sp = it->getSplitTimes(true);
       const int s = min<int>(nc, sp.size());
 
       vector<int> &tLegTimes = it->tLegTimes;
@@ -2596,14 +2678,14 @@ void oClass::calculateSplits()
         if (sp[k].time > 0) {
           if (ok) {
             // Store accumulated times
-            int t = sp[k].time - it->StartTime;
-            if (it->StartTime>0 && t>0) 
+            int t = sp[k].time - it->tStartTime;
+            if (it->tStartTime>0 && t>0) 
               splitsAcc[k].push_back(t);
           }
 
           if (k == 0) { // start -> first
-            int t = sp[0].time - it->StartTime;
-            if (it->StartTime>0 && t>0) {
+            int t = sp[0].time - it->tStartTime;
+            if (it->tStartTime>0 && t>0) {
               splits[k].push_back(t);
               tLegTimes[k] = t;
             }
@@ -2630,8 +2712,8 @@ void oClass::calculateSplits()
         if (t>0) {
           splits[nc].push_back(t);
           tLegTimes[nc] = t;
-          if (it->statusOK() && (it->FinishTime - it->StartTime) > 0) {
-            splitsAcc[nc].push_back(it->FinishTime - it->StartTime);
+          if (it->statusOK() && (it->FinishTime - it->tStartTime) > 0) {
+            splitsAcc[nc].push_back(it->FinishTime - it->tStartTime);
           }
         }
         else
@@ -2673,7 +2755,7 @@ void oClass::calculateSplits()
       if (ntimes == 0)
         continue;
 
-      int from = 0, to = 0; // Represents start/finish
+      int from = pc->getCommonControl(), to = pc->getCommonControl(); // Represents start/finish
       if (k < nc && pc->getControl(k))
         to = pc->getControl(k)->getId();
       if (k>0 && pc->getControl(k-1))
@@ -2716,9 +2798,9 @@ void oClass::calculateSplits()
     const unsigned nc = pc->getNumControls();
     vector<int> normRes(nc+1);
     vector<int> bestRes(nc+1);
-        
+    int cc = pc->getCommonControl();
     for (size_t k = 0; k <= nc; k++) {
-      int from = 0, to = 0; // Represents start/finish
+      int from = cc, to = cc; // Represents start/finish
       if (k < nc && pc->getControl(k))
         to = pc->getControl(k)->getId();
       if (k>0 && pc->getControl(k-1))

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -139,13 +139,7 @@ void oPunch::setTimeInt(int tt, bool databaseUpdate) {
   }
 }
 
-oDataInterface oPunch::getDI() 
-{
-  throw std::exception("Unsupported");
-}
-
-oDataConstInterface oPunch::getDCI() const
-{
+oDataContainer &oPunch::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
   throw std::exception("Unsupported");
 }
 
@@ -168,16 +162,19 @@ bool oPunch::canRemove() const
   return true;
 }
 
-string oPunch::getType() const {
-  if(Type==oPunch::PunchStart)
-		return lang.tl("Start");
-	else if(Type==oPunch::PunchFinish)
-		return lang.tl("Mål");
-	else if(Type==oPunch::PunchCheck)
-		return lang.tl("Check");
-	else if (Type>10 && Type<10000) {
-		return itos(Type);
-	}
-	return "-";
+const string &oPunch::getType() const {
+  return getType(Type);
 }
 
+const string &oPunch::getType(int t) {
+  if(t==oPunch::PunchStart)
+		return lang.tl("Start");
+	else if(t==oPunch::PunchFinish)
+		return lang.tl("Mål");
+	else if(t==oPunch::PunchCheck)
+		return lang.tl("Check");
+	else if (t>10 && t<10000) {
+		return itos(t);
+	}
+  return _EmptyString;
+}

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -130,7 +130,7 @@ bool oEvent::msSynchronize(oBase *ob)
   }
 
 	if (typeid(*ob)==typeid(oTeam)) {
-		static_cast<pTeam>(ob)->apply(false, 0);
+		static_cast<pTeam>(ob)->apply(false, 0, false);
 	}
 
   if (ret==1) {
@@ -223,28 +223,29 @@ void oEvent::storeChangeStatus(bool onlyChangable)
 }
 
 
-bool oEvent::synchronizeList(oListId id)
-{  
+bool oEvent::synchronizeList(oListId id, bool preSyncEvent, bool postSyncEvent) {  
   if(!HasDBConnection)
     return true;
 
-  if(!autoSequence) {
+  if(preSyncEvent) {
     msSynchronize(this);
     resetSQLChanged();
   }
 
 	if( !msSynchronizeList(this, id) ) {
-    autoSequence=false;
     verifyConnection();
     return false;  
   }
 
-  if (!autoSequence) {
+  if (id == oLPunchId)
+    advanceInformationPunches.clear();
+
+  if (postSyncEvent) {
 		reEvaluateChanged();
     resetChangeStatus();
 		return true;
 	}
-  autoSequence=false;
+
   return true;
 }
 
@@ -313,78 +314,87 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
   // (which might be incorrectly changed during sql update)
   resetSQLChanged();
   
+  int mask = getListMask(*this);
+  if (mask == 0)
+    return false;
+
   //Synchronize ourself
-  ot=sqlUpdated;
-  msSynchronize(this);
-  if(sqlUpdated!=ot) {
-    changed=true;
-    gdibase.setWindowTitle(getTitleName());
+  if (mask & oLEventId) {
+    ot=sqlUpdated;
+    msSynchronize(this);
+    if(sqlUpdated!=ot) {
+      changed=true;
+      gdibase.setWindowTitle(getTitleName());
+    }
   }
 	//Controls
-	int oc = sqlCounterControls;
-  ot = sqlUpdateControls;
-  autoSequence=true; //Avoid resync
-  synchronizeList(oLControlId);
-	changed |= oc!=sqlCounterControls;
-  changed |= ot!=sqlUpdateControls;
+  if (mask & oLControlId) {
+	  int oc = sqlCounterControls;
+    ot = sqlUpdateControls;
+    synchronizeList(oLControlId, false, false);
+	  changed |= oc!=sqlCounterControls;
+    changed |= ot!=sqlUpdateControls;
+  }
 	
   //Courses
-	oc = sqlCounterCourses;
-  ot = sqlUpdateCourses;
-	autoSequence=true; //Avoid resync
-  synchronizeList(oLCourseId);
-	changed |= oc!=sqlCounterCourses;
-  changed |= ot!=sqlUpdateCourses;
+  if (mask & oLCourseId) {
+	  int oc = sqlCounterCourses;
+    ot = sqlUpdateCourses;
+    synchronizeList(oLCourseId, false, false);
+	  changed |= oc!=sqlCounterCourses;
+    changed |= ot!=sqlUpdateCourses;
+  }
 
   //Classes
-	oc = sqlCounterClasses;
-  ot = sqlUpdateClasses;
-  autoSequence=true; //Avoid resync
-	synchronizeList(oLClassId);
-	changed |= oc!=sqlCounterClasses;
-  changed |= ot!=sqlUpdateClasses;
+  if (mask & oLClassId) {
+    int oc = sqlCounterClasses;
+    ot = sqlUpdateClasses;
+	  synchronizeList(oLClassId, false, false);
+	  changed |= oc!=sqlCounterClasses;
+    changed |= ot!=sqlUpdateClasses;
+  }
 
 	//Clubs
-	oc = sqlCounterClubs;
-  ot = sqlUpdateClubs;
-  autoSequence=true; //Avoid resync
-	synchronizeList(oLClubId);
-	changed |= oc!=sqlCounterClubs;
-  changed |= ot!=sqlUpdateClubs;
+  if (mask & oLClubId) {
+    int oc = sqlCounterClubs;
+    ot = sqlUpdateClubs;
+	  synchronizeList(oLClubId, false, false);
+	  changed |= oc!=sqlCounterClubs;
+    changed |= ot!=sqlUpdateClubs;
+  }
 
 	//Cards
-	oc = sqlCounterCards;
-  ot = sqlUpdateCards;
-  autoSequence=true; //Avoid resync
-	synchronizeList(oLCardId);
-	changed |= oc!=sqlCounterCards;
-  changed |= ot!=sqlUpdateCards;
+  if (mask & oLCardId) {
+    int oc = sqlCounterCards;
+    ot = sqlUpdateCards;
+	  synchronizeList(oLCardId, false, false);
+	  changed |= oc!=sqlCounterCards;
+    changed |= ot!=sqlUpdateCards;
+  }
 
 	//Runners
-	oc = sqlCounterRunners;
-  ot = sqlUpdateRunners;
-  autoSequence=true; //Avoid resync
-	synchronizeList(oLRunnerId);
-	changed |= oc!=sqlCounterRunners;
-  changed |= ot!=sqlUpdateRunners;
+	if (mask & oLRunnerId) {
+    int oc = sqlCounterRunners;
+    ot = sqlUpdateRunners;
+	  synchronizeList(oLRunnerId, false, false);
+	  changed |= oc!=sqlCounterRunners;
+    changed |= ot!=sqlUpdateRunners;
+  }
 
 	//Teams
-	oc = sqlCounterTeams;
-  ot = sqlUpdateTeams;
-  autoSequence=true; //Avoid resync
-	synchronizeList(oLTeamId);
-	changed |= oc!=sqlCounterTeams;
-  changed |= ot!=sqlUpdateTeams;
+	if (mask & oLTeamId) {
+    int oc = sqlCounterTeams;
+    ot = sqlUpdateTeams;
+	  synchronizeList(oLTeamId, false, false);
+	  changed |= oc!=sqlCounterTeams;
+    changed |= ot!=sqlUpdateTeams;
+  }
 
-  if (changed)
-    reCalculateLeaderTimes(0);
-
-	if(SyncPunches){
+  if (SyncPunches && (mask & oLPunchId)) {
 		//Punches
-		oc = sqlCounterPunches;
+		int oc = sqlCounterPunches;
     ot = sqlUpdatePunches;
-    autoSequence=true; //Avoid resync
-		synchronizeList(oLPunchId);
+		synchronizeList(oLPunchId, false, false);
 		changed |= oc!=sqlCounterPunches;
     changed |= ot!=sqlUpdatePunches;
 	}
@@ -393,6 +403,7 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
     if (needReEvaluate())
       reEvaluateChanged();
 
+    reCalculateLeaderTimes(0);
     //Restore changed staus on object that might have been changed
     //during sql update, due to partial updates
     resetChangeStatus();
@@ -432,7 +443,6 @@ bool oEvent::connectToMySQL(const string &server, const string &user, const stri
     return false;
   }
 
-  autoSequence=false;
 	return true;
 }
 
@@ -441,7 +451,7 @@ bool oEvent::uploadSynchronize()
 {  
   if (isThreadReconnecting())
     throw std::exception("Internt fel i anslutningen. Starta om MeOS");
-  string newId = makeValidFileName(CurrentNameId);
+  string newId = makeValidFileName(CurrentNameId, true);
   strcpy_s(CurrentNameId, newId.c_str());
 
   for (list<CompetitionInfo>::iterator it = cinfo.begin(); it != cinfo.end(); ++it) {
@@ -504,7 +514,6 @@ bool oEvent::uploadSynchronize()
   }
 
 	HasDBConnection=true;
-  autoSequence=false;
 
   // Save local version of database
   saveRunnerDatabase(CurrentNameId, false);
@@ -588,14 +597,13 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
   saveRunnerDatabase(CurrentNameId, false);
 
   HasDBConnection=true;  
-  autoSequence=false;
 
   // Setup multirunner links
-  for (oRunnerList::iterator it = Runners .begin(); it != Runners.end(); ++it) 
+  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) 
     it->createMultiRunner(false,false);
 
   // Remove incorrect references
-  for (oRunnerList::iterator it = Runners .begin(); it != Runners.end(); ++it) {
+  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->multiRunner.size() > 0 ) {
       vector<pRunner> &pr = it->multiRunner;
       for (size_t k=0; k<pr.size(); k++) {
@@ -654,11 +662,11 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
 
   if (teamCorrected) {
     for (oTeamList::iterator it = Teams.begin(); it != Teams.end(); ++it) {
-      it->apply(true, 0);
+      it->apply(true, 0, false);
     }
   }
 
-	reEvaluateAll(false);
+	reEvaluateAll(set<int>(), false);
   vector<string> out;
   checkChanged(out);
   assert(out.empty());

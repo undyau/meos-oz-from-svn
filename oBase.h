@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,6 +39,9 @@ class oEvent;
 class gdioutput;
 class oDataInterface;
 class oDataConstInterface;
+class oDataContainer;
+typedef void * pvoid;
+typedef vector< vector<string> > * pvectorstr;
 
 enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3, 
                    StatusDNF=4, StatusDQ=5, StatusMAX=6, 
@@ -83,7 +86,10 @@ protected:
 
 	//Used for selections, etc.
 	int _objectmarker;
-  void updateChanged(){Modified.update(); changed=true;}
+  void updateChanged() {
+    Modified.update();
+    changed=true;
+  }
 
   /** Change the id of the object */
   virtual void changeId(int newId);
@@ -91,6 +97,11 @@ protected:
   //Used for handeling GUI combo boxes;
   static void clearCombo(HWND hWnd);
   static void addToCombo(HWND hWnd, const string &str, int data);
+
+  /** Get internal data buffers for DI */
+  virtual oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const = 0;
+  virtual int getDISize() const = 0;
+	
 public:
   /// Returns textual information on the object
   virtual string getInfo() const = 0;
@@ -113,9 +124,9 @@ public:
 
   bool existInDB() const { return !sqlUpdated.empty(); }
 
-	virtual oDataInterface getDI() = 0;
+  oDataInterface getDI();
   
-  virtual oDataConstInterface getDCI() const = 0;
+  oDataConstInterface getDCI() const;
 
   // Remove object from the competition
   virtual void remove() = 0;

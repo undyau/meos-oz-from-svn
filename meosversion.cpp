@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,23 +24,22 @@
 
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJKMN
-int getMeosBuild() 
-{
-  string revision("$Rev: 142 $");
+int getMeosBuild() {
+  string revision("$Rev: 187 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
-//ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvx
-//V2: abcdefg
-//V3: abcdefghijklmnopqrs
-string getMeosDate() 
-{
-  string date("$Date: 2013-07-04 09:19:13 +0200 (to, 04 jul 2013) $");
+//ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz
+//V2: abcdefgh
+//V3: abcdefghijklmnopqrstuvxyz
+//V31: a
+string getMeosDate() {
+  string date("$Date: 2014-02-22 20:40:36 +0100 (lÃ¶, 22 feb 2014) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return "Beta 1";
+  return "Beta 2";
 }
 
 string getMeosFullVersion() {
@@ -97,6 +96,14 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Leif Olofsson, Sjuntorp");
   supp.push_back("Vallentuna/Össeby OL");
   supp.push_back("Oskarström OK");
+  supp.push_back("Skogslöparna");
   supp.push_back("OK Milan");
+  supp.push_back("GoIF Tjalve");
+  supp.push_back("OK Skärmen");
+  supp.push_back("Østkredsen");
+  supp.push_back("Holbæk Orienteringsklub");
+  supp.push_back("Bodens BK");
+  supp.push_back("OK Tyr, Karlstad");
+  supp.push_back("Göteborg-Majorna OK");
 }
  

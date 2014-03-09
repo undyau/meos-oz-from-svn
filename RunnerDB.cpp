@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -148,10 +148,25 @@ RunnerDBEntry *RunnerDB::addRunner(const char *name,
   return &e;
 }
 
-void RunnerDB::addClub(oClub &c)
-{
+int RunnerDB::addClub(oClub &c, bool createNewId) {
   //map<int,int>::iterator it = chash.find(c.getId());
   //if (it == chash.end()) {
+  if (createNewId) {
+    cdb.push_back(c);
+    int b = 0;
+    while(++b<0xFFFF) {
+      int newId = 10000 + rand() & 0xFFFF;
+      int dummy;
+      if (!chash.lookup(newId, dummy)) {
+        cdb.back().Id = newId;
+        chash[c.getId()]=cdb.size()-1;
+        return newId;
+      }
+    }
+    cdb.pop_back();
+    throw meosException("Internal database error");
+  }
+
   int value;
   if (!chash.lookup(c.getId(), value)) {
     cdb.push_back(c);
@@ -160,6 +175,7 @@ void RunnerDB::addClub(oClub &c)
   else {
     cdb[value] = c;
   }
+  return c.getId();
 }
 
 void RunnerDB::importClub(oClub &club, bool matchName)
@@ -524,7 +540,7 @@ oClub *RunnerDB::getClub(const string &name) const
 
 void RunnerDB::saveClubs(const char *file)
 {
-	xmlparser xml;
+	xmlparser xml(0);
 
 	xml.openOutputT(file, true, "meosclubs");
 
@@ -595,7 +611,7 @@ void RunnerDB::saveRunners(const char *file)
 
 void RunnerDB::loadClubs(const char *file)
 {
-  xmlparser xml;
+  xmlparser xml(0);
 
 	xml.read(file);
 
@@ -727,7 +743,7 @@ bool RunnerDB::check(const RunnerDBEntry &rde) const
   return true;
 }
 
-void RunnerDB::updateAdd(const oRunner &r)
+void RunnerDB::updateAdd(const oRunner &r, map<int, int> &clubIdMap)
 { 
   if (r.getExtIdentifier() > 0) {
     RunnerDBEntry *dbe = getRunnerById(int(r.getExtIdentifier()));
@@ -738,28 +754,47 @@ void RunnerDB::updateAdd(const oRunner &r)
   }
 
   const pClub pc = r.Club;
+  int localClubId = r.getClubId();
 
-  pClub dbClub = getClub(r.getClubId());
+  if (pc) {
+    if (clubIdMap.count(localClubId))
+      localClubId = clubIdMap[localClubId];
 
-  if (dbClub == 0) {
-    dbClub = getClub(r.getClub());
+    pClub dbClub = getClub(localClubId);
+    bool wrongId = false;
+    if (dbClub) {
+      if (dbClub->getName() != pc->getName()) {
+        dbClub = 0; // Wrong club!
+        wrongId = true;
+      }
+    }
+    
+    if (dbClub == 0) {
+      dbClub = getClub(r.getClub());
+      if (dbClub) {
+        localClubId = dbClub->getId();
+        clubIdMap[pc->getId()] = localClubId;
+      }
+    }
+
+    if (dbClub == 0) {
+      localClubId = addClub(*pc, wrongId);
+      if (wrongId)
+        clubIdMap[pc->getId()] = localClubId;
+    }
   }
 
-  if (dbClub == 0 && pc != 0) {
-    addClub(*pc);
-  }
-  
   RunnerDBEntry *dbe = getRunnerByCard(r.getCardNo());
 
   if (dbe == 0) {
-    dbe = addRunner(r.getName().c_str(), 0, r.getClubId(), r.getCardNo());
+    dbe = addRunner(r.getName().c_str(), 0, localClubId, r.getCardNo());
     if (dbe) 
       dbe->birthYear = r.getDCI().getInt("BirthYear");
   }
   else {
     if (dbe->getExtId() == 0) { // Only update entries not in national db.
       dbe->setName(r.getName().c_str());
-      dbe->clubNo = (r.getClubId());
+      dbe->clubNo = localClubId;
       dbe->birthYear = r.getDCI().getInt("BirthYear");
     }
   }
@@ -1049,10 +1084,6 @@ bool oDBRunnerEntry::canRemove() const {
   return false; 
 }
 
-oDataInterface oDBRunnerEntry::getDI() {
-  throw meosException("Not implemented");
-}
-
-oDataConstInterface oDBRunnerEntry::getDCI() const  {
+oDataContainer &oDBRunnerEntry::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
   throw meosException("Not implemented");
 }

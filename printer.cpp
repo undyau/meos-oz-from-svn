@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,11 +28,13 @@
 #include "meos_util.h"
 #include "Table.h"
 #include "gdifonts.h"
+#include "Printer.h"
+#include "gdiimpl.h"
+#include <algorithm>
 
 extern gdioutput *gdi_main;
 static bool bPrint;
 const double inchmmk=2.54;
-
 
 BOOL CALLBACK AbortProc(HDC,	int  iError)
 {
@@ -45,36 +47,13 @@ BOOL CALLBACK AbortProc(HDC,	int  iError)
 	}
 }
 
-
 #define WM_SETPAGE WM_USER+423
 
-BOOL CALLBACK  AbortPrintJob(HWND hDlg, UINT message, WPARAM wParam, LPARAM)
-{
-	/*switch(message)
-	{
-	case WM_INITDIALOG:
-	return true;
-
-	case WM_SETPAGE:
-	SetDlgItemInt(hDlg, IDC_PAGE, wParam, false);
-	break;
-
-	case WM_COMMAND:
-	switch(LOWORD(wParam))
-	{
-	case IDCANCEL:
-	bPrint=false;
-	EndDialog(hDlg,false);
-	break;
-	}
-	return true;
-
-	}*/
+BOOL CALLBACK  AbortPrintJob(HWND hDlg, UINT message, WPARAM wParam, LPARAM) {
 	return false;
 }
 
-PrinterObject::PrinterObject()
-{
+PrinterObject::PrinterObject() {
   hDC=0;
 	hDevMode=0;
 	hDevNames=0;
@@ -87,8 +66,7 @@ PrinterObject::PrinterObject()
   memset(&DevMode, 0, sizeof(DevMode));
 }
 
-PrinterObject::PrinterObject(const PrinterObject &po)
-{
+PrinterObject::PrinterObject(const PrinterObject &po) {
   hDC=0;
   hDevMode=po.hDevMode;
   hDevNames=po.hDevNames;
@@ -130,128 +108,23 @@ PrinterObject::~PrinterObject()
   freePrinter();
 }
 
-void gdioutput::printPage(PrinterObject &po, int StartY, int &EndY, bool calculate)
+void gdioutput::printPage(PrinterObject &po, const PageInfo &pageInfo, RenderedPage &page)
 {
-  HDC hDC=po.hDC;
-  PrinterObject::DATASET &ds=po.ds;
-
-	TIList::iterator it;
-	int MaxYThisPage=StartY+(ds.PageY-2*ds.MarginY);
-
-  vector<TextInfo *> lastRow;
-	ds.LastPage=true;
-  bool monotone = true;
-	EndY=StartY;
-  int lastEndY = EndY;
-	for (it=TL.begin();it!=TL.end(); ++it) {
-		TextInfo text=*it;
-		text.yp=int(it->yp*ds.Scale);
-		text.xp=int(it->xp*ds.Scale);
-
-		if(text.format!=10 && text.yp>StartY && text.yp+text.getHeight()*ds.Scale<MaxYThisPage)	{
-      if ( text.yp > EndY ) {
-        lastEndY = EndY;
-        EndY = text.yp;
-        lastRow.clear();
-      }
-      else if (text.yp < EndY)
-        monotone = false;
-			if (text.format==pageNewPage) {
-				ds.LastPage = false;
-				return;
-			}
-      else if (text.format==pageReserveHeight) 
-        continue;
-      else if (text.format==pagePageInfo) {
-        *pageInfo = text;
-        continue;
-      }
-
-      text.yp=text.yp-StartY+ds.MarginY;
-		  text.Highlight=0;
-		  text.HasCapture=0;
-		  text.Active=0;
-  	  text.CallBack=0;
-      text.HasTimer=false;
-
-  		if (text.format==0)
-    		text.format=fontSmall; //Small text
-
-      if (calculate) {
-        transformedPageText.push_back(text);
-        if ( (EndY-StartY+ds.MarginY) == text.yp) {
-          lastRow.push_back(&transformedPageText.back());
-        }
-        CalculateCS(text);
-      }
-      else 
-			  RenderString(text, hDC);		
-		}
-		else if(text.yp>=MaxYThisPage)
-			ds.LastPage=false;
-	}
-
-  bool isTitle = false;
-  if (monotone) {
-    for (size_t k = 0; k<lastRow.size(); k++) {
-      if (lastRow[k]->format>=1 && lastRow[k]->format<=5) {
-        isTitle = true;
-      }
-    }
-  }
-  if (isTitle && !ds.LastPage) {
-    // Move last title row to next page
-    for (size_t k = 0; k<lastRow.size(); k++) 
-      lastRow[k]->format = formatIgnore;
-
-    EndY = lastEndY;
-  }
-}
-
-void gdioutput::printPage(PrinterObject &po, int nPage, int nPageMax)
-{
-	TIList::iterator it;
-
-  for (it=transformedPageText.begin();it!=transformedPageText.end(); ++it) {
-    if (it->format == formatIgnore)
-      continue;
-	  RenderString(*it, po.hDC);
+  for (size_t k = 0; k < page.text.size(); k++) {
+    // Use transformed coordinates
+    page.text[k].ti.xp = (int)page.text[k].xp;
+    page.text[k].ti.yp = (int)page.text[k].yp;
+    RenderString(page.text[k].ti, po.hDC);
   }
 
-  char bf[512];
-  if (printHeader) {
-    if(!pageInfo->text.empty())
-      sprintf_s(bf, "MeOS %s, %s, s. %d/%d", getLocalTime().c_str(),
-        pageInfo->text.c_str(), nPage, nPageMax);
-    else
-      sprintf_s(bf, "MeOS %s, s. %d/%d", getLocalTime().c_str(), nPage, nPageMax);
-    
+  if (pageInfo.printHeader) {
     TextInfo t;
-    t.yp=po.ds.MarginY;
-    t.xp=po.ds.PageX-po.ds.MarginX;
-    t.text=bf;
+    t.yp = po.ds.MarginY;
+    t.xp = po.ds.PageX - po.ds.MarginX;
+    t.text = pageInfo.pageInfo(page);
     t.format=textRight|fontSmall;
     RenderString(t, po.hDC);
   }
-}
-
-//Uses format, text, xp and yp
-void gdioutput::CalculateCS(TextInfo &text)
-{
-  if(text.format==pageNewPage || 
-      text.format==pageReserveHeight ||
-      text.text.empty())
-    return;
-  DWORD localCS=0; 
-  DWORD localCS2=0; 
-
-  for(DWORD i=0; i<text.text.size(); i++){
-    localCS+=(BYTE(text.text[i])<<(i%24))*(i*i+text.yp);
-    localCS2+=(BYTE(text.text[i])<<(i%23))*(i+17)*(i+text.xp);
-  }
-
-  localCS+=(text.format*10000000+text.xp+text.yp*1000);  
-  globalCS=globalCS+__int64(localCS)+(__int64(localCS2)<<32);
 }
 
 void gdioutput::printSetup(PrinterObject &po)
@@ -264,17 +137,6 @@ void gdioutput::printSetup(PrinterObject &po)
   pd.lStructSize = sizeof(PRINTDLG);
 	pd.hDevMode = po.hDevMode;
 	pd.hDevNames = po.hDevNames;
-  /*
-  HGLOBAL devMode = 0, devName = 0;
-
-  if (!po.Device.empty()) {
-    devMode = GlobalAlloc(GHND, sizeof(DEVMODE));
-    devName = GlobalAlloc(GHND, sizeof(DEVNAMES));
-    DEVMODE *dm = (DEVMODE *)GlobalLock(devMode);
-    *dm = po.DevMode;
-    GlobalUnlock(devMode);
-    
-  }*/
   
   pd.Flags = PD_RETURNDC|PD_USEDEVMODECOPIESANDCOLLATE|PD_PRINTSETUP;
 	pd.hwndOwner = hWndAppMain;
@@ -330,13 +192,14 @@ void gdioutput::printSetup(PrinterObject &po)
 
 void gdioutput::print(pEvent oe, Table *t, bool printMeOSHeader, bool noMargin)
 {
-  printHeader = printMeOSHeader;
-  noPrintMargin = noMargin;
+  PageInfo pageInfo;
+  pageInfo.printHeader = printMeOSHeader;
+  pageInfo.noPrintMargin = noMargin;
 
   setWaitCursor(true);
 	PRINTDLG pd;
     
-  PrinterObject &po=po_default;
+  PrinterObject &po=*po_default;
   po.printedPages.clear();//Don't remember
 
 	pd.lStructSize = sizeof(PRINTDLG);
@@ -396,7 +259,7 @@ void gdioutput::print(pEvent oe, Table *t, bool printMeOSHeader, bool noMargin)
     //GlobalUnlock(pd.hDevNames);
 	}
 
-  doPrint(po, oe);
+  doPrint(po, pageInfo, oe);
 
 	// Delete the printer DC.
 	DeleteDC(pd.hDC);
@@ -405,8 +268,10 @@ void gdioutput::print(pEvent oe, Table *t, bool printMeOSHeader, bool noMargin)
 
 void gdioutput::print(PrinterObject &po, pEvent oe, bool printMeOSHeader, bool noMargin)
 {
-  printHeader = printMeOSHeader;
-  noPrintMargin = noMargin;
+  PageInfo pageInfo;
+  pageInfo.printHeader = printMeOSHeader;
+  pageInfo.noPrintMargin = noMargin;
+
   if (po.hDevMode==0) {
   //if (po.Driver.empty()) {
     PRINTDLG pd;
@@ -465,7 +330,7 @@ void gdioutput::print(PrinterObject &po, pEvent oe, bool printMeOSHeader, bool n
   else if (po.hDC==0) {
     po.hDC = CreateDC(po.Driver.c_str(), po.Device.c_str(), NULL, &po.DevMode);
   }
-  doPrint(po, oe);
+  doPrint(po, pageInfo, oe);
 }
 
 void gdioutput::destroyPrinterDC(PrinterObject &po)
@@ -505,7 +370,7 @@ bool gdioutput::startDoc(PrinterObject &po)
   return true;
 }
 
-bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
+bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
 {
   setWaitCursor(true);
 
@@ -520,6 +385,12 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
 	int xsize = GetDeviceCaps(po.hDC, HORZSIZE);
 	int ysize = GetDeviceCaps(po.hDC, VERTSIZE);
 
+  int physX = GetDeviceCaps(po.hDC, PHYSICALWIDTH);
+  int physY = GetDeviceCaps(po.hDC, PHYSICALHEIGHT);
+
+  int physOffsetX = GetDeviceCaps(po.hDC, PHYSICALOFFSETX);
+  int physOffsetY = GetDeviceCaps(po.hDC, PHYSICALOFFSETY);
+
 	// Retrieve the number of pixels-per-logical-inch in the
 	// horizontal and vertical directions for the printer upon which
 	// the bitmap will be printed.
@@ -532,57 +403,54 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
 
   int PageXMax=limitSize ? max(512, MaxX) : MaxX;
 	int PageYMax=(ysize*PageXMax)/xsize;
-	SetWindowExtEx(po.hDC, int(PageXMax*1.05), PageYMax, 0);
+	SetWindowExtEx(po.hDC, int(PageXMax*1.05), int(PageYMax*1.05), 0);
 	SetViewportExtEx(po.hDC, xtot, ytot, NULL); 
+  // xPrint = ((mm / xsize) * physX - physOff) / xtot * PageXMax*1.05
+  // xPrint =  mm * (physX * PageXMax * 1.05) / (xsize*xtot) - physOff * (PageXMax * 1.05/xtot)
+  pageInfo.xMM2PrintC = double(physX * PageXMax * 1.05) / double(xsize*xtot);
+  pageInfo.xMM2PrintK = double(-physOffsetX) * (PageXMax * 1.05/xtot);
+  pageInfo.yMM2PrintC = double(physY * PageYMax * 1.05) / double(ysize*ytot);
+  pageInfo.yMM2PrintK = double(-physOffsetY) * (PageYMax * 1.05/ytot);
 
-	ds.PageX=PageXMax;
-	ds.PageY=PageYMax;
-  ds.MarginX=noPrintMargin ? (limitSize ? PageXMax/30: 5) : PageXMax/25;
-  ds.MarginY=noPrintMargin ? 5 : 20;
+	ds.PageX = PageXMax;
+	ds.PageY = PageYMax;
+  ds.MarginX = pageInfo.noPrintMargin ? (limitSize ? PageXMax/30: 5) : PageXMax/25;
+  ds.MarginY = pageInfo.noPrintMargin ? 5 : 20;
 	ds.Scale=1;
 	ds.LastPage=false;
-	int EndY=0;
-	int StartY=0;
 
-  list< list<TextInfo> > pagesToPrint;
   int sOffsetY = OffsetY;
   int sOffsetX = OffsetX;
   OffsetY = 0;
   OffsetX = 0;
+  
+  pageInfo.topMargin = ds.MarginY * 2;
+  pageInfo.scale = 1.0;
+  pageInfo.leftMargin = ds.MarginX;
+  pageInfo.bottomMargin = ds.MarginY;
+  pageInfo.pageY = PageYMax;
 
-	while (!ds.LastPage) {
-    //Calculate checksum for this page to see if it has been already printed.
-    globalCS=0;
-    transformedPageText.clear();
-    *pageInfo=TextInfo();
-    printPage(po, StartY, EndY, true);
-		StartY=EndY;
-
-    if(!transformedPageText.empty()){
-      if(!po.onlyChanged || po.printedPages.count(globalCS)==0) {
-        
-        pagesToPrint.push_back(list<TextInfo>());
-
-        swap(pagesToPrint.back(), transformedPageText);
-        pagesToPrint.back().push_back(*pageInfo);
-
-        myPages.insert(globalCS);
-        po.nPagesPrinted++;
-        po.nPagesPrintedTotal++;
-      }
+  vector<RenderedPage> pages;
+  pageInfo.renderPages(TL, false, pages);
+  
+  vector<int> toPrint;
+  for (size_t k = 0; k < pages.size(); k++) {
+    if(!po.onlyChanged || po.printedPages.count(pages[k].checkSum)==0) {
+      toPrint.push_back(k);      
+      po.nPagesPrinted++;
+      po.nPagesPrintedTotal++;
     }
-    transformedPageText.clear();
-	}
-
-  int nPagesToPrint=pagesToPrint.size();
+    myPages.insert(pages[k].checkSum);
+  } 
+  int nPagesToPrint=toPrint.size();
 
   if (nPagesToPrint>0) {
    
     if (!startDoc(po)) {
       return false;
     }
-    int page=1;
-    while (!pagesToPrint.empty()) {
+
+    for (size_t k = 0; k < toPrint.size(); k++) {
 
       int nError = StartPage(po.hDC);
       if (nError <= 0) {
@@ -595,15 +463,10 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
         OffsetY = sOffsetY;
         OffsetX = sOffsetX;
         alert("StartPage error: " + getErrorMessage(nError));
-		
 	      return false;
       }
-      swap(pagesToPrint.front(), transformedPageText);
-      pagesToPrint.pop_front();
-      swap(transformedPageText.back(), *pageInfo);
-      transformedPageText.pop_back();
-      
-      printPage(po, page++, nPagesToPrint);
+    
+      printPage(po, pageInfo, pages[toPrint[k]]);
       EndPage(po.hDC);
     }
 
@@ -620,64 +483,11 @@ bool gdioutput::doPrint(PrinterObject &po, pEvent oe)
 	  }
   }
 
-  po.printedPages.insert(myPages.begin(), myPages.end()); //Mark all pages as printed
-  
-  //DeleteDC(po.hDC);
-  //po.hDC=0;
-        
+  po.printedPages.swap(myPages);     
   return true;
 }
 
-UINT CALLBACK PagePaintHook(HWND, UINT uiMsg, WPARAM wParam, LPARAM lParam)
-{
-/*	if(uiMsg==WM_PSD_GREEKTEXTRECT)
-	{
-		RECT &rc=*LPRECT(lParam);
-		HDC hDC=HDC(wParam);
-		SelectObject(hDC, GetStockObject(NULL_BRUSH));
-		SelectObject(hDC, GetStockObject(BLACK_PEN));
-
-		int top=rc.top+9;
-
-		int antal=(rc.right-rc.left)/16+1;
-		float width=float(rc.right-rc.left-1)/float(antal);
-
-		int ay=(rc.bottom-top)/6+1;
-		float height=float(rc.bottom-top-1)/float(ay);
-
-		RECT mini;
-
-		int x,y;
-
-		//Print header
-
-		for(x=rc.left;x<rc.left+(rc.right-rc.left)/2;x++)
-		{
-			MoveToEx(hDC, x+x%3-1, rc.top+6, NULL);
-			LineTo(hDC, x, rc.top+(x%3+x%2+x%5));
-		}
-
-		//Print calendar
-		for(x=0;x<antal;x++)
-		{
-			mini.left=x*width;
-			mini.right=(x+1)*width;
-
-			for(y=0;y<ay-x%2;y++)
-			{
-				mini.top=y*height;
-				mini.bottom=(y+1)*height;
-
-				Rectangle(hDC, rc.left+mini.left, top+mini.top, rc.left+mini.right+1, top+mini.bottom+1);
-			}
-		}
-
-		//Rectangle(hDC, rc.left+10, rc.top+10, rc.right, rc.bottom);
-		//CreateDIBitmap(
-
-		return true;
-	}
-*/
+UINT CALLBACK PagePaintHook(HWND, UINT uiMsg, WPARAM wParam, LPARAM lParam) {
 	return false;
 }
 
@@ -782,4 +592,201 @@ void PrinterObject::freePrinter() {
   if (hDevMode)
 		GlobalUnlock(hDevMode);
   hDevMode = 0;
+}
+
+
+//Uses format, text, xp and yp
+void RenderedPage::calculateCS(const TextInfo &text)
+{
+  if(gdioutput::skipTextRender(text.format) ||
+     text.text.empty())
+    return;
+  DWORD localCS=0; 
+  DWORD localCS2=0; 
+  for(DWORD i=0; i<text.text.size(); i++){
+    localCS+=(BYTE(text.text[i])<<(i%24))*(i*i+text.yp);
+    localCS2+=(BYTE(text.text[i])<<(i%23))*(i+17)*(i+text.xp);
+  }
+  localCS+=(text.format*10000000+text.xp+text.yp*1000);  
+  checkSum += __int64(localCS) + (__int64(localCS2)<<32);
+}
+
+static bool compare_y_value (const TextInfo *a, const TextInfo *b) {
+  return a->yp < b->yp;
+}
+
+void PageInfo::renderPages(const list<TextInfo> &tl,
+                           bool invertHeightY,
+                           vector<RenderedPage> &pages) {
+  const PageInfo &pi = *this;
+  TIList::const_iterator it;
+  pages.clear();
+  if (tl.empty())
+    return;
+  int currentYP = 0;
+  vector<const TextInfo *> indexedTL;
+  indexedTL.reserve(tl.size());
+  int top = 1000;
+  float minX = 1000;
+  currentYP = tl.front().yp;
+  bool needSort = false;
+  for (it=tl.begin();it!=tl.end(); ++it) {
+	  const TextInfo &text = *it;
+    if(text.format == 10)
+      continue;
+
+    if (currentYP > text.yp) {
+      needSort = true;
+    }
+    minX = min(minX, (float)it->textRect.left);
+    top = min(top, text.yp);
+    currentYP = text.yp;
+    indexedTL.push_back(&text);
+  }
+
+  if (needSort)
+    stable_sort(indexedTL.begin(), indexedTL.end(), compare_y_value);
+
+  bool addPage = true;
+  bool wasOrphan = false;
+  int offsetY = 0;
+  string infoText;
+  int extraLimit = 0;
+  for (size_t k = 0; k < indexedTL.size(); k++) {
+    
+    if (indexedTL[k]->format == pagePageInfo) {
+      infoText = indexedTL[k]->text;
+      if (!pages.empty() && pages.back().info.empty())
+        pages.back().info = infoText;
+    }
+
+    if (addPage) {
+      wasOrphan = false;
+      addPage = false;
+      pages.push_back(RenderedPage());
+      pages.back().nPage = pages.size();
+      pages.back().info = infoText;
+      if (k == 0)
+        offsetY = 0;
+      else
+        offsetY =  -indexedTL[k]->yp + extraLimit;
+      extraLimit = 0;
+    }
+
+    if (gdioutput::skipTextRender(indexedTL[k]->format))
+        continue;
+
+    pages.back().text.push_back(PrintTextInfo(*indexedTL[k]));
+    PrintTextInfo &text = pages.back().text.back();
+
+    text.ti.yp +=  offsetY;
+		text.ti.highlight=0;
+		text.ti.hasCapture=0;
+		text.ti.active=0;
+  	text.ti.callBack=0;
+    text.ti.hasTimer=false;
+
+    if (text.ti.absPrintX > 0) {
+      text.xp = float(text.ti.absPrintX * pi.xMM2PrintC + pi.xMM2PrintK);
+      text.yp = float(text.ti.absPrintY * pi.yMM2PrintC + pi.yMM2PrintK);
+    }
+    else {
+      text.xp = (text.ti.xp - minX) * pi.scale + pi.leftMargin;
+      int off = invertHeightY ? (text.ti.textRect.bottom - text.ti.textRect.top) : 0;
+      text.yp = (text.ti.yp + off) * pi.scale + pi.topMargin;
+    }
+
+    pages.back().calculateCS(text.ti);
+
+    if (k + 1 < indexedTL.size() && indexedTL[k]->yp != indexedTL[k+1]->yp) {
+      size_t j = k + 1;
+
+      // Required new page
+      if (indexedTL[j]->format == pageNewPage) {
+        k++;
+        addPage = true;
+        extraLimit = indexedTL[j]->getExtraInt();
+        infoText.clear();
+        continue;
+      }
+
+      map<int, int> forwardyp;
+      while ( j < indexedTL.size() && forwardyp.size() < 3) {
+        if (indexedTL[j]->format != pagePageInfo) {
+          if (forwardyp.count(indexedTL[j]->yp) == 0 || indexedTL[j]->format == pageNewPage)
+            forwardyp[indexedTL[j]->yp] = j;
+        }
+        j++;
+      }
+
+      int ix = 0;
+      float lastSize = GDIImplFontSet::baseSize(indexedTL[k]->format, 1.0);
+      bool nextIsHead = false;
+      bool firstCanBreak = true;
+      for (map<int,int>::iterator it = forwardyp.begin(); it != forwardyp.end(); ++it, ++ix) {
+        float y = (max<int>(indexedTL[it->second]->textRect.bottom, indexedTL[it->second]->yp) + offsetY) * pi.scale + pi.topMargin;
+        float size = GDIImplFontSet::baseSize(indexedTL[it->second]->format, 1.0);
+        
+        bool over = y > pi.pageY - pi.bottomMargin;
+        bool canBreak = indexedTL[it->second]->lineBreakPrioity >= 0;
+
+        if (ix == 0 && lastSize < size)
+          nextIsHead = true;
+        
+        if (ix == 0 && !canBreak)
+          firstCanBreak = false; // First can break;
+
+        if (ix > 0 && firstCanBreak && canBreak)
+          firstCanBreak = false; // There is a more suitable break later
+
+        if (over) {
+          if (addPage && ix == 1 && lastSize < size && !wasOrphan) {
+            wasOrphan = true;
+            addPage = false; // Keep this line on this page. Orphan, next is head.
+            break;
+          }
+          if (ix == 0 && forwardyp.size()>1) { // forwardyp.size()>1 -> more than one lines left
+            if (!canBreak) {
+              if (!wasOrphan) {
+                wasOrphan = true;
+                break; // Skip breaking here. 
+              }
+              wasOrphan = false;
+            }
+            addPage = true;
+          }
+          else if (ix > 0 && !canBreak && firstCanBreak) {
+            addPage = true; // Use this as a suitable break
+          }
+          else if (nextIsHead) {
+            addPage = true;
+          }
+        }
+
+        lastSize = size;
+      }
+    }
+  }
+  nPagesTotal = pages.size();
+}
+
+string PageInfo::pageInfo(const RenderedPage &page) const {
+  if (printHeader) {
+    char bf[256];
+    if (nPagesTotal > 1) {
+      if(!page.info.empty())
+        sprintf_s(bf, "MeOS %s, %s, (%d/%d)", getLocalTime().c_str(),
+                  page.info.c_str(), page.nPage, nPagesTotal);
+      else
+        sprintf_s(bf, "MeOS %s, (%d/%d)", getLocalTime().c_str(), page.nPage, nPagesTotal);
+    }
+    else {
+      if(!page.info.empty())
+        sprintf_s(bf, "MeOS %s, %s", getLocalTime().c_str(), page.info.c_str());
+      else
+        sprintf_s(bf, "MeOS %s", getLocalTime().c_str());
+    }
+    return bf;
+  }
+  else return "";
 }

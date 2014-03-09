@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 class oEvent;
 class oCourse;
 typedef oCourse * pCourse;
+class oCard;
 
 class gdioutput;
 class oDataInterface;
@@ -46,14 +47,20 @@ const int NControlsMax = 128;
 
 class oCourse : public oBase
 {
+private:
+  static bool matchLoopKey(const vector<int> &punches, const vector<pControl> &key);
 protected:
 	pControl Controls[NControlsMax];
   
 	int nControls;
 	string Name;
 	int Length;
-	BYTE oData[64];
-  
+	static const int dataSize = 64;
+  int getDISize() const {return dataSize;}
+
+  BYTE oData[dataSize];
+  BYTE oDataOld[dataSize];
+
   // Length of each leg, Start-1, 1-2,... N-Finish.
   vector<int> legLengths;
 
@@ -66,6 +73,18 @@ protected:
   pControl doAddControl(int Id);
 
   void changeId(int newId);
+
+  // Caching.
+  mutable vector<string> cachedControlOrdinal;
+  mutable int cachedHasRogaining;
+  mutable int cacheDataRevision;
+  void clearCache() const;
+
+  /** Get internal data buffers for DI */
+  oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
+  // For adapted courses;
+  vector<int> tMapToOriginalOrder;
 
 public:
   void remove();
@@ -80,10 +99,28 @@ public:
   int getFinishPunchType() const;
   int getStartPunchType() const;
 
+  int getCommonControl() const;
+  void setCommonControl(int ctrlId);
+
   bool operator<(const oCourse &b) const {return Name<b.Name;}
 
   void setNumberMaps(int nm);
   int getNumberMaps() const;
+
+  //Get a loop course adapted to a card. 
+  pCourse getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const;
+
+  // Returns true if this course is adapted to specific punches
+  bool isAdapted() const;
+
+  // Returns a map for an adapted course to the original control order
+  const vector<int> &getMapToOriginalOrder() const {return tMapToOriginalOrder;}
+
+  // Returns a unique key for this variant
+  int getAdaptionId() const;
+
+  // Constuct loop keys of controls. CC is the common control
+  bool constructLoopKeys(int commonControls, vector< vector<pControl> > &loopKeys, vector<int> &commonControlIndex) const;
 
   /// Check if course has problems
   string getCourseProblems() const;
@@ -111,7 +148,7 @@ public:
 
   // Get the control number as "printed on map". Do not count
   // rogaining controls
-  string getControlOrdinal(int controlIndex) const;
+  const string &getControlOrdinal(int controlIndex) const;
 
   /** Get the part of the course between the start and end. Use start = 0 for the 
       start of the course, and end = 0 for the finish. Returns 0 if fraction 
@@ -120,10 +157,7 @@ public:
 
   string getInfo() const;
 
-	oDataInterface getDI();
-	oDataConstInterface getDCI() const;
-
-	oControl *getControl(int index);
+	oControl *getControl(int index) const;
 
   /** Return the distance between the course and the card.
       Positive return = extra controls
@@ -136,10 +170,12 @@ public:
 	void importControls(const string &cstring);
 	void importLegLengths(const string &legs);
 
+  static void splitControls(const string &ctrls, vector<int> &nr);
+
   pControl addControl(int Id);
 	void Set(const xmlobject *xo);
 
-  void getControls(list<pControl> &pc);
+  void getControls(vector<pControl> &pc);
 	string getControls() const;
 	string getLegLengths() const;
 	

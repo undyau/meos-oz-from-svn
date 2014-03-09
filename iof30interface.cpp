@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1096,7 +1096,7 @@ pTeam IOF30Interface::readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
 
   string bib;
   xTeam.getObjectString("BibNumber", bib);
-  t->setBib(bib, true);
+  t->setBib(bib, true, false);
 
   oDataInterface di = t->getDI();
   string entryTime;
@@ -1140,7 +1140,7 @@ pTeam IOF30Interface::readTeamStart(gdioutput &gdi, pClass pc, xmlobject &xTeam,
 
   string bib;
   xTeam.getObjectString("BibNumber", bib);
-  t->setBib(bib, atoi(bib.c_str()) > 0);
+  t->setBib(bib, atoi(bib.c_str()) > 0, false);
 
   xmlList xEntries;
   xTeam.getObjects("TeamMemberStart", xEntries);
@@ -1346,7 +1346,7 @@ pRunner IOF30Interface::readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo
       starts[k].getObjectString("BibNumber", bib);
       rRace->getDI().setString("Bib", bib);
 
-      rRace->setStartTime(parseISO8601Time(startTime));
+      rRace->setStartTime(parseISO8601Time(startTime), true, false);
     }  
   }
 
@@ -2055,12 +2055,12 @@ void IOF30Interface::writeClassResult(xmlparser &xml,
 
 pCourse IOF30Interface::haveSameCourse(const vector<pRunner> &r) const {
   bool sameCourse = true;
-  pCourse stdCourse = r.size() > 0 ? r[0]->getCourse() : 0; 
+  pCourse stdCourse = r.size() > 0 ? r[0]->getCourse(false) : 0; 
   for (size_t k = 1; sameCourse && k < r.size(); k++) {
     int nr = r[k]->getNumMulti();
     for (int j = 0; j <= nr; j++) {
       pRunner tr = r[k]->getMultiRunner(j);
-      if (tr && stdCourse != tr->getCourse()) {
+      if (tr && stdCourse != tr->getCourse(true)) {
         sameCourse = false;
         return 0;
       }
@@ -2086,6 +2086,11 @@ void IOF30Interface::writeClass(xmlparser &xml, const oClass &c) {
 
 void IOF30Interface::writeCourse(xmlparser &xml, const oCourse &c) {
   xml.startTag("Course");
+  writeCourseInfo(xml, c);    
+  xml.endTag();
+}
+
+void IOF30Interface::writeCourseInfo(xmlparser &xml, const oCourse &c) {
   xml.write("Id", c.getId());
   xml.write("Name", c.getName());
   int len = c.getLength();
@@ -2094,9 +2099,8 @@ void IOF30Interface::writeCourse(xmlparser &xml, const oCourse &c) {
   int climb = c.getDCI().getInt("Climb");
   if (climb > 0)
     xml.write("Climb", climb);
-    
-  xml.endTag();
 }
+
 
 string formatStatus(RunnerStatus st) {
   switch (st) {
@@ -2169,6 +2173,7 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
                                  bool includeCourse, bool includeRaceNumber, 
                                  bool teamMember, bool hasInputTime) {
 
+  vector<SplitData> dummy;
   if (!includeRaceNumber && getStageNumber() == 0)
     xml.startTag("Result");
   else {
@@ -2252,17 +2257,21 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
       xml.endTag();
     }
     
-    pCourse crs = r.getCourse();
+    pCourse crs = r.getCourse(false);
     if (crs) {
       if (includeCourse)
         writeCourse(xml, *crs);
     
-      const vector<SplitData> &sp = r.getSplitTimes();
+      const vector<SplitData> &sp = r.getSplitTimes(true);
       if (r.getStatus()>0 && r.getStatus() != StatusDNS && r.getStatus() != StatusNotCompetiting) {
         int nc = crs->getNumControls();
         bool hasRogaining = crs->hasRogaining();
+        int firstControl = crs->useFirstAsStart() ? 1 : 0;
+        if (crs->useLastAsFinish()) {
+          nc--;
+        }
         set< pair<unsigned, int> > rogaining;
-        for (int k = 0; k<nc; k++) {
+        for (int k = firstControl; k<nc; k++) {
           if (size_t(k) >= sp.size())
             break;
           if (crs->getControl(k)->isRogaining(hasRogaining)) {
@@ -2368,7 +2377,7 @@ int IOF30Interface::getStageNumber() {
 
 void IOF30Interface::writeEvent(xmlparser &xml) {
   xml.startTag("Event");
-  xml.write("Id", oe.getExtIdentifier());
+  xml.write64("Id", oe.getExtIdentifier());
   xml.write("Name", oe.getName());
   xml.startTag("StartTime");
   xml.write("Date", oe.getDate());
@@ -2607,11 +2616,8 @@ void IOF30Interface::writeStart(xmlparser &xml, const oRunner &r,
 
   if (r.getStartTime() > 0)
     xml.write("StartTime", oe.getAbsDateTimeISO(r.getStartTime(), true, useGMT));
-	//	string dt = oe.getAbsTimeISO(r.getStartTime());
-  //  xml.write("StartTime", getUTCTimeDateFromLocal(dt));
-	//}
     
-  pCourse crs = r.getCourse();
+  pCourse crs = r.getCourse(true);
   if (crs && includeCourse)
     writeCourse(xml, *crs);
 
@@ -2973,4 +2979,96 @@ void IOF30Interface::bindClassCourse(oClass &pc, const vector< vector<pCourse> >
       }
     }
   }
+}
+
+
+void IOF30Interface::writeCourses(xmlparser &xml) {
+  vector<string> props;
+  getProps(props);
+  xml.startTag("CourseData", props);
+
+  writeEvent(xml);
+
+  vector<pControl> ctrl;
+  vector<pCourse> crs;
+  oe.getControls(ctrl);
+
+  xml.startTag("RaceCourseData");
+  map<int, string> ctrlId2ExportId;
+
+  // Start
+  xml.startTag("Control");
+  xml.write("Id", "S");
+  xml.endTag();
+  set<string> ids;
+  for (size_t k = 0; k < ctrl.size(); k++) {
+    if (ctrl[k]->getStatus() != oControl::StatusFinish && ctrl[k]->getStatus() != oControl::StatusStart) {
+      string id = writeControl(xml, *ctrl[k], ids);
+      ctrlId2ExportId[ctrl[k]->getId()] = id;
+    }
+  }
+
+  // Finish
+  xml.startTag("Control");
+  xml.write("Id", "F");
+  xml.endTag();
+
+  oe.getCourses(crs);
+  for (size_t k = 0; k < crs.size(); k++) {
+    writeFullCourse(xml, *crs[k], ctrlId2ExportId);
+  }
+
+  xml.endTag();
+
+  xml.endTag();
+}
+
+string IOF30Interface::writeControl(xmlparser &xml, const oControl &c, set<string> &writtenId) {
+  int id = c.getFirstNumber();
+  string ids = itos(id);
+  if (writtenId.count(ids) == 0) {
+    xml.startTag("Control");
+    xml.write("Id", ids);
+/*
+    <!-- the position of the control given in latitude and longitude -->
+ 
+<!-- coordinates west of the Greenwich meridian and south of the equator are expressed by negative numbers -->
+ <Position lng="17.687623" lat="59.760069"/> 
+<!-- the position of the control on the printed map, relative to the map's lower left corner -->
+ <MapPosition y="58" x="187" unit="mm"/>
+ */
+
+    xml.endTag();
+    writtenId.insert(ids);
+  }
+
+  return ids;
+
+}
+
+void IOF30Interface::writeFullCourse(xmlparser &xml, const oCourse &c, 
+                                       const map<int, string> &ctrlId2ExportId) {
+ 
+  xml.startTag("Course");
+  writeCourseInfo(xml, c);
+
+  xml.startTag("CourseControl", "type", "Start");
+  xml.write("Control", "S");
+  xml.endTag();
+
+  for (int i = 0; i < c.getNumControls(); i++) {
+    int id = c.getControl(i)->getId();
+    xml.startTag("CourseControl", "type", "Control");
+    if (ctrlId2ExportId.count(id))
+      xml.write("Control", ctrlId2ExportId.find(id)->second);
+    else
+      throw exception();
+    xml.endTag();
+  }
+
+  xml.startTag("CourseControl", "type", "Finish");
+  xml.write("Control", "F");
+  xml.endTag();
+
+  xml.endTag();
 }

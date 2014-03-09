@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@
 #include "csvparser.h"
 #include "SportIdent.h"
 #include "gdifonts.h"
+#include "IOF30Interface.h"
+#include "meosexception.h"
 
 #include "TabCourse.h"
 #include "TabCompetition.h"
@@ -131,8 +133,16 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
       }
     }
     gdi.setText("CourseUse", usedInClasses, true);
-    
+
 	  gdi.enableEditControls(true);
+
+    fillCourseControls(gdi, *oe, pc->getControlsUI());
+    int cc = pc->getCommonControl();
+    gdi.check("WithLoops", cc != 0);
+    gdi.setInputStatus("CommonControl", cc != 0);
+    if (cc) {
+      gdi.selectItemByData("CommonControl", cc);
+    }
 	}
   else {
 		gdi.setText("Name", "");
@@ -147,6 +157,10 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
     gdi.selectItemByData("Courses", -1);
     gdi.setText("CourseProblem", "", true);
 	  gdi.setText("CourseUse", "", true);
+    gdi.check("WithLoops", false);
+    gdi.clearList("CommonControl");
+    gdi.setInputStatus("CommonControl", false);
+   
 	  gdi.enableEditControls(false);
 	}
 }
@@ -204,6 +218,14 @@ void TabCourse::save(gdioutput &gdi)
   pc->firstAsStart(firstAsStart);
   pc->lastAsFinish(lastAsFinish);
   
+  if (gdi.isChecked("WithLoops")) {
+    int cc = gdi.getTextNo("CommonControl");
+    if (cc == 0)
+      throw meosException("Ange en varvningskontroll för banan");
+    pc->setCommonControl(cc);
+  }
+  else
+    pc->setCommonControl(0);
 
   string t;
   pc->setMaximumRogainingTime(convertAbsoluteTimeMS(gdi.getText("TimeLimit")));
@@ -249,6 +271,25 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
 			if(file.length()>0)
 				gdi.setText("FileName", file);
 		}
+    else if (bi.id == "WithLoops") {
+      bool w = gdi.isChecked(bi.id);
+      gdi.setInputStatus("CommonControl", w);
+      if (w && gdi.getTextNo("CommonControl") == 0)
+        gdi.selectFirstItem("CommonControl");
+    }
+    else if (bi.id == "ExportCourses") {
+			int FilterIndex=0;
+      vector< pair<string, string> > ext;
+      ext.push_back(make_pair("IOF CourseData, version 3.0 (xml)", "*.xml"));
+			string save = gdi.browseForSave(ext, "xml", FilterIndex);
+			if(save.length()>0)	{
+        IOF30Interface iof30(oe);
+        xmlparser xml(gdi.getEncoding() == ANSI ? 0 : &gdi);
+        xml.openOutput(save.c_str(), false);
+        iof30.writeCourses(xml);  
+	      xml.closeOut();       
+      }
+    }
   	else if (bi.id=="ImportCourses")	{
       setupCourseImport(gdi, CourseCB);
 		}
@@ -371,6 +412,15 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
 
     }
 	}
+  else if (type == GUI_INPUT) {
+    InputInfo ii=*(InputInfo *)data;
+    if (ii.id == "Controls") {
+      int current = gdi.getTextNo("CommonControl");
+      fillCourseControls(gdi, *oe, ii.text);
+      if (gdi.isChecked("WithLoops") && current != 0)
+        gdi.selectItemByData("CommonControl", current);
+    }
+  }
   else if(type==GUI_CLEAR) {
     if (courseId>0)
       save(gdi);
@@ -408,8 +458,9 @@ bool TabCourse::loadPage(gdioutput &gdi)
 	oe->fillCourses(gdi, "Courses");
 
   gdi.dropLine(1);
+  gdi.fillRight();
   gdi.addButton("ImportCourses", "Importera från fil...", CourseCB);
-
+  gdi.addButton("ExportCourses", "Exportera...", CourseCB);
 	gdi.newColumn();
 	gdi.fillDown();
 
@@ -426,7 +477,7 @@ bool TabCourse::loadPage(gdioutput &gdi)
   gdi.addInput("NumberMaps", "", 6, 0, "Antal kartor:"); 
   gdi.popX();
 
-	gdi.addInput("Controls", "", 54, 0, "Kontroller:");
+  gdi.addInput("Controls", "", 54, CourseCB, "Kontroller:");
   gdi.dropLine(0.5);
 	gdi.addString("", 10, "help:12662");
   gdi.dropLine(1.5);
@@ -435,6 +486,16 @@ bool TabCourse::loadPage(gdioutput &gdi)
   gdi.addCheckbox("FirstAsStart", "Använd första kontrollen som start");
   gdi.fillDown();
   gdi.addCheckbox("LastAsFinish", "Använd sista kontrollen som mål");
+  gdi.popX();
+
+  gdi.fillRight();
+  gdi.addCheckbox("WithLoops", "Bana med slingor", CourseCB);
+  gdi.addString("", 0, "Varvningskontroll:");
+  gdi.fillDown();
+  gdi.dropLine(-0.2);
+  gdi.addSelection("CommonControl", 50, 200, 0, "", "En bana med slingor tillåter deltagaren att ta slingorna i valfri ordning");
+
+  gdi.dropLine(1);
   gdi.popX();
 
   RECT rc;
@@ -539,4 +600,34 @@ void TabCourse::setupCourseImport(gdioutput& gdi, GUICALLBACK cb) {
   gdi.addButton("Cancel", "Avbryt", cb).setCancel();
   gdi.setInputFocus("FileName");
   gdi.popX();
+}
+
+void TabCourse::fillCourseControls(gdioutput &gdi, oEvent &oe, const string &ctrl) {
+  vector<int> nr;
+  oCourse::splitControls(ctrl, nr);
+
+  vector< pair<string, size_t> > item;
+  map<int, int> used;
+  for (size_t k = 0; k < nr.size(); k++) {
+    pControl pc = oe.getControl(nr[k], false);
+    if (pc) {
+      if (pc->getStatus() == oControl::StatusOK)
+        ++used[pc->getFirstNumber()];
+    }
+    else
+      ++used[nr[k]];
+  }
+
+  set<int> added;
+  for (int i = 10; i > 0; i--) {
+    for (map<int, int>::iterator it = used.begin(); it != used.end(); ++it) {
+      if (it->second >= i && !added.count(it->first)) {
+        added.insert(it->first);
+        item.push_back(make_pair(itos(it->first), it->first));
+      }
+    }
+  }
+  
+  gdi.clearList("CommonControl");
+  gdi.addItem("CommonControl", item);
 }

@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ class TabClass :
     DMRandom = 1,
     DMSOFT = 2,
     DMClumped = 3,
+    DMSimultaneous = 4,
 
     DMPursuit = 11,
     DMReversePursuit = 12,
@@ -89,6 +90,10 @@ class TabClass :
 
   gdioutput *gdiVisualize;
 
+  void showClassSelection(gdioutput &gdi, int &bx, int &by) const; 
+
+  // Set simultaneous start in a class
+  void simultaneous(int classId, string time);
 public:
   void clear();
 

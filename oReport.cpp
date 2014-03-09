@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -404,7 +404,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 
 		if(r_it->getClassId()==0)
 			no_class.push_back(&*r_it);
-		else if(needCourse && r_it->getCourse()==0)
+		else if(needCourse && r_it->getCourse(false)==0)
 			no_course.push_back(&*r_it);
 	}
 	
@@ -554,7 +554,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 			gdi.addStringUT(y, x+tab[2], 0, itos(r_it->getCardNo()), tab[3]-tab[2]);
 			gdi.addStringUT(y, x+tab[3], 0, r_it->getCourseName(), tab[4]-tab[3]);
 			y+=lh;	
-			pCourse pc=r_it->getCourse();
+			pCourse pc=r_it->getCourse(true);
 			
 			if(pc){
         vector<string> res = pc->getCourseReadable(101);
@@ -567,7 +567,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 	}
 
 	gdi.dropLine();
-	gdi.addStringUT(1, "Lag(flera)");
+	gdi.addString("", 1, "Lag(flera)");
 	
 	for (t_it=Teams.begin(); t_it != Teams.end(); ++t_it){		
 		pClass pc=getClass(t_it->getClassId());
@@ -580,7 +580,7 @@ void oEvent::generatePreReport(gdioutput &gdi)
 				if(r){
 					gdi.addStringUT(0, r->getName()+ " SI: " +itos(r->getCardNo()));
 
-					pCourse pcourse=r->getCourse();
+					pCourse pcourse=r->getCourse(true);
 			
 					if(pcourse){
             y = gdi.getCY();

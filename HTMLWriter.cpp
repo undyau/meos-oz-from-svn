@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -199,8 +199,8 @@ bool gdioutput::writeHTML(const string &file, const string &title) const
 	        "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
 	
   fout << "<html>\n<head>\n";
-  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n";
-  fout << "<title>" << title << "</title>\n";
+  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n";
+  fout << "<title>" << toUTF8(title) << "</title>\n";
 
   map< pair<gdiFonts, string>, pair<string, string> > styles;
   generateStyles(fout, false, TL, styles);
@@ -245,7 +245,7 @@ bool gdioutput::writeHTML(const string &file, const string &title) const
     getStyle(styles, it->getGdiFont(), it->font, estyle, starttag, endtag);
 
     if (!it->text.empty())
-      fout << starttag << encodeXML(it->text) << endtag << endl;
+      fout << starttag << toUTF8(encodeXML(it->text)) << endtag << endl;
     //fout << "</" << element << ">\n";
     ++it;
   }
@@ -257,7 +257,7 @@ bool gdioutput::writeHTML(const string &file, const string &title) const
   GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
 	GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
   //fout << "Skapad av <i>MeOS</i>: " << bf1 << " "<< bf2 << "\n";	
-  fout << lang.tl("Skapad av ") + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS</i></a>: " << bf1 << " "<< bf2 << "\n";	
+  fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS</i></a>: " << bf1 << " "<< bf2 << "\n";	
   fout << "</p>\n";
   
   fout << "</body>\n";
@@ -270,7 +270,9 @@ string html_table_code(const string &in)
 {
   if(in.size()==0)
     return "&nbsp;";
-  else return encodeXML(in);
+  else {
+    return encodeXML(in);
+  }
 }
 
 bool sortTL_X(const TextInfo *a, const TextInfo *b)
@@ -290,8 +292,8 @@ bool gdioutput::writeTableHTML(const string &file, const string &title) const
 	        "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
 	
   fout << "<html>\n<head>\n";
-  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n";
-  fout << "<title>" << title << "</title>\n";
+  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF8\">\n";
+  fout << "<title>" << toUTF8(title) << "</title>\n";
 
   map< pair<gdiFonts, string>, pair<string, string> > styles;
   generateStyles(fout, true, TL, styles);
@@ -339,7 +341,7 @@ bool gdioutput::writeTableHTML(const string &file, const string &title) const
     int header = 0;
     int mainheader = 0;
     while (it!=TL.end() && it->yp==y) {
-      if(it->format!=pageNewPage && it->format!=pageReserveHeight) {        
+      if(!gdioutput::skipTextRender(it->format)) {        
         row.push_back(&*it);
         switch (it->getGdiFont()) {
           case fontLarge:
@@ -467,7 +469,7 @@ bool gdioutput::writeTableHTML(const string &file, const string &title) const
       string starttag, endtag;
       getStyle(styles, font, row[k]->font, "", starttag, endtag);
 
-      fout << starttag << html_table_code(row[k]->text) << endtag << "</td>" << endl;
+      fout << starttag << toUTF8(html_table_code(row[k]->text)) << endtag << "</td>" << endl;
 
  /*     pair<gdiFonts, string> key(font, row[k]->font);
 
@@ -590,7 +592,7 @@ bool gdioutput::writeTableHTML(const string &file, const string &title) const
   GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
 	GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
   string meos = getMeosCompectVersion();
-  fout << lang.tl("Skapad av ") + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS "
+  fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS "
        << meos << "</i></a>: " << bf1 << " "<< bf2 << "\n";	
   fout << "</p><br>\n";
   

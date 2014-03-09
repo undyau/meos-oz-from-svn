@@ -1,125 +1,113 @@
-// Printer.h: interface for the Printer class.
-//
-//////////////////////////////////////////////////////////////////////
+// printer.h: printing utilities.
 
-#if !defined(AFX_PRINTER_H__CD7DCD59_EE95_464C_A52A_288E50BEAF88__INCLUDED_)
-#define AFX_PRINTER_H__CD7DCD59_EE95_464C_A52A_288E50BEAF88__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 
-#include "ClubOrder.h"
+/************************************************************************
+    MeOS - Orienteering Software
+    Copyright (C) 2009-2014 Melin Software HB
+    
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-#define MaxClubs 2048
-#define MaxClasses 1024
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-struct PRINTERINFO
-{
-	char Name[128];
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-	char CurrentJob[128];
-	DWORD CurrentStatus;
+    Melin Software HB - software@melin.nu - www.melin.nu
+    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    
+************************************************************************/
 
-	DWORD Status;
-	DWORD AveragePPM;
+#include "gdistructures.h"
 
-	DWORD JobQueue;
-	DWORD PageQueue;	
+/** Data structure describing text to print.*/
+struct PrintTextInfo {
+  float xp;
+  float yp;
+  float width;
+  TextInfo ti;
+  PrintTextInfo(const TextInfo &ti_) : xp(0), yp(0), width(0), ti(ti_) {};
+  PrintTextInfo() : xp(0), yp(0), width(0) {};
 };
 
-class PrinterMaster;
+/** Data structure describing page to print*/
+struct PageInfo {
+  float topMargin;
+  float bottomMargin;
+  float pageY;
+  float leftMargin;
+  float scale;
+  
+  bool printHeader;
+  bool noPrintMargin;
+  int nPagesTotal; //Total number of pages to print
 
-class Printer  
-{
-private:
-	HANDLE MSBitmap; //Handle to MS Bitmap
-	HANDLE ExtraBitmap; //Handle to other sponsor bitmap Bitmap
+  // Transfer mm to local printing coordinates: cLocalX = cx + m, cLocalX = cy + m.
+  double xMM2PrintC;
+  double xMM2PrintK;
 
-	PrinterMaster *Parent;
+  double yMM2PrintC;
+  double yMM2PrintK;
 
-	char Device[128];
-	char Driver[128];
-	DEVMODE *devmode;
+  void renderPages(const list<TextInfo> &tl,
+                   bool invertHeightY,
+                   vector<RenderedPage> &pages);
 
-	HWND hWndButton;
-	int xp;
-	int yp;
-	
-	//OLClass *ClassesToPrint[MaxClasses];
-	ClassOrder ClassesToPrint[MaxClasses];
-	int nClassesToPrint;
-	int iFirstClassToPrint;
-
-	lpClubOrder ClubsToPrint[MaxClubs]; //Not owned by us
-	int nClubsToPrint;
-
-	lpClubOrder ClubsPrinted[MaxClubs]; //Not owned by us
-	int	nClubsPrinted;
-	
-	//Current status
-	int nPagesToPrint;
-	bool IsActive;
-	bool DoPrintSeparator;
-	bool Mod4PagesPrinting;
-	int IsPrinting;
-	bool RunPrinterThread;
-	bool Blink;
-
-	HDC hDCPrinter;
-
-	DWORD ThreadId;
-	void PrinterThread();
-
-
-	int PrinterNR;
-public:
-	bool BlankPage();
-	void PrintSeparator();
-	void PrintSeparator(HDC hDCSep);
-
-	bool GetMod4Pages() {return Mod4PagesPrinting;}
-	int GetPrinterNR() {return PrinterNR;}
-	HANDLE GetSponsor() {return MSBitmap;}
-	HANDLE GetExtraSponsor() {return ExtraBitmap;}
-
-	void FillListBoxClassesToPrint(HWND hList);	
-	ClassOrder *GetFirstClassToPrint(bool pop); 
-	bool AddClassToPrint(OLClass *olc, char *name);
-
-	//bool AddClassToPrint(OLClass *olc);
-
-	void TakeOver();
-	void RemoveJob(lpClubOrder co);
-	void MarkClubsToPrint();
-	void UnMarkClubsToPrint();
-	bool BltBitmap(HBITMAP hBM, int x, int y, int width, int height);
-	void StopPrintingThread();
-	void KillThreadAsync();
-	void StartPrintingThread();
-
-
-	void ListBoxSelectClubsToPrint(HWND hList);
-	void UpdatePrintQueue();
-	void ResetClubsToPrint();
-	void AddClubToPrint(lpClubOrder co);
-	void FillListBoxPrintedClubs(HWND hList);
-	char * GetJobText(char *bf, DWORD code);
-	void PrintStatus(HDC hDC, PRINTERINFO &pi);
-	int GetClubPagesToPrint();
-	bool GetPrinterInfo(PRINTERINFO &pi);
-	void ErrorMessage();
-	void ButtonClicked();
-	void pEndDoc();
-	HDC pStartDoc(char *JobName);
-	Printer(PrinterMaster *pmaster);
-	virtual ~Printer();
-
-	friend class PrinterMaster;
-	friend BOOL CALLBACK ClubJobDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-	friend BOOL CALLBACK PrinterDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-//	friend DWORD __stdcall InitPThread(LPVOID lpP);
-	friend VOID __cdecl InitPThread(LPVOID lpP);
+  string pageInfo(const RenderedPage &page) const;
 };
 
-#endif // !defined(AFX_PRINTER_H__CD7DCD59_EE95_464C_A52A_288E50BEAF88__INCLUDED_)
+/** A rendered page ready to print. */
+struct RenderedPage {
+  int nPage; // This page number
+  string info;
+  vector<PrintTextInfo> text;
+  __int64 checkSum;
+
+  RenderedPage() : checkSum(0) {}
+  void calculateCS(const TextInfo &text);
+};
+
+struct PrinterObject {
+	//Printing
+  HDC hDC;
+	HGLOBAL hDevMode;
+	HGLOBAL hDevNames;
+	
+  void freePrinter();
+
+  string Device;
+  string Driver;
+  DEVMODE DevMode;
+  set<__int64> printedPages;
+  int nPagesPrinted;
+  int nPagesPrintedTotal;
+  bool onlyChanged;
+
+  struct DATASET {
+	  int pWidth_mm;
+	  int pHeight_mm;
+	  double pMgBottom;
+	  double pMgTop;
+	  double pMgRight;
+	  double pMgLeft;
+
+	  int MarginX;
+	  int MarginY;
+	  int PageX;
+	  int PageY;
+	  double Scale;
+	  bool LastPage;
+  } ds;
+
+  void operator=(const PrinterObject &po);
+
+  PrinterObject();
+  ~PrinterObject();
+  PrinterObject(const PrinterObject &po);
+};

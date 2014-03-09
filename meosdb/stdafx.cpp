@@ -4,9 +4,9 @@
 
 #include "stdafx.h"
 
-const string _NoClub="No Club";
+const string _NoClub="Klubblös";
 const string _EmptyString="";
-const string _VacantName="Vacant";
+const string _VacantName="Vakant";
 const string _UnkownName="N.N.";
 
 // TODO: reference any additional headers you need in STDAFX.H

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -310,6 +310,25 @@ void oEvent::calculateResults(list<oSpeakerObject> &rl)
 
 void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId)
 {
+#ifdef _DEBUG
+  OutputDebugString("SpeakerListUpdate\n");
+#endif
+
+  DWORD clsIds = 0, ctrlIds = 0, cLegs = 0; 
+  gdi.getData("ClassId", clsIds);
+	gdi.getData("ControlId", ctrlIds);
+  gdi.getData("LegNo", cLegs);
+  //bool refresh = clsIds == ClassId &&  ctrlIds == ControlId && leg == cLegs;
+
+  //if (refresh)
+  //  gdi.takeShownStringsSnapshot();
+
+  gdi.setData("ClassId", ClassId);
+	gdi.setData("ControlId", ControlId);
+  gdi.setData("LegNo", leg);
+	gdi.setData("oEvent", DWORD(this));
+
+
   gdi.restoreNoUpdate("SpeakerList");
 	gdi.setRestorePoint("SpeakerList");
 
@@ -476,7 +495,10 @@ void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId)
 		}
 		else ++sit;
 	}
-  gdi.refreshFast();
+//  if (refresh)
+//    SmartFromSnapshot();
+//  else
+    gdi.refresh();
 }
 
 void oEvent::updateComputerTime()
@@ -790,7 +812,7 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
       continue;
     if (!r.Class ||r.Class->Id != classId)
       continue;
-    if (r.Status == StatusDNS || r.Status == StatusNotCompetiting)
+    if (r.tStatus == StatusDNS || r.tStatus == StatusNotCompetiting)
       continue;
     if (r.CardNo == 0)
       continue;
@@ -798,7 +820,7 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
       classSize++;
     if (size_t(r.tLeg) < skipLegs.size() && skipLegs[r.tLeg])
       continue;
-    if (r.StartTime > 0 && r.StartTime < currentTime) {
+    if (r.tStartTime > 0 && r.tStartTime < currentTime) {
       if (started.size() <= size_t(r.tLeg)) {
         started.resize(r.tLeg+1);
         started.reserve(Runners.size() / (r.tLeg + 1));
@@ -806,11 +828,11 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
       r.tTimeAfter = 0; //Reset time after
       r.tInitialTimeAfter = 0;
       started[r.tLeg].push_back(&r);
-      int id = r.tLeg + 100 * r.StartTime;
+      int id = r.tLeg + 100 * r.tStartTime;
       ++startTimes[id];
     }
-    else if (r.StartTime > currentTime) {
-      nextKnownEvent = min(r.StartTime, nextKnownEvent);
+    else if (r.tStartTime > currentTime) {
+      nextKnownEvent = min(r.tStartTime, nextKnownEvent);
     }
   }
 
@@ -826,8 +848,8 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
   if (startTimes.size() == 1) {
     oRunner &r = *started[firstNonEmpty][0];
     
-    oTimeLine tl(r.StartTime, oTimeLine::TLTStart, oTimeLine::PHigh, r.getClassId(), 0, 0);
-    TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.StartTime, tl));
+    oTimeLine tl(r.tStartTime, oTimeLine::TLTStart, oTimeLine::PHigh, r.getClassId(), 0, 0);
+    TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.tStartTime, tl));
     it->second.setMessage("X har startat.#" + r.getClass());
   }
   else {
@@ -835,7 +857,7 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
       bool startedClass = false;    
       for (size_t k = 0; k<started[j].size(); k++) {
         oRunner &r = *started[j][k];
-        int id = r.tLeg + 100 * r.StartTime;
+        int id = r.tLeg + 100 * r.tStartTime;
         if (startTimes[id] < sLimit) {
           oTimeLine::Priority prio = oTimeLine::PLow;
           int p = r.getSpeakerPriority();
@@ -843,14 +865,14 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
             prio = oTimeLine::PHigh;
           else if (p == 1)
             prio = oTimeLine::PMedium;
-          oTimeLine tl(r.StartTime, oTimeLine::TLTStart, prio, r.getClassId(), r.getId(), &r);
-          TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.StartTime + 1, tl));
+          oTimeLine tl(r.tStartTime, oTimeLine::TLTStart, prio, r.getClassId(), r.getId(), &r);
+          TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.tStartTime + 1, tl));
           it->second.setMessage("har startat.");
         }
         else if (!startedClass) {
           // The entire class started
-          oTimeLine tl(r.StartTime, oTimeLine::TLTStart, oTimeLine::PHigh, r.getClassId(), 0, 0);
-          TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.StartTime, tl));
+          oTimeLine tl(r.tStartTime, oTimeLine::TLTStart, oTimeLine::PHigh, r.getClassId(), 0, 0);
+          TimeLineIterator it = timeLineEvents.insert(pair<int, oTimeLine>(r.tStartTime, tl));
           it->second.setMessage("X har startat.#" + r.getClass());
           startedClass = true;
         }
@@ -866,7 +888,7 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
   for (size_t leg = 0; leg<started.size(); leg++) {
     for (size_t k = 0; k < started[leg].size(); k++) {
       if (radioControls.count(leg) == 0) {
-        pCourse pc = started[leg][k]->getCourse();
+        pCourse pc = started[leg][k]->getCourse(false);
         if (pc) {
           vector<pControl> &rc = radioControls[leg];
           for (int j = 0; j < pc->nControls; j++) {
@@ -952,29 +974,29 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
       RunnerStatus rs;
       r.getSplitTime(id, rs, rt);
       if (rs == StatusOK)
-        radio.push_back(TimeRunner(rt + r.StartTime, &r));
+        radio.push_back(TimeRunner(rt + r.tStartTime, &r));
       else
         radio.push_back(TimeRunner(0, &r));
 
       if (rt > 0) {
-        bestTotalTime[j].addTime(r.getTotalRunningTime(rt + r.StartTime));
+        bestTotalTime[j].addTime(r.getTotalRunningTime(rt + r.tStartTime));
         bestRaceTime[j].addTime(rt);
         // Calculate leg time since last radio (or start)
         int lt = 0;
         if (j == 0)
           lt = rt;
         else if (radioResults[j-1][k].time>0)
-          lt = rt + r.StartTime - radioResults[j-1][k].time;
+          lt = rt + r.tStartTime - radioResults[j-1][k].time;
 
         if (lt>0)
           bestLegTime[j].addTime(lt);
 
-        if (j == rc.size()-1 && r.FinishTime>0 && r.Status == StatusOK) {
+        if (j == rc.size()-1 && r.FinishTime>0 && r.tStatus == StatusOK) {
           // Get best total time
           bestTotalTime[j+1].addTime(r.getTotalRunningTime(r.FinishTime));
 
           // Calculate best time from last radio to finish
-          int ft = r.FinishTime - (rt + r.StartTime);
+          int ft = r.FinishTime - (rt + r.tStartTime);
           if (ft > 0)
             bestLegTime[j+1].addTime(ft);
         }
@@ -993,7 +1015,7 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
     while(j < rc.size() && (radioResults[j][k].time > 0 || j_radio == -1)) {
       if (radioResults[j][k].time > 0) {
         j_radio = j;
-        time = radioResults[j][k].time - radioResults[j][k].runner->StartTime;
+        time = radioResults[j][k].time - radioResults[j][k].runner->tStartTime;
       }
       j++;
     }
@@ -1019,7 +1041,7 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
     expectedRadio.reserve(radio.size());
     for (size_t k = 0; k < radio.size(); k++) {
       oRunner &r = *radio[k].runner;
-      int expected = r.StartTime + bestLeg;
+      int expected = r.tStartTime + bestLeg;
       int actual = radio[k].time;
       if ( (actual == 0 && (expected - pwTime) < currentTime) || (actual > (expected - pwTime)) ) {
         expectedRadio.push_back(TimeRunner(expected-pwTime, &r));
@@ -1092,7 +1114,7 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
         int place = 1;
         bool sharedPlace = false;
         vector<pRunner> preRunners;
-        int time = radio[k].time - r.StartTime;
+        int time = radio[k].time - r.tStartTime;
         int totTime = r.getTotalRunningTime(radio[k].time);
         insertResult(results, r, totTime, place, sharedPlace, preRunners);
         int leaderTime = results.begin()->first;
@@ -1238,7 +1260,7 @@ int oEvent::setupTimeLineEvents(vector<pRunner> &started, const vector<pControl>
     else if (r.getStatus() != StatusUnknown && r.getStatus() != StatusOK) {
       int t = r.FinishTime;
       if ( t == 0)
-        t = r.StartTime;
+        t = r.tStartTime;
 
       int place = 1000;
       if (r.FinishTime > 0) {

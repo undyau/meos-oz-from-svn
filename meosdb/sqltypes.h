@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2013 Melin Software HB
+    Copyright (C) 2009-2014 Melin Software HB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -50,6 +50,8 @@ extern "C"{
   bool MEOSDB_API msResetConnection();
   bool MEOSDB_API msReConnect();
   int MEOSDB_API msListCompetitions(oEvent *oe);
+
+  int getListMask(oEvent &oe);
 }
 
 bool repairTables(const string &db, vector<string> &output);
