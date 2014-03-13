@@ -1640,17 +1640,17 @@ bool oRunner::operator <(const oRunner &c)
 		return Name < c.Name;
 	}
   else if(oe->CurrentSortOrder == CoursePoints){
-    const pCourse crs1 = getCourse();
-    const pCourse crs2 = c.getCourse();
+    const pCourse crs1 = getCourse(false);
+    const pCourse crs2 = c.getCourse(false);
     if (crs1 != crs2) {
       int id1 = crs1 ? crs1->getId() : 0;
       int id2 = crs2 ? crs2->getId() : 0;
       return id1 < id2;
     }
-		if(Status != c.Status)
-			return unsigned(Status-1) < unsigned(c.Status-1);
+		if(status != c.status)
+			return unsigned(status-1) < unsigned(c.status-1);
 		else {
-			if (Status==StatusOK) {
+			if (status==StatusOK) {
         if(tRogainingPoints != c.tRogainingPoints)
 			    return tRogainingPoints > c.tRogainingPoints;
 				int t=getRunningTime();
@@ -3298,11 +3298,11 @@ void oRunner::printSplits(gdioutput &gdi) const {
   bool withSpeed = (oe->getDI().getInt("Analysis") & 2) == 0;
   
   
-  if (getCourse() && getCourse()->hasRogaining()) {
-	  list<pControl> ctrl;
+  if (getCourse(false) && getCourse(false)->hasRogaining()) {
+	  vector<pControl> ctrl;
     bool rogaining(true);
-    getCourse()->getControls(ctrl);
-    for (list<pControl>::const_iterator it=ctrl.begin(); it!=ctrl.end(); ++it)
+    getCourse(false)->getControls(ctrl);
+    for (vector<pControl>::const_iterator it=ctrl.begin(); it!=ctrl.end(); ++it)
       if (!(*it)->isRogaining(true))
         rogaining = false;
     if (rogaining) {  
@@ -3602,8 +3602,8 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
   int runningTotal = 0;
 
   bool moreThanHour = getRunningTime()>3600;
-  list<pControl> ctrl;
-  pCourse pc = getCourse();
+  vector<pControl> ctrl;
+  pCourse pc = getCourse(false);
   if (pc)
     pc->getControls(ctrl);
 
@@ -3656,7 +3656,7 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
       string punchTime; 
       if (it->isFinish()) {
         gdi.addString("", cy, cx, fontSmall, "Mål");
-        int sp = getSplitTime(splitTimes.size());
+        int sp = getSplitTime(splitTimes.size(), false);
         if (sp>0) {
           gdi.addStringUT(cy, cx+c2, fontSmall, formatTime(sp));
           punchTime = formatTime(getRunningTime());
@@ -3697,9 +3697,9 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
           gdi.addStringUT(cy, cx+c1, fontSmall, bf);
           
           adjust = getTimeAdjust(it->tIndex);
-          int sp = getSplitTime(it->tIndex);
+          int sp = getSplitTime(it->tIndex, false);
           if (sp>0) {
-            punchTime = getPunchTimeS(it->tIndex);
+            punchTime = getPunchTimeS(it->tIndex, false);
             gdi.addStringUT(cy, cx+c2, fontSmall, formatTime(sp));
           }
         }

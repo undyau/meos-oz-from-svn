@@ -28,6 +28,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "meos.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "libHaru.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "libmySQL.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "license.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "meos_doc_eng.html"; DestDir: "{app}"; Flags: ignoreversion

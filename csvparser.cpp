@@ -271,8 +271,8 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
       pr->setClubId(pclub ? pclub->getId():0);
 			pr->setCardNo( atoi(sp[ORcard]), false );
 			
-			pr->setStartTime( event.convertAbsoluteTime(sp[ORstart]) );
-			pr->setStatus(StatusUnknown);
+			pr->setStartTime( event.convertAbsoluteTime(sp[ORstart]), true, false );
+			pr->setStatus(StatusUnknown, true, false);
 
       if (strlen(sp[ORclass]) > 0) {
   			pClass pc=event.getClass(sp[ORclass]);
@@ -286,11 +286,11 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
 				}
 			}
 
-			pr->setStartNo(nimport);
+			pr->setStartNo(nimport, false);
 
 			oDataInterface DI=pr->getDI();
       
-      if(pr->getCourse() == 0){
+      if(pr->getCourse(false) == 0){
 				  pCourse course(0);
 
           if (!course) {

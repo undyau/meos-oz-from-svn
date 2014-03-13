@@ -1857,7 +1857,7 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
                           lang.tl("Tid: ") + runner->getRunningTimeS() + 
                           lang.tl(",      Prel. placering: ") + placeS;
 
-			if (runner->getCourse()->hasRogaining())
+			if (runner->getCourse(false)->hasRogaining())
 				statusline += lang.tl(",     Poäng: ") + itos(runner->getRogainingPoints());
 			else
       statusline += lang.tl(",     Prel. bomtid: ") + runner->getMissedTimeS();
@@ -1871,7 +1871,7 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
       string msg="#" + runner->getName()  + " (" + cardno + ")\n"+
 					runner->getClub()+". "+runner->getClass() + 
 					"\n" + lang.tl("Tid: ") + runner->getRunningTimeS() + lang.tl(", Plats: ") + placeS;
-			if (runner->getCourse()->hasRogaining())
+			if (runner->getCourse(false)->hasRogaining())
 				msg += lang.tl(", Poäng: ") + itos(runner->getRogainingPoints());
 			gdi.addInfoBox("SIINFO", msg, 10000);
 		}

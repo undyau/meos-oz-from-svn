@@ -60,7 +60,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	// Reassign all runners to new classes, saving old ones
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
 		runnerOldClassXref[j->getId()] = j->getClassId();	
-		int id = j->getCourse()->getId();
+		int id = j->getCourse(false)->getId();
 		j->setClassId(courseNewClassXref[id]);
 	}
 
@@ -272,12 +272,12 @@ void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStar
     if (j->getStartTime() == 0)
       toBeSet++;
 
-    if (j->getCourse() != NULL)
+    if (j->getCourse(false) != NULL)
       {
-      if (counts.find(j->getCourse()) != counts.end())
-         counts[j->getCourse()] = counts[j->getCourse()] + 1;
+      if (counts.find(j->getCourse(false)) != counts.end())
+         counts[j->getCourse(false)] = counts[j->getCourse(false)] + 1;
       else
-         counts[j->getCourse()] = 1;
+         counts[j->getCourse(false)] = 1;
       }
 	}
 
@@ -305,7 +305,7 @@ void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStar
     std::vector<oRunner*> notset;
     for (oRunnerList::iterator k = Runners.begin(); k != Runners.end(); k++) 
       {
-      if (k->getCourse() == &(*j))
+      if (k->getCourse(false) == &(*j))
         {
         if (k->getStartTime() > 0)
           starts[k->getStartTime()] = &(*k);
@@ -325,7 +325,7 @@ void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStar
       }
 
     for (std::map<int, oRunner*>::iterator l = starts.begin(); l != starts.end(); l++)
-      l->second->setStartTime(l->first);
+      l->second->setStartTime(l->first, true, false);
     }
 
   return;
@@ -376,7 +376,7 @@ void oEvent::calculateCourseRogainingResults()
       it->tTotalPlace = 0;
       it->tPlace = 0;
     }
-    else if(it->Status==StatusOK) {
+    else if(it->status==StatusOK) {
 			cPlace++;
 
       int cmpRes = 3600 * 24 * 7 * it->tRogainingPoints - it->getRunningTime();
@@ -392,7 +392,7 @@ void oEvent::calculateCourseRogainingResults()
         it->tPlace = 0;
 		}
 		else
-			it->tPlace = 99000 + it->Status;
+			it->tPlace = 99000 + it->status;
 	}
 }
 
@@ -674,7 +674,7 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 		row[36]=my_conv_is(di.getInt("Fee"));
 		row[37]=my_conv_is(di.getInt("Paid"));
 		
-		pCourse pc=it->getCourse();
+		pCourse pc=it->getCourse(false);
 		if(pc){
 			row[38]=my_conv_is(pc->getId());
 			row[24]=pc->getName();

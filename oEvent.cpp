@@ -3122,7 +3122,7 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi)
       gdi.addStringUT(y, x+dx[1], fontMedium, name, dx[2]-dx[1]-4);
       gdi.addStringUT(y, x+dx[2], fontMedium, it->getClub(), dx[3]-dx[2]-4);
 		  gdi.addStringUT(y, x+dx[3], fontMedium, it->getClass(), dx[4]-dx[3]-4);			
-      gdi.addStringUT(y, x+dx[4], fontMedium, it->getCourse() ? it->getCourse()->getName() : "No course");
+      gdi.addStringUT(y, x+dx[4], fontMedium, it->getCourse(false) ? it->getCourse(false)->getName() : "No course");
 		  y+=lh;
 	  }
   }
