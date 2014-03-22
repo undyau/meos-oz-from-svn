@@ -1,3 +1,7 @@
+22 March 2014 3.1.361.1
+- Merge with standard MEOS 3.1.361.
+  For changes see http://www.melin.nu/meos/en/whatsnew25.php
+
 22 February 2014 3.1.316.2 
 - Display Rogaining (score) points when download occurs, along 
   with existing result information.

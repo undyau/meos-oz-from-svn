@@ -493,7 +493,6 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 	data = "Name=sss" + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=sss" + itos(SssEventNum) + "&Data=" + data + "&Serial=" + itos(s_counter++);
 	Download dwl;
   dwl.initInternet();
-  std::vector<pair<string,string>> headers;
 	string result;
   try {
 		dwl.postData(url, data, pw);

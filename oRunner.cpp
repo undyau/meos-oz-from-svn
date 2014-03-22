@@ -3487,7 +3487,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
         }
 
         if (!punchTime.empty()) {
-          gdi.addStringUT(cy, cx+c4, getLegPlaceAcc(it->tIndex) == 1 ? boldSmall : fontSmall, punchTime);
+          gdi.addStringUT(cy, cx+c4, getLegPlaceAcc(it->tIndex) == 1 ? boldSmall|textRight : fontSmall|textRight, punchTime);
         }
         any = true;
       }

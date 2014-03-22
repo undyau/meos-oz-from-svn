@@ -7,7 +7,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{5A8ACFDC-9E0A-4B59-9D8F-4013251EB156}
 AppName=MEOS-OZ
-AppVersion=3.1.316.2
+AppVersion=3.1.361.1
 AppPublisher=undy
 AppPublisherURL=http://sourceforge.net/projects/meosoz/
 AppSupportURL=http://sourceforge.net/projects/meosoz/
@@ -42,6 +42,7 @@ Source: "database.persons"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ind_finalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ind_totalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ind_courseresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "sss201230.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "classcourse.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "msvcm90.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "msvcp90.dll"; DestDir: "{app}"; Flags: ignoreversion
