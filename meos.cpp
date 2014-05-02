@@ -60,14 +60,15 @@
 #include "gdiconstants.h"
 #include "socket.h"
 #include "oExtendedEvent.h"
+#include "autotask.h"
 
 gdioutput *gdi_main=0;
 oEvent *gEvent=0;
 SportIdent *gSI=0;
 Localizer lang;
+AutoTask *autoTask = 0;
 
 vector<gdioutput *> gdi_extra;
-void resetSaveTimer();
 void initMySQLCriticalSection(bool init);
 
 HWND hWndMain;
@@ -104,6 +105,10 @@ list<TabObject> *tabList=0;
 void scrollVertical(gdioutput *gdi, int yInc, HWND hWnd);
 static int currentFocusIx = 0;
 
+void resetSaveTimer() {
+  if (autoTask)
+    autoTask->resetSaveTimer();
+}
 
 void LoadPage(const string &name)
 {
@@ -165,7 +170,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	MSG msg;
 	HACCEL hAccelTable;
 
-	gdi_main=new gdioutput(1.0, ANSI, 0);
+  gdi_main = new gdioutput(1.0, ANSI, 0);
   gdi_extra.push_back(gdi_main);
 
   try {
@@ -175,14 +180,16 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     gdi_main->alert(string("Failed to create base event: ") + ex.what());
     return 0;
   }
+  
   gEvent->loadProperties(settings);
   
   lang.get().addLangResource("English", "104");
   lang.get().addLangResource("Svenska", "103");
   lang.get().addLangResource("Deutsch", "105");
   lang.get().addLangResource("Dansk", "106");
-  lang.get().addLangResource("Russian", "107");
-
+  lang.get().addLangResource("Russian (ISO 8859-5)", "107");
+  lang.get().addLangResource("English (ISO 8859-2)", "108");
+  
   if (fileExist("extra.lng")) {
     lang.get().addLangResource("Extraspråk", "extra.lng");
   }
@@ -207,7 +214,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     lang.get().loadLangResource(defLang);
   }
   catch (std::exception &) {
-    lang.get().loadLangResource("English");
+    lang.get().loadLangResource("English (ISO 8859-2)");
   }
 
   try {
@@ -269,6 +276,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	gdi_main->init(hWndWorkspace, hWndMain, hMainTab);
 	gdi_main->getTabs().get(TCmpTab)->loadPage(*gdi_main);
 	
+  autoTask = new AutoTask(hWndMain, *gEvent, *gdi_main);
+	
+  autoTask->setTimers();
+
   // Install a hook procedure to monitor the message stream for mouse 
   // messages intended for the controls in the dialog box. 
   g_hhk = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, 
@@ -290,6 +301,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   delete tabList;
   tabList=0;
 
+  delete autoTask;
+  autoTask = 0;
+
   for (size_t k = 0; k<gdi_extra.size(); k++) {
     if (gdi_extra[k]) {
       DestroyWindow(gdi_extra[k]->getHWND());
@@ -306,6 +320,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     gEvent->saveProperties(settings);
 
 	delete gEvent;
+  gEvent = 0;
 
   initMySQLCriticalSection(false);
 
@@ -318,7 +333,6 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   StringCache::getInstance().clear();
   lang.unload();
   
-
 	return msg.wParam;
 }
 
@@ -362,7 +376,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.cbClsExtra		= 0;
 	wcex.cbWndExtra		= 0;
 	wcex.hInstance		= hInstance;
-	wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);;
+	wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);
 	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
 	wcex.hbrBackground	= 0;
 	wcex.lpszMenuName	= 0;
@@ -549,7 +563,11 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
     if (gdi)
       gdi->keyCommand(KC_SLOWDOWN);
   }
-
+  else if (wParam == ' ' && ctrlPressed) {
+    if (gdi)
+      gdi->keyCommand(KC_AUTOCOMPLETE);
+  }
+  
   return 0;
 }
 //
@@ -594,7 +612,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		return FALSE;	
 	
 	hWndMain = hWnd;
-  resetSaveTimer();
 
   SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, 0, GetCurrentThreadId());
 	ShowWindow(hWnd, nCmdShow);
@@ -795,11 +812,6 @@ void hideTabs()
 }
 
 
-void resetSaveTimer() {
-  KillTimer(hWndMain, 1);
-  SetTimer(hWndMain, 1, (3*60+15)*1000, 0); //Autosave
-}
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	int wmId, wmEvent;
@@ -835,9 +847,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			hMainTab=CreateWindowEx(0, WC_TABCONTROL, "tabs", WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS, 0, 0, 300, 20, hWnd, 0, hInst, 0);
       createTabs(true, true, false, false, false, false, false, false);
 
-			//SetTimer(hWnd, 1, 5*60*1000, 0); //Autosave
-			SetTimer(hWnd, 2, 1000, 0); //Interface timeout
-			SetTimer(hWnd, 3, 2500, 0); //DataSync
       SetTimer(hWnd, 4, 10000, 0); //Connection check
 			break;
 
@@ -876,25 +885,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if(!gdi_main) return 0;
 
 			if (wParam==1) {
-				if(gEvent && !gEvent->empty()){
-					RECT rc;
-					GetClientRect(hWnd, &rc);					
-					gEvent->save();					
-					gdi_main->addInfoBox("", "Tävlingsdata har sparats.", 10);
-				}
+        if (autoTask)
+          autoTask->autoSave();
 			}
 			else if (wParam==2) {
-        for (size_t k = 0; k<gdi_extra.size(); k++) {
-          if (gdi_extra[k])
-				    gdi_extra[k]->CheckInterfaceTimeouts(GetTickCount());
-        }
-				tabAutoTimer(*gdi_main);
-			}
+        // Interface timeouts (no synch)
+        if (autoTask)
+          autoTask->interfaceTimeout(gdi_extra);
+ 			}
 			else if (wParam==3) {
-				//SQL-synch only if in list-show mode.
-        tabAutoSync(gdi_extra, gEvent);
-        //OutputDebugString("Sync\n");
-        //Sleep(0);
+				if (autoTask)
+          autoTask->synchronize(gdi_extra);
 			}
       else if (wParam==4) {
         // Verify database link
@@ -973,24 +974,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			MessageBox(hWnd, "Kommunikationen med en SI-enhet avbröts.", "SportIdent", MB_OK);
       break;
             
-    case WM_USER + 3: {
-      if (!gEvent)
-        break;
-          
-      if (gEvent->hasDirectSocket()) {
-        OutputDebugString("Advance punch info\n");
-        vector<SocketPunchInfo> pi;
-        gEvent->getDirectSocket().getPunchQueue(pi);
-        gEvent->advancePunchInformation(gdi_extra, pi);
-      }
+    case WM_USER + 3:
+      //OutputDebugString("Get punch from queue\n");
+      if (autoTask)
+        autoTask->advancePunchInformation(gdi_extra);
       break;
-    }
+
+    case WM_USER + 4:
+      if (autoTask)
+        autoTask->synchronize(gdi_extra);
+      break;
 		case WM_COMMAND:
 			wmId    = LOWORD(wParam); 
 			wmEvent = HIWORD(wParam); 
 			// Parse the menu selections:
-			switch (wmId)
-			{
+			switch (wmId) {
 				case IDM_EXIT:
 				   //DestroyWindow(hWnd);
 					PostMessage(hWnd, WM_CLOSE, 0,0);
@@ -1415,6 +1413,10 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
       if(gdi && (ps.rcPaint.right|ps.rcPaint.left|ps.rcPaint.top|ps.rcPaint.bottom) != 0 )
 				gdi->draw(hdc, rt, ps.rcPaint);
+      /*{
+      HANDLE icon = LoadImage(hInst, (LPCTSTR)IDI_MEOS, IMAGE_ICON, 64, 64, LR_SHARED);
+      DrawIconEx(hdc, 0,0, (HICON)icon, 64, 64, 0, NULL, DI_NORMAL | DI_COMPAT);
+      }*/
 			EndPaint(hWnd, &ps);
 			break;
 

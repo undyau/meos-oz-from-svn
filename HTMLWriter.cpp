@@ -187,7 +187,7 @@ static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &
   }
 }
 
-bool gdioutput::writeHTML(const string &file, const string &title) const
+bool gdioutput::writeHTML(const wstring &file, const string &title) const
 {
   ofstream fout(file.c_str());
 
@@ -281,7 +281,7 @@ bool sortTL_X(const TextInfo *a, const TextInfo *b)
 }
 
 
-bool gdioutput::writeTableHTML(const string &file, const string &title) const
+bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
 {
   ofstream fout(file.c_str());
 
@@ -292,7 +292,7 @@ bool gdioutput::writeTableHTML(const string &file, const string &title) const
 	        "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
 	
   fout << "<html>\n<head>\n";
-  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF8\">\n";
+  fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n";
   fout << "<title>" << toUTF8(title) << "</title>\n";
 
   map< pair<gdiFonts, string>, pair<string, string> > styles;

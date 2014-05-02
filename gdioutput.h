@@ -69,7 +69,7 @@ enum gdiFonts;
 typedef list<ToolInfo> ToolList;
 
 enum FontEncoding {
-  ANSI, Russian
+  ANSI, Russian, EastEurope
 };
 
 FontEncoding interpetEncoding(const string &enc);
@@ -83,6 +83,8 @@ struct FontInfo {
 
 class gdioutput  {
 protected:
+  // Database error state warning
+  bool dbErrorState;
   // Flag set to true when clearPage is called.
   bool hasCleared;
   bool useTables;
@@ -315,8 +317,8 @@ public:
 
   void pasteText(const char *id);
 
-  bool writeHTML(const string &file, const string &title) const;
-  bool writeTableHTML(const string &file, const string &title) const;
+  bool writeHTML(const wstring &file, const string &title) const;
+  bool writeTableHTML(const wstring &file, const string &title) const;
 
   void print(pEvent oe, Table *t=0, bool printMeOSHeader=true, bool noMargin=false);
   void print(PrinterObject &po, pEvent oe, bool printMeOSHeader=true, bool noMargin=false);
@@ -416,7 +418,7 @@ public:
   void refreshFast() const;
 
   void takeShownStringsSnapshot();
-  void refreshSmartFromSnapshot();
+  void refreshSmartFromSnapshot(bool allowMoveOffset);
   
 	void dropLine(double lines=1){CurrentY+=int(lineHeight*lines); MaxY=max(MaxY, CurrentY);}
 	int getCX() const {return CurrentX;}
@@ -545,6 +547,9 @@ public:
 
   void setListDescription(const string &desc);
 
+  TextInfo &addString(const string &id, int format, const string &text, GUICALLBACK cb=0);
+  TextInfo &addString(const string &id, int yp, int xp, int format, const string &text, 
+                      int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
 	TextInfo &addString(const char *id, int format, const string &text, GUICALLBACK cb=0);
   TextInfo &addString(const char *id, int yp, int xp, int format, const string &text, 
                       int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
@@ -555,12 +560,16 @@ public:
 
 	void addTimer(int yp, int xp, int format, DWORD ZeroTime, int xlimit=0, GUICALLBACK cb=0, int TimeOut=NOTIMEOUT);
   void addTimeout(int TimeOut, GUICALLBACK cb);
+
+  void removeTimeoutMilli(const string &id);
   TimerInfo &addTimeoutMilli(int timeOut, const string &id, GUICALLBACK cb);
   void timerProc(TimerInfo &timer, DWORD timeout);
 
 	void draw(HDC hDC, RECT &windowArea, RECT &drawArea);
 
   void closeWindow();
+
+  void setDBErrorState(bool state);
 
 	friend int TablesCB(gdioutput *gdi, int type, void *data);
 	friend class Table;

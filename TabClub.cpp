@@ -559,7 +559,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 
       if (!file.empty()) {
         pdfwriter pdf;
-        pdf.generatePDF(gdi, file, lang.tl("Faktura"), oe->getDCI().getString("Organizer"), gdi.getTL());        
+        pdf.generatePDF(gdi, gdi.toWide(file), lang.tl("Faktura"), oe->getDCI().getString("Organizer"), gdi.getTL());        
         gdi.openDoc(file.c_str());
       }
 		}
@@ -626,7 +626,8 @@ bool TabClub::loadPage(gdioutput &gdi)
   gdi.selectItemByData("Clubs", ClubId);
   gdi.addButton("Merge", "Ta bort / slå ihop...", ClubsCB);
   gdi.addButton("Invoice", "Faktura", ClubsCB);
-  gdi.addButton("Update", "Uppdatera", ClubsCB, "Uppdatera klubbens uppgifter med data från löpardatabasen/distriktsregistret");
+  if (oe->useRunnerDb())
+    gdi.addButton("Update", "Uppdatera", ClubsCB, "Uppdatera klubbens uppgifter med data från löpardatabasen/distriktsregistret");
 
   gdi.popX();
   gdi.dropLine(3);
@@ -648,8 +649,10 @@ bool TabClub::loadPage(gdioutput &gdi)
 
   gdi.popX();
   gdi.dropLine(1.5);
-  gdi.addButton("UpdateAll", "Uppdatera alla klubbar", ClubsCB, "Uppdatera klubbarnas uppgifter med data från löpardatabasen/distriktsregistret");
-  gdi.addButton("UpdateAllRunners", "Uppdatera klubbar && löpare", ClubsCB, "Uppdatera klubbarnas och löparnas uppgifter med data från löpardatabasen/distriktsregistret");
+  if (oe->useRunnerDb()) {
+    gdi.addButton("UpdateAll", "Uppdatera alla klubbar", ClubsCB, "Uppdatera klubbarnas uppgifter med data från löpardatabasen/distriktsregistret");
+    gdi.addButton("UpdateAllRunners", "Uppdatera klubbar && löpare", ClubsCB, "Uppdatera klubbarnas och löparnas uppgifter med data från löpardatabasen/distriktsregistret");
+  }
   gdi.addButton("EraseClubs", "Radera alla klubbar", ClubsCB, "Radera alla klubbar och ta bort klubbtillhörighet");
   
   gdi.popX();

@@ -350,28 +350,79 @@ void oCourse::getControls(vector<pControl> &pc)
 
 int oCourse::distance(const SICard &card)
 {
-	int cardindex=0;
 	int matches=0;
 
-	for (int k=0;k<nControls;k++) {
-		unsigned tindex=cardindex;
-		while(tindex<card.nPunch && card.Punch[tindex].Code!=Controls[k]->Numbers[0])
-			tindex++;
+  set<int> rogaining;
+  vector< map<int, int> > allowedControls;
+  allowedControls.reserve(nControls);
+  set<int> commonCode;
+  if (hasRogaining()) {
+    for (int k=0;k<nControls;k++) {
+      if (Controls[k]->isRogaining(true)) {
+        for (int j = 0; j < Controls[k]->nNumbers; j++)
+          rogaining.insert(Controls[k]->Numbers[j]);
+      }
+    }
+  }
 
-		if(tindex<card.nPunch){//Control found			
-			cardindex=tindex+1;
-			matches++;
-		}
-	}
+  int toMatch = 0;
+  size_t orderIndex = 0;
+  for (int k=0;k<nControls;k++) {
+    if (Controls[k]->isRogaining(hasRogaining()) || Controls[k]->getStatus() == oControl::StatusBad)
+      continue;
 
-	if(matches==nControls) {
+    if (Controls[k]->getStatus() == oControl::StatusMultiple) {
+      for (int j = 0; j < Controls[k]->nNumbers; j++) {
+        if (allowedControls.size() <= orderIndex)
+          allowedControls.resize(orderIndex+1);
+        for (int i = 0; i < Controls[k]->nNumbers; i++) {
+          ++allowedControls[orderIndex][Controls[k]->Numbers[i]];
+        }
+        orderIndex++;
+        toMatch++;
+      }
+    }
+    else {
+      if (allowedControls.size() <= orderIndex)
+        allowedControls.resize(orderIndex+1);
+
+      for (int j = 0; j < Controls[k]->nNumbers; j++) {
+        ++allowedControls[orderIndex][Controls[k]->Numbers[j]]; 
+      }
+      orderIndex++;
+      toMatch++;
+    }
+
+    if (getCommonControl() == Controls[k]->getId()) {
+      orderIndex = 0;
+      commonCode.insert(Controls[k]->Numbers, Controls[k]->Numbers+Controls[k]->nNumbers);
+    }
+  }
+
+  size_t matchIndex = 0;
+  for (unsigned k=0; k<card.nPunch && matches < toMatch; k++) {
+    for (unsigned j = k; j < card.nPunch; j++) {
+      if (matchIndex < allowedControls.size() && 
+             allowedControls[matchIndex].count(card.Punch[j].Code) && 
+             allowedControls[matchIndex][card.Punch[j].Code] > 0) {
+        --allowedControls[matchIndex][card.Punch[j].Code];
+        k = j;
+        matches++;
+        break;
+      }
+    }
+    matchIndex++;
+    if (commonCode.count(card.Punch[k].Code))
+      matchIndex = 0;
+  }
+
+  if(matches==toMatch) {
 		//This course is OK. Extra controls?
-		return card.nPunch-nControls; //Positive return
+		return card.nPunch-toMatch; //Positive return
 	}
 	else {
-		return matches-nControls; //Negative return;
+		return matches-toMatch; //Negative return;
 	}
-
 	return 0;	
 }
 
@@ -977,7 +1028,7 @@ bool oCourse::constructLoopKeys(int cc, vector< vector<pControl> > &loopKeys, ve
     for (size_t k = 0; k < ccIndex.size(); k++) {
       int keyIx = ccIndex[k] + keyIndex;
       int nextIx = (k + 1) < ccIndex.size() ? ccIndex[k+1] : nControls;
-      if (keyIx < nextIx && Controls[keyIx]->getStatus() == oControl::StatusOK && Controls[keyIx]->nNumbers == 1) {
+      if (keyIx < nextIx && Controls[keyIx]->isSingleStatusOK() && Controls[keyIx]->nNumbers == 1) {
         loopKeys[k].push_back(Controls[keyIx]);
         changed = true;
       }
@@ -998,4 +1049,9 @@ bool oCourse::constructLoopKeys(int cc, vector< vector<pControl> > &loopKeys, ve
   }
  
   return enough;
+}
+
+void oCourse::changedObject() {
+  if (oe)
+    oe->globalModification = true;
 }

@@ -91,6 +91,29 @@ void oListInfo::addList(const oListInfo &lst) {
     next = new oListInfo(lst);  
 }
 
+bool oListInfo::needRegenerate(const oEvent &oe) const {
+  for(oClassList::const_iterator it = oe.Classes.begin(); it != oe.Classes.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+
+    if (!lp.selection.empty() && lp.selection.count(it->getId()) == 0 )
+      continue; // Not our class
+
+    int legToCheck = -1;
+    if (needPunches) {
+      if (it->wasSQLChanged(legToCheck, lp.useControlIdResultTo) || 
+          it->wasSQLChanged(legToCheck, lp.useControlIdResultFrom) )
+        return true;
+    }
+    else {
+      if (it->wasSQLChanged(legToCheck, -1))
+        return true;
+    }
+  }
+
+  return false;
+}
+
 int oListInfo::getMaxCharWidth(const oEvent *oe, EPostType type,
                                const string &format, gdiFonts font,
                                const char *fontFace,
@@ -1150,12 +1173,14 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
           continue;
       }
 
-      if(li.filter(EFilterHasResult))
+      if(li.filter(EFilterHasResult)) {
         if(li.lp.useControlIdResultTo==0 && it->tStatus==StatusUnknown)
           continue;
         else if( (li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && it->tempStatus!=StatusOK)
           continue;
-
+        else if (li.calcTotalResults && it->getTotalStatus() == StatusUnknown)
+          continue;
+      }
       if(li.filter(EFilterRentCard) && it->getDI().getInt("CardFee")==0)
         continue;
 
@@ -1223,9 +1248,12 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
           continue;
       }
 
-      if(li.filter(EFilterHasResult) && it->getLegStatus(li.lp.legNumber, false)==StatusUnknown)
-        continue;
-
+      if( li.filter(EFilterHasResult) ) {
+        if (it->getLegStatus(li.lp.legNumber, false)==StatusUnknown)
+          continue;
+        else if (li.calcTotalResults && it->getLegStatus(li.lp.legNumber, true) == StatusUnknown)
+          continue;
+      }
       string newKey;
       calculatePrintPostKey(li.subHead, gdi, li.lp, &*it, 0, it->Club, it->Class, counter, newKey);
       if (newKey != oldKey) {
@@ -1326,6 +1354,8 @@ void oEvent::generateListInternal(gdioutput &gdi, const oListInfo &li, bool form
           if(li.lp.useControlIdResultTo==0 && rit->tStatus==StatusUnknown)
             continue;
           else if((li.lp.useControlIdResultTo>0 || li.lp.useControlIdResultFrom>0) && rit->tempStatus!=StatusOK)
+            continue;
+          else if (li.calcTotalResults && rit->getTotalStatus() == StatusUnknown)
             continue;
         }
 

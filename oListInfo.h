@@ -336,4 +336,7 @@ public:
   const oListParam &getParam() const {return lp;}
   oListParam &getParam() {return lp;}
 
+  // Returns true if the list needs to be regenerated due to competition changes
+  bool needRegenerate(const oEvent &oe) const;
+
 };

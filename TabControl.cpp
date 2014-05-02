@@ -101,14 +101,18 @@ void TabControl::selectControl(gdioutput &gdi,  pControl pc)
       gdi.enableInput("Courses");
       gdi.enableEditControls(true);
 
-      if (pc->getStatus() == oControl::StatusRogaining) {
+      oControl::ControlStatus st = pc->getStatus(); 
+      if (st == oControl::StatusRogaining || st == oControl::StatusNoTiming) 
         gdi.disableInput("MinTime");
-      }
-      else 
+      
+      if (st == oControl::StatusNoTiming) 
+        gdi.disableInput("TimeAdjust");
+
+      if (st != oControl::StatusRogaining) 
         gdi.disableInput("Point");
     }
 	}
-	else{
+	else {
     gdi.selectItemByData("Controls", -1);
     gdi.selectItemByData("Status", oControl::StatusOK);
 		gdi.setText("Code", "");
@@ -155,7 +159,8 @@ void TabControl::save(gdioutput &gdi)
     pc->setStatus(oControl::ControlStatus(lbi.data));
     pc->setTimeAdjust(gdi.getText("TimeAdjust"));
     if (pc->getStatus() != oControl::StatusRogaining) {
-      pc->setMinTime(gdi.getText("MinTime"));
+      if (pc->getStatus() != oControl::StatusNoTiming)
+        pc->setMinTime(gdi.getText("MinTime"));
       pc->setRogainingPoints(0);
     }
     else {
@@ -398,14 +403,9 @@ int TabControl::controlCB(gdioutput &gdi, int type, void *data)
 			selectControl(gdi, pc);
 		}
     else if (bi.id == "Status" ) {
-      if (bi.data == oControl::StatusRogaining) {
-        gdi.disableInput("MinTime");
-        gdi.enableInput("Point");
-      }
-      else {
-        gdi.enableInput("MinTime");
-        gdi.disableInput("Point");
-      }
+      gdi.setInputStatus("MinTime",  bi.data != oControl::StatusRogaining && bi.data != oControl::StatusNoTiming);
+      gdi.setInputStatus("Point",  bi.data == oControl::StatusRogaining);
+      gdi.setInputStatus("TimeAdjust", bi.data != oControl::StatusNoTiming);
     }
 	}
   else if(type==GUI_CLEAR) {
@@ -459,7 +459,7 @@ bool TabControl::loadPage(gdioutput &gdi)
   gdi.fillRight();
 	gdi.addInput("Name", "", 16, 0, "Kontrollnamn:");
 
-  gdi.addSelection("Status", 100, 100, ControlsCB, "Status:", "Ange om kontrollen fungerar och hur den ska användas.");
+  gdi.addSelection("Status", 150, 100, ControlsCB, "Status:", "Ange om kontrollen fungerar och hur den ska användas.");
   oe->fillControlStatus(gdi, "Status");
 	
 	gdi.addInput("TimeAdjust", "", 6, 0, "Tidsjustering:");

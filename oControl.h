@@ -46,8 +46,9 @@ class Table;
 class oControl : public oBase 
 {
 public:
+
   enum ControlStatus {StatusOK=0, StatusBad=1, StatusMultiple=2, 
-                      StatusStart = 4, StatusFinish = 5, StatusRogaining = 6};
+                      StatusStart = 4, StatusFinish = 5, StatusRogaining = 6, StatusNoTiming = 7};
   bool operator<(const oControl &b) const {return minNumber()<b.minNumber();}
 	
 protected:
@@ -80,11 +81,33 @@ protected:
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
+  struct TCache {
+    TCache() : minTime(0), timeAdjust(0), dataRevision(-1) {}
+    int minTime;
+    int timeAdjust;
+    int dataRevision;
+  };
+
+  // Is set to true if there is a free punch tied to the control
+  bool tHasFreePunchLabel;
+  mutable TCache tCache;
+  void setupCache() const;
+
+  void changedObject();
+
 public:
+
+  // Returns true if controls is considered a radio control.
+  bool isValidRadio() const;
+  // Specify true to mark the controls as a radio control, otherwise no radio
+  void setRadio(bool r);
+
   void remove();
   bool canRemove() const;
 
   string getInfo() const;
+
+  bool isSingleStatusOK() const {return Status == StatusOK || Status == StatusNoTiming;}
 
   int getMissedTimeTotal() const {return tMissedTimeTotal;}
   int getMissedTimeMax() const {return tMissedTimeMax;}

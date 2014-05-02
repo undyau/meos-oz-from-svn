@@ -121,7 +121,7 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
   oe.getControls(ctrl);
   set<int> knownId;
   for (size_t k = 0; k < ctrl.size(); k++) {
-    if (ctrl[k]->hasName() && ctrl[k]->getStatus() == oControl::StatusOK) {
+    if (ctrl[k]->isValidRadio()) {
       int id = ctrl[k]->getId();
       knownId.insert(id);
       map<int, InfoRadioControl>::iterator res = controls.find(id);
@@ -249,7 +249,7 @@ void InfoCompetition::needCommit(InfoBase &obj) {
 }
 
 bool InfoRadioControl::synchronize(oControl &c) {
-  const string &n = c.getName();
+  const string &n = c.hasName() ? c.getName() : c.getString();
   if (n == name)
     return false;
   else {
@@ -284,7 +284,7 @@ bool InfoClass::synchronize(oClass &c) {
           vector<pControl> ctrl;
           pc->getControls(ctrl);
           for (size_t j = 0; j < ctrl.size(); j++) {
-            if (ctrl[j]->hasName() && ctrl[j]->getStatus() == oControl::StatusOK) { //XXX This is a temporary condition
+            if (ctrl[j]->isValidRadio()) {
               rc.back().push_back(ctrl[j]->getId());
             }
           }
@@ -304,7 +304,7 @@ bool InfoClass::synchronize(oClass &c) {
       vector<pControl> ctrl;
       pc->getControls(ctrl);
       for (size_t j = 0; j < ctrl.size(); j++) {
-        if (ctrl[j]->hasName() && ctrl[j]->getStatus() == oControl::StatusOK) { //XXX This is a temporary condition
+        if (ctrl[j]->isValidRadio()) {
           rc.back().push_back(ctrl[j]->getId());
         }
       }

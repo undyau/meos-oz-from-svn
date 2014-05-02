@@ -316,6 +316,9 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
 
           li.calcCourseClassResults = true;
         }
+        else if (mp.type == lRunnerTempTimeAfter || mp.type == lRunnerTempTimeStatus) {
+          li.needPunches = true;
+        }
 
         string label = "P" + itos(i*1000 + j*100 + k);
         

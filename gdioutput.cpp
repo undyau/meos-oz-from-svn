@@ -69,6 +69,7 @@
 #ifdef DEBUGRENDER
   static int counterRender = 0;
   static bool breakRender = false;
+  static int debugDrawColor = 0;
 #endif
 
 InputInfo::InputInfo() : hWnd(0), CallBack(0), ignoreCheck(false), 
@@ -258,6 +259,7 @@ void gdioutput::scaleSize(double scale_) {
 
 void gdioutput::initCommon(double _scale, const string &font)
 {
+  dbErrorState = false;
   currentFontSet = 0;
   scale = _scale;
   currentFont = font;
@@ -425,6 +427,42 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
 	Rectangle(hDC, MaxX+10-OffsetX, 0, rc.right+1, rc.bottom+1);
 	Rectangle(hDC, 10-OffsetX, MaxY+13-OffsetY, MaxX+11-OffsetX, rc.bottom+1);
 
+  if (dbErrorState) {
+    SelectObject(hDC, GetStockObject(DC_BRUSH));
+    SetDCBrushColor(hDC, RGB(255, 100, 100));
+    Rectangle(hDC, -1, -1, rc.right+1, rc.bottom+1);
+
+    HFONT hInfo = CreateFont(30, 0, 900, 900, FW_BOLD, false,  false, false, getCharSet(),
+		                         OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, 
+                             DEFAULT_PITCH|FF_ROMAN, "Arial");
+
+    string err = lang.tl("DATABASE ERROR");
+    SelectObject(hDC, hInfo);
+    RECT mrc;
+    mrc.left = 0;
+    mrc.right = 0;
+    mrc.top = 0;
+    mrc.bottom = 0;
+    DrawText(hDC, err.c_str(), err.length(), &mrc, DT_LEFT|DT_CALCRECT|DT_NOPREFIX);
+    int width = mrc.bottom + mrc.bottom / 4;
+    int height = mrc.right + mrc.right / 4;
+    SetBkMode(hDC, TRANSPARENT);
+    SetTextColor(hDC, RGB(64, 0, 0));
+    
+    for (int k = height; k < max<int>(MaxY, rc.bottom + height); k += height) {
+      RECT mrc;
+      mrc.left = rc.right - 50 - OffsetX;
+      mrc.right = mrc.left + 1000;
+      mrc.top = k - OffsetY;
+      mrc.bottom = MaxY;
+      DrawText(hDC, err.c_str(), err.length(), &mrc, DT_LEFT|DT_NOCLIP|DT_NOPREFIX);
+      mrc.left -= width;
+      mrc.top -= height / 2;
+      DrawText(hDC, err.c_str(), err.length(), &mrc, DT_LEFT|DT_NOCLIP|DT_NOPREFIX);
+    }
+    SelectObject(hDC, GetStockObject(ANSI_FIXED_FONT));
+    DeleteObject(hInfo);
+  }
 
 	DWORD c=GetSysColor(COLOR_3DFACE);
 	double red = double(GetRValue(c)) *0.95;
@@ -479,9 +517,25 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
 	Rectangle(hDC, vert[0].x, vert[0].y, vert[1].x, vert[1].y);
 }
 
+void gdioutput::setDBErrorState(bool state) {
+  if (dbErrorState != state) {
+    dbErrorState = state;
+    refresh();
+  }
+}
 
 void gdioutput::draw(HDC hDC, RECT &rc, RECT &drawArea)
-{ 
+{
+#ifdef DEBUGRENDER
+  if (debugDrawColor) {
+    string ds = "DebugDraw" + itos(drawArea.left) + "-" + itos(drawArea.right) + ", " + itos(drawArea.top) + "-" + itos(drawArea.bottom) + "\n";
+    OutputDebugString(ds.c_str());
+    SelectObject(hDC,GetStockObject(DC_BRUSH));
+    SetDCBrushColor(hDC, debugDrawColor);    		
+		Rectangle(hDC, rc.left, rc.top, rc.right, rc.bottom);
+    return;
+  }
+#endif
   if (highContrast)
     drawBackground(hDC, drawArea);
   else
@@ -576,8 +630,14 @@ void gdioutput::updateStringPosCache() {
   if(!renderOptimize || itTL == TL.end()) {
     for (it=TL.begin();it!=TL.end(); ++it) {
 		  TextInfo &ti=*it;
-		  if( ti.yp > BoundYup && ti.yp < BoundYdown) 
+		  if( ti.yp > BoundYup && ti.yp < BoundYdown) {
+        if (ti.textRect.top != ti.yp - OffsetY) {
+          int diff = it->textRect.top - (ti.yp - OffsetY);
+          ti.textRect.top -= diff;
+          ti.textRect.bottom -= diff;
+        }
 			  shownStrings.push_back(&ti);
+      }
 	  }
   }
   else {
@@ -593,6 +653,11 @@ void gdioutput::updateStringPosCache() {
     it=itC;
     while( it != TL.end() && it->yp < BoundYdown) {
 		  shownStrings.push_back(&*it);
+      if (it->textRect.top != it->yp - OffsetY) {
+        int diff = it->textRect.top - (it->yp - OffsetY);
+        it->textRect.top -= diff;
+        it->textRect.bottom -= diff;
+      }
       ++it;
 	  }
   }
@@ -655,15 +720,26 @@ void gdioutput::timerProc(TimerInfo &timer, DWORD timeout) {
   }
 }
 
+void gdioutput::removeTimeoutMilli(const string &id) {
+  for (list<TimerInfo>::iterator it = timers.begin(); it != timers.end(); ++it) {
+    if (it->id == id) {
+      UINT_PTR ptr = (UINT_PTR)&*it;
+      KillTimer(hWndTarget, ptr);
+      timers.erase(it);
+      return;
+    }
+  }
+}
+
 TimerInfo &gdioutput::addTimeoutMilli(int timeOut, const string &id, GUICALLBACK cb)
 {
+  removeTimeoutMilli(id);
   timers.push_back(TimerInfo(this, cb));
   timers.back().id = id;
   timers.back().data = 0;
   SetTimer(hWndTarget, (UINT_PTR)&timers.back(), timeOut, gdiTimerProc);
   return timers.back();
 }
-
 
 TextInfo &gdioutput::addStringUT(int yp, int xp, int format, const string &text, 
                                  int xlimit, GUICALLBACK cb, const char *fontFace)
@@ -764,6 +840,14 @@ TextInfo &gdioutput::addString(const char *id, int yp, int xp, int format, const
   return TL.back();
 }
 
+TextInfo &gdioutput::addString(const string &id, int format, const string &text, GUICALLBACK cb) {
+  return addString(id.c_str(), CurrentY, CurrentX, format, text, 0, cb);
+}
+
+TextInfo &gdioutput::addString(const string &id, int yp, int xp, int format, const string &text, 
+                               int xlimit, GUICALLBACK cb, const char *fontFace) {
+  return addString(id.c_str(), yp, xp, format, text, xlimit, cb, fontFace);
+}
 
 TextInfo &gdioutput::addString(const char *id, int format, const string &text, GUICALLBACK cb)
 {
@@ -852,9 +936,7 @@ ButtonInfo &gdioutput::addButton(int x, int y, int w, const string &id,
   } 
 
   if (getEncoding() != ANSI) {
-    wstring output;
-    output.resize(ttext.size()*2, 0);
-    MultiByteToWideChar(1251, MB_PRECOMPOSED, ttext.c_str(), -1, &output[0], output.size());
+    const wstring &output = toWide(ttext);
     SetWindowTextW(bi.hWnd, output.c_str());
   }
 
@@ -905,7 +987,7 @@ void gdioutput::enableCheckBoxLink(TextInfo &ti, bool enable) {
     ti.setColor(colorDarkGrey);
   }
   if (needRefresh)
-    InvalidateRect(hWndTarget, &ti.textRect, false);
+    InvalidateRect(hWndTarget, &ti.textRect, true);
 }
 
 ButtonInfo &gdioutput::addCheckbox(const string &id, const string &text,
@@ -1651,24 +1733,32 @@ void gdioutput::processComboMessage(ListBoxInfo &bi, DWORD wParam)
         
         if (index != CB_ERR) {					
           if (SendMessage(bi.hWnd, CB_GETLBTEXT, index, LPARAM(bf)) != CB_ERR)
-            if (bi.text != bf) {  
+            //if (bi.text != bf) {  
 				      bi.text = bf;
               bi.data=SendMessage(bi.hWnd, CB_GETITEMDATA, index, 0);
-              bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
+              bi.CallBack(this, GUI_COMBO, &bi); //it may be destroyed here...
           
-            }
+            //}
         }
         else {
           GetWindowText(bi.hWnd, bf, sizeof(bf)-1);
-          if (bi.text != bf) {  
+          //if (bi.text != bf) {  
 				    bi.data = -1;
             bi.text = bf;
-            bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
-          
-          }
+            bi.CallBack(this, GUI_COMBO, &bi); //it may be destroyed here...
+          //}
         }
       }
 			break;
+
+    case CBN_EDITCHANGE:
+      if (bi.writeLock)
+        return;
+      getWindowText(bi.hWnd, bi.text);
+		  if (bi.CallBack)
+        bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
+      break;
+
     case CBN_SELCHANGE:
      	index=SendMessage(bi.hWnd, CB_GETCURSEL, 0, 0);
 
@@ -1900,7 +1990,7 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
 
     for (size_t k=0;k<shownStrings.size();k++) {
       TextInfo &ti = *shownStrings[k];
-      if (!ti.callBack)
+      if (!ti.callBack || ti.hasTimer)
         continue;
 
       if (PtInRect(&ti.textRect, pt)) {
@@ -2725,10 +2815,10 @@ void gdioutput::updatePos(int x, int y, int width, int height)
       rc.bottom = MaxY - CurrentY + scaleLength(50);
       rc.right = 10000;
       rc.left = 0;
-      InvalidateRect(hWndTarget, &rc, false);
+      InvalidateRect(hWndTarget, &rc, true);
     }
     else {
-      InvalidateRect(hWndTarget, 0, false);    
+      InvalidateRect(hWndTarget, 0, true);    
     } 
     GetClientRect(hWndTarget, &rc);
 
@@ -2760,11 +2850,11 @@ void gdioutput::adjustDimension(int width, int height)
       rc.bottom = MaxY - CurrentY + scaleLength(50);
       rc.right = 10000;
       rc.left = 0;
-      InvalidateRect(hWndTarget, &rc, false);
+      InvalidateRect(hWndTarget, &rc, true);
     }
     else {
-      InvalidateRect(hWndTarget, 0, false);    
-    } 
+      InvalidateRect(hWndTarget, 0, true);
+    }
     GetClientRect(hWndTarget, &rc);
 
     if(MaxX>rc.right || MaxY>rc.bottom) //Update scrollbars
@@ -2899,7 +2989,7 @@ void gdioutput::refreshFast() const {
   OutputDebugString("Fast refresh\n");    
 #endif
 	if (hWndTarget) {
-		InvalidateRect(hWndTarget, NULL, false);
+		InvalidateRect(hWndTarget, NULL, true);
 		UpdateWindow(hWndTarget);
 	}
   screenXYToString.clear();
@@ -2926,7 +3016,7 @@ void gdioutput::takeShownStringsSnapshot() {
     int y = shownStrings[k]->yp - OffsetY;
     const string &str = shownStrings[k]->text;
 #ifdef DEBUGRENDER
-    OutputDebugString((itos(k) + ":" + itos(shownStrings[k]->xp) + "," + itos(shownStrings[k]->yp) + "," + str + "\n").c_str());
+    //OutputDebugString((itos(k) + ":" + itos(shownStrings[k]->xp) + "," + itos(shownStrings[k]->yp) + "," + str + "\n").c_str());
 #endif
     screenXYToString.insert(make_pair(make_pair(x, y), ScreenStringInfo(shownStrings[k]->textRect, str)));
     if (stringToScreenXY.count(str) == 0)
@@ -2949,7 +3039,7 @@ void gdioutput::takeShownStringsSnapshot() {
 
 void updateScrollInfo(HWND hWnd, gdioutput &gdi, int nHeight, int nWidth);
 
-void gdioutput::refreshSmartFromSnapshot() {
+void gdioutput::refreshSmartFromSnapshot(bool allowMoveOffset) {
 #ifdef DEBUGRENDER
   OutputDebugString("Smart refresh\n");
 #endif
@@ -2960,72 +3050,74 @@ void gdioutput::refreshSmartFromSnapshot() {
   updateStringPosCache();
 
   vector<int> changedStrings;
-  map< pair<int, int>, int> offsetCount;
-  int misses = 0, hits = 0;
-  for (size_t k = 0; k < shownStrings.size(); k++) {
-    if (shownStrings[k]->hasTimer)
-      continue; //Ignore
-    int x = shownStrings[k]->xp - OffsetX;
-    int y = shownStrings[k]->yp - OffsetY;
-    const string &str = shownStrings[k]->text;
-    map<string, pair<int,int> >::const_iterator found = stringToScreenXY.find(str);
-    if (found != stringToScreenXY.end()) {
-      hits++;
-      int ox = found->second.first - x;
-      int oy = found->second.second - y;
-      ++offsetCount[make_pair(ox, oy)];
-      if (hits > 30)
-        break;
-    }
-    else {
-      misses++;
-      if (misses > 20)
-        break;
-    }
-  }
-
-  // Choose dominating offset, if dominating enough
-  pair<int, int> offset(0,0);
-  int maxVal = 10; // Require at least 10 hits
-  for(map< pair<int, int>, int>::iterator it = offsetCount.begin(); it != offsetCount.end(); ++it) {
-    if (it->second > maxVal) {
-      maxVal = it->second;
-      offset = it->first;
-    }
-  }
   bool updateScroll = false;
-
-  int maxOffsetY=max<int>(GetPageY()-clientRC.bottom, 0);
-  int maxOffsetX=max<int>(GetPageX()-clientRC.right, 0);
-  int noy = OffsetY - offset.second;
-  int nox = OffsetX - offset.first;
-  if ((offset.first != 0 && nox>0 && nox<maxOffsetX) || (offset.second != 0 && noy>0 && noy<maxOffsetY) ) {
-    #ifdef DEBUGRENDER
-      OutputDebugString(("Change offset: " + itos(offset.first) + "," + itos(offset.second) + "\n").c_str());    
-    #endif
-    OffsetX -= offset.first;
-    OffsetY -= offset.second;
-    autoPos -= offset.second;
-
-    if (offset.second != 0) {
-      SCROLLINFO si;
-      si.cbSize = sizeof(si); 
-		  si.fMask  = SIF_POS; 
-      si.nPos   = OffsetY; 
-      SetScrollInfo(hWndTarget, SB_VERT, &si, false);
-      updateScroll = true;
+  if (allowMoveOffset) {
+    map< pair<int, int>, int> offsetCount;
+    int misses = 0, hits = 0;
+    for (size_t k = 0; k < shownStrings.size(); k++) {
+      if (shownStrings[k]->hasTimer)
+        continue; //Ignore
+      int x = shownStrings[k]->xp - OffsetX;
+      int y = shownStrings[k]->yp - OffsetY;
+      const string &str = shownStrings[k]->text;
+      map<string, pair<int,int> >::const_iterator found = stringToScreenXY.find(str);
+      if (found != stringToScreenXY.end()) {
+        hits++;
+        int ox = found->second.first - x;
+        int oy = found->second.second - y;
+        ++offsetCount[make_pair(ox, oy)];
+        if (hits > 30)
+          break;
+      }
+      else {
+        misses++;
+        if (misses > 20)
+          break;
+      }
     }
 
-    if (offset.first != 0) {
-      SCROLLINFO si;
-      si.cbSize = sizeof(si); 
-		  si.fMask  = SIF_POS; 
-      si.nPos   = OffsetX; 
-      SetScrollInfo(hWndTarget, SB_HORZ, &si, false);
-      updateScroll = true;
+    // Choose dominating offset, if dominating enough
+    pair<int, int> offset(0,0);
+    int maxVal = 10; // Require at least 10 hits
+    for(map< pair<int, int>, int>::iterator it = offsetCount.begin(); it != offsetCount.end(); ++it) {
+      if (it->second > maxVal) {
+        maxVal = it->second;
+        offset = it->first;
+      }
     }
 
-    updateStringPosCache();
+    int maxOffsetY=max<int>(GetPageY()-clientRC.bottom, 0);
+    int maxOffsetX=max<int>(GetPageX()-clientRC.right, 0);
+    int noy = OffsetY - offset.second;
+    int nox = OffsetX - offset.first;
+    if ((offset.first != 0 && nox>0 && nox<maxOffsetX) || (offset.second != 0 && noy>0 && noy<maxOffsetY) ) {
+      #ifdef DEBUGRENDER
+        OutputDebugString(("Change offset: " + itos(offset.first) + "," + itos(offset.second) + "\n").c_str());    
+      #endif
+      OffsetX -= offset.first;
+      OffsetY -= offset.second;
+      autoPos -= offset.second;
+
+      if (offset.second != 0) {
+        SCROLLINFO si;
+        si.cbSize = sizeof(si); 
+		    si.fMask  = SIF_POS; 
+        si.nPos   = OffsetY; 
+        SetScrollInfo(hWndTarget, SB_VERT, &si, false);
+        updateScroll = true;
+      }
+
+      if (offset.first != 0) {
+        SCROLLINFO si;
+        si.cbSize = sizeof(si); 
+		    si.fMask  = SIF_POS; 
+        si.nPos   = OffsetX; 
+        SetScrollInfo(hWndTarget, SB_HORZ, &si, false);
+        updateScroll = true;
+      }
+
+      updateStringPosCache();
+    }
   }
 #ifdef DEBUGRENDER
   OutputDebugString(("* ymax:" + itos(MaxY-OffsetY) + "\n").c_str());
@@ -3046,7 +3138,7 @@ void gdioutput::refreshSmartFromSnapshot() {
     int y = shownStrings[k]->yp - OffsetY;
     const string &str = shownStrings[k]->text;
 #ifdef DEBUGRENDER
-    OutputDebugString((itos(k) + ":" + itos(shownStrings[k]->xp) + "," + itos(shownStrings[k]->yp) + "," + str + "\n").c_str());
+    //OutputDebugString((itos(k) + ":" + itos(shownStrings[k]->xp) + "," + itos(shownStrings[k]->yp) + "," + str + "\n").c_str());
 #endif    
     map<pair<int, int>, ScreenStringInfo>::iterator res = screenXYToString.find(make_pair(x,y));
     if (res != screenXYToString.end()) {
@@ -3135,7 +3227,6 @@ void gdioutput::refreshSmartFromSnapshot() {
     updateScroll = true;
   }
 
-  
   if (snapshotMaxXY.first != MaxX) {
     // This almost never happens
     invalidRect = clientRC;
@@ -3179,8 +3270,15 @@ void gdioutput::refreshSmartFromSnapshot() {
   }
 
 	if (hWndTarget) {
-		InvalidateRect(hWndTarget, &invalidRect, true);
-		UpdateWindow(hWndTarget);
+		//InvalidateRect(hWndTarget, &invalidRect, true);
+		//UpdateWindow(hWndTarget);
+    HDC hDC = GetDC(hWndTarget);
+    IntersectClipRect(hDC, invalidRect.left, invalidRect.top, invalidRect.right, invalidRect.bottom); 
+    //debugDrawColor = RGB((30*counterRender)%256,0,0);
+    draw(hDC, clientRC, invalidRect);
+    //debugDrawColor = 0;
+
+    ReleaseDC(hWndTarget, hDC);
 	}
 }
 
@@ -3879,13 +3977,14 @@ void gdioutput::CheckInterfaceTimeouts(DWORD T)
 	}
 
 	list<TextInfo>::iterator tit = TL.begin();
-	TextInfo *timeout=0;
+	vector<TextInfo> timeout;
 	while(tit!=TL.end()){
 		if(tit->hasTimer){
       string text = tit->xp > 0 ? getTimerText(&*tit, T) : "";
 			if(tit->timeOut && T>DWORD(tit->timeOut)){
 				tit->timeOut=0;
-				timeout=&*tit;
+        if (tit->callBack)
+				  timeout.push_back(*tit);
 			}
 			if (text != tit->text) {
 				RECT rc=tit->textRect;
@@ -3901,8 +4000,8 @@ void gdioutput::CheckInterfaceTimeouts(DWORD T)
 		++tit;
 	}
 
-	if(timeout && timeout->callBack)
-		timeout->callBack(this, GUI_TIMEOUT, timeout);
+  for (size_t k = 0; k < timeout.size(); k++)
+    timeout[k].callBack(this, GUI_TIMEOUT, &timeout[k]);
 }
 
 bool gdioutput::removeControl(const string &id)
@@ -4476,8 +4575,48 @@ string gdioutput::browseForSave(const vector< pair<string, string> > &filter,
 	filterIndex=of.nFilterIndex;
 
 	return FileName;
-}
+  /*
+  	InitCommonControls();
+	
+	wchar_t FileName[260];
+	FileName[0]=0;
+	wchar_t sbuff[256];
+	memset(sbuff, 0, sizeof(sbuff));
+	OPENFILENAMEW of;
+  wstring sFilter;
+  for (size_t k = 0; k< filter.size(); k++) 
+    sFilter += toWide(lang.tl(filter[k].first)) + L"¤" + toWide(filter[k].second) + L"¤";
 
+  swprintf_s(sbuff, 256, L"%s", sFilter.c_str());
+
+	int sl = wcslen(sbuff);
+	for(int m=0;m<sl;m++) if(sbuff[m]==L'¤') sbuff[m]=0;
+
+	of.lStructSize      =sizeof(of);
+	of.hwndOwner        =hWndTarget;
+	of.hInstance        =(HINSTANCE)GetWindowLong(hWndTarget, GWL_HINSTANCE);
+	of.lpstrFilter      = sbuff;
+	of.lpstrCustomFilter=NULL;
+	of.nMaxCustFilter   =0;
+	of.nFilterIndex     =1;
+	of.lpstrFile        = FileName;
+	of.nMaxFile         =260;
+	of.lpstrFileTitle   =NULL;
+	of.nMaxFileTitle    =0;
+	of.lpstrInitialDir  =NULL;
+	of.lpstrTitle       =NULL;
+	of.Flags            =OFN_OVERWRITEPROMPT|OFN_HIDEREADONLY;
+	of.lpstrDefExt   	  = toWide(defext).c_str();
+	of.lpfnHook		     =NULL;
+	
+	if(GetSaveFileNameW(&of)==false)
+		return "";
+
+	filterIndex=of.nFilterIndex;
+
+	return FileName;
+  */
+}
 
 string gdioutput::browseForOpen(const vector< pair<string, string> > &filter, 
                                 const string &defext)
@@ -5214,6 +5353,8 @@ float GDIImplFontSet::baseSize(int format, float scale)  {
 int gdioutput::getCharSet() const {
   if (fontEncoding == Russian)
     return RUSSIAN_CHARSET;
+  else if (fontEncoding == EastEurope)
+    return EASTEUROPE_CHARSET;
   else
     return ANSI_CHARSET;
 }
@@ -5422,6 +5563,8 @@ FontEncoding gdioutput::getEncoding() const {
 FontEncoding interpetEncoding(const string &enc) {
   if (enc == "RUSSIAN")
     return Russian;
+  else if (enc == "EASTEUROPE")
+    return EastEurope;
   else
     return ANSI;
 }
@@ -5432,7 +5575,10 @@ const wstring &gdioutput::toWide(const string &input) const {
   switch(getEncoding()) {
     case Russian:
       cp = 1251;
-      break;  
+      break; 
+    case EastEurope:
+      cp = 1250;
+      break;
   }
 
   output.resize(input.size()+1, 0);

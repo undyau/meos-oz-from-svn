@@ -56,6 +56,7 @@ private:
 
   SOCKET sendSocket;
   bool clearQueue;
+  int port;
 public:
 
   void startUDPSocketThread(HWND targetWindow);
@@ -64,7 +65,7 @@ public:
 
   void sendPunch(SocketPunchInfo &pi);
 
-  DirectSocket(int cmpId);
+  DirectSocket(int cmpId, int port);
   ~DirectSocket();
 
   friend void startListeningDirectSocket(void *p);

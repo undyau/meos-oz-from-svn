@@ -142,6 +142,8 @@ void TabList::generateList(gdioutput &gdi)
   int oX = 0;
   int oY = 0;
   if (gdi.hasData("GeneralList")) {
+    if (!currentList.needRegenerate(*oe))
+      return;
     gdi.takeShownStringsSnapshot();
     oX=gdi.GetOffsetX();
     oY=gdi.GetOffsetY();
@@ -202,7 +204,7 @@ void TabList::generateList(gdioutput &gdi)
   SelectedList="GeneralList";
 
   if (abs(int(currentWidth - storedWidth)) < 5) {
-    gdi.refreshSmartFromSnapshot();
+    gdi.refreshSmartFromSnapshot(true);
   }
   else
     gdi.refresh();
@@ -249,10 +251,10 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 
       if (!file.empty()) {
         if (index == 1)
-          gdi.writeTableHTML(file, oe->getName());
+          gdi.writeTableHTML(gdi.toWide(file), oe->getName());
         else {
           assert(index == 2);
-          gdi.writeHTML(file, oe->getName());
+          gdi.writeHTML(gdi.toWide(file), oe->getName());
         }
         gdi.openDoc(file.c_str());
       }
@@ -265,7 +267,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 
       if (!file.empty()) {
         pdfwriter pdf;
-        pdf.generatePDF(gdi, file, oe->getName() + ", " + currentList.getName(), oe->getDCI().getString("Organizer"), gdi.getTL());        
+        pdf.generatePDF(gdi, gdi.toWide(file), oe->getName() + ", " + currentList.getName(), oe->getDCI().getString("Organizer"), gdi.getTL());        
         gdi.openDoc(file.c_str());
       }
 		}

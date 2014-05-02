@@ -38,7 +38,7 @@ protected:
 	int CardNo;
   int itype; //Index type used for lookup
   int tRunnerId; // Id of runner the punch is classified to.
-
+  
   /** Class used to sort punches by time. */
   class FreePunchComp {
     public:
@@ -46,6 +46,8 @@ protected:
       return a->Time < b->Time;
     }
   };
+
+  void changedObject();
 
 public:
   // Get the id of the punch currently tied to this punch

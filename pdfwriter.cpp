@@ -89,7 +89,7 @@ HPDF_Font pdfwriter::getPDFFont(HFONT font, float hFontScale, string &tmp, float
 
     HPDF_TextWidth res = HPDF_Font_TextWidth(font, (HPDF_BYTE *)stdText, strlen(stdText));
     if (res.width > 0)
-      fontScale = float(stdSize) / (hFontScale * res.width * 0.012);
+      fontScale = float(stdSize) / float(hFontScale * res.width * 0.012f);
     else
       return 0;
 
@@ -142,7 +142,7 @@ void pdfwriter::selectFont(HPDF_Page page, const PDFFontSet &fs, int format, flo
 }
 
 void pdfwriter::generatePDF(const gdioutput &gdi,
-                            const string &file,
+                            const wstring &file,
                             const string &pageTitle, 
                             const string &author,
                             const list<TextInfo> &tl) {
@@ -185,14 +185,14 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
 
   float w = HPDF_Page_GetWidth(page);
   float h = HPDF_Page_GetHeight(page);
-  float scale = (w / maxX) * 0.85;
+  float scale = (w / maxX) * 0.85f;
 
   vector<RenderedPage> pages;
   PageInfo pageInfo;
-  pageInfo.topMargin = h * 0.04;
+  pageInfo.topMargin = h * 0.04f;
   pageInfo.scale = scale;
-  pageInfo.leftMargin = w * 0.07;
-  pageInfo.bottomMargin = pageInfo.topMargin * 0.8;
+  pageInfo.leftMargin = w * 0.07f;
+  pageInfo.bottomMargin = pageInfo.topMargin * 0.8f;
   pageInfo.pageY = h;
   pageInfo.printHeader = true;
   pageInfo.yMM2PrintC = pageInfo.xMM2PrintC = 1199.551f / 420.f;
@@ -205,9 +205,9 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
     if (!pinfo.empty()) {
       selectFont(page, fs, fontSmall, scale);
       HPDF_Page_BeginText (page);
-      float df = min(w, h) * 0.02;
+      float df = min(w, h) * 0.02f;
       float sw = HPDF_Page_TextWidth(page, pinfo.c_str());
-      HPDF_Page_TextOut (page, w - sw - df , h - df * 1.5, pinfo.c_str());
+      HPDF_Page_TextOut (page, w - sw - df , h - df * 1.5f, pinfo.c_str());
       HPDF_Page_EndText(page);
     }
 
@@ -222,7 +222,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
         fonts[info[k].ti.font] = fs; //Default fallback
         PDFFontSet &f = fonts[info[k].ti.font];
 
-        HPDF_Font font = getPDFFont(fi.normal, gdi.getScale(), tmpFile, fontScale);
+        HPDF_Font font = getPDFFont(fi.normal, float(gdi.getScale()), tmpFile, fontScale);
         if (!tmpFile.empty())
           tmpFiles.push_back(tmpFile);
         if (font) {
@@ -230,7 +230,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
           f.fontScale = fontScale;
         }
 
-        font = getPDFFont(fi.italic, gdi.getScale(), tmpFile, fontScale);
+        font = getPDFFont(fi.italic, float(gdi.getScale()), tmpFile, fontScale);
         if (!tmpFile.empty())
           tmpFiles.push_back(tmpFile);
         if (font) {
@@ -238,7 +238,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
           f.fontScaleItalic = fontScale;
         }
 
-        font = getPDFFont(fi.bold, gdi.getScale(), tmpFile, fontScale);
+        font = getPDFFont(fi.bold, (float)gdi.getScale(), tmpFile, fontScale);
         if (!tmpFile.empty())
           tmpFiles.push_back(tmpFile);
         if (font) {
@@ -283,8 +283,14 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
   }
  
   // Save the document to a file
-  HPDF_SaveToFile (pdf, file.c_str());
-
+  string tmpRes = getTempFile();
+  HPDF_SaveToFile (pdf, tmpRes.c_str());
+  BOOL res = MoveFileW(gdi.toWide(tmpRes).c_str(), file.c_str());
+  removeTempFile(tmpRes);
+  
+  if (!res) {
+    throw meosException("Failed to save pdf the specified file.");
+  }
   return;
 }
 

@@ -50,7 +50,6 @@ TabSpeaker::TabSpeaker(oEvent *poe):TabBase(poe)
 
   lastControlToWatch = 0;
   lastClassToWatch = 0;
-  watchEvents = false;
   watchLevel = oTimeLine::PMedium;
   watchNumber = 5;
 }
@@ -88,6 +87,7 @@ int tabSpeakerCB(gdioutput *gdi, int type, void *data)
     case GUI_CLEAR:
       return ts.onClear(*gdi);
     case GUI_TIMEOUT:
+    case GUI_TIMER:
       ts.updateTimeLine(*gdi);
     break;
 	}
@@ -103,6 +103,15 @@ int TabSpeaker::handleEvent(gdioutput &gdi, const EventInfo &ei)
 int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
 {
 	if (bu.id=="Settings") {
+    if (controlsToWatch.empty()) {
+      // Get default
+      vector<pControl> ctrl;
+      oe->getControls(ctrl);
+      for (size_t k = 0; k < ctrl.size(); k++) {
+        if (ctrl[k]->isValidRadio())
+          controlsToWatch.insert(ctrl[k]->getId());
+      }
+    }
     gdi.restore("settings");
     gdi.unregisterEvent("DataUpdate");
     gdi.fillDown();
@@ -121,6 +130,7 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
     gdi.setSelection("Controls", controlsToWatch);
 
     gdi.addButton("OK", "OK", tabSpeakerCB);
+    gdi.refresh();
   }
   else if (bu.id=="ZoomIn") {
     gdi.scaleSize(1.05);
@@ -167,13 +177,8 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
     shownEvents.clear();
     events.clear();
-
-	  gdi.registerEvent("DataUpdate", tabSpeakerCB);
-	  gdi.setData("DataSync", 1);
-	  gdi.setData("PunchSync", 1);
-  	
+    
     drawTimeLine(gdi);
-    watchEvents = false;
   }
   else if (bu.id == "Window") {
     oe->setupTimeLineEvents(0);
@@ -195,6 +200,8 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
   else if (bu.id=="OK") {
     gdi.getSelection("Classes", classesToWatch);  
     gdi.getSelection("Controls", controlsToWatch);  
+    if (controlsToWatch.empty())
+      controlsToWatch.insert(-2); // Non empty but no control
 
     controlsToWatchSI.clear();
     for (set<int>::iterator it=controlsToWatch.begin();it!=controlsToWatch.end();++it) {
@@ -271,14 +278,39 @@ void TabSpeaker::drawTimeLine(gdioutput &gdi) {
   updateTimeLine(gdi);
 }
 
-
 void TabSpeaker::updateTimeLine(gdioutput &gdi) {
-  gdi.restore("TimeLine", false);
+  int storedY = gdi.GetOffsetY();
+  int storedHeight = gdi.getHeight();
+  bool refresh = gdi.hasData("TimeLineLoaded");
+  
+  if (refresh)
+    gdi.takeShownStringsSnapshot();
+
+  gdi.restoreNoUpdate("TimeLine");
+  gdi.setRestorePoint("TimeLine");
+  gdi.setData("TimeLineLoaded", 1);
+
+  gdi.registerEvent("DataUpdate", tabSpeakerCB);
+	gdi.setData("DataSync", 1);
+	gdi.setData("PunchSync", 1);
+  
+  gdi.pushX(); gdi.pushY();
+  gdi.updatePos(0,0,0, storedHeight);
+  gdi.popX(); gdi.popY();
+  gdi.SetOffsetY(storedY);
 
   int nextEvent = oe->getTimeLineEvents(classesToWatch, events, shownEvents, 0);
-  int timeOut = nextEvent - oe->getComputerTime();
-  if (timeOut > 0)
-  gdi.addTimeout(timeOut, tabSpeakerCB);
+  
+  oe->updateComputerTime();
+  int timeOut = nextEvent * 1000 - oe->getComputerTimeMS();
+
+  string str = "Now: " + oe->getAbsTime(oe->getComputerTime()) + " Next:" + oe->getAbsTime(nextEvent) + " Timeout:" + itos(timeOut) + "\n";
+  OutputDebugString(str.c_str());
+
+  if (timeOut > 0) {
+    gdi.addTimeoutMilli(timeOut, "timeline", tabSpeakerCB);
+    //gdi.addTimeout(timeOut, tabSpeakerCB);
+  }
   bool showClass = classesToWatch.size()>1;
 
   oListInfo li;  
@@ -404,7 +436,14 @@ void TabSpeaker::updateTimeLine(gdioutput &gdi) {
     }
   }
 
-  gdi.refresh();
+  if (refresh)
+    gdi.refreshSmartFromSnapshot(false);
+  else {
+    if (storedHeight == gdi.getHeight())
+      gdi.refreshFast();
+    else
+      gdi.refresh();
+  }
 }
 
 void TabSpeaker::splitAnalysis(gdioutput &gdi, int xp, int yp, pRunner r)
@@ -586,7 +625,7 @@ bool TabSpeaker::loadPage(gdioutput &gdi)
 {
   oe->checkDB();
 
-	gdi.clearPage(true);
+	gdi.clearPage(false);
   gdi.pushX();
   gdi.setRestorePoint("settings");
 
@@ -673,7 +712,7 @@ bool TabSpeaker::loadPage(gdioutput &gdi)
     } else db += bw;
   }
   gdi.setRestorePoint("classes");
-
+  gdi.refresh();
 	return true;
 }
 
@@ -691,7 +730,6 @@ void TabSpeaker::clear()
 
   shownEvents.clear();
   events.clear();
-  watchEvents = false;
 }
 
 void TabSpeaker::manualTimePage(gdioutput &gdi) const
@@ -725,10 +763,10 @@ void TabSpeaker::storeManualTime(gdioutput &gdi)
     throw std::exception("Kontrollnummer måste anges.");
 
   lastControl=gdi.getText("Control");
-  int r_no=gdi.getTextNo("Runner");
+  const string &r_str=gdi.getText("Runner");
   string time=gdi.getText("Time");
-  pRunner r=oe->getRunnerByStartNo(r_no, false);
-
+  pRunner r=oe->getRunnerByBibOrStartNo(r_str, false);
+  int r_no = atoi(r_str.c_str());
   if(!r)
     r=oe->getRunnerByCard(r_no);
 

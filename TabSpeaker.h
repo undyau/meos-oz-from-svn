@@ -54,7 +54,6 @@ private:
 
   set<__int64> shownEvents;
   vector<oTimeLine> events;
-  bool watchEvents;
   oTimeLine::Priority watchLevel;
   int watchNumber;
 

@@ -59,8 +59,10 @@ oBase::~oBase()
 
 bool oBase::synchronize(bool writeOnly)
 {
-  if (oe && changed)
+  if (oe && changed) {
+    changedObject();
     oe->dataRevision++;
+  }
   if(oe && oe->HasDBConnection && (changed || !writeOnly)) {
     correctionNeeded = false;
 		return oe->msSynchronize(this);
@@ -120,4 +122,9 @@ oDataConstInterface oBase::getDCI(void) const
   pvectorstr strData;
   oDataContainer &dc = getDataBuffers(data, olddata, strData);
   return dc.getConstInterface(data, getDISize(), this);
+}
+
+void oBase::updateChanged() {
+  Modified.update();
+  changed=true;
 }

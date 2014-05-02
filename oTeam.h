@@ -74,6 +74,9 @@ protected:
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
 public:
+
+  void markClassChanged(int controlId);
+
   /// Returns team fee (including participating runners fees)
   int getTeamFee() const;
 
@@ -133,7 +136,6 @@ public:
   string getDisplayName() const;
   string getDisplayClub() const;
 
-  string getBib() const;
   void setBib(const string &bib, bool updateStartNo, bool setTmpOnly);
 
   int getLegStartTime(int leg) const;

@@ -89,6 +89,8 @@ protected:
   int inputPlace;
 
   bool sqlChanged;
+
+  void changedObject();
 public:
   // Get the runners team or the team itself
   virtual cTeam getTeam() const = 0;
@@ -121,7 +123,9 @@ public:
   bool isVacant() const;
   
   bool wasSQLChanged() const {return sqlChanged;}
-  void markClassChanged() {if (Class) Class->sqlChanged = true; }
+
+  /** Use -1 for all, PunchFinish or controlId */
+  virtual void markClassChanged(int controlId) = 0;
 
   string getInfo() const;
 
@@ -166,8 +170,9 @@ public:
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.
-  virtual string getBib() const = 0;
+  const string &getBib() const;
   virtual void setBib(const string &bib, bool updateStartNo, bool setTmpOnly) = 0;
+  int getEncodedBib() const;
 
 	virtual int getStartTime() const {return tStartTime;}
 	virtual int getFinishTime() const {return FinishTime;}
@@ -365,6 +370,8 @@ protected:
 
 public:
 
+  void markClassChanged(int controlId);
+
   // Returns public unqiue identifier of runner's race (for binding card numbers etc.)
   int getRaceIdentifier() const;
 
@@ -454,8 +461,6 @@ public:
   void setClassId(int id);
   void setClub(const string &Name);
   pClub setClubId(int clubId);
-
-  string getBib() const;
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.

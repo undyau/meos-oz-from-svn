@@ -40,6 +40,9 @@
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
+
+//#define DEBUG_SI
+
 SI_StationInfo::SI_StationInfo()
 {
  	ThreadHandle=0;
@@ -533,7 +536,7 @@ int SportIdent::ReadByte(BYTE &byte, HANDLE hComm)
 
 	if(ReadFile(hComm, &byte, 1, &dwRead, NULL))
 	{
-#ifdef DEBUG_SI
+#ifdef DEBUG_SI2
 		char t[64];
 	  sprintf_s(t, 64, "read=%02X\n", (int)byte);
 	  OutputDebugString(t);
@@ -566,7 +569,7 @@ int SportIdent::ReadBytes_delay(BYTE *byte, DWORD len,  HANDLE hComm)
 			Sleep(100);
 		}
 	}
-#ifdef DEBUG_SI
+#ifdef DEBUG_SI2
 	char t[64];
 	sprintf_s(t, 64, "retry=%d\n", d);
 	OutputDebugString(t);
@@ -591,7 +594,7 @@ int SportIdent::ReadBytes(BYTE *byte, DWORD len,  HANDLE hComm)
 
 	if(ReadFile(hComm, byte, len, &dwRead, NULL))
 	{
-#ifdef DEBUG_SI
+#ifdef DEBUG_SI2
     for (int k = 0; k < dwRead; k++) {
     	char t[64];
 	    sprintf_s(t, 64, "mread=%02X\n", (int)byte[k]);
@@ -624,7 +627,7 @@ int SportIdent::ReadBytesDLE_delay(BYTE *byte, DWORD len,  HANDLE hComm)
 			Sleep(100);
 		}
 	}
-#ifdef DEBUG_SI
+#ifdef DEBUG_SI2
 
 	char t[64];
 	sprintf_s(t, 64, "retry=%d\n", d);
@@ -893,11 +896,12 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
 							DWORD Time=0;
 							if(bf[8]&0x1) Time=3600*12;
 							Time+=MAKEWORD(bf[10], bf[9]);
-
+#ifdef DEBUG_SI
+              char str[128];
+              sprintf_s(str, "EXTENDED: Card = %d, Station = %d, StationMode = %d", Card, Station, si.StationMode);
+							MessageBox(NULL, str, NULL, MB_OK);
+#endif
               AddPunch(Time, Station, Card, si.StationMode);
-							//char str[128];
-							//sprintf_s(str, "%d, %02d:%02d", Card, Time/60, Time%60);
-							//MessageBox(NULL, str, NULL, MB_OK);
 						}					  
 						break;
 					}
@@ -928,6 +932,11 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
 						BYTE p=bf[1];
 						if(p&0x1) Time+=3600*12;
 
+#ifdef DEBUG_SI
+              char str[128];
+              sprintf_s(str, "OLD: Card = %d, Station = %d, StationMode = %d", DCard, Station, si.StationMode);
+							MessageBox(NULL, str, NULL, MB_OK);
+#endif
 						AddPunch(Time, Station, DCard, si.StationMode);
 						break;
 					}
@@ -1789,15 +1798,15 @@ void SportIdent::AddPunch(DWORD Time, int Station, int Card, int Mode)
 		}	
     else if (Mode == 3) {
 			sic.StartPunch.Time=Time;
-      sic.StartPunch.Code = 3;
+      sic.StartPunch.Code = oPunch::PunchStart;
 		}
     else if (Mode == 10) {
       sic.CheckPunch.Time=Time;
-      sic.CheckPunch.Code = 10;
+      sic.CheckPunch.Code = oPunch::PunchCheck;
 		}
 		else{
 			sic.FinishPunch.Time=Time;
-      sic.FinishPunch.Code = 1;
+      sic.FinishPunch.Code = oPunch::PunchFinish;
 		}
 	}
 	sic.PunchOnly=true;

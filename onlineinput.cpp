@@ -193,6 +193,7 @@ void OnlineInput::status(gdioutput &gdi)
 }
 
 void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
+  oe->autoSynchronizeLists(true);
 
   try {
     Download dwl;
@@ -264,7 +265,8 @@ void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
 void OnlineInput::processPunches(oEvent &oe, const xmlList &punches) {
   for (size_t k = 0; k < punches.size(); k++) {
     int code = punches[k].getObjectInt("code");
-    int startno = punches[k].getObjectInt("sno");
+    string startno;
+    punches[k].getObjectString("sno", startno);
 
     if (specialPunches.count(code))
       code = specialPunches[code];
@@ -274,8 +276,8 @@ void OnlineInput::processPunches(oEvent &oe, const xmlList &punches) {
     int card = punches[k].getObjectInt("card");
     int time = punches[k].getObjectInt("time") / 10;
 
-    if (startno > 0)
-      r = oe.getRunnerByStartNo(startno, false);
+    if (startno.length() > 0)
+      r = oe.getRunnerByBibOrStartNo(startno, false);
     else
       r = oe.getRunnerByCard(card);
 

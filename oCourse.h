@@ -86,6 +86,8 @@ protected:
   // For adapted courses;
   vector<int> tMapToOriginalOrder;
 
+  void changedObject();
+
 public:
   void remove();
   bool canRemove() const;

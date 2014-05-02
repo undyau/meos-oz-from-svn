@@ -377,14 +377,10 @@ void oAbstractRunner::setClassId(int id)
   if (Class!=pc) {
     apply(false, 0, false);
     if(Class) {
-      oe->reCalculateLeaderTimes(Class->getId());
-      Class->clearSplitAnalysis();
-      Class->tResultInfo.clear();
+      Class->clearCache(true);
     }
     if(pc) {
-      oe->reCalculateLeaderTimes(pc->getId());
-      pc->clearSplitAnalysis();
-      pc->tResultInfo.clear();
+      pc->clearCache(true);
     }
 		updateChanged();
   }
@@ -441,14 +437,10 @@ void oRunner::setClassId(int id)
 
     if(Class!=pc && !isTemporaryObject) {
       if (Class) {
-        oe->reCalculateLeaderTimes(Class->getId());
-        Class->clearSplitAnalysis();
-        Class->tResultInfo.clear();
+        Class->clearCache(true);
       }
       if (pc) {
-        oe->reCalculateLeaderTimes(pc->getId());
-        pc->clearSplitAnalysis();
-        pc->tResultInfo.clear();
+        pc->clearCache(true);
       }
       tSplitRevision = 0;
 		  updateChanged();
@@ -495,9 +487,9 @@ bool oAbstractRunner::setStartTime(int t, bool updateSource, bool tmpOnly, bool 
   }  
 
   if (tOST != tStartTime) {
+    changedObject();
     if (Class) {
-      Class->clearSplitAnalysis();
-      Class->tResultInfo.clear();
+      Class->clearCache(false);
     }
   }
 
@@ -519,8 +511,7 @@ void oAbstractRunner::setFinishTime(int t)
   if (OFT != FinishTime) {
 		updateChanged();
     if (Class) {
-      Class->clearSplitAnalysis();
-      Class->tResultInfo.clear();
+      Class->clearCache(false);
     }
   }
 
@@ -684,7 +675,8 @@ void oRunner::addPunches(pCard card, vector<int> &MissingPunches)
       oe->getDirectSocket().sendPunch(pi);
     }
   }
-
+  
+  oe->pushDirectChange();
   if (oldCard && Card && oldCard != Card && oldCard->isConstructedFromPunches())
     oldCard->remove(); // Remove card constructed from punches
 }
@@ -804,6 +796,9 @@ bool oRunner::evaluateCard(bool doApply, vector<int> & MissingPunches,
   swap(splitTimes, oldTimes);
 
   if(!Card) {
+    if((inTeam || !tUseStartPunch) && doApply)
+      apply(sync, 0, false); //Post apply. Update start times.
+
     if (storeTimes() && Class && sync) {
       set<int> cls;
       cls.insert(Class->getId());
@@ -822,18 +817,21 @@ bool oRunner::evaluateCard(bool doApply, vector<int> & MissingPunches,
 	oPunchList::iterator p_it;
 
   if (!course) {
-    // Reset rogaining
+    // Reset rogaining. Store start/finish
     for (p_it=Card->Punches.begin(); p_it!=Card->Punches.end(); ++p_it) {
       p_it->tRogainingIndex = -1;
       p_it->isUsed = false;
       p_it->tIndex = -1;
       p_it->tMatchControlId = -1;
       p_it->tTimeAdjust = 0;
-      if (p_it->isStart())
+      if (p_it->isStart() && tUseStartPunch)
         *refStartTime = p_it->Time;
       else if (p_it->isFinish())
         setFinishTime(p_it->Time);
     }
+    if((inTeam || !tUseStartPunch) && doApply)
+      apply(sync, 0, false); //Post apply. Update start times.
+
     storeTimes();
 		return false;
   }
@@ -867,6 +865,9 @@ bool oRunner::evaluateCard(bool doApply, vector<int> & MissingPunches,
         course->Controls[k]->addUncheckedPunches(MissingPunches, hasRogaining);
       }
     }
+    if((inTeam || !tUseStartPunch) && doApply)
+      apply(sync, 0, false); //Post apply. Update start times.
+
     if (storeTimes() && Class && sync) {
       set<int> cls;
       cls.insert(Class->getId());
@@ -1069,18 +1070,19 @@ bool oRunner::evaluateCard(bool doApply, vector<int> & MissingPunches,
   tRogainingPoints = 0;
   int time_limit = 0;
 
-  // Rogaining logic
+  // Rogaining logicu
   if (rogaining.size() > 0) {
+    set<int> visitedControls;
     for (p_it=Card->Punches.begin(); p_it != Card->Punches.end(); ++p_it) {
       pair<int, int> pt;
       if (rogaining.lookup(p_it->Type, pt)) {
-        if (pt.second > 0) {
+        if (visitedControls.count(pt.first) == 0) {
+          visitedControls.insert(pt.first); // May noy be revisited
           p_it->isUsed = true;
           p_it->tRogainingIndex = pt.first;
           p_it->tMatchControlId = course->Controls[pt.first]->getId();
           tRogaining.push_back(make_pair(course->Controls[pt.first], p_it->getAdjustedTime()));
           tRogainingPoints += pt.second;
-          rogaining[p_it->Type].second = 0; // May noy be revisited
         }
       }
     }
@@ -1178,7 +1180,7 @@ bool oRunner::evaluateCard(bool doApply, vector<int> & MissingPunches,
     clearSplitAnalysis = true;
   }
 
-  if(inTeam && doApply)
+  if((inTeam || !tUseStartPunch) && doApply)
     apply(sync, 0, false); //Post apply. Update start times.
 
   if (tCachedRunningTime != FinishTime - *refStartTime) {
@@ -1254,19 +1256,31 @@ void oRunner::doAdjustTimes(pCourse course) {
       continue;
 
     while (it != Card->Punches.end() && !it->isUsed) {
-      it->adjustTimeAdjust(adjustment);
+      it->setTimeAdjust(adjustment);
       ++it;
     }
 
     int minTime = ctrl->getMinTime();
-    if (minTime>0) {
+    if (ctrl->getStatus() == oControl::StatusNoTiming) {
       int t = 0;
       if (n>0 && splitTimes[n].time>0 && splitTimes[n-1].time>0) {
         t = splitTimes[n].time + adjustment - splitTimes[n-1].time;
-        //XXX Start
-        int maxadjust = max(minTime-t, 0);
-        adjustment += maxadjust;
       }
+      else if (n == 0 && splitTimes[n].time>0) {
+        t = splitTimes[n].time - tStartTime;
+      }
+      adjustment -= t;
+    }
+    else if (minTime>0) {
+      int t = 0;
+      if (n>0 && splitTimes[n].time>0 && splitTimes[n-1].time>0) {
+        t = splitTimes[n].time + adjustment - splitTimes[n-1].time;
+      }
+      else if (n == 0 && splitTimes[n].time>0) {
+        t = splitTimes[n].time - tStartTime;
+      }
+      int maxadjust = max(minTime-t, 0);
+      adjustment += maxadjust;
     }
 
     if (it != Card->Punches.end() && it->tMatchControlId == ctrl->getId()) {
@@ -1281,7 +1295,7 @@ void oRunner::doAdjustTimes(pCourse course) {
   
   // Adjust remaining
   while (it != Card->Punches.end()) {
-    it->adjustTimeAdjust(adjustment);
+    it->setTimeAdjust(adjustment);
     ++it;
   }
 
@@ -1795,6 +1809,8 @@ void oAbstractRunner::setStartNo(int no, bool tmpOnly) {
   }
 
 	if(no!=StartNo) {
+    if (oe)
+      oe->bibStartNoToRunnerTeam.clear();
 		StartNo=no;
 		updateChanged();
 	}
@@ -2039,17 +2055,18 @@ bool oAbstractRunner::setStatus(RunnerStatus st, bool updateSource, bool tmpOnly
 		tStatus=st;
 
     if (Class) {
-      Class->clearSplitAnalysis();
-      Class->tResultInfo.clear();
-      if (recalculate)
-        oe->reCalculateLeaderTimes(Class->getId());
+      Class->clearCache(recalculate);
     }
 	}
 
-  if (updateSource && st != status) {
+  if (st != status) {
     status = st;
- 		updateChanged();
+    if (updateSource)
+      updateChanged();
+    else
+      changedObject();
   }
+
   return ch;
 }
 
@@ -2058,7 +2075,7 @@ int oAbstractRunner::getPrelRunningTime() const
   if(FinishTime>0 && tStatus!=StatusDNS && tStatus!=StatusDNF && tStatus!=StatusNotCompetiting) 
 		return getRunningTime();
   else if(tStatus==StatusUnknown)
-	  return oe->ComputerTime-tStartTime;
+    return oe->getComputerTime()-tStartTime;
 	else return 0;
 }
 
@@ -2126,8 +2143,16 @@ pRunner oEvent::getRunner(int Id, int stage) const
 	return 0;
 }
 
-pRunner oRunner::nextNeedReadout() const
-{
+pRunner oRunner::nextNeedReadout() const {
+  if (tInTeam) {
+    // For a runner in a team, first the team for the card
+    for (size_t k = 0; k < tInTeam->Runners.size(); k++) {
+      pRunner tr = tInTeam->Runners[k];
+      if (tr && tr->CardNo == CardNo && !tr->Card && !tr->statusOK())
+        return tr;
+    }
+  }
+  
   if(!Card || Card->CardNo!=CardNo || Card->isConstructedFromPunches()) //-1 means card constructed from punches
     return pRunner(this);
   
@@ -2190,8 +2215,9 @@ pRunner oEvent::getRunnerByCard(int CardNo, bool OnlyWithNoCard, bool ignoreRunn
     if (it->getStatus() == StatusNotCompetiting)
       continue;
 
-		if(it->CardNo==CardNo && it->nextNeedReadout())	
-      return it->nextNeedReadout();
+    pRunner ret;
+		if(it->CardNo==CardNo && (ret = it->nextNeedReadout()) != 0)	
+      return ret;
 	}
 
 	if (!OnlyWithNoCard) 	{
@@ -2225,60 +2251,111 @@ int oRunner::getRaceIdentifier() const {
     return 1000000 * (tLeg+1) + tInTeam->Id * 2 + 1;//Odd
 }
 
+static int getEncodedBib(const string &bib) {
+  int enc = 0;
+  for (size_t j = 0; j < bib.length(); j++) {
+    int x = toupper(bib[j])-32;
+    if (x<0)
+      return 0; // Not a valid bib
+    enc = enc * 97 - x;
+  }
+  return enc;
+}
 
-pRunner oEvent::getRunnerByStartNo(int startNo, bool findWithoutCardNo) const {
-  // Several runners can have the same bib, try to get the right one.
-  // when looking up for manual speaker times.
+int oAbstractRunner::getEncodedBib() const {
+  return ::getEncodedBib(getBib());
+}
 
-	oRunnerList::const_iterator it;	
 
-  // First try via teams (get first non-finished runner in team)
-  oTeamList::const_iterator tit;	
+typedef multimap<int, oAbstractRunner*>::iterator BSRTIterator;
 
-  for (tit=Teams.begin(); tit!=Teams.end(); ++tit) {
-    if (tit->skip())
-      continue;
+pRunner oEvent::getRunnerByBibOrStartNo(const string &bib, bool findWithoutCardNo) const {
+  if (bib.empty() || bib == "0")
+    return 0;
 
-    if (tit->getStartNo()==startNo) {
+  if (bibStartNoToRunnerTeam.empty()) {
+    for (oTeamList::const_iterator tit = Teams.begin(); tit != Teams.end(); ++tit) {
       const oTeam &t=*tit;
+      if (t.skip())
+        continue;
+      
+      int sno = t.getStartNo();
+      if (sno != 0)
+        bibStartNoToRunnerTeam.insert(make_pair(sno, (oAbstractRunner *)&t));
+      int enc = t.getEncodedBib();
+      if (enc != 0)
+        bibStartNoToRunnerTeam.insert(make_pair(enc, (oAbstractRunner *)&t));
+    }
 
-      if (!findWithoutCardNo) {
-        for (int leg=0; leg<t.getNumRunners(); leg++) {
-          if(t.Runners[leg] && t.Runners[leg]->getCardNo() > 0 && t.Runners[leg]->getStatus()==StatusUnknown)
-            return t.Runners[leg];
-        }
+	  for (oRunnerList::const_iterator it=Runners.begin(); it != Runners.end(); ++it) {
+      if (it->skip())
+        continue;
+       const oRunner &t=*it;
+     
+      int sno = t.getStartNo();
+      if (sno != 0)
+        bibStartNoToRunnerTeam.insert(make_pair(sno, (oAbstractRunner *)&t));
+      int enc = t.getEncodedBib();
+      if (enc != 0)
+        bibStartNoToRunnerTeam.insert(make_pair(enc, (oAbstractRunner *)&t));
+    }
+  }
+
+  int sno = atoi(bib.c_str());
+
+  pair<BSRTIterator, BSRTIterator> res;
+  if (sno > 0) {
+    // Require that a bib starts with numbers
+    int bibenc = getEncodedBib(bib);
+    res = bibStartNoToRunnerTeam.equal_range(bibenc);
+    if (res.first == res.second)
+      res = bibStartNoToRunnerTeam.equal_range(sno); // Try startno instead
+
+    for(BSRTIterator it = res.first; it != res.second; ++it) {
+      oAbstractRunner *pa = it->second;
+      if (pa->isRemoved())
+        continue;
+
+      if (typeid(*pa)==typeid(oRunner)) {
+	      oRunner &r = dynamic_cast<oRunner &>(*pa);
+        if (r.getStartNo()==sno || stringMatch(r.getBib(), bib)) {
+          if (findWithoutCardNo) {
+            if (r.getCardNo() == 0 && r.needNoCard() == false)
+              return &r;
+          }
+          else {
+            if(r.getNumMulti()==0 || r.tStatus == StatusUnknown)
+              return &r;
+            else {
+              for(int race = 0; race < r.getNumMulti(); race++) {
+                pRunner r2 = r.getMultiRunner(race);
+                if (r2 && r2->tStatus == StatusUnknown)
+                  return r2;
+              }
+              return &r;
+            }
+          }
+        }        
       }
       else {
-        for (int leg=0; leg<t.getNumRunners(); leg++) {
-          if(t.Runners[leg] && t.Runners[leg]->getCardNo() == 0)
-            return t.Runners[leg];
+        oTeam &t = dynamic_cast<oTeam &>(*pa);
+        if (t.getStartNo()==sno || stringMatch(t.getBib(), bib)) {
+          if (!findWithoutCardNo) {
+            for (int leg=0; leg<t.getNumRunners(); leg++) {
+              if(t.Runners[leg] && t.Runners[leg]->getCardNo() > 0 && t.Runners[leg]->getStatus()==StatusUnknown)
+                return t.Runners[leg];
+            }
+          }
+          else {
+            for (int leg=0; leg<t.getNumRunners(); leg++) {
+              if(t.Runners[leg] && t.Runners[leg]->getCardNo() == 0 && t.Runners[leg]->needNoCard() == false)
+                return t.Runners[leg];
+            }
+          }
         }
       }
     }
   }
-
-	//Then try normal runners
-	for (it=Runners.begin(); it != Runners.end(); ++it) {
-    if (it->skip())
-      continue;
-
-    if (it->getStartNo()==startNo) {
-      if(it->getNumMulti()==0 || it->tStatus==StatusUnknown)
-        return pRunner(&(*it));
-      else {
-        if (!findWithoutCardNo) {
-          for(int race=0;race<it->getNumMulti();race++) {
-            pRunner r=it->getMultiRunner(race);
-            if (r && r->tStatus==StatusUnknown)
-              return r;
-          }
-        }
-        return pRunner(&(*it));
-      }
-    }
-	}
-
-
 	return 0;
 }
 
@@ -2981,8 +3058,13 @@ void oRunner::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) con
   spk.runningTimeLeg = 0;
 
   getSplitTime(controlId, spk.status, spk.runningTime);
+    
+  if (controlId == oPunch::PunchFinish)
+    spk.timeSinceChange = oe->getComputerTime() - FinishTime;
+  else
+    spk.timeSinceChange = oe->getComputerTime() - (spk.runningTime + tStartTime);
 
-  string bib=getBib();
+  const string &bib = getBib();
 
   if(!bib.empty()) {
     spk.name=bib + " " + getName();
@@ -2997,7 +3079,7 @@ void oRunner::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) con
   spk.missingStartTime = tStartTime<=0;
   
   spk.isRendered=false;
-
+  
 	map<int,int>::const_iterator mapit=Priority.find(controlId);
 	if(mapit!=Priority.end())
 		spk.priority=mapit->second;
@@ -3185,7 +3267,7 @@ bool oRunner::synchronizeAll()
   return true;
 }
 
-string oRunner::getBib() const
+const string &oAbstractRunner::getBib() const
 {
   return getDCI().getString("Bib");
 }
@@ -3201,12 +3283,16 @@ void oRunner::setBib(const string &bib, bool updateStartNo, bool tmpOnly) {
       tmpStore.bib = bib;
       return;
     }
-    getDI().setString("Bib", bib);
+    if (getDI().setString("Bib", bib)) {
+      if (oe)
+        oe->bibStartNoToRunnerTeam.clear();
+    }
     
-    for (size_t k=0;k<multiRunner.size();k++) 
+    for (size_t k=0;k<multiRunner.size();k++) {
       if(multiRunner[k]) {
         multiRunner[k]->getDI().setString("Bib", bib);
       }
+    }
 	}
 }
 
@@ -3733,6 +3819,16 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
   }
 
   gdi.dropLine();
+
+  vector< pair<string, int> > lines;
+  oe->getExtraLines("SPExtra", lines);
+
+  for (size_t k = 0; k < lines.size(); k++) {
+    gdi.addStringUT(lines[k].second, lines[k].first);
+  }
+  if (lines.size()>0)
+    gdi.dropLine(0.5);
+
   gdi.addString("", fontSmall, "Av MeOS: www.melin.nu/meos");
 }
 
@@ -3781,6 +3877,8 @@ void oRunner::correctRemove(pRunner r) {
 void oEvent::updateRunnersFromDB() 
 {
 	oRunnerList::iterator it;	
+  if (!oe->useRunnerDb())
+    return;
 
 	for (it=Runners.begin(); it != Runners.end(); ++it) {
     if (!it->isVacant() && !it->isRemoved())
@@ -3790,6 +3888,9 @@ void oEvent::updateRunnersFromDB()
 
 bool oRunner::updateFromDB(const string &name, int clubId, int classId, 
                            int cardNo, int birthYear) {
+  if (!oe->useRunnerDb())
+    return false;
+  
   pRunner db_r = 0;
   if (cardNo>0) {
     db_r = oe->dbLookUpByCard(cardNo);
@@ -4330,7 +4431,7 @@ pRunner oRunner::getMatchedRunner(const SICard &sic) const {
       continue;
 
     if (Class->getLegType(multi[k]->tLeg) != LTExtra)
-     return pRunner(this);
+      return pRunner(this);
 
     pCourse pc = multi[k]->getCourse(false);
     if (pc) {
@@ -4701,4 +4802,15 @@ const vector<SplitData> &oRunner::getSplitTimes(bool normalized) const {
     }
     return splitTimes;
   }
+}
+
+void oRunner::markClassChanged(int controlId) {
+  if (Class) 
+    Class->markSQLChanged(tLeg, controlId);
+  else if(oe)
+    oe->globalModification = true;
+}
+
+void oAbstractRunner::changedObject() {
+  markClassChanged(-1);
 }

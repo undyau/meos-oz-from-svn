@@ -322,7 +322,7 @@ bool TabCompetition::checkEventor(gdioutput &gdi, ButtonInfo &bi) {
 
 int eventorServer(gdioutput *gdi, int type, void *data) {
   TabCompetition &tc = dynamic_cast<TabCompetition &>(*gdi->getTabs().get(TCmpTab));
-  if (type == GUI_COMBOCHANGE) {
+  if (type == GUI_COMBO) {
     const ListBoxInfo &lbi = *((ListBoxInfo *)data);
     tc.setEventorServer(lbi.text);
   }
@@ -363,9 +363,11 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
 	else if (type==GUI_BUTTON) {
 		ButtonInfo bi=*(ButtonInfo *)data;
 
-    if (bi.id=="UseEconomy" || bi.id=="UseSpeaker") {
+    if (bi.id=="UseEconomy" || bi.id=="UseSpeaker" || bi.id == "UseRunnerDb") {
       oe->getDI().setInt("UseEconomy", gdi.isChecked("UseEconomy"));
       oe->getDI().setInt("UseSpeaker", gdi.isChecked("UseSpeaker"));
+      oe->useRunnerDb(gdi.isChecked("UseRunnerDb"));
+      gdi.setInputStatus("RunnerDatabase", gdi.isChecked("UseRunnerDb"), true);
       oe->updateTabs();
     }
     else if (bi.id == "CopyLink") {
@@ -1721,7 +1723,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           oe->generateListInfo(par,  gdi.getLineHeight(), li);
           gdioutput tGdi(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());
           oe->generateList(tGdi, true, li, false);
-          tGdi.writeTableHTML(save, oe->getName());
+          tGdi.writeTableHTML(gdi.toWide(save), oe->getName());
           tGdi.openDoc(save.c_str());
         }
           //gdi.alert("Not implemented");
@@ -1794,7 +1796,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
           oe->generateListInfo(par,  gdi.getLineHeight(), li);
           gdioutput tGdi(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());
           oe->generateList(tGdi, true, li, false);
-          tGdi.writeTableHTML(save, oe->getName());
+          tGdi.writeTableHTML(gdi.toWide(save), oe->getName());
           tGdi.openDoc(save.c_str());
         }
 			}
@@ -2332,7 +2334,7 @@ void TabCompetition::loadAboutPage(gdioutput &gdi) const
                         "The database used is MySQL, Copyright (c) 2008 Sun Microsystems, Inc."
                         "\n\nGerman Translation by Erik Nilsson-Simkovics"
                         "\n\nDanish Translation by Michael Leth Jess and Chris Bagge"
-                        "\n\nRussian Translation by Paul A. Kazakov");
+                        "\n\nRussian Translation by Paul A. Kazakov and Albert Salihov");
   
   gdi.dropLine();
   gdi.addString("", 0, "Det här programmet levereras utan någon som helst garanti. Programmet är ");
@@ -2480,6 +2482,10 @@ bool TabCompetition::loadPage(gdioutput &gdi)
     gdi.fillRight();
     gdi.addCheckbox("UseEconomy", "Hantera klubbar och ekonomi", CompetitionCB, oe->useEconomy());
     gdi.addCheckbox("UseSpeaker", "Använd speakerstöd", CompetitionCB, oe->getDCI().getInt("UseSpeaker")!=0);
+    gdi.popX();
+    gdi.dropLine(2);
+    
+    gdi.addCheckbox("UseRunnerDb", "Använd löpardatabasen", CompetitionCB, oe->useRunnerDb());
 
     gdi.popX();
     gdi.dropLine(2);
@@ -2537,6 +2543,9 @@ bool TabCompetition::loadPage(gdioutput &gdi)
     gdi.addString("", 1, "Funktioner");
 		gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "RunnerDatabase", "Löpardatabasen",
                   CompetitionCB, "Visa och hantera löpardatabasen", false, false);
+    
+    gdi.setInputStatus("RunnerDatabase", oe->useRunnerDb());
+      
     gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "MultiEvent", "Hantera flera etapper", 
                   CompetitionCB, "", false, false);
     gdi.addButton(gdi.getCX(), gdi.getCY(), bw, "SaveAs", "Säkerhetskopiera", 
@@ -2581,14 +2590,14 @@ void TabCompetition::textSizeControl(gdioutput &gdi) const
   //gdi.addString("", 0, "Textstorlek:");
    
   gdi.addSelection(id, 90, 200, CompetitionCB, "Textstorlek:");
-  gdi.addItem(id, "Normal", 0);
-  gdi.addItem(id, "Stor", 1);
-  gdi.addItem(id, "Större", 2);
-  gdi.addItem(id, "Störst", 3);
+  gdi.addItem(id, lang.tl("Normal"), 0);
+  gdi.addItem(id, lang.tl("Stor"), 1);
+  gdi.addItem(id, lang.tl("Större"), 2);
+  gdi.addItem(id, lang.tl("Störst"), 3);
   gdi.selectItemByData(id, s);
 
   id = "Language";
-  gdi.addSelection(id, 90, 200, CompetitionCB, "Språk:");
+  gdi.addSelection(id, 150, 300, CompetitionCB, "Språk:");
   vector<string> ln = lang.get().getLangResource();
   string current = oe->getPropertyString("Language", "English");  
   int ix = -1;

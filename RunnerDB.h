@@ -197,8 +197,8 @@ private:
 protected:
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
-  virtual int getDISize() const {return 0;}
-
+  int getDISize() const {return 0;}
+  void changedObject() {}
 public:
 
   int getIndex() const {return index;}

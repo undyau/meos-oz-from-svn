@@ -517,7 +517,7 @@ pRunner TabRunner::save(gdioutput &gdi, int runnerId, bool willExit)
 		r=oe->addRunner(name, clubId, classId, cardNo, year, true);
   else { 
     r=oe->getRunner(runnerId, 0);
-    if (r->getName() != name || r->getClubId() != clubId)
+    if (r->getName() != name || (r->getClubId() != clubId && clubId != 0))
       r->updateFromDB(name, clubId, classId, cardNo, r->getBirthYear());    
   }
 
@@ -2187,7 +2187,8 @@ void TabRunner::warnDuplicateCard(gdioutput &gdi, int cno, pRunner r) {
     vector<pRunner> allR;
     oe->getRunners(0, 0, allR, false);
     for (size_t k = 0; k < allR.size(); k++) {
-      if (allR[k]->skip() || allR[k]->getCard() || allR[k] == parent)
+      if (allR[k]->skip() || allR[k]->getCard() || 
+          allR[k] == parent || (allR[k]->getTeam() == r->getTeam() && r->getTeam()))
         continue;
       if (allR[k]->getCardNo() == cno && cno>0) {
         warnCardDupl = allR[k];

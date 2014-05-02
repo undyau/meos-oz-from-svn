@@ -45,7 +45,6 @@
 #include "meosexception.h"
 
 static TabAuto *tabAuto = 0;
-static long currentRevision = 0;
 
 extern HWND hWndMain;
 extern HWND hWndWorkspace;
@@ -86,25 +85,6 @@ TabAuto::~TabAuto(void)
 	tabAuto=0;
 }
 
-void tabAutoTimer(gdioutput &gdi)
-{
-  string msg;
-  try {
-	  if(tabAuto)
-		  tabAuto->timerCallback(gdi);
-  }
-  catch(std::exception &ex) {
-    msg=ex.what();
-  }
-  catch(...) {
-    msg="Ett okänt fel inträffade.";
-  }
-  if(!msg.empty()) {
-    gdi.alert(msg);
-    gdi.setWaitCursor(false);
-  }
-
-}
 
 void tabAutoKillMachines()
 {
@@ -122,43 +102,6 @@ void tabAutoAddMachinge(const AutoMachine &am)
   if(tabAuto) {
     tabAuto->addMachine(am);
   }
-}
-
-
-void tabAutoSync(const vector<gdioutput *> &gdi, pEvent oe)
-{
-	DWORD d=0;
-  bool doSync = false;
-  bool doSyncPunch = false;
-  DWORD SyncPunches=0;
-	
-  for (size_t k = 0; k<gdi.size(); k++) {
-    if (gdi[k] && gdi[k]->getData("DataSync", d)) {
-      doSync = true;
-    }    
-    if (gdi[k] && gdi[k]->getData("PunchSync", SyncPunches)) {
-      doSyncPunch = true;
-    } 
-  }
-
-  if (doSync || (tabAuto && tabAuto->synchronize)) {					
-	
-    if (tabAuto && tabAuto->synchronizePunches)
-      doSyncPunch = true;
-
-    if ( oe->autoSynchronizeLists(doSyncPunch) || oe->getRevision() != currentRevision) {
-      if(doSync) {
-        for (size_t k = 0; k<gdi.size(); k++) {
-          if (gdi[k]) 
-            gdi[k]->makeEvent("DataUpdate", "autosync", 0, 0, false);
-        }
-      }
-
-      if(tabAuto)
-        tabAuto->syncCallback(*gdi[0]);
-    }			
-	}
-  currentRevision = oe->getRevision();
 }
 
 void tabForceSync(gdioutput &gdi, pEvent oe)
@@ -826,9 +769,9 @@ void PrintResultMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
       if (doExport) {
         if (!exportFile.empty()) {
           if (structuredExport)
-            gdiPrint.writeTableHTML(exportFile, oe->getName());
+            gdiPrint.writeTableHTML(gdi.toWide(exportFile), oe->getName());
           else
-            gdiPrint.writeHTML(exportFile, oe->getName());
+            gdiPrint.writeHTML(gdi.toWide(exportFile), oe->getName());
 
           if (!exportScript.empty()) {
             ShellExecute(NULL, NULL, exportScript.c_str(), exportFile.c_str(), NULL, SW_HIDE);

@@ -178,3 +178,7 @@ const string &oPunch::getType(int t) {
 	}
   return _EmptyString;
 }
+
+void oPunch::changedObject() {
+  // Does nothing
+}

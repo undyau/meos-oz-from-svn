@@ -2923,3 +2923,48 @@ oClass::ClassStatus oClass::getClassStatus() const {
   }
   return tStatus;
 }
+
+void oClass::clearCache(bool recalculate) {
+  if (recalculate)
+    oe->reCalculateLeaderTimes(getId());
+  clearSplitAnalysis();
+  tResultInfo.clear();//Do on competitor remove!
+}
+
+
+bool oClass::wasSQLChanged(int leg, int control) const {
+  if (oe->globalModification)
+    return true;
+
+  map<int, set<int> >::const_iterator res = sqlChangedControlLeg.find(-1);
+  if (res != sqlChangedControlLeg.end()) {
+    if (leg == -1 || res->second.count(-1) || res->second.count(leg))
+      return true;
+  }
+
+  if (control != -1) {
+    res = sqlChangedControlLeg.find(control);
+    if (res != sqlChangedControlLeg.end()) {
+      if (leg == -1 || res->second.count(-1) || res->second.count(leg))
+        return true;
+    }
+  }
+
+  res = sqlChangedLegControl.find(leg);
+  if (res != sqlChangedLegControl.end()) {
+    if (control == -1 || res->second.count(-1) || res->second.count(control))
+      return true;
+  }
+
+  return false;
+}
+
+void oClass::markSQLChanged(int leg, int control) {
+  sqlChangedControlLeg[control].insert(leg);
+  sqlChangedLegControl[leg].insert(control);
+  oe->classChanged(this, false);
+}
+
+void oClass::changedObject() {
+  markSQLChanged(-1,-1);
+}

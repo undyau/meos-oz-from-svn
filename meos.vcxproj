@@ -224,6 +224,7 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="autotask.cpp" />
     <ClCompile Include="classconfiginfo.cpp" />
     <ClCompile Include="csvparser.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -357,6 +358,7 @@
     <ClCompile Include="zip.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="autotask.h" />
     <ClInclude Include="classconfiginfo.h" />
     <ClInclude Include="intkeymap.hpp" />
     <ClInclude Include="intkeymapimpl.hpp" />
@@ -422,6 +424,7 @@
     <ResourceCompile Include="meoslang.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="bitmap1.bmp" />
     <None Include="meos.ico" />
     <None Include="small.ico" />
     <None Include="ReadMe.txt" />

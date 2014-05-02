@@ -321,6 +321,10 @@
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
 			<File
+				RelativePath=".\autotask.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\classconfiginfo.cpp"
 				>
 			</File>
@@ -1060,6 +1064,10 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
+			<File
+				RelativePath=".\autotask.h"
+				>
+			</File>
 			<File
 				RelativePath=".\classconfiginfo.h"
 				>

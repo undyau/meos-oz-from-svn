@@ -489,9 +489,11 @@ RunnerStatus oTeam::getLegStatus(int leg, bool multidayTotal) const
     return StatusUnknown;
 
   if (multidayTotal) {
-    if (inputStatus == StatusUnknown)
-      return StatusUnknown;
     RunnerStatus s = getLegStatus(leg, false);
+    if (s == StatusUnknown && inputStatus != StatusNotCompetiting)
+      return StatusUnknown;
+    if (inputStatus == StatusUnknown)
+      return StatusDNS;
     return max(inputStatus, s);
   }
 
@@ -535,7 +537,7 @@ RunnerStatus oTeam::getLegStatus(int leg, bool multidayTotal) const
     if(st==0) 
       return RunnerStatus(s==StatusOK ? 0 : s);
 
-		s=max(s, st);		
+		s=max(s, st);
 	}
 
   // Allow global status DNS
@@ -728,7 +730,7 @@ bool oTeam::apply(bool sync, pRunner source, bool setTmpOnly) {
     }
     Runners.resize(Class->getNumStages());
   }
-  const string bib = getBib();
+  const string &bib = getBib();
   tNumRestarts = 0;
   vector<int> availableStartTimes;
 	for (size_t i=0;i<Runners.size(); i++) {
@@ -959,13 +961,17 @@ bool oTeam::apply(bool sync, pRunner source, bool setTmpOnly) {
     }
 	}
 
-  if(!Runners.empty() && Runners[0]) 
-    setStartTime(Runners[0]->getStartTime(), false, setTmpOnly);
+  if(!Runners.empty() && Runners[0]) {
+    if (setTmpOnly)
+      setStartTime(Runners[0]->tmpStore.startTime, false, setTmpOnly);
+    else
+      setStartTime(Runners[0]->getStartTime(), false, setTmpOnly);
+  }
   else if(Class)
     setStartTime(Class->getStartData(0), false, setTmpOnly);
 
   setFinishTime(getLegFinishTime(-1));
-  setStatus(getLegStatus(-1, false), false, setTmpOnly);
+  setStatus(getLegStatus(-1, false), false, setTmpOnly); //XXX Maybe getLegStatus needs to work agains tmp store?
 
   if(sync)
     synchronize(true);
@@ -1047,7 +1053,7 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
   spk.name.clear();
   for(int k=firstLeg+1;k<=leg;k++) {
     if(Runners[k]) {
-      const string &n=Runners[k]->getName();
+      const string &n = Runners[k]->getName();
       if(spk.name.empty())
         spk.name=n;
       else
@@ -1055,13 +1061,41 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
     }
   }
   // Add start number
-  char bf[512];
-  sprintf_s(bf, "%03d: %s", StartNo, spk.name.c_str());
-  spk.name=bf;
+  //char bf[512];
+  //sprintf_s(bf, "%03d: %s", StartNo, spk.name.c_str());
+  const string &bib = getBib();
+  if (!bib.empty())
+    spk.name=bib + ": " + spk.name;
 
-  leg=firstLeg+1; //This does not work well with parallel or extra...
+  int specifiedLeg = leg;
+  leg = firstLeg+1; //This does not work well with parallel or extra...
+  bool missingLeg = false;
+  spk.status = StatusUnknown;
+  spk.runningTimeLeg = 0;
+  for (int i = leg; i <= specifiedLeg; i++) {
+    LegTypes lt=Class->getLegType(i);
+    if (lt == LTSum || lt == LTNormal || lt == lt == LTParallel) {
+      int lrt;
+      RunnerStatus lst;
+      Runners[i]->getSplitTime(controlId, lst, lrt);
+      if (lst > StatusOK) {
+        spk.status = lst;
+        break;
+      }
+      else if (lst == StatusUnknown) {
+        missingLeg = true;
+      }
+      else {
+        spk.runningTimeLeg = max(lrt, spk.runningTimeLeg);
+      }
+    }
+  }
+  
+  if (!missingLeg && spk.status == StatusUnknown)
+    spk.status = StatusOK;
+  //Runners[leg]->getSplitTime(controlId, spk.status, spk.runningTimeLeg);
 
-  Runners[leg]->getSplitTime(controlId, spk.status, spk.runningTimeLeg);
+  spk.timeSinceChange = oe->getComputerTime() - (spk.runningTimeLeg + Runners[leg]->tStartTime);
 
   spk.owner=Runners[leg];
   spk.finishStatus=getLegStatus(leg, false);
@@ -1088,7 +1122,7 @@ void oTeam::fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const
     spk.status=inheritStatus;
 
   if(spk.status==StatusOK) {
-    if (controlId != 2)
+    if (controlId != 2) 
       spk.runningTime = spk.runningTimeLeg+timeOffset;
     else
       spk.runningTime = getLegRunningTime(requestedLeg, false); // Get official time
@@ -1150,11 +1184,6 @@ string oTeam::getLegStartTimeCompact(int leg) const
 	else return "-";
 }
 
-string oTeam::getBib() const
-{
-  return getDCI().getString("Bib");
-}
-
 void oTeam::setBib(const string &bib, bool updateStartNo, bool setTmpOnly) {
   if (setTmpOnly) {
     tmpStore.bib = bib;
@@ -1163,7 +1192,11 @@ void oTeam::setBib(const string &bib, bool updateStartNo, bool setTmpOnly) {
     return;
   }
 
-  getDI().setString("Bib", bib);
+  if (getDI().setString("Bib", bib)) {
+    if (oe)
+      oe->bibStartNoToRunnerTeam.clear();
+  }
+
   if (updateStartNo) {
     setStartNo(atoi(bib.c_str()), false);
   }
@@ -1607,4 +1640,9 @@ int oTeam::getTeamFee() const {
       f += Runners[k]->getDCI().getInt("Fee");
   }
   return f;
+}
+
+void oTeam::markClassChanged(int controlId) {
+  if (Class) 
+    Class->markSQLChanged(-1, controlId); 
 }

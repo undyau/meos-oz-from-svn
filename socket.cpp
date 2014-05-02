@@ -28,11 +28,12 @@
 #include "meosexception.h"
 #include <iostream>
 
-#define MEOS_DIRECT_PORT 21338
+//#define MEOS_DIRECT_PORT 21338
 
 
-DirectSocket::DirectSocket(int cmpId) {
+DirectSocket::DirectSocket(int cmpId, int p) {
   competitionId = cmpId;
+  port = p;
 	InitializeCriticalSection(&syncObj);
   shutDown = false;
   sendSocket = -1;
@@ -56,6 +57,7 @@ DirectSocket::~DirectSocket() {
 }
 
 void DirectSocket::addPunchInfo(const SocketPunchInfo &pi) {
+  //OutputDebugString("Enter punch in queue\n");
   EnterCriticalSection(&syncObj);
   if (clearQueue)
     messageQueue.clear();
@@ -69,9 +71,8 @@ void DirectSocket::getPunchQueue(vector<SocketPunchInfo> &pq) {
   pq.clear();
   
   EnterCriticalSection(&syncObj);
-  if (clearQueue)
-    return;
-  pq.insert(pq.begin(), messageQueue.begin(), messageQueue.end());
+  if (!clearQueue)
+    pq.insert(pq.begin(), messageQueue.begin(), messageQueue.end());
 
   clearQueue = true;
   LeaveCriticalSection(&syncObj);
@@ -89,7 +90,7 @@ void DirectSocket::listenDirectSocket() {
   SOCKADDR_IN UDPserveraddr;
   memset(&UDPserveraddr,0, sizeof(UDPserveraddr));
   UDPserveraddr.sin_family = AF_INET;
-  UDPserveraddr.sin_port = htons(MEOS_DIRECT_PORT);
+  UDPserveraddr.sin_port = htons(port);
   UDPserveraddr.sin_addr.s_addr = INADDR_ANY;
      
   if(bind(clientSocket, (SOCKADDR*)&UDPserveraddr,sizeof(SOCKADDR_IN)) < 0) {
@@ -165,7 +166,7 @@ void DirectSocket::sendPunch(SocketPunchInfo &pi) {
   SOCKADDR_IN brdcastaddr;
   memset(&brdcastaddr,0, sizeof(brdcastaddr));
   brdcastaddr.sin_family = AF_INET;
-  brdcastaddr.sin_port = htons(MEOS_DIRECT_PORT);
+  brdcastaddr.sin_port = htons(port);
   brdcastaddr.sin_addr.s_addr = INADDR_BROADCAST;
 
   int len = sizeof(brdcastaddr);

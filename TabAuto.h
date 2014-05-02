@@ -29,7 +29,6 @@
 
 using namespace std;
 
-void tabAutoTimer(gdioutput &gdi);
 class TabAuto;
 class gdioutput;
 class oEvent;
@@ -150,7 +149,9 @@ class MySQLReconnect :
 	public AutoMachine
 {
 protected:
-  int callCount;
+  string error;
+  string timeError;
+  string timeReconnect;
   HANDLE hThread;
 public:
   void settings(gdioutput &gdi, oEvent &oe, bool created);
@@ -158,7 +159,7 @@ public:
 	void status(gdioutput &gdi);
 	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
   bool stop();
-	MySQLReconnect();
+	MySQLReconnect(const string &error);
   virtual ~MySQLReconnect();
   friend class TabAuto;
 };
@@ -234,9 +235,8 @@ public:
 	TabAuto(oEvent *poe);
 	~TabAuto(void);
 
-  friend void tabAutoSync(const vector<gdioutput *> &gdi, pEvent oe);
+  friend class AutoTask;
   friend void tabForceSync(gdioutput &gdi, pEvent oe);
-	friend void tabAutoTimer(gdioutput &gdi);
 };
 
 void tabAutoKillMachines();

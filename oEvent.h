@@ -189,6 +189,9 @@ protected:
   // Revision number for data modified on this client.
   unsigned long dataRevision;
 
+  // Set to true if a global modification is made that should case all lists etc to regenerate.
+  bool globalModification;
+
   gdioutput &gdibase;
   HMODULE hMod;//meosdb.dll
   
@@ -280,8 +283,7 @@ protected:
 	bool sqlChangedPunches;
 	bool sqlChangedTeams;
 
-  void resetSQLChanged();
-  bool needRefreshClass(int classId);
+  
   bool needReEvaluate();
 
   DirectSocket *directSocket;
@@ -339,7 +341,7 @@ protected:
   DWORD currentClientCS; //The current, stored check sum.
  
   //Protected speaker functions.
-	int ComputerTime;
+	int computerTime;
 	void renderRowSpeakerList(gdioutput &gdi, oSpeakerObject &r, 
                             oSpeakerObject *next_r, int x, int y, 
                             int LeaderTime, int type);
@@ -414,13 +416,21 @@ protected:
                                     const pTeam t, const pRunner r, const pClub c,
                                     const pClass pc, oCounter &counter) const;
 
+  void changedObject();
+
+  // Temporarily disable recaluclate leader times
+  bool disableRecalculate;
 public:
 
-  bool hasDirectSocket() const {return directSocket != 0;}
+  void resetSQLChanged(bool resetAllTeamsRunners, bool cleanClasses);
 
+  void pushDirectChange();
+
+  bool hasDirectSocket() const {return directSocket != 0;}
   DirectSocket &getDirectSocket();
 
-  void advancePunchInformation(const vector<gdioutput *> &gdi, vector<SocketPunchInfo> &pi);
+  bool advancePunchInformation(const vector<gdioutput *> &gdi, vector<SocketPunchInfo> &pi, 
+                               bool getPunch, bool getFinish);
 
   // Sets and returns extra lines (string, style) to be printed on the split print, invoice, ...
   void setExtraLines(const char *attrib, const vector<pair<string, int> > &lines);
@@ -495,6 +505,8 @@ public:
 
   void updateTabs(bool force = false) const;
   bool useEconomy() const;
+  bool useRunnerDb() const;
+  void useRunnerDb(bool use);
 
   int getFirstClassId(bool teamClass) const;
 
@@ -626,8 +638,10 @@ public:
 
 	//Speaker functions.
 	void speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId);
-	int getComputerTime() const {return ComputerTime;}
-	void updateComputerTime();
+	int getComputerTime() const {return (computerTime+500)/1000;}
+	int getComputerTimeMS() const {return computerTime;}
+	
+  void updateComputerTime();
 
   // Get set of controls with registered punches
   void getFreeControls(set<int> &controlId) const;
@@ -641,10 +655,14 @@ public:
 	
 
 protected:
-  int getControlIdFromPunch(int time, int type, int card, bool markClassChanged, int &runnerId);
+  // Returns hash key for punch based on control id, and leg. Class is marked as changed if oldHashKey != newHashKey.
+  int getControlIdFromPunch(int time, int type, int card, 
+                            bool markClassChanged, oFreePunch &punch);
+
   static void drawSOFTMethod(vector<pRunner> &runners, bool handleBlanks=true);
   bool enumerateBackups(const char *file, const char *filetype, int type);
   intkeymap<pRunner> cardHash;
+  mutable multimap<int, oAbstractRunner*> bibStartNoToRunnerTeam;
   int tClubDataRevision;
   bool readOnly;
 	virtual void writeExtraXml(xmlparser &xml){};
@@ -879,7 +897,7 @@ public:
        findWithoutCardNo false : find first that has not finished
        findWithoutCardNo true : find first with no card.
   */
-  pRunner getRunnerByStartNo(int startNo, bool findWithoutCardNo) const;
+  pRunner getRunnerByBibOrStartNo(const string &bib, bool findWithoutCardNo) const;
 
   pRunner getRunnerByName(const string &pname, const string &pclub="") const;
 	

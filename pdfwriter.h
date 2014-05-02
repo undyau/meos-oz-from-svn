@@ -53,7 +53,7 @@ class pdfwriter  {
     ~pdfwriter();
 
     void generatePDF(const gdioutput &gdi,
-                     const string &file,
+                     const wstring &file,
                      const string &pageTitle, 
                      const string &author,
                      const list<TextInfo> &tl);

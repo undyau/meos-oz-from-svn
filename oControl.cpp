@@ -47,6 +47,7 @@ oControl::oControl(oEvent *poe): oBase(poe)
   tMissedTimeTotal = 0;
   tNumVisitors = 0;
   tMissedTimeMedian = 0;
+  tHasFreePunchLabel = false;
 }
 
 oControl::oControl(oEvent *poe, int id): oBase(poe)
@@ -59,6 +60,7 @@ oControl::oControl(oEvent *poe, int id): oBase(poe)
   tMissedTimeTotal = 0;
   tNumVisitors = 0;
   tMissedTimeMedian = 0;
+  tHasFreePunchLabel = false;
 }
 
 
@@ -157,7 +159,7 @@ int oControl::getFirstNumber() const
 string oControl::getString()
 {
 	char bf[32];
-	if(Status==StatusOK)
+  if(Status==StatusOK || Status==StatusNoTiming)
 		return codeNumbers('|');
   else if(Status==StatusMultiple)
     return codeNumbers('+');
@@ -170,7 +172,7 @@ string oControl::getString()
 
 string oControl::getLongString()
 {
-	if(Status==StatusOK){
+  if(Status==StatusOK || Status==StatusNoTiming){
 		if(nNumbers==1)
 			return codeNumbers('|');
 		else
@@ -334,7 +336,7 @@ const vector< pair<string, size_t> > &oEvent::fillControls(vector< pair<string, 
           b += it->Name;
         }
         else {
-			    if(it->Status==oControl::StatusOK)
+			    if(it->Status == oControl::StatusOK || it->Status == oControl::StatusNoTiming)
 				    b+="[OK]\t";
           else if (it->Status==oControl::StatusMultiple)
             b+="[M]\t";
@@ -411,19 +413,31 @@ const vector< pair<string, size_t> > &oEvent::fillControlTypes(vector< pair<stri
 	return out;
 }
 
+void oControl::setupCache() const {
+  if (tCache.dataRevision != oe->dataRevision) {
+    tCache.timeAdjust = getDCI().getInt("TimeAdjust");
+    tCache.minTime = getDCI().getInt("MinTime");
+    tCache.dataRevision = oe->dataRevision;
+  }
+}
+
+int oControl::getMinTime() const
+{
+  if (Status == StatusNoTiming)
+    return 0;
+  setupCache();
+  return tCache.minTime;
+}
+
 int oControl::getTimeAdjust() const
 {
-  return getDCI().getInt("TimeAdjust");
+  setupCache();
+  return tCache.timeAdjust;
 }
 
 string oControl::getTimeAdjustS() const
 {
   return getTimeMS(getTimeAdjust());
-}
-
-int oControl::getMinTime() const
-{
-  return getDCI().getInt("MinTime");
 }
 
 string oControl::getMinTimeS() const
@@ -450,6 +464,21 @@ void oControl::setTimeAdjust(int v)
   getDI().setInt("TimeAdjust", v);
 }
 
+void oControl::setRadio(bool r)
+{
+  // 1 means radio, 2 means no radio, 0 means defualt 
+  getDI().setInt("Radio", r ? 1 : 2);
+}
+
+bool oControl::isValidRadio() const
+{
+  int flag = getDCI().getInt("Radio");
+  if (flag == 0)
+    return (tHasFreePunchLabel || hasName()) && getStatus() == oControl::StatusOK;
+  else
+    return flag == 1;
+}
+
 void oControl::setTimeAdjust(const string &s)
 {
   setTimeAdjust(convertAbsoluteTimeMS(s));
@@ -457,7 +486,7 @@ void oControl::setTimeAdjust(const string &s)
 
 void oControl::setMinTime(int v)
 {
-  if (v<0)
+  if (v<0 || v == NOTIME)
     v = 0;
   getDI().setInt("MinTime", v);
 }
@@ -517,7 +546,7 @@ int oControl::getMissingNumber() const
 
 bool oControl::controlCompleted(bool supportRogaining) const
 {
-  if (Status==StatusOK || ((Status == StatusRogaining) && !supportRogaining)) {
+  if (Status==StatusOK || Status==StatusNoTiming || ((Status == StatusRogaining) && !supportRogaining)) {
     //Check if any number is used.
     for (int k=0;k<nNumbers;k++)
       if(checkedNumbers[k])
@@ -617,6 +646,8 @@ const string oControl::getStatusS() const {
       return lang.tl("Start");
     case StatusFinish:
       return lang.tl("Mål");
+    case StatusNoTiming:
+      return lang.tl("Utan tidtagning");
     default:
       return lang.tl("Okänd");
   }
@@ -636,6 +667,7 @@ const vector< pair<string, size_t> > &oEvent::fillControlStatus(vector< pair<str
   out.push_back(make_pair(lang.tl("OK"), oControl::StatusOK));
   out.push_back(make_pair(lang.tl("Multipel"), oControl::StatusMultiple));
   out.push_back(make_pair(lang.tl("Rogaining"), oControl::StatusRogaining));
+  out.push_back(make_pair(lang.tl("Utan tidtagning"), oControl::StatusNoTiming));
   out.push_back(make_pair(lang.tl("Trasig"), oControl::StatusBad));
   return out;
 }
@@ -775,4 +807,9 @@ void oControl::getNumbers(vector<int> &numbers) const {
   for (int i = 0; i < nNumbers; i++) {
     numbers[i] = Numbers[i];
   }
+}
+
+void oControl::changedObject() {
+  if (oe)
+    oe->globalModification = true;
 }

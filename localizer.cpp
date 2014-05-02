@@ -346,7 +346,7 @@ void LocalizerImpl::loadTable(int id, const string &language)
   HGLOBAL hGlobal = LoadResource(0, hResInfo);
 
   if (hGlobal==0)
-    return;
+    throw std::exception("Resource not found");
 
   int size = SizeofResource(0, hResInfo);
 

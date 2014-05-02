@@ -24,22 +24,23 @@
 
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJKMN
+//V31: a
 int getMeosBuild() {
-  string revision("$Rev: 187 $");
+  string revision("$Rev: 209 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
 //ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz
 //V2: abcdefgh
 //V3: abcdefghijklmnopqrstuvxyz
-//V31: a
+//V31: abc
 string getMeosDate() {
-  string date("$Date: 2014-02-22 20:40:36 +0100 (lÃ¶, 22 feb 2014) $");
+  string date("$Date: 2014-04-30 22:11:15 +0200 (on, 30 apr 2014) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return "Beta 2";
+  return "";
 }
 
 string getMeosFullVersion() {
@@ -105,5 +106,6 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Bodens BK");
   supp.push_back("OK Tyr, Karlstad");
   supp.push_back("Göteborg-Majorna OK");
+  supp.push_back("OK Järnbärarna, Kopparberg");
 }
  

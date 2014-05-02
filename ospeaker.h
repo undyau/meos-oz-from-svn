@@ -44,4 +44,7 @@ public:
   bool isRendered;
   int priority;
   bool missingStartTime;
+
+  // In seconds. Negative if undefined.
+  int timeSinceChange;
 };

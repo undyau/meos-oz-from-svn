@@ -103,6 +103,9 @@ class TabSI :
 
   void insertSICardAux(gdioutput &gdi, SICard &sic);
 
+  // Ask if card is to be overwritten
+  bool askOverwriteCard(gdioutput &gdi, pRunner r) const;
+
 public:
 
   static SportIdent &getSI(gdioutput &gdi);

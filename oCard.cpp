@@ -671,3 +671,8 @@ void oCard::setupFromRadioPunches(oRunner &r) {
   CardNo = r.getCardNo();
   ReadId = ConstructedFromPunches; //Indicates
 }
+
+void oCard::changedObject() {
+  if (tOwner)
+    tOwner->markClassChanged(-1);
+}

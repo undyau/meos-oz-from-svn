@@ -180,7 +180,14 @@ protected:
 	string codeLegMethod() const;
 	void importLegMethod(const string &courses);
 
-  bool sqlChanged;
+  //bool sqlChanged;
+  /** Pairs of changed entities. (Leg number, control id (or PunchFinish)) 
+    (-1,-1) means all (leg, -1) means all on leg.    
+  */
+  map< int, set<int> > sqlChangedControlLeg;
+  map< int, set<int> > sqlChangedLegControl;
+
+  void markSQLChanged(int leg, int control);
 
   void addTableRow(Table &table) const;
   bool inputData(int id, const string &input, int inputId, 
@@ -208,6 +215,8 @@ protected:
 
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
+
+  void changedObject();
 
 public:
   
@@ -256,7 +265,7 @@ public:
 
   bool isSingleRunnerMultiStage() const;
 
-  bool wasSQLChanged() const {return sqlChanged;}
+  bool wasSQLChanged(int leg, int control) const;// {return sqlChanged;}
   
   void getStatistics(const set<int> &feeLock, int &entries, int &started) const; 
 
@@ -432,6 +441,9 @@ public:
 
   // Get entry fee depending on date and age
   int getEntryFee(const string &date, int age) const;
+
+  // Clear cached data
+  void clearCache(bool recalculate);
 
 	oClass(oEvent *poe);
 	oClass(oEvent *poe, int id);

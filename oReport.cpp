@@ -384,6 +384,8 @@ void oEvent::generatePreReport(gdioutput &gdi)
         needStartTime = false;
         needCourse = false;
       }
+      if (pc->hasDirectResult())
+        needCourse = false;
 
       StartTypes st = pc->getStartType(r_it->tLeg);
       

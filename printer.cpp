@@ -424,11 +424,11 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   OffsetY = 0;
   OffsetX = 0;
   
-  pageInfo.topMargin = ds.MarginY * 2;
-  pageInfo.scale = 1.0;
-  pageInfo.leftMargin = ds.MarginX;
-  pageInfo.bottomMargin = ds.MarginY;
-  pageInfo.pageY = PageYMax;
+  pageInfo.topMargin = float(ds.MarginY * 2);
+  pageInfo.scale = 1.0f;
+  pageInfo.leftMargin = float(ds.MarginX);
+  pageInfo.bottomMargin = float(ds.MarginY);
+  pageInfo.pageY = float(PageYMax);
 
   vector<RenderedPage> pages;
   pageInfo.renderPages(TL, false, pages);

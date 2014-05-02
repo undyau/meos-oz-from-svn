@@ -159,6 +159,34 @@ void OnlineResults::settings(gdioutput &gdi, oEvent &oe, bool created) {
   gdi.setCY(gdi.getHeight());
   gdi.setCX(basex);
 
+  gdi.fillDown();
+  gdi.dropLine();
+  gdi.addString("", fontMediumPlus, "Kontroller");
+  RECT rc;
+  rc.left = gdi.getCX();
+  rc.right = gdi.getWidth();
+  rc.top = gdi.getCY();
+  rc.bottom = rc.top + 3;
+  gdi.addRectangle(rc, colorDarkBlue, false);
+  gdi.dropLine();
+  vector<pControl> ctrl;
+  oe.getControls(ctrl);
+  int width = gdi.scaleLength(130);
+  int height = int(gdi.getLineHeight()*1.5);
+  int xp = gdi.getCX();
+  int yp = gdi.getCY();
+  for (size_t k = 0; k< ctrl.size(); k++) {
+    string name = "#" + (ctrl[k]->hasName() ? ctrl[k]->getName() : ctrl[k]->getString());
+    gdi.addCheckbox(xp + (k % 6)*width, yp + (k / 6)*height, "C"+itos(ctrl[k]->getId()), 
+                    name, 0, ctrl[k]->isValidRadio());
+  }
+  gdi.dropLine();
+
+  rc.top = gdi.getCY();
+  rc.bottom = rc.top + 3;
+  gdi.addRectangle(rc, colorDarkBlue, false);
+  gdi.dropLine();
+
   gdi.addString("", 10, "help:onlineresult");
 
   enableFile(gdi, sendToFile);
@@ -223,6 +251,18 @@ void OnlineResults::save(oEvent &oe, gdioutput &gdi) {
     }
     url = xurl; 
   }
+
+  vector<pControl> ctrl;
+  oe.getControls(ctrl);
+  for (size_t k = 0; k< ctrl.size(); k++) {
+    string id =  "C"+itos(ctrl[k]->getId());
+    if(gdi.hasField(id)) {
+      bool st = gdi.isChecked(id);
+      if (st != ctrl[k]->isValidRadio())
+        ctrl[k]->setRadio(st);
+    }
+  }
+
   process(gdi, &oe, SyncNone);
 	interval = iv;
   synchronize = true;

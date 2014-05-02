@@ -27,10 +27,11 @@
 #include "meos_util.h"
 #include "gdiconstants.h"
 #include "meosdb/sqltypes.h"
+#include <process.h>
 
-MySQLReconnect::MySQLReconnect() : AutoMachine("MySQL-daemon") 
+MySQLReconnect::MySQLReconnect(const string &errorIn) : AutoMachine("MySQL-daemon"), error(errorIn) 
 {
-  callCount=0;
+  timeError = getLocalTime();
   hThread=0;
 }
 
@@ -68,22 +69,13 @@ bool isThreadReconnecting()
   return res;
 }
 
-int ReconnectThread(void *v)
-{
-  if(isThreadReconnecting()) 
-    return 0;
-  
-  OPENDB_FCN msReconnect=static_cast<OPENDB_FCN>(v);
-
-  if(!msReconnect)
-    return 0;
-
+unsigned __stdcall reconnectThread(void *v) {
   EnterCriticalSection(&CS_MySQL);
     mysqlConnecting=1;
     mysqlStatus=0;
   LeaveCriticalSection(&CS_MySQL);
 
-  bool res =  msReconnect();
+  bool res = msReConnect();
 
   EnterCriticalSection(&CS_MySQL);
     if(res) 
@@ -102,58 +94,76 @@ void MySQLReconnect::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
 void MySQLReconnect::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 {
-  if( isThreadReconnecting())
+  if(isThreadReconnecting())
     return;
 
   if (mysqlStatus==1) {
     if(hThread){
-        CloseHandle(hThread);
-        hThread=0;
+      CloseHandle(hThread);
+      hThread=0;
     }
     mysqlStatus=0;
     char bf[256];
     if (!oe->reConnect(bf)) {
-      gdi.addInfoBox("", "warning:dbproblem#" + string(bf), 9000);    
+      gdi.addInfoBox("", "warning:dbproblem#" + string(bf), 9000);
+      interval = 10;
     }
     else {
-      gdi.addInfoBox("", "Återansluten mot databasen, tävlingen synkroniserad.", 5000);
+      gdi.addInfoBox("", "Återansluten mot databasen, tävlingen synkroniserad.", 10000);
+      timeReconnect = getLocalTime();
+      gdi.setDBErrorState(false);
+      gdi.setWindowTitle(oe->getTitleName());
       interval=0;
     }
   }
   else if (mysqlStatus==-1) {
     if(hThread){
-        CloseHandle(hThread);
-        hThread=0;
+      CloseHandle(hThread);
+      hThread=0;
     }
     mysqlStatus=0;
-    callCount=10; //Wait ten seconds for next attempt
+    interval = 10;//Wait ten seconds for next attempt
 
+    gdi.setDBErrorState(true);
     char bf[256];
     if (oe->HasDBConnection) {
       msGetErrorState(bf);
-      gdi.addInfoBox("", "warning:dbproblem#" + string(bf), 9000);    
     }
     return;
   }
-  else if(callCount<=0) {    
-    hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&ReconnectThread,
-                            msReConnect, 0, NULL);
-    Sleep(100);
+  else {
+    mysqlConnecting = 1;
+    hThread = (HANDLE) _beginthreadex (0, 0, &reconnectThread, 0, 0, 0);
+    interval = 1;
   }
-  else callCount--;
 }
 
-void MySQLReconnect::status(gdioutput &gdi)
-{
+int AutomaticCB(gdioutput *gdi, int type, void *data);
+
+void MySQLReconnect::status(gdioutput &gdi) {
   gdi.dropLine(0.5);
 	gdi.addString("", 1, name);
-  gdi.fillRight();
-	gdi.pushX();
-	if(interval>0){		
-		gdi.addString("", 0, "Nästa försök:");
+  gdi.pushX();
+	if(interval>0){	
+    gdi.addStringUT(1, timeError + ": " + lang.tl("DATABASE ERROR")).setColor(colorDarkRed);
+		gdi.fillRight();
+	  gdi.addString("", 0, "Nästa försök:");
 		gdi.addTimer(gdi.getCY(),  gdi.getCX()+10, timerCanBeNegative, (GetTickCount()-timeout)/1000);
 	}
+  else {
+    gdi.addStringUT(0, timeError + ": " + lang.tl("DATABASE ERROR")).setColor(colorDarkGrey);
+    gdi.fillRight();
+	  gdi.addStringUT(0, timeReconnect + ":");
+    gdi.addString("", 1, "Återansluten mot databasen, tävlingen synkroniserad.").setColor(colorDarkGreen);
+    gdi.dropLine();
+    gdi.fillDown();
+    gdi.popX();
+  }
   gdi.popX();
   gdi.fillDown();
   gdi.dropLine();
+
+  gdi.popX();
+  gdi.dropLine(0.3);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
 }

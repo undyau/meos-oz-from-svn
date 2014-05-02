@@ -67,6 +67,8 @@ protected:
 
   static bool comparePunchTime(oPunch *p1, oPunch *p2);
 
+  void changedObject();
+
 public:
 
   // Returns true if the card was constructed from punches.

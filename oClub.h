@@ -116,6 +116,8 @@ protected:
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
+  void changedObject();
+
 public:
 
   /** Assign invoice numbers to all clubs. */

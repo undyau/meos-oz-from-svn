@@ -105,11 +105,18 @@ void oEvent::startReconnectDaemon()
   if (isThreadReconnecting())
     return;
 
-  MySQLReconnect msqlr;
-  msqlr.interval=1;
+  char bf[256];
+  msGetErrorState(bf);
+
+  MySQLReconnect msqlr(lang.tl("warning:dbproblem#" + string(bf)));
+  msqlr.interval=5;
   HasDBConnection = false;
   HasPendingDBConnection = true;
   tabAutoAddMachinge(msqlr);
+
+  gdibase.setDBErrorState(false);
+  gdibase.setWindowTitle(oe->getTitleName());
+  gdibase.alert("warning:dbproblem#" + string(bf));
 }
 
 bool oEvent::msSynchronize(oBase *ob)
@@ -229,7 +236,7 @@ bool oEvent::synchronizeList(oListId id, bool preSyncEvent, bool postSyncEvent) 
 
   if(preSyncEvent) {
     msSynchronize(this);
-    resetSQLChanged();
+    resetSQLChanged(true, false);
   }
 
 	if( !msSynchronizeList(this, id) ) {
@@ -258,19 +265,7 @@ bool oEvent::needReEvaluate() {
          sqlChangedTeams;
 }
 
-bool oEvent::needRefreshClass(int classId) {
-	if (sqlChangedClasses | sqlChangedCourses | sqlChangedControls)
-    return true;
-
-  if (classId == 0)
-	  return  sqlChangedCards | sqlChangedTeams | sqlChangedRunners;
-
-  pClass c = getClass(classId);
-
-  return c && c->sqlChanged;
-}
-
-void oEvent::resetSQLChanged() {
+void oEvent::resetSQLChanged(bool resetAllTeamsRunners, bool cleanClasses) {
 	sqlChangedRunners = false;
 	sqlChangedClasses = false;
 	sqlChangedCourses = false;
@@ -280,24 +275,29 @@ void oEvent::resetSQLChanged() {
 	sqlChangedPunches = false;
 	sqlChangedTeams = false;
 
-  for (list<oRunner>::iterator it=oe->Runners.begin();
-    it!=oe->Runners.end(); ++it) {
-    it->storeChangeStatus();
-    it->sqlChanged = false;
-  }
-  for (list<oTeam>::iterator it=oe->Teams.begin();
-    it!=oe->Teams.end(); ++it) {
+  if (resetAllTeamsRunners) {
+    for (list<oRunner>::iterator it=oe->Runners.begin();
+      it!=oe->Runners.end(); ++it) {
       it->storeChangeStatus();
-    it->sqlChanged = false;
+      it->sqlChanged = false;
+    }
+    for (list<oTeam>::iterator it=oe->Teams.begin();
+      it!=oe->Teams.end(); ++it) {
+        it->storeChangeStatus();
+      it->sqlChanged = false;
+    }
   }
-
-  for (list<oClass>::iterator it=oe->Classes.begin();
-    it!=oe->Classes.end(); ++it) {
-    it->storeChangeStatus();
-    it->sqlChanged = false;
+  if (cleanClasses) {
+    // This data is used to redraw lists/speaker etc.
+    for (list<oClass>::iterator it=oe->Classes.begin();
+      it!=oe->Classes.end(); ++it) {
+      it->storeChangeStatus();
+      it->sqlChangedControlLeg.clear();
+      it->sqlChangedLegControl.clear();
+    }
+    globalModification = false;
   }
 }
-  
 
 bool BaseIsRemoved(const oBase &ob){return ob.isRemoved();}
 
@@ -310,14 +310,14 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
 	bool changed=false;
 	string ot;
 
-  // Reset change data and store update status on objects
-  // (which might be incorrectly changed during sql update)
-  resetSQLChanged();
-  
   int mask = getListMask(*this);
   if (mask == 0)
     return false;
-
+  
+  // Reset change data and store update status on objects
+  // (which might be incorrectly changed during sql update)
+  resetSQLChanged(true, false);
+  
   //Synchronize ourself
   if (mask & oLEventId) {
     ot=sqlUpdated;

@@ -216,7 +216,7 @@ pClub oEvent::addClub(const string &pname, int createId)
       return pc;
   }
 
-  pClub dbClub = oe->runnerDB->getClub(pname);
+  pClub dbClub = oe->useRunnerDb() ? oe->runnerDB->getClub(pname) : 0;
 
   if (dbClub) {
     if (dbClub->getName() != pname) {
@@ -826,10 +826,10 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
         
         if (type == IPTAllPDF) {
           pdfwriter pdf;
-          pdf.generatePDF(gdi, path + filename, lang.tl("Faktura"), "", gdi.getTL());
+          pdf.generatePDF(gdi, gdi.toWide(path + filename), lang.tl("Faktura"), "", gdi.getTL());
         }
         else
-          gdi.writeHTML(path + filename, lang.tl("Faktura"));
+          gdi.writeHTML(gdi.toWide(path + filename), lang.tl("Faktura"));
 
         clubId.insert(it->getId());
         fees.push_back(pay);
@@ -894,6 +894,9 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
 
 void oClub::updateFromDB()
 {
+  if (!oe->useRunnerDb())
+    return;
+
   pClub pc = oe->runnerDB->getClub(Id);
 
   if (pc && !pc->sameClub(*this))
@@ -910,6 +913,9 @@ void oClub::updateFromDB()
 
 void oEvent::updateClubsFromDB()
 {
+  if (!oe->useRunnerDb())
+    return;
+
   oClubList::iterator it;
 
   for (it=Clubs.begin();it!=Clubs.end();++it) {
@@ -1077,4 +1083,9 @@ int oClub::getFirstInvoiceNumber(oEvent &oe) {
     }
   }
   return number;
+}
+
+void oClub::changedObject() {
+  if (oe)
+    oe->globalModification = true;
 }

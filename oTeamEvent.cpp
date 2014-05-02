@@ -140,12 +140,14 @@ pTeam oEvent::addTeam(const string &pname, int ClubId, int ClassId)
 	if(ClassId>0) 
     t.Class=getClass(ClassId);
 
-	Teams.push_back(t);
+  bibStartNoToRunnerTeam.clear();
+  Teams.push_back(t);
 
   oe->updateTabs();
 
   Teams.back().getEntryDate(false);// Store entry time
   Teams.back().apply(false, 0, false);
+  Teams.back().updateChanged();
 	return &Teams.back();
 }
 
@@ -156,7 +158,8 @@ pTeam oEvent::addTeam(const oTeam &t)
   if (getTeam(t.Id))
     return 0;
 
-	Teams.push_back(t);	
+  bibStartNoToRunnerTeam.clear();
+  Teams.push_back(t);	
 
   pTeam pt = &Teams.back();
 
@@ -166,7 +169,7 @@ pTeam oEvent::addTeam(const oTeam &t)
   else {
     nextFreeStartNo = max(nextFreeStartNo, pt->StartNo);
   }
-  //XXX Must not auto sync!
+  //Important: Must not auto sync!
 
   return pt;
 }
@@ -595,10 +598,17 @@ void oEvent::adjustTeamMultiRunners(pClass cls)
       tr.pop_back();
     }
   }
-
-  for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {	
-    it->adjustMultiRunners(true);       
+  disableRecalculate = true;
+  try {
+    for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {	
+      it->adjustMultiRunners(true);       
+    }
   }
+  catch(...) {
+    disableRecalculate = false;
+    throw;
+  }
+  disableRecalculate = false;
 }
 
 bool oTeam::adjustMultiRunners(bool sync) 

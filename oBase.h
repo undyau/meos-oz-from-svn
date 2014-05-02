@@ -86,10 +86,12 @@ protected:
 
 	//Used for selections, etc.
 	int _objectmarker;
-  void updateChanged() {
-    Modified.update();
-    changed=true;
-  }
+
+  /// Mark the object as changed (on client) and that it needs synchronize to server
+  virtual void updateChanged();
+
+  /// Mark the object as "changed" (locally or remotely), eg lists and other views may need update
+  virtual void changedObject() = 0;
 
   /** Change the id of the object */
   virtual void changeId(int newId);

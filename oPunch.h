@@ -54,8 +54,12 @@ protected:
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
   int getDISize() const {return -1;}
-	
+
+  void changedObject();	
 public:
+
+  virtual int getControlId() {return tMatchControlId;} 
+
   bool isUsedInCourse() const {return isUsed;}
   void remove();
   bool canRemove() const;

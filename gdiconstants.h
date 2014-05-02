@@ -37,6 +37,7 @@ enum KeyCommandCode {
   KC_REFRESH,
   KC_SPEEDUP,
   KC_SLOWDOWN,
+  KC_AUTOCOMPLETE,
 };
 
 const int GDI_BUTTON_SPACING = 8;
