@@ -1,3 +1,7 @@
+5 May 2014 3.1.383.1
+- Merge with standard MEOS 3.1.383.1  (the 3.1 release)
+  For changes see http://www.melin.nu/meos/en/whatsnew25.php
+  
 22 March 2014 3.1.361.1
 - Merge with standard MEOS 3.1.361.
   For changes see http://www.melin.nu/meos/en/whatsnew25.php
