@@ -379,6 +379,7 @@ protected:
                               int baseFee, int &entries_sum, int &started_sum, int &fee_sum) const;
   void getRunnersPerDistrict(vector<int> &runners) const;
   void getDistricts(vector<string> &district);
+	void generateRunnersPerCourse(gdioutput &gdi);
 
   void autoAddTeam(pRunner pr);
   void autoRemoveTeam(pRunner pr);
