@@ -1,3 +1,7 @@
+8 May 2014 3.1.383.2
+- Australianise the competition report and add reporting on
+  competitors/course for simple (1 course per class) events.
+
 5 May 2014 3.1.383.1
 - Merge with standard MEOS 3.1.383.1  (the 3.1 release)
   For changes see http://www.melin.nu/meos/en/whatsnew25.php
