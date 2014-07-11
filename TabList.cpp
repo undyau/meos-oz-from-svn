@@ -377,10 +377,15 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 
       int aflag = (gdi.isChecked("SplitAnalysis") ? 0 : 1) + (gdi.isChecked("Speed") ? 0 : 2);
       oe->getDI().setInt("Analysis", aflag);
+			int labels = gdi.isChecked("Labels");
+			oe->getDI().setInt("Labels", labels);
       gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
     }
     else if (bi.id == "PrinterSetup") {
       ((TabSI *)gdi.getTabs().get(TSITab))->printerSetup(gdi);
+    }
+    else if (bi.id == "LabelPrinterSetup") {
+      ((TabSI *)gdi.getTabs().get(TSITab))->labelPrinterSetup(gdi);
     }
     else if (bi.id=="Generate") {
       ListBoxInfo lbi;
@@ -1561,6 +1566,16 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode)
   bool withSpeed = (oe.getDCI().getInt("Analysis") & 2) == 0;
   gdi.addCheckbox("SplitAnalysis", "Med sträcktidsanalys", 0, withSplitAnalysis);
   gdi.addCheckbox("Speed", "Med km-tid", 0, withSpeed);
+
+  gdi.popX();
+	gdi.dropLine(2);
+
+  if (returnMode == TSITab) {
+    gdi.addButton("LabelPrinterSetup", "Etikettskrivare...", ListsCB, "Skrivarinställningar för etiketter");
+    gdi.dropLine(0.3);
+		gdi.addCheckbox("Labels", "Skriva ut etiketter", 0, !!oe.getDCI().getInt("Labels"));
+  }
+
 
   gdi.popX();
   gdi.fillDown();

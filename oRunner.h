@@ -447,6 +447,7 @@ public:
                     int cardNo, int birthYear);    
 
   void printSplits(gdioutput &gdi) const;
+	void printLabel(gdioutput &gdi) const;
 
   /** Take the start time from runner r*/
   void cloneStartTime(const pRunner r);

@@ -2043,6 +2043,10 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
   if (printSplits)
     generateSplits(runner, gdi);
 
+  // Print labels
+	if (oe->getDCI().getInt("Labels"))
+		generateLabel(runner, gdi);
+
   activeSIC.clear(&csic);
 
 	checkMoreCardsInQueue(gdi);
@@ -2302,9 +2306,22 @@ void TabSI::generateSplits(const pRunner r, gdioutput &gdi)
   gdiprint.print(splitPrinter, oe, false, true);
 }
 
+void TabSI::generateLabel(const pRunner r, gdioutput &gdi) 
+{
+  gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
+  vector<int> mp;
+  r->evaluateCard(true, mp);
+  r->printLabel(gdiprint);
+  gdiprint.print(labelPrinter, oe, false, true);
+}
 void TabSI::printerSetup(gdioutput &gdi) 
 {
   gdi.printSetup(splitPrinter);
+}
+
+void TabSI::labelPrinterSetup(gdioutput &gdi) 
+{
+  gdi.printSetup(labelPrinter);
 }
 
 void TabSI::checkMoreCardsInQueue(gdioutput &gdi) {

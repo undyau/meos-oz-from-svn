@@ -186,6 +186,7 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   // With split time analysis (0 = default, with analysis, with min/km)
   // bit 1: without analysis  
   // bit 2: without min/km
+  oEventData->addVariableInt("Labels", oDataContainer::oIS8, "Skriva ut etiketter");
 
   oEventData->addVariableString("SPExtra", "Extra rader");
   oEventData->addVariableString("IVExtra", "Fakturainfo");

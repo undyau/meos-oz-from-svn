@@ -52,6 +52,7 @@ class TabSI :
   bool printSplits;
   bool manualInput;
   PrinterObject splitPrinter;
+  PrinterObject labelPrinter;
 
   vector<PunchInfo> punches;
   vector<SICard> cards;
@@ -96,6 +97,7 @@ class TabSI :
 
   
   void generateSplits(const pRunner r, gdioutput &gdi);
+	void generateLabel(const pRunner r, gdioutput &gdi);
   int logcounter;
   csvparser *logger;
 
@@ -110,6 +112,7 @@ public:
 
   static SportIdent &getSI(gdioutput &gdi);
   void printerSetup(gdioutput &gdi);
+	void labelPrinterSetup(gdioutput &gdi);
 
   int siCB(gdioutput &gdi, int type, void *data);
 

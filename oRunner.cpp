@@ -3832,6 +3832,36 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
   gdi.addString("", fontSmall, "Av MeOS: www.melin.nu/meos");
 }
 
+void oRunner::printLabel(gdioutput &gdi) const {
+  
+  bool rogaining(false);
+  if (getCourse(false) && getCourse(false)->hasRogaining()) {
+		rogaining = true;
+	  vector<pControl> ctrl;
+    getCourse(false)->getControls(ctrl);
+    for (vector<pControl>::const_iterator it=ctrl.begin(); it!=ctrl.end(); ++it)
+      if (!(*it)->isRogaining(true))
+        rogaining = false;
+  }
+
+	gdi.setCX(10);
+  gdi.fillDown();
+
+  gdi.addStringUT(boldSmall, getName());
+	if (getStatus()==StatusOK)
+		{
+		if (rogaining)
+			gdi.addStringUT(boldSmall, itos(getRogainingPoints()));    
+		else
+			gdi.addStringUT(boldSmall, getRunningTimeS());
+		}
+	else
+		gdi.addStringUT(boldSmall,  getStatusS());
+  gdi.addStringUT(fontSmall, getClub() + " " + getClass());
+	gdi.addStringUT(fontSmall, Course->getName());
+
+}
+
 vector<pRunner> oRunner::getRunnersOrdered() const {
   if (tParentRunner)
     return tParentRunner->getRunnersOrdered();
