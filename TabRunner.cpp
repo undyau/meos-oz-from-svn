@@ -757,6 +757,17 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
         save(gdi, runnerId, true);
       TabList::splitPrintSettings(*oe, gdi, TRunnerTab);
     }
+    else if (bi.id=="LabelPrint") {
+			if(!runnerId)
+				return 0;
+			pRunner r=oe->getRunner(runnerId, 0);
+			if(!r) return 0;
+
+      gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
+      r->printLabel(gdiprint);
+      gdiprint.print(oe, 0, false, true);
+      gdiprint.getPrinterSettings(labelPrinter);
+    }
     else if (bi.id == "EditTeam") {
       pRunner r = oe->getRunner(runnerId, 0);
       if (r && r->getTeam()) {
@@ -2090,6 +2101,8 @@ bool TabRunner::loadPage(gdioutput &gdi)
 	gdi.addListBox("Course", 140, 300, PunchesCB, "Banmall:").ignore(true);
 	gdi.addButton("AddC", "<< Lägg till stämpling", PunchesCB);
 	gdi.addButton("AddAllC", "<< Lägg till alla", PunchesCB);
+	gdi.dropLine();
+	gdi.addButton("LabelPrint", "Print Etikett", RunnerCB);
 	
   gdi.synchronizeListScroll("Punches", "Course");
 	disablePunchCourse(gdi);

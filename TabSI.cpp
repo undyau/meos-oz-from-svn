@@ -2308,9 +2308,9 @@ void TabSI::generateSplits(const pRunner r, gdioutput &gdi)
 
 void TabSI::generateLabel(const pRunner r, gdioutput &gdi) 
 {
-  gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
   vector<int> mp;
   r->evaluateCard(true, mp);
+  gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
   r->printLabel(gdiprint);
   gdiprint.print(labelPrinter, oe, false, true);
 }

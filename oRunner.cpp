@@ -3844,21 +3844,27 @@ void oRunner::printLabel(gdioutput &gdi) const {
         rogaining = false;
   }
 
-	gdi.setCX(10);
+  const int c2=300;
+ 	gdi.setCX(0);
+	int cx = gdi.getCX();
+	int cy = gdi.getCY();
   gdi.fillDown();
 
-  gdi.addStringUT(boldSmall, getName());
+	gdi.addStringUT(boldText, getName());
 	if (getStatus()==StatusOK)
 		{
 		if (rogaining)
-			gdi.addStringUT(boldSmall, itos(getRogainingPoints()));    
+			gdi.addStringUT(cy, cx+c2, boldText, itos(getRogainingPoints()));    
 		else
-			gdi.addStringUT(boldSmall, getRunningTimeS());
+			gdi.addStringUT(cy, cx+c2, boldText, getRunningTimeS());
 		}
 	else
-		gdi.addStringUT(boldSmall,  getStatusS());
-  gdi.addStringUT(fontSmall, getClub() + " " + getClass());
-	gdi.addStringUT(fontSmall, Course->getName());
+		gdi.addStringUT(cy, cx+c2,boldText,  getStatusS());
+	gdi.addStringUT(italicText, getClub().substr(0,20));
+	cy = gdi.getCY();
+  gdi.addStringUT(cy, cx, boldSmall, getClass());
+	if (getCourse(false))
+		gdi.addStringUT(cy, cx + c2, fontSmall, getCourse(false)->getName());
 
 }
 
