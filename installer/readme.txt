@@ -1,3 +1,7 @@
+16 July 2014 3.1.383.3
+- Add support for printing labels as competitor finishes or
+  afterwards. Configure via splits printing options.
+
 8 May 2014 3.1.383.2
 - Australianise the competition report and add reporting on
   competitors/course for simple (1 course per class) events.
