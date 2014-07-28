@@ -3844,27 +3844,31 @@ void oRunner::printLabel(gdioutput &gdi) const {
         rogaining = false;
   }
 
-  const int c2=300;
+  const int c2=400;
  	gdi.setCX(0);
+	gdi.setCY(0);
 	int cx = gdi.getCX();
 	int cy = gdi.getCY();
   gdi.fillDown();
 
-	gdi.addStringUT(boldText, getName());
-	if (getStatus()==StatusOK)
-		{
-		if (rogaining)
-			gdi.addStringUT(cy, cx+c2, boldText, itos(getRogainingPoints()));    
-		else
-			gdi.addStringUT(cy, cx+c2, boldText, getRunningTimeS());
-		}
-	else
-		gdi.addStringUT(cy, cx+c2,boldText,  getStatusS());
-	gdi.addStringUT(italicText, getClub().substr(0,20));
+	gdi.addStringUT(getName().length() < 20 ? boldHuge : boldLarge, getName());
+	gdi.dropLine(getName().length() < 20 ? 0.2 : 0.4);
 	cy = gdi.getCY();
-  gdi.addStringUT(cy, cx, boldSmall, getClass());
+	gdi.addStringUT(cy, cx, boldLarge, getClass());
+	if (getStatus()==StatusOK)
+			{
+			if (rogaining)
+				gdi.addStringUT(cy, cx+c2, boldHuge, itos(getRogainingPoints()));    
+			else
+				gdi.addStringUT(cy, cx+c2, boldHuge, getRunningTimeS());
+			}
+		else
+			gdi.addStringUT(cy, cx+c2, boldHuge,  getStatusS());
+  gdi.dropLine(-0.1);
+	cy = gdi.getCY();
+	gdi.addStringUT(cy, cx, fontMedium, getClub());
 	if (getCourse(false))
-		gdi.addStringUT(cy, cx + c2, fontSmall, getCourse(false)->getName());
+		gdi.addStringUT(cy, cx + c2, fontMedium, getCourse(false)->getName());
 
 }
 
