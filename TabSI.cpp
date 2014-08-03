@@ -288,7 +288,6 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
 		}    
     else if (bi.id == "PrinterSetup") {
       //printerSetup(gdi);
-      printSplits = true;
       TabList::splitPrintSettings(*oe, gdi, TSITab);
     }
     else if (bi.id == "AutoTie") {
@@ -315,6 +314,10 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="PrintSplits") {
       printSplits=gdi.isChecked(bi.id);
+    }
+    else if (bi.id=="PrintLabels") {
+      int labels = gdi.isChecked(bi.id);
+			oe->getDI().setInt("PrintLabels", labels);
     }
     else if (bi.id == "UseManualInput") {
       manualInput = gdi.isChecked("UseManualInput");
@@ -1317,7 +1320,7 @@ bool TabSI::loadPage(gdioutput &gdi) {
 	refillComPorts(gdi);
 	
 	gdi.addButton("AutoDetect", "Sök och starta automatiskt...", SportIdentCB);
-  gdi.addButton("PrinterSetup", "Sträcktidsutskrift...", SportIdentCB, "Skrivarinställningar för sträcktider");
+  gdi.addButton("PrinterSetup", "Skrivarinställningar för sträcktider", SportIdentCB, "Skrivarinställningar för sträcktider");
 
   gdi.popX();
 	gdi.fillDown();
@@ -1336,6 +1339,7 @@ bool TabSI::loadPage(gdioutput &gdi) {
     gdi.addCheckbox("Database", "Använd löpardatabasen", SportIdentCB, useDatabase);
   
   gdi.addCheckbox("PrintSplits", "Sträcktidsutskrift[check]", SportIdentCB, printSplits);
+	gdi.addCheckbox("PrintLabels", "Skriva ut etiketter", SportIdentCB, !!oe->getDCI().getInt("PrintLabels"));
   gdi.addCheckbox("UseManualInput", "Manuell inmatning", SportIdentCB, manualInput);
   gdi.fillDown();
 
@@ -1363,6 +1367,7 @@ bool TabSI::loadPage(gdioutput &gdi) {
     generateEntryLine(gdi, 0);
     gdi.disableInput("Interactive");
     gdi.disableInput("PrintSplits");
+		gdi.disableInput("PrintLabels");
     gdi.disableInput("UseManualInput");
   }
 
@@ -2044,7 +2049,7 @@ bool TabSI::processCard(gdioutput &gdi, pRunner runner, const SICard &csic, bool
     generateSplits(runner, gdi);
 
   // Print labels
-	if (oe->getDCI().getInt("Labels"))
+	if (oe->getDCI().getInt("PrintLabels"))
 		generateLabel(runner, gdi);
 
   activeSIC.clear(&csic);
@@ -2448,6 +2453,7 @@ void TabSI::showAssignCard(gdioutput &gdi, bool showHelp) {
   gdi.enableInput("Interactive");
   gdi.disableInput("Database", true);
   gdi.disableInput("PrintSplits");
+	gdi.disableInput("PrintLabels");
   gdi.disableInput("UseManualInput");
   gdi.setRestorePoint("ManualTie");
   gdi.fillDown();

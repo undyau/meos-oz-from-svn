@@ -377,8 +377,6 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
 
       int aflag = (gdi.isChecked("SplitAnalysis") ? 0 : 1) + (gdi.isChecked("Speed") ? 0 : 2);
       oe->getDI().setInt("Analysis", aflag);
-			int labels = gdi.isChecked("Labels");
-			oe->getDI().setInt("Labels", labels);
       gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
     }
     else if (bi.id == "PrinterSetup") {
@@ -1572,8 +1570,6 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode)
 
   if (returnMode == TSITab) {
     gdi.addButton("LabelPrinterSetup", "Etikettskrivare...", ListsCB, "Skrivarinställningar för etiketter");
-    gdi.dropLine(0.3);
-		gdi.addCheckbox("Labels", "Skriva ut etiketter", 0, !!oe.getDCI().getInt("Labels"));
   }
 
 
