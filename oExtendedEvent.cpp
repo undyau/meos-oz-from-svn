@@ -644,7 +644,7 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 		row[4]=it->getGivenName();
 		row[5]=my_conv_is(di.getInt("BirthYear") % 100);
 		row[6]=di.getString("Sex");
-		
+		row[8] = "0";  // non-comp
 		row[9]=it->getStartTimeS();
 		if(row[9]=="-") row[9]="";
 
@@ -661,7 +661,7 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 		
 		row[15]=it->getClub();
 		row[16]=di.getString("Nationality");
-		row[17]=my_conv_is(it->getClassId());
+		row[17]=IsSydneySummerSeries && !byClass ? "1" : my_conv_is(it->getClassId());
 		row[18]=it->getClass();
 		row[19]=it->getClass();
 		row[20]=my_conv_is(it->getRogainingPoints());
@@ -683,8 +683,9 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 				sprintf_s(bf, "%d.%d", pc->getLength()/1000, pc->getLength()%1000);
 				row[40]=bf;
 			}
+			else
+				row[40] = "0";
 			row[41]=my_conv_is(pc->getDI().getInt("Climb"));
-
 			row[42]=my_conv_is(pc->getNumControls());
 		}
   row[43] = it->getPlaceS();

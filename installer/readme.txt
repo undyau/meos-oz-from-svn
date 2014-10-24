@@ -1,3 +1,7 @@
+24 October 2014 3.1.383.4
+- Improve quality of SSS upload so that uploaded data can be used
+  for RouteGadget.
+
 16 July 2014 3.1.383.3
 - Add support for printing labels as competitor finishes or
   afterwards. Configure via splits printing options.
