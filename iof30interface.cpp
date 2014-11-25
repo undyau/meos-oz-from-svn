@@ -1444,6 +1444,10 @@ pClub IOF30Interface::readOrganization(gdioutput &gdi, const xmlobject &xclub, b
 					break;
 				}
 		}
+		if (!pc && oe.useRunnerDb() && oe.getRunnerDatabase().getClub(name)) // Have match in the databse, so feel OK to add to this event (why wasn't DB used for search ?)
+			{
+			pc = new oClub(&oe, oe.getRunnerDatabase().getClub(name)->getId());
+			}
 
     if(!pc) return false;
   }
