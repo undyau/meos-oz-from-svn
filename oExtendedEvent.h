@@ -24,9 +24,14 @@ public:
 	int getSssEventNum() {return SssEventNum;};
 	int getIsSydneySummerSeries() {return IsSydneySummerSeries;};
 	bool exportOrCSV(const char *file, bool byClass);
+	bool isRentedCard(int card);
+	void loadRentedCardNumbers();
+
 private:
 	string loadCsvToString(string file);
 	string string_replace(string src, string const& target, string const& repl);
 	bool IsSydneySummerSeries;
 	int SssEventNum;
+	std::vector<int> RentedCards;
+	bool LoadedCards;
 };

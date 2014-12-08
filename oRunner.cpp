@@ -1953,6 +1953,9 @@ void oRunner::setCardNo(int cno, bool matchCard, bool updateFromDatabase)
     int oldNo = CardNo;
 		CardNo=cno;
 
+		if (static_cast<oExtendedEvent*>(oe)->isRentedCard(cno))
+			getDI().setInt("CardFee", oe->getDI().getInt("CardFee"));
+
     oFreePunch::rehashPunches(*oe, oldNo, 0);
     oFreePunch::rehashPunches(*oe, CardNo, 0);
 

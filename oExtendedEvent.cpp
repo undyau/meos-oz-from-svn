@@ -14,6 +14,7 @@ oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
 	IsSydneySummerSeries = 0;
   SssEventNum = 0;
+	LoadedCards = false;
 	setShortClubNames(false);   // default to behaving like vanilla MEOS
 }
 
@@ -720,4 +721,53 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 	csv.closeOutput();
 
 	return true;
+}
+
+void oExtendedEvent::loadRentedCardNumbers()
+{
+		RentedCards.clear();
+		vector<string> strings;
+		string input = getPropertyString("RentedCards","");
+		istringstream f(input);
+		string s;    
+		while (getline(f, s, ',')) 
+				strings.push_back(s);
+		
+		for (unsigned int i = 0; i < strings.size(); i++)
+		{
+			istringstream f(strings.at(i));
+			vector<string> parts; // should be 1 or 2 parts 
+			string part;
+			while (getline(f, part, '-')) 
+				parts.push_back(part);
+
+			if (parts.size() == 1)
+			{
+				int card = atoi(trim(parts.at(0)).c_str());
+				RentedCards.push_back(card);
+			}
+
+			if (parts.size() == 2)
+			{
+				int start = atoi(trim(parts.at(0)).c_str());
+				int end = atoi(trim(parts.at(1)).c_str());
+				if (start < end)
+				{
+					for (int card = start; card <= end; card++)
+						RentedCards.push_back(card);
+				}
+			}
+		}
+}
+
+
+bool oExtendedEvent::isRentedCard(int card)
+{
+	if (!LoadedCards)
+			loadRentedCardNumbers();
+	LoadedCards = true;
+	for (unsigned int i = 0; i < RentedCards.size(); i++)
+		if (RentedCards.at(i) == card)
+			return true;
+	return false;
 }

@@ -103,6 +103,11 @@ bool TabCompetition::save(gdioutput &gdi, bool write)
 	oe->setAnnotation(gdi.getText("Annotation"));
 	oe->setDate(gdi.getText("Date"));
 	oe->setZeroTime(zt);
+	if (gdi.getText("RentedCards").size() > 0 && 
+		gdi.getText("RentedCards") != oe->getPropertyString("RentedCards","")) {
+		oe->setProperty("RentedCards", gdi.getText("RentedCards"));
+		static_cast<oExtendedEvent*>(oe)->loadRentedCardNumbers();
+	}
   
   oe->synchronize();
 	if(gSI) gSI->SetZeroTime(oe->getZeroTimeNum());
@@ -2587,6 +2592,7 @@ void TabCompetition::textSizeControl(gdioutput &gdi) const
   gdi.addString("", 1, "Programinställningar");
   gdi.dropLine(2);
   gdi.setCX(x);
+
   //gdi.addString("", 0, "Textstorlek:");
    
   gdi.addSelection(id, 90, 200, CompetitionCB, "Textstorlek:");
@@ -2624,6 +2630,9 @@ void TabCompetition::textSizeControl(gdioutput &gdi) const
     rc.bottom = gdi.getCY() + gdi.scaleLength(25);  
   }
   else {
+    gdi.dropLine(3);
+    gdi.setCX(x);
+    gdi.addInput("RentedCards", oe->getPropertyString("RentedCards",""), 36, 0, "Hyrbricka:");
     rc.right = gdi.getWidth();//gdi.getCX() + gdi.scaleLength(10);
     rc.bottom = gdi.getCY() + gdi.scaleLength(50);
   }
