@@ -3664,7 +3664,8 @@ void oRunner::printRogainingSplits(gdioutput &gdi) const {
   int cy = gdi.getCY();
   gdi.addStringUT(boldSmall, lang.tl("Poäng: ") + itos(getRogainingPoints()));    
   gdi.addStringUT(cy, gdi.getCX() + ct1, boldSmall, lang.tl("Tid: ") + getRunningTimeS());
-  gdi.addStringUT(fontSmall, lang.tl("SportIdent: ") + getCard()->getCardNo());
+	if (getCard())
+		gdi.addStringUT(fontSmall, lang.tl("SportIdent: ") + getCard()->getCardNo());
   gdi.dropLine(0.5);
   cy = gdi.getCY();
   gdi.addStringUT(fontSmall, lang.tl("Bana: ") + getCourseName());

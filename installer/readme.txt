@@ -1,3 +1,9 @@
+10 December 2014 3.1.383.5
+- Allow user to save details of rental sticks so that rental
+flag is set automatically.
+- Prevent crash if trying to print rogaining result splits for 
+someone who hasn't run.
+
 24 October 2014 3.1.383.4
 - Improve quality of SSS upload so that uploaded data can be used
   for RouteGadget.
