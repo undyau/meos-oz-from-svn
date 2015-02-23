@@ -145,12 +145,20 @@ int SpeakerCB (gdioutput *gdi, int type, void *data)
     else if (pc) {
       vector<oClass::TrueLegInfo> stages;
       pc->getTrueStages(stages);
-      if (leg < stages.size()) {
-        // Check all legs corresponding to the true leg.
-        int start = 0;
-        if (leg > 0)
-          start = stages[leg-1].first;
-        for (int k = start; k <= stages[leg-1].first; k++) {
+      int trueIndex = -1;
+      int start = 0;
+      for (size_t k = 0; k < stages.size(); k++) {
+        if (leg <= DWORD(stages[k].first)) {
+          trueIndex = k;
+          if (k > 0)
+            start = stages[k-1].first + 1;
+          break;
+        }
+      }
+      
+      if (trueIndex != -1) {
+        /// Check all legs corresponding to the true leg.
+        for (int k = start; k <= stages[trueIndex].first; k++) {
           if (pc->wasSQLChanged(k, ControlId)) {
             update = true;
             break;
@@ -159,7 +167,7 @@ int SpeakerCB (gdioutput *gdi, int type, void *data)
       }
       else if (pc->wasSQLChanged(-1, ControlId))
         update = true;
-    }
+      }
 
     if (update)
       oe->speakerList(*gdi, ClassId, leg, ControlId);
@@ -433,7 +441,7 @@ void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId)
 
   char bf2[64]="";
   if(pCls->getNumStages()>1)
-    sprintf_s(bf2, "str. %d, ", leg+1);
+    sprintf_s(bf2, "str. %d, ", leg+1);//XXX
 
   if(ControlId!=oPunch::PunchFinish) {
     pControl pCtrl=oe->getControl(ControlId, false);

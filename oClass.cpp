@@ -695,6 +695,7 @@ void oClass::setNumStages(int no)
 
 void oClass::getTrueStages(vector<oClass::TrueLegInfo > &stages) const
 {
+  apply();
   stages.clear();
   if (!legInfo.empty()) {
     for (size_t k = 0; k+1 < legInfo.size(); k++) {
@@ -715,7 +716,7 @@ void oClass::getTrueStages(vector<oClass::TrueLegInfo > &stages) const
     }
   }
   else {
-    stages.push_back(TrueLegInfo(-1,1));
+    stages.push_back(TrueLegInfo(0,1));
     stages.back().nonOptional = -1;
   }
 
@@ -2454,12 +2455,12 @@ void oEvent::saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee)
   }
 }
 
-void oClass::apply() {
+void oClass::apply() const {
   int trueLeg = 0;
   int trueSubLeg = 0;
 
   for (size_t k = 0; k<legInfo.size(); k++) {
-    oLegInfo &li = legInfo[k];
+    const oLegInfo &li = legInfo[k];
     LegTypes lt = li.legMethod;
     if (lt == LTNormal || lt == LTSum) {
       trueLeg++;

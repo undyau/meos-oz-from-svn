@@ -80,9 +80,9 @@ struct oLegInfo {
   int duplicateRunner;
 
   // Transient, deducable data
-  int trueSubLeg;
-  int trueLeg;
-  string displayLeg;
+  mutable int trueSubLeg;
+  mutable int trueLeg;
+  mutable string displayLeg;
 
   oLegInfo():startMethod(STTime), legMethod(LTNormal), legStartData(0), 
              legRestartTime(0), legRopeTime(0), duplicateRunner(-1) {}
@@ -201,7 +201,7 @@ protected:
   void reinitialize();
 
   /** Recalculate derived data */
-  void apply();
+  void apply() const;
   
   void calculateSplits();
   void clearSplitAnalysis();

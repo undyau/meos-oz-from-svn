@@ -285,6 +285,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
   // Save the document to a file
   string tmpRes = getTempFile();
   HPDF_SaveToFile (pdf, tmpRes.c_str());
+  DeleteFileW(file.c_str());
   BOOL res = MoveFileW(gdi.toWide(tmpRes).c_str(), file.c_str());
   removeTempFile(tmpRes);
   

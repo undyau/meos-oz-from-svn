@@ -116,8 +116,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
     
     if (bi.id=="SIPassive") {
       string port=gdi.getText("ComPortName");
-      bool debugLogic = true;
-      if (debugLogic && gSI->OpenComListen(port.c_str(), gdi.getTextNo("BaudRate"))) {
+      if (gSI->OpenComListen(port.c_str(), gdi.getTextNo("BaudRate"))) {
 				gSI->StartMonitorThread(port.c_str());
 				loadPage(gdi);
         gdi.addString("", 1, "Lyssnar på X.#"+port).setColor(colorDarkGreen);
@@ -141,7 +140,6 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
     }
 		else if (bi.id=="StartSI")	{
 			char bf[64];
-      bool debugLogic = true;
 			ListBoxInfo lbi;
 			if(gdi.getSelectedItem("ComPort", &lbi)) {
 
@@ -158,7 +156,7 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
 				}
 				else {
           gdi.fillDown();
-          if (!debugLogic && port=="TCP") {
+          if (port=="TCP") {
             gdi.setRestorePoint("TCP");
             gdi.dropLine();
             gdi.pushX();
