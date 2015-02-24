@@ -34,6 +34,7 @@
 #include "../RunnerDB.h"
 #include "../progress.h"
 #include "../metalist.h"
+#include "../oExtendedEvent.h"
 
 using namespace mysqlpp;
 
@@ -1790,7 +1791,11 @@ bool MeosSQL::Remove(oBase *ob)
     //Must change db!
     return 0;
   }
-  
+   else if(typeid(*ob)==typeid(oExtendedEvent)){
+    oTable="oEvent";
+    //Must change db!
+    return 0;
+  } 
   query << "Removed=1";
   try{
     ResNSel res = updateCounter(oTable.c_str(), ob->Id, &query);
@@ -3561,6 +3566,9 @@ int getTypeId(const oBase &ob)
     return 8;
   }
   else if(typeid(ob)==typeid(oEvent)){
+    return 9;
+  }
+  else if(typeid(ob)==typeid(oExtendedEvent)){
     return 9;
   }
   return -1;
