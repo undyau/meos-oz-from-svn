@@ -1,3 +1,8 @@
+25 February 2014 3.1.406.1
+- Merge with standard MEOS 3.1.401 (MeOS 3.1 Update 3)
+  For changes see http://www.melin.nu/meos/en/whatsnew25.php
+- Correct bug that prevented MEOS-OZ working in server mode.
+
 10 December 2014 3.1.383.5
 - Allow user to save details of rental sticks so that rental
 flag is set automatically.
