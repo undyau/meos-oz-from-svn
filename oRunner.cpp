@@ -1696,6 +1696,28 @@ bool oRunner::operator <(const oRunner &c) {
     }
     return Name < c.Name;
   }
+  else if(oe->CurrentSortOrder == CoursePoints){
+    const pCourse crs1 = getCourse(false);
+    const pCourse crs2 = c.getCourse(false);
+    if (crs1 != crs2) {
+      int id1 = crs1 ? crs1->getId() : 0;
+      int id2 = crs2 ? crs2->getId() : 0;
+      return id1 < id2;
+    }
+		if(status != c.status)
+			return unsigned(status-1) < unsigned(c.status-1);
+		else {
+			if (status==StatusOK) {
+        if(tRogainingPoints != c.tRogainingPoints)
+			    return tRogainingPoints > c.tRogainingPoints;
+				int t=getRunningTime();
+				int ct=c.getRunningTime();
+				if (t != ct)
+					return t < ct;
+			}			
+			return Name  <c.Name;
+		}
+	}
   else if (oe->CurrentSortOrder == CourseResult) {
     const pCourse crs1 = getCourse(false);
     const pCourse crs2 = c.getCourse(false);

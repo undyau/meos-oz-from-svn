@@ -184,6 +184,8 @@ void TabCompetition::loadSssUploadPage(gdioutput &gdi)
   gdi.addString("", boldLarge, "Summer Series Upload");
   gdi.pushX();
   gdi.dropLine();
+	gdi.addString("", italicText, "Check the results in the Lists tab before doing the upload");
+	gdi.dropLine();
   string defaultSssServer = oe->getPropertyString("SssServer", "http://sportident.itsdamp.com/liveresult.php");
 
   gdi.fillRight();

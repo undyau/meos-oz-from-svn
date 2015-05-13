@@ -2184,7 +2184,6 @@ bool TabRunner::loadPage(gdioutput &gdi)
   gdi.addButton("AddC", "<< Lägg till stämpling", PunchesCB);
   gdi.addButton("AddAllC", "<< Lägg till alla", PunchesCB);
 	gdi.dropLine();
-	gdi.addButton("LabelPrint", "Print Etikett", RunnerCB);
 
   gdi.synchronizeListScroll("Punches", "Course");
   disablePunchCourse(gdi);
@@ -2197,6 +2196,7 @@ bool TabRunner::loadPage(gdioutput &gdi)
   gdi.fillRight();
   gdi.addButton("SplitPrint", "Skriv ut sträcktider", RunnerCB).isEdit(true);
   gdi.addButton("PrintSettings", "Inställningar", RunnerCB).isEdit(true);
+	gdi.addButton("LabelPrint", "Print Etikett", RunnerCB);
   gdi.pushY();
 
   int by = gdi.getHeight();
