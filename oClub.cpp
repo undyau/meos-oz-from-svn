@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // oClub.cpp: implementation of the oClub class.
@@ -45,14 +45,14 @@
 
 oClub::oClub(oEvent *poe): oBase(poe)
 {
-	getDI().initData();
-	Id=oe->getFreeClubId();
+  getDI().initData();
+  Id=oe->getFreeClubId();
 }
 
 oClub::oClub(oEvent *poe, int id): oBase(poe)
 {
-	getDI().initData();
-	Id=id;
+  getDI().initData();
+  Id=id;
   if (id != cVacantId)
     oe->qFreeClubId = max(id, oe->qFreeClubId);
 }
@@ -65,46 +65,46 @@ oClub::~oClub()
 
 bool oClub::write(xmlparser &xml)
 {
-	if(Removed) return true;
+  if (Removed) return true;
 
-	xml.startTag("Club");
-	xml.write("Id", Id);
-	xml.write("Updated", Modified.getStamp());
-	xml.write("Name", name);
+  xml.startTag("Club");
+  xml.write("Id", Id);
+  xml.write("Updated", Modified.getStamp());
+  xml.write("Name", name);
   for (size_t k=0;k<altNames.size(); k++)
     xml.write("AltName", altNames[k]);
 
-	getDI().write(xml);
+  getDI().write(xml);
 
-	xml.endTag();
+  xml.endTag();
 
-	return true;
+  return true;
 }
 
 void oClub::set(const xmlobject &xo)
 {
-	xmlList xl;
+  xmlList xl;
   xo.getObjects(xl);
 
-	xmlList::const_iterator it;
+  xmlList::const_iterator it;
 
-	for(it=xl.begin(); it != xl.end(); ++it){
-		if(it->is("Id")){
-			Id=it->getInt();			
-		}
-		else if(it->is("Name")){
-			internalSetName(it->get());
-		}
-		else if(it->is("oData")){
-			getDI().set(*it);
-		}
-		else if(it->is("Updated")){
-			Modified.setStamp(it->get());
-		}
-    else if(it->is("AltName")) {
+  for(it=xl.begin(); it != xl.end(); ++it){
+    if (it->is("Id")){
+      Id=it->getInt();
+    }
+    else if (it->is("Name")){
+      internalSetName(it->get());
+    }
+    else if (it->is("oData")){
+      getDI().set(*it);
+    }
+    else if (it->is("Updated")){
+      Modified.setStamp(it->get());
+    }
+    else if (it->is("AltName")) {
       altNames.push_back(it->get());
     }
-	}
+  }
 }
 
 void oClub::internalSetName(const string &n)
@@ -128,9 +128,9 @@ void oClub::internalSetName(const string &n)
     }
     if (ix >= 0) {
       tPrettyName = name;
-      if (strcmp(bf+ix, "Skid o OK")==0) 
+      if (strcmp(bf+ix, "Skid o OK")==0)
         tPrettyName.replace(ix, 9, "SOK", 3);
-      else if (strcmp(bf+ix, "Skid o OL")==0) 
+      else if (strcmp(bf+ix, "Skid o OL")==0)
         tPrettyName.replace(ix, 9, "SOL", 3);
     }
   }
@@ -138,10 +138,10 @@ void oClub::internalSetName(const string &n)
 
 void oClub::setName(const string &n)
 {
-	if (n != name) {
-		internalSetName(n);
+  if (n != name) {
+    internalSetName(n);
     updateChanged();
-	}
+  }
 }
 
 oDataContainer &oClub::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {
@@ -153,11 +153,11 @@ oDataContainer &oClub::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &s
 
 pClub oEvent::getClub(int Id) const
 {
-  if(Id<=0) 
+  if (Id<=0)
     return 0;
 
   //map<int, pClub>::const_iterator mit=clubIdIndex.find(Id);
-  //if (mit!=clubIdIndex.end()) 
+  //if (mit!=clubIdIndex.end())
     //  return mit->second;
 
   pClub value;
@@ -168,16 +168,16 @@ pClub oEvent::getClub(int Id) const
 
 pClub oEvent::getClub(const string &pname) const
 {
-	oClubList::const_iterator it;	
+  oClubList::const_iterator it;
 
-	for (it=Clubs.begin(); it != Clubs.end(); ++it)
-		if(it->name==pname)	
+  for (it=Clubs.begin(); it != Clubs.end(); ++it)
+    if (it->name==pname)
       return pClub(&*it);
-	
+
   return 0;
 }
 
-pClub oEvent::getClubCreate(int Id, const string &CreateName) 
+pClub oEvent::getClubCreate(int Id, const string &CreateName)
 {
   if (Id > 0) {
     //map<int, pClub>::iterator mit=clubIdIndex.find(Id);
@@ -190,26 +190,26 @@ pClub oEvent::getClubCreate(int Id, const string &CreateName)
         return value;
     }
   }
-  if (CreateName.empty()) {    
-		//Not found. Auto add...	
+  if (CreateName.empty()) {
+    //Not found. Auto add...
 		return getClubCreate(Id, lang.tl("Klubblös"));
-	}
-	else	{
+  }
+  else	{
     oClubList::iterator it;
     string tname = trim(CreateName);
 
-		//Maybe club exist under different ID
-		for (it=Clubs.begin(); it != Clubs.end(); ++it)
-      if(_stricmp(it->name.c_str(), tname.c_str())==0)
+    //Maybe club exist under different ID
+    for (it=Clubs.begin(); it != Clubs.end(); ++it)
+      if (_stricmp(it->name.c_str(), tname.c_str())==0)
         return &*it;
-	
-		//Else, create club.
-		return addClub(tname, Id);
-	}
+
+    //Else, create club.
+    return addClub(tname, Id);
+  }
 }
 
 pClub oEvent::addClub(const string &pname, int createId)
-{	
+{
   if (createId>0) {
     pClub pc = getClub(createId);
     if (pc)
@@ -239,10 +239,10 @@ pClub oEvent::addClub(const string &pname, int createId)
   else {
     if (createId==0)
       createId = getFreeClubId();
-  
+
     oClub c(this, createId);
     c.setName(pname);
-	  Clubs.push_back(c);
+    Clubs.push_back(c);
   }
   Clubs.back().synchronize();
   clubIdIndex[Clubs.back().Id]=&Clubs.back();
@@ -250,16 +250,16 @@ pClub oEvent::addClub(const string &pname, int createId)
 }
 
 pClub oEvent::addClub(const oClub &oc)
-{	
-  if(clubIdIndex.count(oc.Id)!=0)
+{
+  if (clubIdIndex.count(oc.Id)!=0)
     return clubIdIndex[oc.Id];
 
-	Clubs.push_back(oc);	
+  Clubs.push_back(oc);
   if (!oc.existInDB())
     Clubs.back().synchronize();
 
   clubIdIndex[Clubs.back().Id]=&Clubs.back();
-	return &Clubs.back();
+  return &Clubs.back();
 }
 
 void oEvent::fillClubs(gdioutput &gdi, const string &id)
@@ -271,21 +271,21 @@ void oEvent::fillClubs(gdioutput &gdi, const string &id)
 
 
 const vector< pair<string, size_t> > & oEvent::fillClubs(vector< pair<string, size_t> > &out)
-{	
+{
   out.clear();
-	//gdi.clearList(name);
-	synchronizeList(oLClubId);
+  //gdi.clearList(name);
+  synchronizeList(oLClubId);
   Clubs.sort();
 
-	oClubList::iterator it;	
+  oClubList::iterator it;
 
-	for (it=Clubs.begin(); it != Clubs.end(); ++it){
-		if(!it->Removed)
+  for (it=Clubs.begin(); it != Clubs.end(); ++it){
+    if (!it->Removed)
       out.push_back(make_pair(it->name, it->Id));
-			//gdi.addItem(name, it->name, it->Id);
-	}
+      //gdi.addItem(name, it->name, it->Id);
+  }
 
-	return out;
+  return out;
 }
 
 void oClub::buildTableCol(oEvent *oe, Table *table) {
@@ -294,10 +294,10 @@ void oClub::buildTableCol(oEvent *oe, Table *table) {
 
 #define TB_CLUBS "clubs"
 Table *oEvent::getClubsTB()//Table mode
-{	
+{
   if (tables.count("club") == 0) {
-	  Table *table=new Table(this, 20, "Klubbar", TB_CLUBS);
-    
+    Table *table=new Table(this, 20, "Klubbar", TB_CLUBS);
+
     table->addColumn("Id", 70, true, true);
     table->addColumn("Ändrad", 70, false);
 
@@ -307,7 +307,7 @@ Table *oEvent::getClubsTB()//Table mode
     table->addColumn("Deltagare", 70, true);
     table->addColumn("Avgift", 70, true);
     table->addColumn("Betalat", 70, true);
-    
+
     tables["club"] = table;
     table->addOwnership();
   }
@@ -318,24 +318,28 @@ Table *oEvent::getClubsTB()//Table mode
 }
 
 void oEvent::generateClubTableData(Table &table, oClub *addClub)
-{ 
+{
   oe->setupClubInfoData();
   if (addClub) {
     addClub->addTableRow(table);
     return;
   }
   synchronizeList(oLClubId);
-	oClubList::iterator it;	
+  oClubList::iterator it;
 
-  for (it=Clubs.begin(); it != Clubs.end(); ++it){		
-    if(!it->isRemoved()){
+  for (it=Clubs.begin(); it != Clubs.end(); ++it){
+    if (!it->isRemoved()){
       it->addTableRow(table);
-		}
-	}
+    }
+  }
+}
+
+int oClub::getTableId() const {
+  return Id;
 }
 
 void oClub::addTableRow(Table &table) const {
-  table.addRow(getId(), pClass(this));
+  table.addRow(getTableId(), pClass(this));
 
   bool dbClub = table.getInternalName() != TB_CLUBS;
   bool canEdit =  dbClub ? !oe->isClient() : true;
@@ -343,11 +347,11 @@ void oClub::addTableRow(Table &table) const {
   pClub it = pClub(this);
   int row = 0;
   table.set(row++, *it, TID_ID, itos(getId()), false);
-  table.set(row++, *it, TID_MODIFIED, getTimeStamp(), false);		
+  table.set(row++, *it, TID_MODIFIED, getTimeStamp(), false);
 
   table.set(row++, *it, TID_CLUB, getName(), canEdit);
   row = oe->oClubData->fillTableCol(*this, table, canEdit);
-  
+
   if (!dbClub) {
     table.set(row++, *it, TID_NUM, itos(tNumRunners), false);
     table.set(row++, *it, TID_FEE, oe->formatCurrency(tFee), false);
@@ -355,12 +359,12 @@ void oClub::addTableRow(Table &table) const {
   }
 }
 
-bool oClub::inputData(int id, const string &input, 
+bool oClub::inputData(int id, const string &input,
                         int inputId, string &output, bool noUpdate)
 {
   synchronize(false);
-    
-  if(id>1000) {
+
+  if (id>1000) {
     return oe->oClubData->inputData(this, id, input, inputId, output, noUpdate);
   }
 
@@ -377,8 +381,8 @@ bool oClub::inputData(int id, const string &input,
 }
 
 void oClub::fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected)
-{ 
-  if(id>1000) {
+{
+  if (id>1000) {
     oe->oClubData->fillInput(oData, id, 0, out, selected);
     return;
   }
@@ -397,8 +401,8 @@ void oEvent::mergeClub(int clubIdPri, int clubIdSec)
   for (oTeamList::iterator it = Teams.begin(); it!=Teams.end(); ++it) {
     if (it->getClubId() == clubIdSec) {
       it->Club = pc;
-      it->updateChanged();      
-      it->synchronize(); 
+      it->updateChanged();
+      it->synchronize();
     }
   }
 
@@ -407,7 +411,7 @@ void oEvent::mergeClub(int clubIdPri, int clubIdSec)
     if (it->getClubId() == clubIdSec) {
       it->Club = pc;
       it->updateChanged();
-      it->synchronize(); 
+      it->synchronize();
     }
   }
   oe->removeClub(clubIdSec);
@@ -432,7 +436,7 @@ void oEvent::viewClubMembers(gdioutput &gdi, int clubId)
 {
   sortRunners(ClassStartTime);
   sortTeams(ClassStartTime, 0);
-  
+
   gdi.fillDown();
   gdi.dropLine();
   int nr = 0;
@@ -454,7 +458,7 @@ void oEvent::viewClubMembers(gdioutput &gdi, int clubId)
       if (nr==0)
         gdi.addString("", 1, "Löpare:");
       gdi.addStringUT(0, it->getName() + ", " + it->getClass() );
-      nr++; 
+      nr++;
     }
   }
 }
@@ -487,14 +491,14 @@ void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData
   string ts;
   if (!inTeam)
     line.addString(xs+data.clsPos, r->getClass());
-  
+
   if (r->getStatus() == StatusUnknown)
     ts = "-";
   else if (!data.multiDay) {
     if (r->getStatus()==StatusOK) {
       ClassType type = oClassIndividual;
       cTeam t = r->getTeam();
-      if (t && r->getClassRef()) 
+      if (t && r->getClassRef())
         type = r->getClassRef()->getClassType();
 
       if (type == oClassIndividRelay || type == oClassRelay) {
@@ -505,15 +509,15 @@ void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData
           ts =  t->getLegStatusS(leg, false)+ " (" + r->getRunningTimeS() + ")";
       }
       else
-        ts =  r->getPrintPlaceS()+ " (" + r->getRunningTimeS() + ")";
-    } 
+        ts =  r->getPrintPlaceS(true)+ " (" + r->getRunningTimeS() + ")";
+    }
     else
       ts =  r->getStatusS();
   }
   else {
     if (r->getTotalStatus()==StatusOK) {
-      ts =  r->getPrintTotalPlaceS()+ " (" + r->getTotalRunningTimeS() + ")";
-    } 
+      ts =  r->getPrintTotalPlaceS(true)+ " (" + r->getTotalRunningTimeS() + ")";
+    }
     else if (r->getTotalStatus()!=StatusNotCompetiting)
       ts =  r->getStatusS();
     else {
@@ -559,13 +563,13 @@ void oClub::addTeamInvoiceLine(const pTeam t, const InvoiceData &data, list<Invo
   line.addString(xs, t->getName());
   line.addString(xs+data.clsPos, t->getClass());
   string ts;
-  
+
   if (t->getStatus() == StatusUnknown)
-    ts = "-";      
+    ts = "-";
   else  {
     if (t->getStatus()==StatusOK) {
-      ts =  t->getPrintPlaceS()+ " (" + t->getRunningTimeS() + ")";
-    } 
+      ts =  t->getPrintPlaceS(true)+ " (" + t->getRunningTimeS() + ")";
+    }
     else
       ts =  t->getStatusS();
   }
@@ -644,9 +648,12 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
   yp = ys+lh;
   string ostreet = oe->getDI().getString("Street");
   string oaddress = oe->getDI().getString("Address");
-  
+  string oco = oe->getDI().getString("CareOf");
+
   if (!organizer.empty())
     gdi.addStringUT(yp, xs, fontMedium, organizer), yp+=lh;
+  if (!oco.empty())
+    gdi.addStringUT(yp, xs, fontMedium, oco), yp+=lh;
   if (!ostreet.empty())
     gdi.addStringUT(yp, xs, fontMedium, ostreet), yp+=lh;
   if (!oaddress.empty())
@@ -661,9 +668,9 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
   string address =  getDCI().getString("Street");
   string city =  getDCI().getString("ZIP") + " " + getDCI().getString("City");
   string country =  getDCI().getString("Country");
-  
+
   int ayp = ys + 122;
-  
+
   const int absX = oe->getPropertyInt("addressxpos", 125);
   int absY = oe->getPropertyInt("addressypos", 50);
 
@@ -688,15 +695,15 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
 
   gdi.addString("", yp, xs, boldSmall, "Deltagare");
   gdi.addString("", yp, xs+data.clsPos, boldSmall, "Klass");
-  
+
   gdi.addString("", yp, xs+data.feePos, boldSmall|textRight, "Avgift");
   gdi.addString("", yp, xs+data.cardPos, boldSmall|textRight, "Brickhyra");
   gdi.addString("", yp, xs+data.paidPos, boldSmall|textRight, "Betalat");
-  
+
   gdi.addString("", yp, xs+data.resPos, boldSmall, "Resultat");
-  
+
   yp += lh;
-  data.multiDay = !oe->getDCI().getString("PreEvent").empty();
+  data.multiDay = oe->hasPrevStage();
 
   list<InvoiceLine> lines;
   for (size_t k=0;k<runners.size(); k++) {
@@ -726,14 +733,14 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
   hasPaid = data.total_paid_amount;
 
   gdi.addString("", yp, xs, boldText, "Att betala: X#" + oe->formatCurrency(toPay));
-  
+
   gdi.updatePos(gdi.scaleLength(710),0,0,0);
 
   yp+=lh*2;
 
-  gdi.addStringUT(yp, xs, normalText, lang.tl("Vänligen betala senast") + 
+  gdi.addStringUT(yp, xs, normalText, lang.tl("Vänligen betala senast") +
             " " + pdate + " " + lang.tl("till") + " " + account + ".");
-  gdi.dropLine(2);  
+  gdi.dropLine(2);
   //gdi.addStringUT(gdi.getCY()-1, 1, pageNewPage, blank, 0, 0);
 
   vector< pair<string, int> > mlines;
@@ -753,10 +760,10 @@ void oEvent::getClubRunners(int clubId, vector<pRunner> &runners) const
   oRunnerList::const_iterator rit;
   runners.clear();
 
-	for (rit=Runners.begin(); rit != Runners.end(); ++rit) {
+  for (rit=Runners.begin(); rit != Runners.end(); ++rit) {
     if (!rit->skip() && rit->getClubId() == clubId)
       runners.push_back(pRunner(&*rit));
-	}  
+  }
 }
 
 void oEvent::getClubTeams(int clubId, vector<pTeam> &teams) const
@@ -764,13 +771,13 @@ void oEvent::getClubTeams(int clubId, vector<pTeam> &teams) const
   oTeamList::const_iterator rit;
   teams.clear();
 
-	for (rit=Teams.begin(); rit != Teams.end(); ++rit) {
+  for (rit=Teams.begin(); rit != Teams.end(); ++rit) {
     if (!rit->skip() && rit->getClubId() == clubId)
       teams.push_back(pTeam(&*rit));
-	}  
+  }
 }
 
-void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type, 
+void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
                            const string &basePath, bool onlySummary) {
   oClub::assignInvoiceNumber(*this, false);
   oClubList::iterator it;
@@ -792,15 +799,15 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
 
   if (toFile) {
     ofstream fout;
-    
-    if (type == IPTElectronincHTML) 
+
+    if (type == IPTElectronincHTML)
       fout.open((path + "invoices.txt").c_str());
 
 
-	  for (it=Clubs.begin(); it != Clubs.end(); ++it) {
+    for (it=Clubs.begin(); it != Clubs.end(); ++it) {
       if (!it->isRemoved()) {
         gdi.clearPage(false);
-        int nr = it->getDCI().getInt("InvoiceNo");      
+        int nr = it->getDCI().getInt("InvoiceNo");
         string filename;
         if (type == IPTElectronincHTML)
           filename = "invoice" + itos(nr*197) + ".html";
@@ -815,31 +822,31 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
           if (!hasEmail)
             continue;
         }
-        
+
         it->generateInvoice(gdi, pay, paid);
 
         if (type == IPTElectronincHTML && pay > 0) {
-          fout << it->getId() << ";" << it->getName() << ";" << 
+          fout << it->getId() << ";" << it->getName() << ";" <<
                 nr << ";" << filename << ";" << email << ";"
                 << formatCurrency(pay)  <<endl;
         }
-        
+
         if (type == IPTAllPDF) {
           pdfwriter pdf;
           pdf.generatePDF(gdi, gdi.toWide(path + filename), lang.tl("Faktura"), "", gdi.getTL());
         }
         else
-          gdi.writeHTML(gdi.toWide(path + filename), lang.tl("Faktura"));
+          gdi.writeHTML(gdi.toWide(path + filename), lang.tl("Faktura"), 0);
 
         clubId.insert(it->getId());
         fees.push_back(pay);
         vpaid.push_back(paid);
       }
-      gdi.clearPage(true); 
-	  }
+      gdi.clearPage(true);
+    }
   }
   else {
-	  for (it=Clubs.begin(); it != Clubs.end(); ++it) {
+    for (it=Clubs.begin(); it != Clubs.end(); ++it) {
       if (!it->isRemoved()) {
 
         string email = it->getDCI().getString("EMail");
@@ -852,7 +859,7 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
         fees.push_back(pay);
         vpaid.push_back(paid);
       }
-	  }
+    }
   }
 
   if (onlySummary)
@@ -863,30 +870,30 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
   int yp = gdi.getCY() + 10;
 
   gdi.addString("", yp, 50, boldText, "Faktura nr");
-  gdi.addString("", yp, 240, boldText|textRight, "KlubbId"); 
-  
-  gdi.addString("", yp, 250, boldText, "Klubb"); 
-  gdi.addString("", yp, 550, boldText|textRight, "Faktura"); 
-  gdi.addString("", yp, 620, boldText|textRight, "Kontant"); 
+  gdi.addString("", yp, 240, boldText|textRight, "KlubbId");
+
+  gdi.addString("", yp, 250, boldText, "Klubb");
+  gdi.addString("", yp, 550, boldText|textRight, "Faktura");
+  gdi.addString("", yp, 620, boldText|textRight, "Kontant");
 
   yp+=gdi.getLineHeight()+3;
 
   int sum = 0, psum = 0;
   for (it=Clubs.begin(); it != Clubs.end(); ++it) {
     if (!it->isRemoved() && clubId.count(it->getId()) > 0) {
-      
+
       gdi.addStringUT(yp, 50, fontMedium, itos(it->getDCI().getInt("InvoiceNo")));
-      gdi.addStringUT(yp, 240, textRight|fontMedium, itos(it->getId())); 
-      gdi.addStringUT(yp, 250, fontMedium, it->getName()); 
-      gdi.addStringUT(yp, 550, fontMedium|textRight, oe->formatCurrency(fees[k])); 
-      gdi.addStringUT(yp, 620, fontMedium|textRight, oe->formatCurrency(vpaid[k])); 
-      
+      gdi.addStringUT(yp, 240, textRight|fontMedium, itos(it->getId()));
+      gdi.addStringUT(yp, 250, fontMedium, it->getName());
+      gdi.addStringUT(yp, 550, fontMedium|textRight, oe->formatCurrency(fees[k]));
+      gdi.addStringUT(yp, 620, fontMedium|textRight, oe->formatCurrency(vpaid[k]));
+
       sum+=fees[k];
       psum+=vpaid[k];
       k++;
       yp+=gdi.getLineHeight();
     }
-	}
+  }
 
   gdi.addStringUT(yp, 550, boldText|textRight, lang.tl("Totalt faktureras: ") + oe->formatCurrency(sum));
   gdi.addStringUT(yp+gdi.getLineHeight(), 550, boldText|textRight, lang.tl("Totalt kontant: ") + oe->formatCurrency(psum));
@@ -920,7 +927,7 @@ void oEvent::updateClubsFromDB()
 
   for (it=Clubs.begin();it!=Clubs.end();++it) {
     it->updateFromDB();
-    it->synchronize();   
+    it->synchronize();
   }
 }
 
@@ -929,13 +936,13 @@ bool oClub::sameClub(const oClub &c)
   return _stricmp(name.c_str(), c.name.c_str())==0;
 }
 
-void oClub::remove() 
+void oClub::remove()
 {
   if (oe)
     oe->removeClub(Id);
 }
 
-bool oClub::canRemove() const 
+bool oClub::canRemove() const
 {
   return !oe->isClubUsed(Id);
 }
@@ -991,7 +998,7 @@ void oEvent::setupClubInfoData() {
     it->tFee = fee[id];
     it->tPaid = paid[id];
     it->tNumRunners = runners[id];
-  } 
+  }
 
   tClubDataRevision = dataRevision;
 }
@@ -1007,7 +1014,7 @@ void oClub::changeId(int newId) {
     oe->clubIdIndex.remove(Id);
 
   oBase::changeId(newId);
-  
+
   oe->clubIdIndex[newId] = this;
 }
 

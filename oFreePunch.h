@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "oBase.h"
@@ -35,10 +35,10 @@ class Table;
 class oFreePunch : public oPunch
 {
 protected:
-	int CardNo;
-  int itype; //Index type used for lookup
+  int CardNo;
+  int iHashType; //Index type used for lookup
   int tRunnerId; // Id of runner the punch is classified to.
-  
+
   /** Class used to sort punches by time. */
   class FreePunchComp {
     public:
@@ -50,33 +50,48 @@ protected:
   void changedObject();
 
 public:
-  // Get the id of the punch currently tied to this punch
-  int getControlId() const {return itype;}
-  // Get the runner currently tied to this punch  
+
+  // Get control hash (itype) from course controld and race number
+  static int getControlHash(int courseControlId, int race);
+
+  // Get controlId or courseControlId from hash (itype)
+  static int getControlIdFromHash(int hash, bool courseControlId);
+
+  // Get the id of the control currently tied to this punch
+  int getControlId() const {return getControlIdFromHash(iHashType, false);}
+
+  // Get the id of the course control currently tied to this punch
+  int getCourseControlId() const {return getControlIdFromHash(iHashType, true);}
+
+  // Get the id hash
+  int getIHashType() const {return iHashType;}
+
+
+  // Get the runner currently tied to this punch
   pRunner getTiedRunner() const;
   void addTableRow(Table &table) const;
   void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
   bool inputData(int id, const string &input, int inputId, string &output, bool noUpdate);
-  
+
   void remove();
   bool canRemove() const;
 
-	int getCardNo() const {return CardNo;}
+  int getCardNo() const {return CardNo;}
   bool setCardNo(int cardNo, bool databaseUpdate = false);
   bool setType(const string &t, bool databaseUpdate = false);
   void setTimeInt(int newTime, bool databaseUpdate);
-  
+
   static void rehashPunches(oEvent &oe, int cardNo, pFreePunch newPunch);
   static bool disableHashing;
 
-	oFreePunch(oEvent *poe, int card, int time, int type);
-	oFreePunch(oEvent *poe, int id);
+  oFreePunch(oEvent *poe, int card, int time, int type);
+  oFreePunch(oEvent *poe, int id);
   virtual ~oFreePunch(void);
 
-	void Set(const xmlobject *xo);
-	bool Write(xmlparser &xml);
+  void Set(const xmlobject *xo);
+  bool Write(xmlparser &xml);
 
-	friend class oEvent;
-	friend class oRunner;
-	friend class MeosSQL;
+  friend class oEvent;
+  friend class oRunner;
+  friend class MeosSQL;
 };

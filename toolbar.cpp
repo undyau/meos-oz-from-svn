@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -78,7 +78,7 @@ Toolbar::Toolbar(gdioutput &gdi_par) : gdi(gdi_par), data(0)
 }
 
 
-Toolbar::~Toolbar() 
+Toolbar::~Toolbar()
 {
   ImageList_Destroy(hImageListDef);
   ImageList_Destroy(hImageListMeOS);
@@ -113,17 +113,17 @@ void Toolbar::activate(bool active) {
   }
 }
 
-void Toolbar::addButton(const string &id, int imgList, int icon, const string &tooltip) 
+void Toolbar::addButton(const string &id, int imgList, int icon, const string &tooltip)
 {
   tooltips.push_back(lang.tl(tooltip));
-  TBBUTTON tbButton = { MAKELONG(icon, imgList), btn_id.size() + BASE_ID, TBSTATE_ENABLED, 
+  TBBUTTON tbButton = { MAKELONG(icon, imgList), btn_id.size() + BASE_ID, TBSTATE_ENABLED,
                         buttonStyles, {0}, 0, (INT_PTR)tooltips.back().c_str() };
   btn.push_back(tbButton);
   btn_id.push_back(id);
 }
 
 
-void Toolbar::processCommand(int id, int code) 
+void Toolbar::processCommand(int id, int code)
 {
   size_t ix = id - BASE_ID;
   if (ix < btn_id.size()) {
@@ -134,20 +134,20 @@ void Toolbar::processCommand(int id, int code)
 void registerToolbar(HINSTANCE hInstance)
 {
   WNDCLASSEX wcex;
-	wcex.cbSize = sizeof(WNDCLASSEX); 
-	wcex.style			= CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc	= (WNDPROC)ToolProc;
-	wcex.cbClsExtra		= 0;
-	wcex.cbWndExtra		= 0;
-	wcex.hInstance		= hInstance;
-	wcex.hIcon			= 0;
-	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground	= (HBRUSH)(COLOR_BTNFACE+1);
-	wcex.lpszMenuName	= 0;
-	wcex.lpszClassName	= szToolClass;
-	wcex.hIconSm = 0;
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style			= CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc	= (WNDPROC)ToolProc;
+  wcex.cbClsExtra		= 0;
+  wcex.cbWndExtra		= 0;
+  wcex.hInstance		= hInstance;
+  wcex.hIcon			= 0;
+  wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground	= (HBRUSH)(COLOR_BTNFACE+1);
+  wcex.lpszMenuName	= 0;
+  wcex.lpszClassName	= szToolClass;
+  wcex.hIconSm = 0;
 
-	RegisterClassEx(&wcex);
+  RegisterClassEx(&wcex);
 }
 
 void Toolbar::createToolbar(const string &id, const string &title)
@@ -176,7 +176,7 @@ void Toolbar::createToolbar(const string &id, const string &title)
     DestroyWindow(hwndToolbar);
 
   // Create the toolbar.
-  hwndToolbar = CreateWindowEx(0, TOOLBARCLASSNAME, NULL, 
+  hwndToolbar = CreateWindowEx(0, TOOLBARCLASSNAME, NULL,
     WS_CHILD | TBSTYLE_TOOLTIPS,
     0, 0, 0, 0, hwndFloater, NULL, GetModuleHandle(0), NULL);
 
@@ -190,34 +190,34 @@ void Toolbar::createToolbar(const string &id, const string &title)
   SendMessage(hwndToolbar, CCM_SETVERSION, 5, 0);
 
   // Set the image list.
-  SendMessage(hwndToolbar, TB_SETIMAGELIST, (WPARAM)ImageListID, 
+  SendMessage(hwndToolbar, TB_SETIMAGELIST, (WPARAM)ImageListID,
     (LPARAM)hImageListDef);
 
   // Load the button images.
-  SendMessage(hwndToolbar, TB_LOADIMAGES, (WPARAM)IDB_STD_LARGE_COLOR, 
+  SendMessage(hwndToolbar, TB_LOADIMAGES, (WPARAM)IDB_STD_LARGE_COLOR,
     (LPARAM)HINST_COMMCTRL);
 
   ImageListID = 1;
   // Set the image list.
-  SendMessage(hwndToolbar, TB_SETIMAGELIST, (WPARAM)ImageListID, 
+  SendMessage(hwndToolbar, TB_SETIMAGELIST, (WPARAM)ImageListID,
     (LPARAM)hImageListMeOS);
 
   // Add buttons.
-  SendMessage(hwndToolbar, TB_BUTTONSTRUCTSIZE, 
+  SendMessage(hwndToolbar, TB_BUTTONSTRUCTSIZE,
     (WPARAM)sizeof(TBBUTTON), 0);
   TBBUTTON *bt_ptr = &btn.at(0);
-  SendMessage(hwndToolbar, TB_ADDBUTTONS, (WPARAM)btn.size(), 
+  SendMessage(hwndToolbar, TB_ADDBUTTONS, (WPARAM)btn.size(),
     (LPARAM)bt_ptr);
 
   SendMessage(hwndToolbar, TB_SETMAXTEXTROWS, 0, 0);
   // Tell the toolbar to resize itself, and show it.
-  SendMessage(hwndToolbar, TB_AUTOSIZE, 0, 0); 
+  SendMessage(hwndToolbar, TB_AUTOSIZE, 0, 0);
 
   DWORD bsize = SendMessage(hwndToolbar, TB_GETBUTTONSIZE, 0,0);
   int bw = LOWORD(bsize);
   int bh = HIWORD(bsize);
 
-  int tw = bw * btn.size();  
+  int tw = bw * btn.size();
 
   // Resize floater
   GetClientRect(hwndFloater, &rc);
@@ -228,7 +228,7 @@ void Toolbar::createToolbar(const string &id, const string &title)
   WINDOWPLACEMENT  wpl;
   wpl.length = sizeof(WINDOWPLACEMENT);
   GetWindowPlacement(hwndFloater, &wpl);
-  
+
   wpl.rcNormalPosition.right -= dx;
   wpl.rcNormalPosition.bottom -= dy;
 
@@ -252,7 +252,7 @@ void Toolbar::createToolbar(const string &id, const string &title)
 
   SetWindowPlacement(hwndFloater, &wpl);
 
-  SendMessage(hwndToolbar, TB_AUTOSIZE, 0, 0); 
+  SendMessage(hwndToolbar, TB_AUTOSIZE, 0, 0);
 
   ShowWindow(hwndFloater, SW_SHOW);
   ShowWindow(hwndToolbar, TRUE);
@@ -260,21 +260,21 @@ void Toolbar::createToolbar(const string &id, const string &title)
 
 LRESULT CALLBACK ToolProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	PAINTSTRUCT ps;
-	HDC hdc;
+  PAINTSTRUCT ps;
+  HDC hdc;
 
-	switch (message) 
-	{
-		case WM_CREATE:	
-			break;
+  switch (message)
+  {
+    case WM_CREATE:
+      break;
 
-		case WM_SIZE:
-			break;
+    case WM_SIZE:
+      break;
 
     case WM_WINDOWPOSCHANGED:
       return DefWindowProc(hWnd, message, wParam, lParam);
-		
-    case WM_ACTIVATE: 
+
+    case WM_ACTIVATE:
       return DefWindowProc(hWnd, message, wParam, lParam);
 
     case WM_NCACTIVATE: {
@@ -286,13 +286,13 @@ LRESULT CALLBACK ToolProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       return DefWindowProc(hWnd, message, wParam, lParam);
     }
 
-		case WM_PAINT:
-			hdc = BeginPaint(hWnd, &ps);
-			EndPaint(hWnd, &ps);
-			break;
+    case WM_PAINT:
+      hdc = BeginPaint(hWnd, &ps);
+      EndPaint(hWnd, &ps);
+      break;
 
-		case WM_DESTROY:		
-			break;
+    case WM_DESTROY:
+      break;
 
     case WM_COMMAND: {
       Toolbar *tb = (Toolbar *)GetWindowLongPtr(hWnd, GWL_USERDATA);
@@ -303,8 +303,8 @@ LRESULT CALLBACK ToolProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       }
     }
       break;
-		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
+    default:
+      return DefWindowProc(hWnd, message, wParam, lParam);
    }
    return 0;
 }
@@ -313,7 +313,7 @@ LRESULT CALLBACK ToolProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 HWND Toolbar::getFloater() const {
   return hwndFloater;
 }
-  
+
 bool Toolbar::isVisible() const {
   if (!hwndFloater)
     return false;

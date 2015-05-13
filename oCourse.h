@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "oControl.h"
@@ -50,12 +50,12 @@ class oCourse : public oBase
 private:
   static bool matchLoopKey(const vector<int> &punches, const vector<pControl> &key);
 protected:
-	pControl Controls[NControlsMax];
-  
-	int nControls;
-	string Name;
-	int Length;
-	static const int dataSize = 64;
+  pControl Controls[NControlsMax];
+
+  int nControls;
+  string Name;
+  int Length;
+  static const int dataSize = 64;
   int getDISize() const {return dataSize;}
 
   BYTE oData[dataSize];
@@ -92,6 +92,11 @@ public:
   void remove();
   bool canRemove() const;
 
+  string getRadioName(int courseControlId) const;
+
+  /// Returns course specific id for specified control (taking duplicats of the control into account)
+  int getCourseControlId(int controlIx) const;
+
   bool useFirstAsStart() const;
   bool useLastAsFinish() const;
 
@@ -109,7 +114,7 @@ public:
   void setNumberMaps(int nm);
   int getNumberMaps() const;
 
-  //Get a loop course adapted to a card. 
+  //Get a loop course adapted to a card.
   pCourse getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const;
 
   // Returns true if this course is adapted to specific punches
@@ -138,7 +143,7 @@ public:
   int getMaximumRogainingTime() const;
   void setMaximumRogainingTime(int t);
 
-  // Rogaining: point lost per minute over maximal time 
+  // Rogaining: point lost per minute over maximal time
   int getRogainingPointsPerMinute() const;
   void setRogainingPointsPerMinute(int t);
 
@@ -152,58 +157,58 @@ public:
   // rogaining controls
   const string &getControlOrdinal(int controlIndex) const;
 
-  /** Get the part of the course between the start and end. Use start = 0 for the 
-      start of the course, and end = 0 for the finish. Returns 0 if fraction 
+  /** Get the part of the course between the start and end. Use start = 0 for the
+      start of the course, and end = 0 for the finish. Returns 0 if fraction
       cannot be determined */
   double getPartOfCourse(int start, int end) const;
 
   string getInfo() const;
 
-	oControl *getControl(int index) const;
+  oControl *getControl(int index) const;
 
   /** Return the distance between the course and the card.
       Positive return = extra controls
       Negative return = missing controls
       Zero return = exact match */
-	int distance(const SICard &card);
+  int distance(const SICard &card);
 
-	bool fillCourse(gdioutput &gdi, const string &name);
+  bool fillCourse(gdioutput &gdi, const string &name);
 
-	void importControls(const string &cstring);
-	void importLegLengths(const string &legs);
+  void importControls(const string &cstring);
+  void importLegLengths(const string &legs);
 
   static void splitControls(const string &ctrls, vector<int> &nr);
 
   pControl addControl(int Id);
-	void Set(const xmlobject *xo);
+  void Set(const xmlobject *xo);
 
   void getControls(vector<pControl> &pc);
-	string getControls() const;
-	string getLegLengths() const;
-	
-  string getControlsUI() const;
-	vector<string> getCourseReadable(int limit) const;
+  string getControls() const;
+  string getLegLengths() const;
 
-	const string &getName() const {return Name;}
-	int getLength() const {return Length;}
+  string getControlsUI() const;
+  vector<string> getCourseReadable(int limit) const;
+
+  const string &getName() const {return Name;}
+  int getLength() const {return Length;}
   string getLengthS() const;
 
-	void setName(const string &n);
-	void setLength(int l);
+  void setName(const string &n);
+  void setLength(int l);
 
   string getStart() const;
   void setStart(const string &start, bool sync);
 
-	bool Write(xmlparser &xml);
+  bool Write(xmlparser &xml);
 
   oCourse(oEvent *poe, int id);
-	oCourse(oEvent *poe);
-	virtual ~oCourse();
+  oCourse(oEvent *poe);
+  virtual ~oCourse();
 
-	friend class oEvent;
-	friend class oClass;
-	friend class oRunner;
-	friend class MeosSQL;
+  friend class oEvent;
+  friend class oClass;
+  friend class oRunner;
+  friend class MeosSQL;
 };
 
 #endif // !defined(AFX_OCOURSE_H__936E61C9_CDAC_490D_A475_E58190A2910C__INCLUDED_)

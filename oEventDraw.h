@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,20 +19,20 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 /** Struct with info to draw a class */
 struct ClassInfo {
-	int classId;
+  int classId;
   pClass pc;
 
-	int firstStart; 
-	int interval;
+  int firstStart;
+  int interval;
 
-	int unique;
-	int courseId;
-	int nRunners;
+  int unique;
+  int courseId;
+  int nRunners;
   int nRunnersGroup; // Number of runners in group
   int nRunnersCourse; // Number of runners on this course
 
@@ -55,7 +55,7 @@ struct ClassInfo {
   }
 
   ClassInfo(pClass pClass) {
-    memset(this, 0, sizeof(ClassInfo)); 
+    memset(this, 0, sizeof(ClassInfo));
     pc = pClass;
     classId = pc->getId();
     nVacant = -1;

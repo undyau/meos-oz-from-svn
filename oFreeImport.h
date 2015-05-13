@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <set>
@@ -49,7 +49,7 @@ public:
   virtual int serialSize() const = 0;
   virtual pWordDatabase split() {return this;}
   virtual void insert(const char *s) = 0;
-  virtual bool lookup(const char *s) const = 0; 
+  virtual bool lookup(const char *s) const = 0;
   virtual ~oWordDatabase() = 0 {}
 };
 
@@ -57,13 +57,13 @@ class oWordDB : public oWordDatabase {
 protected:
   char getType() const {return 1;}
   set<string> str;
-public:  
+public:
   const char *deserialize(const char *bf, const char *end);
   char *serialize(char *bf) const;
   int serialSize() const;
   pWordDatabase split();
   void insert(const char *s);
-  bool lookup(const char *s) const; 
+  bool lookup(const char *s) const;
   size_t size();
 };
 
@@ -79,7 +79,7 @@ public:
   char *serialize(char *bf) const;
   int serialSize() const;
   void insert(const char *s);
-  bool lookup(const char *s) const; 
+  bool lookup(const char *s) const;
   void clear();
   ~oWordIndexHash();
   oWordIndexHash(bool hashAll_);
@@ -96,7 +96,7 @@ public:
   void load(const char *file);
 
   void insert(const char *s);
-  bool lookup(const char *s) const; 
+  bool lookup(const char *s) const;
   ~oWordList();
   oWordList();
 };
@@ -123,7 +123,7 @@ struct oEntryBlock {
   const oFreeImport &freeImporter;
 
   int nameCount();
-  
+
   void setClub(const char *s);
   void setClass(const char *s);
   void setCardNo(int c);
@@ -134,21 +134,21 @@ struct oEntryBlock {
 
   // Return true if more clubs can be accepted
   bool acceptMoreClubs(int expectedNumRunners) const;
-  
+
   bool expectMoreNames(int expectedNumRunners) const;
-  
+
   bool hasClub() const {return !eClub.empty();}
   /** Return true if class explicitly set. May have a ruling class anyway*/
   bool hasClass() const {return isClassSet;}
   bool hasStartTime() const {return !eStartTime.empty();}
-  bool hasName() {return !ePersons.empty() && 
+  bool hasName() {return !ePersons.empty() &&
                   !ePersons.front().name1.empty();}
   void cleanEntry(); //Remove bad data.
   oEntryBlock(const oFreeImport &importer);
   oEntryBlock(const oEntryBlock &eb);
   void operator=(const oEntryBlock &eb);
   int getNumPersons() const {return ePersons.size();}
-  
+
   string getTeamName() const;
   string getName(int k) const;
   string getClub(int k) const;
@@ -172,7 +172,7 @@ struct MatchPattern {
   bool isCard(int level=2) const {return nCard>(nClass+nTime+nTime)+level;}
   bool isName(int level=2) const {return nName>(nCard+nClass+nTime+nClub)+level;}
   bool isCompleteName() const {return singleName<int(nName*0.8);}
-  MatchPattern():nClass(0), nClub(0), nTime(0), 
+  MatchPattern():nClass(0), nClub(0), nTime(0),
     nCard(0), nName(0), singleName(0) {}
 };
 
@@ -211,8 +211,8 @@ protected:
 
   bool loaded;
 
-  int preAnalyzeRow(vector<char *> &p, 
-                    const vector<MatchPattern> &ptrn, 
+  int preAnalyzeRow(vector<char *> &p,
+                    const vector<MatchPattern> &ptrn,
                     vector<int> &classified);
 
   // Runners per class in defined classes
@@ -222,7 +222,7 @@ protected:
   int getExpectedNumRunners(const string &cls) const;
   friend struct oEntryBlock;
 
-  /** Check if a line is a header and remove header words, 
+  /** Check if a line is a header and remove header words,
       name: , class: etc. Returns true if the entire line
       is header (->ignore) */
   bool analyzeHeaders(vector<char *> &line) const;

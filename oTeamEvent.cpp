@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // oEvent.cpp: implementation of the oEvent class.
@@ -34,6 +34,8 @@
 #include "random.h"
 #include "SportIdent.h"
 #include "Localizer.h"
+#include "intkeymapimpl.hpp"
+#include "MeOSFeatures.h"
 
 #include "meos_util.h"
 #include "meos.h"
@@ -46,22 +48,6 @@
 #include <cassert>
 
 
-bool oEvent::existTeam(int Id)
-{
-	oTeamList::iterator it;	
-
-	for (it=Teams.begin(); it != Teams.end(); ++it){
-		if(it->Id==Id)
-			return true;
-	}
-	return false;
-}
-/*
-bool CompareTeamName(const oTeam &a, const oTeam &b)
-{
-	return a.
-}*/
-
 void oEvent::fillTeams(gdioutput &gdi, const string &id, int classId)
 {
   vector< pair<string, size_t> > d;
@@ -70,100 +56,125 @@ void oEvent::fillTeams(gdioutput &gdi, const string &id, int classId)
 }
 
 const vector< pair<string, size_t> > &oEvent::fillTeams(vector< pair<string, size_t> > &out, int ClassId)
-{	
-	synchronizeList(oLTeamId);
-	oTeamList::iterator it;	
-	Teams.sort(oTeam::compareSNO);
+{
+  synchronizeList(oLTeamId);
+  oTeamList::iterator it;
+  Teams.sort(oTeam::compareSNO);
 
   out.clear();
 
-  char bf[512];
-	for (it=Teams.begin(); it != Teams.end(); ++it) {
-    if(!it->Removed) {
-      if (it->StartNo != 0)
-        sprintf_s(bf, "%03d %s", it->StartNo, it->Name.c_str());
-      else
-        sprintf_s(bf, "--- %s", it->Name.c_str());
-
-      if (it->Class)
-        out.push_back(make_pair(bf + (" (" + it->getClass() + ")"), it->Id));
-      else
-        out.push_back(make_pair(bf, it->Id));
+  string tn;
+  string dashes = getMeOSFeatures().hasFeature(MeOSFeatures::Bib) ?  MakeDash("--- ") : _EmptyString;
+  int maxSno = 0;
+  for (it=Teams.begin(); it != Teams.end(); ++it) {
+    if (!it->Removed) {
+      maxSno = max(it->getStartNo(), maxSno);
     }
-	}
+  }
 
-	return out;
+  for (it=Teams.begin(); it != Teams.end(); ++it) {
+    if (!it->Removed) {
+      const string &bib = it->getBib();
+      if (!bib.empty()) {
+        int nb = atoi(bib.c_str());
+        if (nb > 0 && nb == it->getStartNo()) {
+          char bf[24];
+          if (maxSno>999)
+            sprintf_s(bf, "%04d ", nb);
+          else
+            sprintf_s(bf, "%03d ", nb);
+
+          tn = bf + it->Name;
+        }
+        else
+          tn = bib + " " + it->Name;
+      }
+      else {
+        tn = dashes + it->Name;
+      }
+      if (it->Class)
+        out.push_back(make_pair(tn + (" (" + it->getClass() + ")"), it->Id));
+      else
+        out.push_back(make_pair(tn, it->Id));
+    }
+  }
+
+  return out;
 }
 
 
-pTeam oEvent::getTeam(int Id)
-{
-	oTeamList::iterator it;	
-
-	for (it=Teams.begin(); it != Teams.end(); ++it)
-		if(it->Id==Id)	return &*it;
-		
-	return 0;
+pTeam oEvent::getTeam(int Id) const {
+  pTeam value;
+  if (teamById.lookup(Id, value) && value) {
+    if (value->isRemoved())
+      return 0;
+    assert(value->Id == Id);
+    return value;
+  }
+  return 0;
 }
 
 
-int oEvent::getFreeStartNo() const
-{
-	oTeamList::const_iterator it;
-	int sno=0;
+int oEvent::getFreeStartNo() const {
+  oTeamList::const_iterator it;
+  int sno=0;
 
-	for (it=Teams.begin(); it != Teams.end(); ++it)
-		sno=max(it->getStartNo(), sno);
-		
-	return sno+1;
+  for (it=Teams.begin(); it != Teams.end(); ++it) {
+    if (it->isRemoved())
+      continue;
+    sno=max(it->getStartNo(), sno);
+  }
+  return sno+1;
 }
 
 
-pTeam oEvent::getTeamByName(const string &pName)
-{
-	oTeamList::iterator it;	
+pTeam oEvent::getTeamByName(const string &pName) const {
+  oTeamList::const_iterator it;
 
-	for (it=Teams.begin(); it != Teams.end(); ++it)
-		if(it->Name==pName)	return &*it;
-		
-	return 0;
+  for (it=Teams.begin(); it != Teams.end(); ++it) {
+    if (!it->isRemoved() && it->Name==pName)
+      return pTeam(&*it);
+  }
+  return 0;
 }
 
 pTeam oEvent::addTeam(const string &pname, int ClubId, int ClassId)
 {
-	oTeam t(this);
-	t.Name=pname;
-	
-	if(ClubId>0) 
+  oTeam t(this);
+  t.Name=pname;
+
+  if (ClubId>0)
     t.Club=getClub(ClubId);
 
-	if(ClassId>0) 
+  if (ClassId>0)
     t.Class=getClass(ClassId);
 
   bibStartNoToRunnerTeam.clear();
   Teams.push_back(t);
+  teamById[t.Id] = &Teams.back();
 
   oe->updateTabs();
 
+  Teams.back().StartNo = ++nextFreeStartNo; // Need not be unique
   Teams.back().getEntryDate(false);// Store entry time
   Teams.back().apply(false, 0, false);
   Teams.back().updateChanged();
-	return &Teams.back();
+  return &Teams.back();
 }
 
-pTeam oEvent::addTeam(const oTeam &t)
-{
+pTeam oEvent::addTeam(const oTeam &t, bool autoAssignStartNo) {
   if (t.Id==0)
     return 0;
   if (getTeam(t.Id))
     return 0;
 
   bibStartNoToRunnerTeam.clear();
-  Teams.push_back(t);	
+  Teams.push_back(t);
 
   pTeam pt = &Teams.back();
+  teamById[pt->Id] = pt;
 
-  if (pt->StartNo == 0) {
+  if (pt->StartNo == 0 && autoAssignStartNo) {
     pt->StartNo = ++nextFreeStartNo; // Need not be unique
   }
   else {
@@ -176,23 +187,23 @@ pTeam oEvent::addTeam(const oTeam &t)
 
 int oEvent::getFreeTeamId()
 {
-	qFreeTeamId++;
-	return qFreeTeamId;
+  qFreeTeamId++;
+  return qFreeTeamId;
 }
 
 
 bool oEvent::writeTeams(xmlparser &xml)
 {
-	oTeamList::iterator it;	
+  oTeamList::iterator it;
 
-	xml.startTag("TeamList");
+  xml.startTag("TeamList");
 
-	for (it=Teams.begin(); it != Teams.end(); ++it)
-		it->write(xml);
+  for (it=Teams.begin(); it != Teams.end(); ++it)
+    it->write(xml);
 
-	xml.endTag();
- 
-	return true;
+  xml.endTag();
+
+  return true;
 }
 
 pTeam oEvent::findTeam(const string &s, int lastId, stdext::hash_set<int> &filter) const
@@ -206,16 +217,16 @@ pTeam oEvent::findTeam(const string &s, int lastId, stdext::hash_set<int> &filte
   int sn = atoi(s.c_str());
   oTeamList::const_iterator it;
 /*
-  if (sn>0) {  
+  if (sn>0) {
     for (it=Teams.begin(); it != Teams.end(); ++it) {
       if (it->skip())
         continue;
 
-      if(it->StartNo==sn)
+      if (it->StartNo==sn)
         return pTeam(&*it);
 
       for(size_t k=0;k<it->Runners.size();k++)
-        if(it->Runners[k] && it->Runners[k]->CardNo==sn)
+        if (it->Runners[k] && it->Runners[k]->CardNo==sn)
           return pTeam(&*it);
     }
   }
@@ -223,11 +234,11 @@ pTeam oEvent::findTeam(const string &s, int lastId, stdext::hash_set<int> &filte
   oTeamList::const_iterator itstart=Teams.begin();
 
 
-  if(lastId) {
-    for (; itstart != Teams.end(); ++itstart) 
-      if(itstart->Id==lastId) {
+  if (lastId) {
+    for (; itstart != Teams.end(); ++itstart)
+      if (itstart->Id==lastId) {
         ++itstart;
-        break;  
+        break;
       }
   }
 
@@ -249,29 +260,29 @@ pTeam oEvent::findTeam(const string &s, int lastId, stdext::hash_set<int> &filte
       filter.insert(t->Id);
       if (ret == 0)
         ret = t;
-    }  
+    }
   }
 
   return ret;
 }
 
 bool oTeam::matchTeam(int number, const char *s_lc) const
-{  
+{
   if (number) {
-    if(matchNumber(StartNo, s_lc ))
+    if (matchNumber(StartNo, s_lc ))
         return true;
 
     for(size_t k = 0; k < Runners.size(); k++) {
-      if(Runners[k] && matchNumber(Runners[k]->CardNo, s_lc))
+      if (Runners[k] && matchNumber(Runners[k]->CardNo, s_lc))
         return true;
     }
   }
 
-  if(filterMatchString(Name, s_lc))
+  if (filterMatchString(Name, s_lc))
     return true;
 
   for(size_t k=0;k<Runners.size();k++)
-    if(Runners[k] && filterMatchString(Runners[k]->Name, s_lc))
+    if (Runners[k] && filterMatchString(Runners[k]->Name, s_lc))
       return true;
 
   return false;
@@ -279,24 +290,37 @@ bool oTeam::matchTeam(int number, const char *s_lc) const
 
 
 
-void oEvent::fillPredefinedCmp(gdioutput &gdi, const string &name)
+void oEvent::fillPredefinedCmp(gdioutput &gdi, const string &name) const
 {
+  bool hasPatrol = getMeOSFeatures().hasFeature(MeOSFeatures::Patrol);
+  bool hasMulti = getMeOSFeatures().hasFeature(MeOSFeatures::MultipleRaces);
+  bool hasRelay = getMeOSFeatures().hasFeature(MeOSFeatures::Relay);
+  bool hasForked = getMeOSFeatures().hasFeature(MeOSFeatures::ForkedIndividual);
+
   gdi.clearList(name);
   gdi.addItem(name, lang.tl("Endast en bana"), PNoMulti);
   gdi.addItem(name, lang.tl("Utan inställningar"), PNoSettings);
-  gdi.addItem(name, lang.tl("En gafflad sträcka"), PForking);
-  gdi.addItem(name, lang.tl("Banpool, gemensam start"), PPool);
-  gdi.addItem(name, lang.tl("Banpool, lottad startlista"), PPoolDrawn);
-  gdi.addItem(name, lang.tl("Prolog + jaktstart"), PHunting);  
-  gdi.addItem(name, lang.tl("Patrull, 2 SI-pinnar"), PPatrol);
-  gdi.addItem(name, lang.tl("Par- eller singelklass"), PPatrolOptional);
-  gdi.addItem(name, lang.tl("Patrull, 1 SI-pinne"), PPatrolOneSI);
-  gdi.addItem(name, lang.tl("Stafett"), PRelay);
-  gdi.addItem(name, lang.tl("Tvåmannastafett"), PTwinRelay);
-  gdi.addItem(name, lang.tl("Extralöparstafett"), PYouthRelay);
+  if (hasForked) {
+    gdi.addItem(name, lang.tl("En gafflad sträcka"), PForking);
+    gdi.addItem(name, lang.tl("Banpool, gemensam start"), PPool);
+    gdi.addItem(name, lang.tl("Banpool, lottad startlista"), PPoolDrawn);
+  }
+  if (hasMulti)
+    gdi.addItem(name, lang.tl("Prolog + jaktstart"), PHunting);
+  if (hasPatrol) {
+    gdi.addItem(name, lang.tl("Patrull, 2 SI-pinnar"), PPatrol);
+    gdi.addItem(name, lang.tl("Par- eller singelklass"), PPatrolOptional);
+    gdi.addItem(name, lang.tl("Patrull, 1 SI-pinne"), PPatrolOneSI);
+  }
+  if (hasRelay)
+    gdi.addItem(name, lang.tl("Stafett"), PRelay);
+  if (hasMulti)
+    gdi.addItem(name, lang.tl("Tvåmannastafett"), PTwinRelay);
+  if (hasRelay)
+    gdi.addItem(name, lang.tl("Extralöparstafett"), PYouthRelay);
 }
 
-void oEvent::setupRelayInfo(PredefinedTypes type, bool &useNLeg, bool &useStart) 
+void oEvent::setupRelayInfo(PredefinedTypes type, bool &useNLeg, bool &useStart)
 {
   useNLeg = false;
   useStart = false;
@@ -353,7 +377,7 @@ void oEvent::setupRelayInfo(PredefinedTypes type, bool &useNLeg, bool &useStart)
   }
 }
 
-void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const string &start) 
+void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const string &start)
 {
   // Make sure we are up-to-date
   autoSynchronizeLists(false);
@@ -500,7 +524,7 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
         cls.setRestartTime(k, "-");
         cls.setRopeTime(k, "-");
 
-        if(k>=2)
+        if (k>=2)
           cls.setLegRunner(k, k%2);
       }
 
@@ -563,7 +587,7 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     default:
       throw std::exception("Bad setup number");
   }
-
+  cls.apply();
   cls.synchronize(true);
   adjustTeamMultiRunners(&cls);
 }
@@ -588,7 +612,7 @@ void oEvent::adjustTeamMultiRunners(pClass cls)
     }
 
     vector<int> tr;
-    for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {	
+    for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {
       if (!multi && !it->isRemoved() && it->getClassId() == cls->getId()) {
         tr.push_back(it->getId());
       }
@@ -600,8 +624,8 @@ void oEvent::adjustTeamMultiRunners(pClass cls)
   }
   disableRecalculate = true;
   try {
-    for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {	
-      it->adjustMultiRunners(true);       
+    for (oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {
+      it->adjustMultiRunners(true);
     }
   }
   catch(...) {
@@ -611,8 +635,8 @@ void oEvent::adjustTeamMultiRunners(pClass cls)
   disableRecalculate = false;
 }
 
-bool oTeam::adjustMultiRunners(bool sync) 
-{ 
+bool oTeam::adjustMultiRunners(bool sync)
+{
   if (!Class)
     return false;
 
@@ -620,19 +644,19 @@ bool oTeam::adjustMultiRunners(bool sync)
     setRunnerInternal(k, 0);
   }
 
-  if(Class && Runners.size() != size_t(Class->getNumStages())) {
+  if (Class && Runners.size() != size_t(Class->getNumStages())) {
     Runners.resize(Class->getNumStages());
     updateChanged();
   }
 
   // Create multi runners.
-	for (size_t i=0;i<Runners.size(); i++) {
+  for (size_t i=0;i<Runners.size(); i++) {
     if (!Runners[i] && Class) {
        unsigned lr = Class->getLegRunner(i);
-        
-       if(lr<i && Runners[lr]) {
+
+       if (lr<i && Runners[lr]) {
          Runners[lr]->createMultiRunner(true, sync);
-         int dup=Class->getLegRunnerIndex(i); 
+         int dup=Class->getLegRunnerIndex(i);
          Runners[i]=Runners[lr]->getMultiRunner(dup);
        }
     }
@@ -655,7 +679,7 @@ void oEvent::makeUniqueTeamNames() {
         continue;
       teams[it->Name].push_back(&*it);
     }
- 
+
     for (map<string, list<pTeam> >::iterator it = teams.begin(); it != teams.end(); ++it) {
       list<pTeam> &t = it->second;
       if (t.size() > 1) {
@@ -672,4 +696,14 @@ void oEvent::makeUniqueTeamNames() {
       }
     }
   }
+}
+
+void oTeam::changeId(int newId) {
+  pTeam old = oe->teamById[Id];
+  if (old == this)
+    oe->teamById.remove(Id);
+
+  oBase::changeId(newId);
+
+  oe->teamById[newId] = this;
 }

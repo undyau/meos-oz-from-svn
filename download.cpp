@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -39,27 +39,27 @@
 
 Download::Download()
 {
-	hThread = 0;
-	doExit = false;
-//	hProgress = NULL;
+  hThread = 0;
+  doExit = false;
+//hProgress = NULL;
 
   fileno = 0;
-	hInternet = NULL;
-	hURL = NULL;
+  hInternet = NULL;
+  hURL = NULL;
 
-	bytesLoaded = 0;
-	bytesToLoad = 1024;
+  bytesLoaded = 0;
+  bytesToLoad = 1024;
 
-	success = false;
+  success = false;
 }
 
 Download::~Download()
 {
-	shutDown();
-	endDownload();
+  shutDown();
+  endDownload();
 
-	if(hInternet)
-		InternetCloseHandle(hInternet);
+  if (hInternet)
+    InternetCloseHandle(hInternet);
 
 	for (unsigned int i = 0 ; i < usedBuffers.size(); i++)
 		delete usedBuffers[i];
@@ -67,95 +67,95 @@ Download::~Download()
 
 void __cdecl SUThread(void *ptr)
 {
-	Download *dwl=(Download *)ptr;
-	dwl->initThread();	
+  Download *dwl=(Download *)ptr;
+  dwl->initThread();
 }
 
-bool Download::createDownloadThread() {	
-	doExit=false;
-	hThread=_beginthread(SUThread, 0, this);
+bool Download::createDownloadThread() {
+  doExit=false;
+  hThread=_beginthread(SUThread, 0, this);
 
-	if(hThread==-1)	{
-		hThread=0;
-		return false;
-	}
+  if (hThread==-1) {
+    hThread=0;
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 void Download::shutDown()
 {
-	if(hThread)	{
-		doExit=true;
+  if (hThread) {
+    doExit=true;
 
-		int m=0;
-		while(m<100 && hThread) {
-			Sleep(0);
-			Sleep(10);
-			m++;
-		}
-		//If unsuccessful ending thread, do it violently
-		if(hThread) {
-			OutputDebugString("Terminate thread...\n");
-			TerminateThread(HANDLE(hThread), 0);
-			CloseHandle(HANDLE(hThread));					   			
-		}
-		hThread=0;
-	}
+    int m=0;
+    while(m<100 && hThread) {
+      Sleep(0);
+      Sleep(10);
+      m++;
+    }
+    //If unsuccessful ending thread, do it violently
+    if (hThread) {
+      OutputDebugString("Terminate thread...\n");
+      TerminateThread(HANDLE(hThread), 0);
+      CloseHandle(HANDLE(hThread));
+    }
+    hThread=0;
+  }
 
 }
 
 void Download::initThread()
 {
-	int status = true;
-	while(!doExit && status)	{
-		status = doDownload();
-	}
-	hThread=0;
+  int status = true;
+  while(!doExit && status) {
+    status = doDownload();
+  }
+  hThread=0;
 }
 
 void Download::initInternet() {
-	hInternet = InternetOpen("MeOS", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+  hInternet = InternetOpen("MeOS", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
 
-	if(hInternet==NULL)	{
-		DWORD ec = GetLastError();
+  if (hInternet==NULL) {
+    DWORD ec = GetLastError();
     string error = lang.tl("Error: X#" + getErrorMessage(ec));
     throw std::exception(error.c_str());
-	}
+  }
 }
 
 void Download::downloadFile(const string &url, const string &file, const vector< pair<string, string> > &headers)
-{		 
-	if(hURL || !hInternet) 
+{
+  if (hURL || !hInternet)
     throw std::exception("Not inititialized");
 
-	success = false;
+  success = false;
 
   string hdr;
   for (size_t k = 0; k<headers.size(); k++)
-    hdr += headers[k].first + ": " + headers[k].second + "\r\n"; 
+    hdr += headers[k].first + ": " + headers[k].second + "\r\n";
 
   string url2 = url;
   hURL = InternetOpenUrl(hInternet, url2.c_str(), hdr.empty() ? 0 : hdr.c_str(), hdr.length(), INTERNET_FLAG_DONT_CACHE, 0);
 
-	if (!hURL) {		
+  if (!hURL) {
     int err = GetLastError();
     string msg2 = getErrorMessage(err);
-		DWORD em = 0, blen = 256;
+    DWORD em = 0, blen = 256;
     char bf2[256];
-		InternetGetLastResponseInfo(&em, bf2, &blen);
+    InternetGetLastResponseInfo(&em, bf2, &blen);
     string msg = "Failed to connect to: " + url;
     msg += " " + msg2;
     if (bf2[0] != 0)
       msg += " (" + string(bf2) + ")";
     throw std::exception(msg.c_str());
-	}
+  }
 
 
-	DWORD dwContentLen = 0;
+  DWORD dwContentLen = 0;
   DWORD dwBufLen = sizeof(dwContentLen);
-  BOOL success = HttpQueryInfo(hURL, 
-                          HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER, 
+  BOOL success = HttpQueryInfo(hURL,
+                          HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER,
                           (LPVOID)&dwContentLen, &dwBufLen, 0);
 
   if (success)
@@ -190,79 +190,79 @@ void Download::downloadFile(const string &url, const string &file, const vector<
         case HTTP_STATUS_SERVER_ERROR:
           sprintf_s(bf, "HTTP Error 500: Internt serverfel (server error).");
           break;
-        default: 
+        default:
           sprintf_s(bf, "HTTP Status Error %d", dwStatus);
-      }      
+      }
       throw dwException(bf, dwStatus);
     }
   }
 
   fileno=_open(file.c_str(), O_BINARY|O_CREAT|O_WRONLY|O_TRUNC, S_IREAD|S_IWRITE);
 
-	if(fileno==-1)	{
-		fileno=0;
-		endDownload();
-		char bf[256];
+  if (fileno==-1) {
+    fileno=0;
+    endDownload();
+    char bf[256];
     sprintf_s(bf, "Error opening '%s' for writing", file.c_str());
     throw std::exception(bf);
-	}
+  }
 
-	bytesLoaded = 0;
-	return;
+  bytesLoaded = 0;
+  return;
 }
 
 void Download::endDownload()
 {
-	if(hURL && hInternet)	{
-		InternetCloseHandle(hURL);
-		hURL=NULL;
-	}
+  if (hURL && hInternet) {
+    InternetCloseHandle(hURL);
+    hURL=NULL;
+  }
 
-	if (fileno)	{
-		_close(fileno);
-		fileno=0;
-	}
+  if (fileno) {
+    _close(fileno);
+    fileno=0;
+  }
 }
 
 bool Download::doDownload()
 {
-	if(hURL && hInternet)	{
-		char buffer[512];
+  if (hURL && hInternet) {
+    char buffer[512];
 
-		DWORD bRead;
-		if(InternetReadFile(hURL, buffer, 512, &bRead)) {
-			//Success!
-			if(bRead==0) {					
-				//EOF
-				success=true;
-				endDownload();
-			}
-			else{
-				if(_write(fileno, buffer, bRead) != int(bRead)) {
-					endDownload();
+    DWORD bRead;
+    if (InternetReadFile(hURL, buffer, 512, &bRead)) {
+      //Success!
+      if (bRead==0) {
+        //EOF
+        success=true;
+        endDownload();
+      }
+      else{
+        if (_write(fileno, buffer, bRead) != int(bRead)) {
+          endDownload();
           return false;
-				}
-				bytesLoaded+=bRead;
-				return true;
-			}	
-		}	
-	}	
-	return false;
+        }
+        bytesLoaded+=bRead;
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 void Download::setBytesToDownload(DWORD btd)
 {
-	bytesToLoad = btd;
+  bytesToLoad = btd;
 }
 
 bool Download::isWorking()
 {
-	return hThread!=0;
+  return hThread!=0;
 }
 
 bool Download::successful()
 {
-	return success;
+  return success;
 }
 
 void Download::postFile(const string &url, const string &file, const string &fileOut,
@@ -301,16 +301,16 @@ void Download::postFile(const string &url, const string &file, const string &fil
   InternetCloseHandle(hConnect);
 
   if (!success) {
- 		DWORD ec = GetLastError();
+    DWORD ec = GetLastError();
 
     string error = ec != 0 ? getErrorMessage(ec) : "";
     if (error.empty())
-      "Ett okänt fel inträffade.";
+      error = "Ett okänt fel inträffade.";
     throw std::exception(error.c_str());
   }
  }
 
-bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest, 
+bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
                              const vector< pair<string, string> > &headers,
                              const string &upFile, const string &outFile, ProgressWindow &pw) const {
   INTERNET_BUFFERS BufferIn;
@@ -324,26 +324,16 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
   BYTE pBuffer[4*1024]; // Read from file in 4K chunks
 
   string hdr;
-  for (size_t k = 0; k<headers.size(); k++)
-    hdr += headers[k].first + ": " + headers[k].second + "\r\n"; 
-  /*
-  HttpSendRequest(hRequest, hdr.c_str(), hdr.length(), NULL, 0);
-  
-  // at this point normal authentication logic can be used. If
-  // credentials are supplied in InternetConnect, then Wininet will
-  // resubmit credentials itself.  See HttpDump Internet Client SDK sample
-  // for more information. 
-
-  // Read all returned data with InternetReadFile () 
-  do {
-    InternetReadFile (hRequest, pBuffer, sizeof(pBuffer), &dwBytesRead);
+  for (size_t k = 0; k<headers.size(); k++) {
+    if (!trim(headers[k].second).empty()) {
+      hdr += headers[k].first + ": " + headers[k].second + "\r\n";
+    }
   }
-  while (dwBytesRead != 0);
-  */
+
   int retry = 5;
   while (retry>0) {
 
-    HANDLE hFile = CreateFile(upFile.c_str(), GENERIC_READ, FILE_SHARE_READ, 
+    HANDLE hFile = CreateFile(upFile.c_str(), GENERIC_READ, FILE_SHARE_READ,
                               NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (hFile == HANDLE(-1))
@@ -356,7 +346,7 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
 
     double totSize = BufferIn.dwBufferTotal;
 
-    if(!HttpSendRequestEx( hRequest, &BufferIn, NULL, 0, 0)) {
+    if (!HttpSendRequestEx( hRequest, &BufferIn, NULL, 0, 0)) {
       CloseHandle(hFile);
       InternetCloseHandle(hRequest);
       return false;
@@ -391,10 +381,10 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
     while (dwBytesRead == sizeof(pBuffer)) ;
 
     CloseHandle(hFile);
-    
+
     if (!HttpEndRequest(hRequest, NULL, 0, 0)) {
       DWORD error = GetLastError();
-      if (error == ERROR_INTERNET_FORCE_RETRY)      
+      if (error == ERROR_INTERNET_FORCE_RETRY)
         retry--;
       else if (error == ERROR_INTERNET_TIMEOUT) {
         throw std::exception("Fick inget svar i tid (ERROR_INTERNET_TIMEOUT)");
@@ -435,20 +425,20 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
         case HTTP_STATUS_SERVER_ERROR:
           sprintf_s(bf, "HTTP Error 500: Internt serverfel (server error).");
           break;
-        default: 
+        default:
           sprintf_s(bf, "HTTP Status Error %d", dwStatus);
-      }      
+      }
       throw dwException(bf, dwStatus);
     }
   }
-  
+
   int fileno = _open(outFile.c_str(), O_BINARY|O_CREAT|O_WRONLY|O_TRUNC, S_IREAD|S_IWRITE);
 
-	do {	
+  do {
     dwBytesRead=0;
-		if(InternetReadFile(hRequest, pBuffer, sizeof(pBuffer)-1, &dwBytesRead)) {
+    if (InternetReadFile(hRequest, pBuffer, sizeof(pBuffer)-1, &dwBytesRead)) {
       _write(fileno, pBuffer, dwBytesRead);
-	  }
+    }
   } while(dwBytesRead>0);
 
   _close(fileno);

@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -50,7 +50,7 @@ static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &T
     fout << "td.e1 {background-color: rgb(245,245,255)}\n";
     fout << "td.header {line-height:1.8;height:40px}\n";
     fout << "td.freeheader {line-height:1.2}\n";
-  }  
+  }
   list<TextInfo>::const_iterator it=TL.begin();
   int styleList = 1;
   while (it != TL.end()) {
@@ -58,7 +58,7 @@ static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &T
 
     if (!it->font.empty() || (font == italicMediumPlus)
                           || (font == fontMediumPlus)) {
-      
+
       if (styles.find(make_pair(font, it->font)) != styles.end()) {
         ++it;
         continue;
@@ -66,7 +66,7 @@ static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &T
 
       string style = "sty" + itos(styleList++);
       string element = "div";
-      double baseSize = 12; 
+      double baseSize = 12;
       switch (font) {
         case boldHuge:
           element = "h1";
@@ -100,7 +100,7 @@ static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &T
       else
         scale = getLocalScale(it->font, faceName);
 
-      fout << element << "." <<  style 
+      fout << element << "." <<  style
            << "{font-family:" << faceName << ";font-size:"
            << itos(int(floor(scale * baseSize + 0.5)))
            << "px;font-weight:normal;white-space:nowrap}\n";
@@ -108,11 +108,11 @@ static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &T
       styles[make_pair(font, it->font)] = make_pair(element, style);
     }
     ++it;
-  }  
+  }
   fout << "</style>\n";
 }
 
-static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &styles, 
+static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &styles,
                      gdiFonts font, const string &face, const string &extraStyle, string &starttag, string &endtag) {
   starttag.clear();
   endtag.clear();
@@ -134,7 +134,7 @@ static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &
 
   if (res != styles.end()) {
     const pair<string, string> &stylePair = res->second;
-    
+
     if (!stylePair.first.empty()) {
       starttag = "<" + stylePair.first;
       if (!stylePair.second.empty())
@@ -175,7 +175,7 @@ static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &
     if (element.size()>0) {
       starttag = "<" + element + extraStyle + ">";
     }
-    
+
     if (!extra.empty()) {
       starttag += "<" + extra + ">";
       endtag = "</" + extra + ">";
@@ -187,24 +187,28 @@ static void getStyle(const map< pair<gdiFonts, string>, pair<string, string> > &
   }
 }
 
-bool gdioutput::writeHTML(const wstring &file, const string &title) const
+bool gdioutput::writeHTML(const wstring &file, const string &title, int refreshTimeOut) const
 {
   ofstream fout(file.c_str());
 
-  if(fout.bad())
+  if (fout.bad())
     return false;
 
 
   fout << "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" <<
-	        "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
-	
+          "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
+
   fout << "<html>\n<head>\n";
   fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n";
+  if (refreshTimeOut > 0)
+    fout << "<meta http-equiv=\"refresh\" content=\"" << refreshTimeOut << "\">\n";
+
+
   fout << "<title>" << toUTF8(title) << "</title>\n";
 
   map< pair<gdiFonts, string>, pair<string, string> > styles;
   generateStyles(fout, false, TL, styles);
-  
+
 /*
   fout << "<style type=\"text/css\">\n";
   fout << "body {background-color: rgb(250, 250,255)}\n";
@@ -224,7 +228,7 @@ bool gdioutput::writeHTML(const wstring &file, const string &title) const
   double xscale = 1.1;
   while (it!=TL.end()) {
     string estyle;
-    if(it->format!=1 && it->format!=boldSmall) {
+    if (it->format!=1 && it->format!=boldSmall) {
       if (it->format & textRight)
         estyle = " style=\"position:absolute;left:" +
             itos(int(xscale *it->xp)) + "px;top:"  + itos(int(yscale*it->yp)) + "px\"";
@@ -234,11 +238,11 @@ bool gdioutput::writeHTML(const wstring &file, const string &title) const
 
     }
     else {
-      if (it->format & textRight) 
-         estyle = " style=\"font-weight:bold;position:absolute;left:" +  
+      if (it->format & textRight)
+         estyle = " style=\"font-weight:bold;position:absolute;left:" +
               itos(int(xscale *it->xp)) + "px;top:" + itos(int(yscale*it->yp)) +  "px\"";
       else
-         estyle = " style=\"font-weight:bold;position:absolute;left:" + 
+         estyle = " style=\"font-weight:bold;position:absolute;left:" +
               itos(int(xscale *it->xp)) + "px;top:" + itos(int(yscale*it->yp)) + "px\"";
     }
     string starttag, endtag;
@@ -251,15 +255,15 @@ bool gdioutput::writeHTML(const wstring &file, const string &title) const
   }
 
   fout << "<p style=\"position:absolute;left:10px;top:" <<  int(yscale*MaxY)+15 << "px\">";
-  
+
   char bf1[256];
-	char bf2[256];
+  char bf2[256];
   GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
-	GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
-  //fout << "Skapad av <i>MeOS</i>: " << bf1 << " "<< bf2 << "\n";	
-  fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS</i></a>: " << bf1 << " "<< bf2 << "\n";	
+  GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
+  //fout << "Skapad av <i>MeOS</i>: " << bf1 << " "<< bf2 << "\n";
+  fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS</i></a>: " << bf1 << " "<< bf2 << "\n";
   fout << "</p>\n";
-  
+
   fout << "</body>\n";
   fout << "</html>\n";
 
@@ -268,7 +272,7 @@ bool gdioutput::writeHTML(const wstring &file, const string &title) const
 
 string html_table_code(const string &in)
 {
-  if(in.size()==0)
+  if (in.size()==0)
     return "&nbsp;";
   else {
     return encodeXML(in);
@@ -281,27 +285,29 @@ bool sortTL_X(const TextInfo *a, const TextInfo *b)
 }
 
 
-bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
+bool gdioutput::writeTableHTML(const wstring &file, const string &title, int refreshTimeOut) const
 {
   ofstream fout(file.c_str());
 
-  if(fout.bad())
+  if (fout.bad())
     return false;
 
   fout << "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" <<
-	        "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
-	
+          "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
+
   fout << "<html>\n<head>\n";
   fout << "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n";
+  if (refreshTimeOut > 0)
+    fout << "<meta http-equiv=\"refresh\" content=\"" << refreshTimeOut << "\">\n";
   fout << "<title>" << toUTF8(title) << "</title>\n";
 
   map< pair<gdiFonts, string>, pair<string, string> > styles;
   generateStyles(fout, true, TL, styles);
-  
+
   fout << "</head>\n";
 
   fout << "<body>\n";
-  
+
   list<TextInfo>::const_iterator it = TL.begin();
   map<int,int> tableCoordinates;
 
@@ -314,7 +320,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
   map<int, int>::iterator mit=tableCoordinates.begin();
   int k=0;
 
-  while (mit!=tableCoordinates.end()) {  
+  while (mit!=tableCoordinates.end()) {
     mit->second=k++;
     ++mit;
   }
@@ -323,7 +329,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
   vector<bool> sizeSet(k+1, false);
 
   fout << "<table cellspacing=\"0\" border=\"0\">\n";
-  
+
   int linecounter=0;
   it=TL.begin();
 
@@ -341,7 +347,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
     int header = 0;
     int mainheader = 0;
     while (it!=TL.end() && it->yp==y) {
-      if(!gdioutput::skipTextRender(it->format)) {        
+      if (!gdioutput::skipTextRender(it->format)) {
         row.push_back(&*it);
         switch (it->getGdiFont()) {
           case fontLarge:
@@ -362,16 +368,16 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
             normal++;
         }
       }
-      ++it;      
-    } 
-   
-    if(row.empty())
+      ++it;
+    }
+
+    if (row.empty())
       continue;
 
     bool isMainHeader = mainheader > normal;
     bool isHeader = (header + mainheader) > normal;
     bool isSub = subnormal > normal;
-  
+
     sort(row.begin(), row.end(), sortTL_X);
     rows.resize(rows.size() + 1);
     rows.back().first = isMainHeader ? 1 : (isHeader ? 2 : (isSub ? 3 : 0));
@@ -394,9 +400,9 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
     int type = rows[gCount].first;
     int lastType = gCount > 0 ? rows[gCount-1].first : 0;
     int nextType = gCount + 1 < rows.size() ? rows[gCount + 1].first : 0;
-    if (type == 0 && (lastType == 1 || lastType == 2) && (nextType == 1 || nextType == 2)) 
+    if (type == 0 && (lastType == 1 || lastType == 2) && (nextType == 1 || nextType == 2))
       continue; // No reclassify
-    
+
     int h = ypRow[gCount] - ypRow[gCount-1];
     if (h > hdrLimit && rows[gCount].first == 0)
       rows[gCount].first = 2;
@@ -409,7 +415,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
     int type = rows[gCount].first;
     int lastType = gCount > 0 ? rows[gCount-1].first : 0;
     int nextType = gCount + 1 < rows.size() ? rows[gCount + 1].first : 0;
-    
+
     vector<const TextInfo *>::iterator rit;
     fout << "<tr>" << endl;
 
@@ -427,7 +433,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
 
       if ((lastType == 1 || lastType == 2) && (nextType == 1 || nextType == 2) && row.size() < 3) {
         lineclass = "";
-      } 
+      }
       else
         lineclass = (linecounter&1) ? " class=\"e1\"" : " class=\"e0\"";
 
@@ -437,11 +443,11 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
     for (size_t k=0;k<row.size();k++) {
       int thisCol=tableCoordinates[row[k]->xp];
 
-      if (k==0 && thisCol!=0) 
+      if (k==0 && thisCol!=0)
         fout << "<td" << lineclass << " colspan=\"" << thisCol << "\">&nbsp;</td>";
 
-      int nextCol;      
-      if(row.size()==k+1)
+      int nextCol;
+      if (row.size()==k+1)
         nextCol=tableCoordinates.rbegin()->second;
       else
         nextCol=tableCoordinates[row[k+1]->xp];
@@ -452,19 +458,19 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
 
       string style;
 
-      if(row[k]->format&textRight)
+      if (row[k]->format&textRight)
         style=" style=\"text-align:right\"";
 
-      if(colspan==1 && !sizeSet[thisCol]) {        
-        fout << "  <td" << lineclass << style << " width=\"" << int( (k+1<row.size()) ? 
+      if (colspan==1 && !sizeSet[thisCol]) {
+        fout << "  <td" << lineclass << style << " width=\"" << int( (k+1<row.size()) ?
                         (row[k+1]->xp - row[k]->xp) : (MaxX-row[k]->xp)) << "\">";
         sizeSet[thisCol]=true;
       }
-      else if(colspan>1)
+      else if (colspan>1)
         fout << "  <td" << lineclass << style << " colspan=\"" << colspan << "\">";
       else
         fout << "  <td" << lineclass << style << ">";
-      
+
       gdiFonts font = row[k]->getGdiFont();
       string starttag, endtag;
       getStyle(styles, font, row[k]->font, "", starttag, endtag);
@@ -493,7 +499,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
         if (!style.second.empty())
           fout << " class=\"" << style.second << "\"";
         fout << ">";
-        
+
         if (!extra.empty())
           fout << "<" << extra << ">";
 
@@ -526,7 +532,7 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
           case fontMedium:
             element="h3";
             break;
-        }    
+        }
         assert(element.size()>0);
         if (element.size()>0) {
           fout << "<" << element << ">";
@@ -535,10 +541,10 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
         else {
           fout << html_table_code(row[k]->text) << "</td>";
         }
-      }*/       
+      }*/
     }
     fout << "</tr>\n";
-     
+
     row.clear();
 /*
     string element="p";
@@ -562,21 +568,21 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
       break;
     }
 
-    if(it->format!=1 && it->format!=boldSmall) {
+    if (it->format!=1 && it->format!=boldSmall) {
       if (it->format & textRight)
-        fout << "<" << element << " style=\"position:absolute;right:" 
+        fout << "<" << element << " style=\"position:absolute;right:"
             << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
       else
-        fout << "<" << element << " style=\"position:absolute;left:" 
+        fout << "<" << element << " style=\"position:absolute;left:"
             << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
 
     }
     else {
-      if (it->format & textRight) 
-        fout << "<" << element << " style=\"font-weight:bold;position:absolute;right:" 
+      if (it->format & textRight)
+        fout << "<" << element << " style=\"font-weight:bold;position:absolute;right:"
               << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
       else
-        fout << "<" << element << " style=\"font-weight:bold;position:absolute;left:" 
+        fout << "<" << element << " style=\"font-weight:bold;position:absolute;left:"
               << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
     }
     fout << it->text;
@@ -586,16 +592,16 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title) const
 
   fout << "</table>\n";
 
-  fout << "<br><p>";  
+  fout << "<br><p>";
   char bf1[256];
-	char bf2[256];
+  char bf2[256];
   GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
-	GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
+  GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
   string meos = getMeosCompectVersion();
   fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS "
-       << meos << "</i></a>: " << bf1 << " "<< bf2 << "\n";	
+       << meos << "</i></a>: " << bf1 << " "<< bf2 << "\n";
   fout << "</p><br>\n";
-  
+
   fout << "</body>\n";
   fout << "</html>\n";
 

@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <map>
@@ -52,15 +52,15 @@ struct SICard;
 
 class oAbstractRunner : public oBase {
 protected:
-  string Name;	
-	pClub Club;
-	pClass Class;
+  string Name;
+  pClub Club;
+  pClass Class;
 
-	int startTime;
+  int startTime;
   int tStartTime;
-  
-	int FinishTime;
-	RunnerStatus status;
+
+  int FinishTime;
+  RunnerStatus status;
   RunnerStatus tStatus;
 
   /** Temporary storage for set operations to be applied later*/
@@ -75,11 +75,57 @@ protected:
 
   void resetTmpStore();
 
+public:
+
+  struct TempResult {
+  private:
+    int startTime;
+    int runningTime;
+    int timeAfter;
+    int points;
+    int place;
+    vector<int> outputTimes;
+    vector<int> outputNumbers;
+    RunnerStatus status;
+    void reset();
+    TempResult();
+  public:
+    int getRunningTime() const {return runningTime;}
+    int getFinishTime() const {return runningTime > 0 ? startTime + runningTime : 0;}
+    int getStartTime() const {return startTime;}
+    int getTimeAfter() const {return timeAfter;}
+    int getPoints() const {return points;}
+    int getPlace() const {return place;}
+    RunnerStatus getStatus() const {return status;}
+
+    const string &getStatusS() const;
+    const string &getPrintPlaceS(bool withDot) const;
+    const string &getRunningTimeS() const;
+    const string &getFinishTimeS(const oEvent *oe) const;
+    const string &getStartTimeS(const oEvent *oe) const;
+
+    const string &getOutputTime(int ix) const;
+    int getOutputNumber(int ix) const;
+
+    friend class GeneralResult;
+    friend class oAbstractRunner;
+    friend class oEvent;
+    friend class DynamicResult;
+    TempResult(RunnerStatus statusIn, int startTime, 
+               int runningTime, int points);
+  };
+
+protected:
+  TempResult tmpResult;
+
   // Sets result to object. Returns true if status/time changed
   bool setTmpStore();
 
- 	//Used for automatically assigning courses form class. 
-	//Set when drawn or by team or...
+  mutable int tTimeAdjustment;
+  mutable int tPointAdjustment;
+  mutable int tAdjustDataRevision;
+  //Used for automatically assigning courses form class.
+  //Set when drawn or by team or...
   int StartNo;
 
   // Data used for multi-days events
@@ -98,19 +144,30 @@ public:
 
   virtual string getEntryDate(bool useTeamEntryDate = true) const = 0;
 
-  // Set default fee, from class 
+  // Set default fee, from class
   // a non-zero fee is changed only if resetFee is true
   void addClassDefaultFee(bool resetFees);
 
   bool hasInputData() const {return inputTime > 0 || inputStatus != StatusOK || inputPoints > 0;}
 
+  /** Reset input data to no input and the input status to NotCompeting. */
+  void resetInputData();
+
+  /** Return results for a specific result module. */
+  const TempResult &getTempResult(int tempResultIndex) const;
+  TempResult &getTempResult();
+ 
+  void setTempResultZero(const TempResult &tr);
+
   // Time
   void setInputTime(const string &time);
   string getInputTimeS() const;
+  int getInputTime() const {return inputTime;}
 
   // Status
   void setInputStatus(RunnerStatus s);
   string getInputStatusS() const;
+  RunnerStatus getInputStatus() const {return inputStatus;}
 
   // Points
   void setInputPoints(int p);
@@ -121,7 +178,7 @@ public:
   int getInputPlace() const {return inputPlace;}
 
   bool isVacant() const;
-  
+
   bool wasSQLChanged() const {return sqlChanged;}
 
   /** Use -1 for all, PunchFinish or controlId */
@@ -135,18 +192,18 @@ public:
   virtual int getTimeAfter(int leg) const = 0;
 
 
-  virtual void fillSpeakerObject(int leg, int controlId, 
+  virtual void fillSpeakerObject(int leg, int controlCourseId, int previousControlCourseId, bool totalResult,
                                  oSpeakerObject &spk) const = 0;
 
   virtual int getBirthAge() const;
 
   virtual void setName(const string &n);
-	virtual const string &getName() const {return Name;}
+  virtual const string &getName() const {return Name;}
 
   virtual void setFinishTimeS(const string &t);
-  virtual	void setFinishTime(int t);	
+  virtual	void setFinishTime(int t);
 
-  /** Sets start time, if updatePermanent is true, the stored start time is updated, 
+  /** Sets start time, if updatePermanent is true, the stored start time is updated,
   otherwise the value is considered deduced. */
   bool setStartTime(int t, bool updatePermanent, bool setTmpOnly, bool recalculate = true);
   void setStartTimeS(const string &t);
@@ -157,16 +214,16 @@ public:
   const pClass getClassRef() const {return Class;}
   pClass getClassRef() {return Class;}
 
-  virtual const string &getClub() const {if(Club) return Club->name; else return _EmptyString;}
-	virtual int getClubId() const {if(Club) return Club->Id; else return 0;}
-	virtual void setClub(const string &Name);
+  virtual const string &getClub() const {if (Club) return Club->name; else return _EmptyString;}
+  virtual int getClubId() const {if (Club) return Club->Id; else return 0;}
+  virtual void setClub(const string &Name);
   virtual pClub setClubId(int clubId);
 
-	virtual const string &getClass() const {if(Class) return Class->Name; else return _EmptyString;}
-	virtual int getClassId() const {if(Class) return Class->Id; else return 0;}
-	virtual void setClassId(int id);
-	virtual int getStartNo() const {return StartNo;}
-	virtual void setStartNo(int no, bool storeTmpOnly);
+  virtual const string &getClass() const {if (Class) return Class->Name; else return _EmptyString;}
+  virtual int getClassId() const {if (Class) return Class->Id; else return 0;}
+  virtual void setClassId(int id);
+  virtual int getStartNo() const {return StartNo;}
+  virtual void setStartNo(int no, bool storeTmpOnly);
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.
@@ -174,58 +231,71 @@ public:
   virtual void setBib(const string &bib, bool updateStartNo, bool setTmpOnly) = 0;
   int getEncodedBib() const;
 
-	virtual int getStartTime() const {return tStartTime;}
-	virtual int getFinishTime() const {return FinishTime;}
+  virtual int getStartTime() const {return tStartTime;}
+  virtual int getFinishTime() const {return FinishTime;}
 
-	virtual string getStartTimeS() const;
-  virtual string getStartTimeCompact() const;
-	virtual string getFinishTimeS() const;
+  int getFinishTimeAdjusted() const {return getFinishTime() + getTimeAdjustment();}
 
-  virtual	string getTotalRunningTimeS() const;
+  virtual int getRogainingPoints(bool multidayTotal) const = 0;
+  virtual int getRogainingReduction() const = 0;
+  virtual int getRogainingOvertime() const = 0;
+
+  virtual const string &getStartTimeS() const;
+  virtual const string &getStartTimeCompact() const;
+  virtual const string &getFinishTimeS() const;
+
+  virtual	const string &getTotalRunningTimeS() const;
   virtual	const string &getRunningTimeS() const;
-  virtual int getRunningTime() const {return max(FinishTime-tStartTime, 0);}
+  virtual int getRunningTime() const;
 
   /// Get total running time (including earlier stages / races)
   virtual int getTotalRunningTime() const;
 
   virtual int getPrelRunningTime() const;
-	virtual string getPrelRunningTimeS() const;
-  
-	virtual string getPlaceS() const;
-	virtual string getPrintPlaceS() const;
+  virtual string getPrelRunningTimeS() const;
+
+  virtual string getPlaceS() const;
+  virtual string getPrintPlaceS(bool withDot) const;
 
   virtual string getTotalPlaceS() const;
-	virtual string getPrintTotalPlaceS() const;
-  
+  virtual string getPrintTotalPlaceS(bool withDot) const;
+
   virtual int getPlace() const = 0;
   virtual int getTotalPlace() const = 0;
 
   virtual RunnerStatus getStatus() const {return tStatus;}
   inline bool statusOK() const {return tStatus==StatusOK;}
+  inline bool prelStatusOK() const {return tStatus==StatusOK || (tStatus == StatusUnknown && getRunningTime() > 0);}
 
-  /** Sets the status. If updatePermanent is true, the stored start 
-    time is updated, otherwise the value is considered deduced. 
+  /** Sets the status. If updatePermanent is true, the stored start
+    time is updated, otherwise the value is considered deduced.
     if setTmp is true, the status is only stored in a temporary container.
     */
-	virtual bool setStatus(RunnerStatus st, bool updatePermanent, bool setTmp, bool recalculate = true);
+  virtual bool setStatus(RunnerStatus st, bool updatePermanent, bool setTmp, bool recalculate = true);
 
   /// Get total status for this running (including team/earlier races)
   virtual RunnerStatus getTotalStatus() const;
 
   virtual const string &getStatusS() const;
-	virtual string getIOFStatusS() const;
+  virtual string getIOFStatusS() const;
 
   virtual const string &getTotalStatusS() const;
-	virtual string getIOFTotalStatusS() const;
-
+  virtual string getIOFTotalStatusS() const;
 
   void setSpeakerPriority(int pri);
   virtual int getSpeakerPriority() const;
 
-  oAbstractRunner(oEvent *poe);
+  int getTimeAdjustment() const;
+  int getPointAdjustment() const;
+
+  void setTimeAdjustment(int adjust);
+  void setPointAdjustment(int adjust);
+
+  oAbstractRunner(oEvent *poe, bool loading);
   virtual ~oAbstractRunner() {};
 
   friend class oListInfo;
+  friend class GeneralResult;
 };
 
 struct RunnerDBEntry;
@@ -264,21 +334,21 @@ struct SplitData {
 class oRunner : public oAbstractRunner
 {
 protected:
-	//int clubId; //For DataBase Only.
-	pCourse Course;
+  //int clubId; //For DataBase Only.
+  pCourse Course;
 
-	int CardNo;
-	pCard Card;
-  
+  int CardNo;
+  pCard Card;
+
   vector<pRunner> multiRunner;
   vector<int> multiRunnerId;
 
   //Can be changed by apply
-	mutable int tPlace;
+  mutable int tPlace;
   mutable int tCoursePlace;
-	mutable int tTotalPlace;
+  mutable int tTotalPlace;
   mutable int tLeg;
-	mutable pTeam tInTeam;
+  mutable pTeam tInTeam;
   mutable pRunner tParentRunner;
   mutable bool tNeedNoCard;
   mutable bool tUseStartPunch;
@@ -291,17 +361,20 @@ protected:
   bool isTemporaryObject;
   int tTimeAfter; // Used in time line calculations, time after "last radio".
   int tInitialTimeAfter; // Used in time line calculations, time after when started.
-	//Speaker data
-	map<int, int> Priority;
-	int cPriority;
+  //Speaker data
+  map<int, int> priority;
+  int cPriority;
 
   static const int dataSize = 128;
   int getDISize() const {return dataSize;}
-	
-	BYTE oData[dataSize];
+
+  BYTE oData[dataSize];
   BYTE oDataOld[dataSize];
-  
+
   bool storeTimes(); // Returns true if best times were updated
+  
+  bool storeTimesAux(pClass targetClass); // Returns true if best times were updated
+  
   // Adjust times for fixed time controls
   void doAdjustTimes(pCourse course);
 
@@ -313,7 +386,7 @@ protected:
 
   string codeMultiR() const;
   void decodeMultiR(const string &r);
-  
+
   pRunner getPredecessor() const;
 
   void markForCorrection() {correctionNeeded = true;}
@@ -323,7 +396,7 @@ protected:
   vector<pRunner> getRunnersOrdered() const;
   int getMultiIndex(); //Returns the index into multi runners, 0 - n, -1 on error.
 
-  void exportIOFRunner(xmlparser &xml, bool compact); 
+  void exportIOFRunner(xmlparser &xml, bool compact);
   void exportIOFStart(xmlparser &xml);
 
   // Revision number of runners statistics cache
@@ -343,7 +416,8 @@ protected:
   // Rogainig results. Control and punch time
   vector< pair<pControl, int> > tRogaining;
   int tRogainingPoints;
-  int tPenaltyPoints;
+  int tReduction;
+  int tRogainingOvertime;
   string tProblemDescription;
   // Sets up mutable data above
   void setupRunnerStatistics() const;
@@ -385,6 +459,12 @@ public:
   // Multi day data input
   void setInputData(const oRunner &source);
 
+  // Returns true if the card number is suppossed to be transferred to the next stage
+  bool isTransferCardNoNextStage() const;
+
+  // Set wheather the card number should be transferred to the next stage
+  void setTransferCardNoNextStage(bool state);
+
   int getLegNumber() const {return tLeg;}
   int getSpeakerPriority() const;
 
@@ -396,13 +476,13 @@ public:
 
   /// Get total running time for multi/team runner at the given time
   int getTotalRunningTime(int time) const;
-  
+
   // Get total running time at finish time (@override)
   int getTotalRunningTime() const;
 
-  //Get total running time after leg 
+  //Get total running time after leg
   int getRaceRunningTime(int leg) const;
- 
+
 
   // Get the complete name, including team and club.
   string getCompleteIdentification() const;
@@ -413,14 +493,16 @@ public:
   // Return the runner in a multi-runner set matching the card, if course type is extra
   pRunner getMatchedRunner(const SICard &sic) const;
 
-  const int getRogainingPoints() const {return tRogainingPoints;}
-  const int getPenaltyPoints() const {return tPenaltyPoints;}
+  int getRogainingPoints(bool multidayTotal) const;
+  int getRogainingReduction() const;
+  int getRogainingOvertime() const;
+
   const string &getProblemDescription() const {return tProblemDescription;}
 
   // Leg statistics access methods
   string getMissedTimeS() const;
   string getMissedTimeS(int ctrlNo) const;
-   
+
   int getMissedTime(int ctrlNo) const;
   int getLegPlace(int ctrlNo) const;
   int getLegTimeAfter(int ctrlNo) const;
@@ -443,8 +525,8 @@ public:
   void init(const RunnerDBEntry &entry);
 
   /** Use db to pdate runner */
-  bool updateFromDB(const string &name, int clubId, int classId, 
-                    int cardNo, int birthYear);    
+  bool updateFromDB(const string &name, int clubId, int classId,
+                    int cardNo, int birthYear);
 
   void printSplits(gdioutput &gdi) const;
 	void printLabel(gdioutput &gdi) const;
@@ -475,11 +557,11 @@ public:
   // Synchronize this runner and parents/sibllings and team
   bool synchronizeAll();
 
-  void setFinishTime(int t);  
+  void setFinishTime(int t);
   int getTimeAfter(int leg) const;
   int getTimeAfter() const;
   int getTimeAfterCourse() const;
-  
+
   bool skip() const {return isRemoved() || tDuplicateLeg!=0;}
 
   pRunner getMultiRunner(int race) const;
@@ -488,7 +570,7 @@ public:
   int getRaceNo() const {return tDuplicateLeg;}
   string getNameAndRace() const;
 
-  void fillSpeakerObject(int leg, int controlId, 
+  void fillSpeakerObject(int leg, int courseControlId, int previousControlCourseId, bool totalResult,
                          oSpeakerObject &spk) const;
 
   bool needNoCard() const;
@@ -498,7 +580,7 @@ public:
 
   // Normalized = true means permuted to the unlooped version of the course
   const vector<SplitData> &getSplitTimes(bool normalized) const;
-  
+
   void getSplitAnalysis(vector<int> &deltaTimes) const;
   void getLegPlaces(vector<int> &places) const;
   void getLegTimeAfter(vector<int> &deltaTimes) const;
@@ -520,54 +602,55 @@ public:
   string getNamedSplitS(int controlNumber) const;
 
   void addTableRow(Table &table) const;
-  bool inputData(int id, const string &input, 
+  bool inputData(int id, const string &input,
                   int inputId, string &output, bool noUpdate);
   void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected);
 
-	bool apply(bool sync, pRunner src, bool setTmpOnly);
-	void resetPersonalData();
+  bool apply(bool sync, pRunner src, bool setTmpOnly);
+  void resetPersonalData();
 
-	//Local user data. No Update.
-	void SetPriority(int type, int p){Priority[type]=p;}
+  //Local user data. No Update.
+  void setPriority(int courseControlId, int p){priority[courseControlId]=p;}
 
-	string getGivenName() const;
-	string getFamilyName() const;
-	
-	pCourse getCourse(bool getAdaptedCourse) const;
-	string getCourseName() const;
+  string getGivenName() const;
+  string getFamilyName() const;
 
-	pCard getCard() const {return Card;}
-	int getCardId(){if(Card) return Card->Id; else return 0;}
+  pCourse getCourse(bool getAdaptedCourse) const;
+  string getCourseName() const;
 
-	bool operator<(const oRunner &c);
-	bool static CompareSINumber(const oRunner &a, const oRunner &b){return a.CardNo<b.CardNo;}
+  pCard getCard() const {return Card;}
+  int getCardId(){if (Card) return Card->Id; else return 0;}
 
-	bool evaluateCard(bool applyTeam, vector<int> &missingPunches, int addpunch=0, bool synchronize=false);
-	void addPunches(pCard card, vector<int> &missingPunches);
-	
-	void getSplitTime(int controlId, RunnerStatus &stat, int &rt) const;
+  bool operator<(const oRunner &c);
+  bool static CompareSINumber(const oRunner &a, const oRunner &b){return a.CardNo<b.CardNo;}
 
-	//const string &getClubNameDB() const {return ClubName;}
+  bool evaluateCard(bool applyTeam, vector<int> &missingPunches, int addpunch=0, bool synchronize=false);
+  void addPunches(pCard card, vector<int> &missingPunches);
 
-	//Returns only Id of a runner-specific course, not classcourse
-	int getCourseId() const {if(Course) return Course->Id; else return 0;}
-	void setCourseId(int id);
+  /** Get split time for a controlId and optionally controlIndex on course (-1 means unknown, uses the first occurance on course)*/
+  void getSplitTime(int courseControlId, RunnerStatus &stat, int &rt) const;
+
+  //const string &getClubNameDB() const {return ClubName;}
+
+  //Returns only Id of a runner-specific course, not classcourse
+  int getCourseId() const {if (Course) return Course->Id; else return 0;}
+  void setCourseId(int id);
 
   int getCardNo() const {return tParentRunner ? tParentRunner->CardNo : CardNo;}
-	void setCardNo(int card, bool matchCard, bool updateFromDatabase = false);
+  void setCardNo(int card, bool matchCard, bool updateFromDatabase = false);
   /** Sets the card to a given card. An existing card is marked as unpaired.
       CardNo is updated. Returns id of old card (or 0).
   */
   int setCard(int cardId);
 
-	void Set(const xmlobject &xo);
+  void Set(const xmlobject &xo);
 
-	bool Write(xmlparser &xml);
-	bool WriteSmall(xmlparser &xml);
+  bool Write(xmlparser &xml);
+  bool WriteSmall(xmlparser &xml);
 
-	oRunner(oEvent *poe);
+  oRunner(oEvent *poe);
   oRunner(oEvent *poe, int id);
-	
+
   void setSex(PersonSex sex);
   PersonSex getSex() const;
 
@@ -579,14 +662,14 @@ public:
   // Return true if the input name is considered equal to output name
   bool matchName(const string &pname) const;
 
-	virtual ~oRunner();
+  virtual ~oRunner();
 
-	friend class MeosSQL;
-	friend class oEvent;
-	friend class oTeam;
+  friend class MeosSQL;
+  friend class oEvent;
+  friend class oTeam;
   friend class oClass;
-	friend bool CompareRunnerSPList(const oRunner &a, const oRunner &b);
-	friend bool CompareRunnerResult(const oRunner &a, const oRunner &b);
+  friend bool CompareRunnerSPList(const oRunner &a, const oRunner &b);
+  friend bool CompareRunnerResult(const oRunner &a, const oRunner &b);
   friend bool compareClubClassTeamName(const oRunner &a, const oRunner &b);
   friend class RunnerDB;
   friend class oListInfo;

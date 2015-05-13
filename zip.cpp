@@ -82,7 +82,7 @@ int makedir (const char *newdir)
     while(index<buffer.length() && buffer[index] != '\\' && buffer[index] != '/')
       index++;
     char hold = buffer[index];
-  
+
     string sub = buffer.substr(0, index);
     if ((mymkdir(sub.c_str()) == -1) && (errno == ENOENT)) {
       throw std::exception("Error creating directories");
@@ -111,13 +111,13 @@ string do_extract_currentfile(unzFile uf, const string &baseDir, const char* pas
   err = unzGetCurrentFileInfo64(uf,&file_info,filename_inzip,sizeof(filename_inzip),NULL,0,NULL,0);
 
   if (err!=UNZ_OK)
-    throw std::exception(zipError); 
-  
+    throw std::exception(zipError);
+
   size_buf = WRITEBUFFERSIZE;
   vector<BYTE> byteBuff;
   byteBuff.resize(size_buf);
   buf = (void *)&byteBuff[0];
-  
+
   p = filename_withoutpath = filename_inzip;
   while ((*p) != '\0') {
     if (((*p)=='/') || ((*p)=='\\'))
@@ -126,7 +126,7 @@ string do_extract_currentfile(unzFile uf, const string &baseDir, const char* pas
   }
 
   if ((*filename_withoutpath)=='\0') {
-    if (createSubdir) 
+    if (createSubdir)
       mymkdir(filename_inzip);
   }
   else {
@@ -139,10 +139,10 @@ string do_extract_currentfile(unzFile uf, const string &baseDir, const char* pas
     err = unzOpenCurrentFilePassword(uf,password);
     if (err!=UNZ_OK)
       throw std::exception(zipError);
-    
+
     fout = fopen64(write_filename.c_str(),"wb");
 
-    // some zipfile doesn't contain directory alone before file 
+    // some zipfile doesn't contain directory alone before file
     if ((fout==NULL) && createSubdir &&
       (filename_withoutpath!=(char*)filename_inzip)) {
       char c=*(filename_withoutpath-1);
@@ -156,10 +156,10 @@ string do_extract_currentfile(unzFile uf, const string &baseDir, const char* pas
       string err = "Error opening" + write_filename;
       throw std::exception(err.c_str());
     }
-  
+
     do {
       err = unzReadCurrentFile(uf,buf,size_buf);
-      if (err<0) 
+      if (err<0)
         throw std::exception(zipError);
 
       if (err>0)
@@ -168,13 +168,13 @@ string do_extract_currentfile(unzFile uf, const string &baseDir, const char* pas
         }
     }
     while (err>0);
-    
+
     if (fout)
       fclose(fout);
 
     change_file_date(write_filename.c_str(),file_info.dosDate, file_info.tmu_date);
 
-    
+
     err = unzCloseCurrentFile (uf);
     if (err != UNZ_OK)
       throw std::exception(zipError);
@@ -216,7 +216,7 @@ void unzip(const char *zipfilename, const char *password, vector<string> &extrac
   fill_win32_filefunc64A(&ffunc);
   unzFile uf = unzOpen2_64(zipfilename,&ffunc);
 
-  if (uf==NULL) 
+  if (uf==NULL)
     throw std::exception("Cannot open zip file");
 
   string base = getTempPath();
@@ -229,14 +229,14 @@ void unzip(const char *zipfilename, const char *password, vector<string> &extrac
   do {
     target = base + "zip" + itos(id) + "\\";
     id++;
-  } 
+  }
   while ( access( target.c_str(), 0 ) == 0 );
-  
+
   if (CreateDirectory(target.c_str(), NULL) == 0)
     throw std::exception("Failed to create temporary folder");
 
   registerTempFile(target);
-  
+
   do_extract(uf, target.c_str(), password, extractedFiles);
 
   unzClose(uf);
@@ -321,7 +321,7 @@ int isLargeFile(const char* filename)
   if (pFile != NULL) {
     fseeko64(pFile, 0, SEEK_END);
     pos = ftello64(pFile);
-    if(pos >= 0xffffffff)
+    if (pos >= 0xffffffff)
       largeFile = 1;
     fclose(pFile);
   }
@@ -347,12 +347,12 @@ int zip(const char *zipfilename, const char *password, const vector<string> &fil
   fill_win32_filefunc64A(&ffunc);
   strcpy(filename_try, zipfilename);
   zf = zipOpen2_64(filename_try, 0,NULL, &ffunc);
-    
+
   if (zf == NULL) {
     sprintf_s(eb, "Error opening %s.",filename_try);
     throw std::exception(eb);
   }
-    
+
   for (size_t i=0; i < files.size(); i++) {
     FILE * fin;
     int size_read;
@@ -383,14 +383,14 @@ int zip(const char *zipfilename, const char *password, const vector<string> &fil
     }
 
     /*should the zip file contain any path at all?*/
-    if( opt_exclude_path ) {
+    if ( opt_exclude_path ) {
       const char *tmpptr;
       const char *lastslash = 0;
       for( tmpptr = savefilenameinzip; *tmpptr; tmpptr++) {
-        if( *tmpptr == '\\' || *tmpptr == '/')
+        if ( *tmpptr == '\\' || *tmpptr == '/')
           lastslash = tmpptr;
       }
-      if( lastslash != NULL )  {
+      if ( lastslash != NULL )  {
         savefilenameinzip = lastslash+1; // base filename follows last slash.
       }
     }

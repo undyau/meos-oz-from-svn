@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "stdafx.h"
 
@@ -42,6 +42,7 @@ ListEditor::ListEditor(oEvent *oe_) {
   dirtyExt = false;
   dirtyInt = false;
   lastSaved = NotSaved;
+  oe->loadGeneralResults(false);
 }
 
 ListEditor::~ListEditor() {
@@ -63,18 +64,22 @@ void ListEditor::load(MetaList *list) {
 void ListEditor::load(const MetaListContainer &mlc, int index) {
   const MetaList &mc = mlc.getList(index);
   setCurrentList(new MetaList());
-  if (mlc.isInternal(index))
+  *currentList = mc;
+  
+  if (mlc.isInternal(index)) {
     currentIndex = -1;
+    currentList->clearTag();
+  }
   else
     currentIndex = index;
-  *currentList = mc;
+  
   dirtyExt = true;
   dirtyInt = false;
   savedFileName.clear();
 }
 
 void ListEditor::show(gdioutput &gdi) {
-  
+
   gdi.setRestorePoint("BeginListEdit");
 
   gdi.pushX();
@@ -92,12 +97,12 @@ void ListEditor::show(gdioutput &gdi) {
   gdi.setData("ListEditorClz", this);
   gdi.dropLine(0.5);
   gdi.fillRight();
-  
+
   gdi.addButton("EditList", "Egenskaper", editListCB);
   gdi.setCX(gdi.getCX() + gdi.scaleLength(32));
   gdi.addButton("OpenFile", "Öppna fil", editListCB);
   gdi.addButton("OpenInside", "Öppna från aktuell tävling", editListCB);
-  
+
   if (savedFileName.empty())
     gdi.addButton("SaveFile", "Spara som fil", editListCB);
   else {
@@ -110,7 +115,7 @@ void ListEditor::show(gdioutput &gdi) {
   gdi.addButton("RemoveInside", "Radera", editListCB, "Radera listan från aktuell tävling");
   gdi.setInputStatus("RemoveInside", currentIndex != -1);
   gdi.addButton("Close", "Stäng", editListCB);
-  
+
   gdi.dropLine(2);
 
   int dx = gdi.getCX();
@@ -123,9 +128,9 @@ void ListEditor::show(gdioutput &gdi) {
 
   rc.top = by - off;
   rc.bottom = dy + off;
-  
+
   gdi.addRectangle(rc, colorWindowBar);
-  
+
   gdi.dropLine();
   gdi.popX();
 
@@ -208,11 +213,11 @@ void ListEditor::show(gdioutput &gdi) {
   par.pageBreak = false;
   par.splitAnalysis = true;
   par.legNumber = -1;
+  par.inputNumber = 0;
   gdi.fillDown();
 
   try {
     currentList->interpret(oe, gdi, par, gdi.getLineHeight(), li);
-    RECT rc;
     rc.left = gdi.getCX();
     rc.right = gdi.getCX() + gdi.getWidth() - 20;
     rc.top = gdi.getCY();
@@ -227,7 +232,7 @@ void ListEditor::show(gdioutput &gdi) {
     gdi.addString("", 1, "Listan kan inte visas").setColor(colorRed);
     gdi.addString("", 0, ex.what());
   }
-       
+
   gdi.refresh();
 }
 
@@ -258,7 +263,13 @@ ButtonInfo &ListEditor::addButton(gdioutput &gdi, const MetaListPost &mlp, int x
   else {
     const string &text = mlp.getText();
     if (text.length() > 0) {
-      cap = text + "#" + lang.tl(mlp.getType());
+      if (text[0] == '@') {
+        vector<string> part; 
+        split(text.substr(1), ";", part);
+        unsplit(part, "|", cap);
+      }
+      else
+        cap = text + "#" + lang.tl(mlp.getType());
     }
     else {
       cap = mlp.getType();
@@ -281,14 +292,14 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
   if (type == GUI_BUTTON) {
     ButtonInfo bi = dynamic_cast<ButtonInfo &>(data);
     ButtonInfo &biSrc = dynamic_cast<ButtonInfo &>(data);
-    
+
     if (bi.id == "Color") {
       CHOOSECOLOR cc;
       memset(&cc, 0, sizeof(cc));
       cc.lStructSize = sizeof(cc);
       cc.hwndOwner = gdi.getHWND();
       cc.rgbResult = COLORREF(bi.getExtra());
-      if (GDICOLOR((int)bi.getExtra()) != colorDefault) 
+      if (GDICOLOR((int)bi.getExtra()) != colorDefault)
         cc.Flags |= CC_RGBINIT;
 
       COLORREF staticColor[16];
@@ -301,13 +312,13 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       while(pEnd < end && pix < 16) {
         staticColor[pix++] = strtol(pEnd,(char **)&pEnd,16);
       }
- 
+
       //vector<string> splitvector;
       //split(c, ";", splitvector);
       cc.lpCustColors = staticColor;
       if (ChooseColor(&cc)) {
         data.setExtra((int)cc.rgbResult);
-      
+
         string co;
         for (ix = 0; ix < 16; ix++) {
           char bf[16];
@@ -341,6 +352,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       gdi.popX();
       gdi.setRestorePoint("EditList");
       makeDirty(gdi, MakeDirty, MakeDirty);
+      gdi.sendCtrlMessage(nb.id);
     }
     else if ( bi.id.substr(0, 7) == "AddLine" ) {
       checkUnsaved(gdi);
@@ -350,7 +362,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       gdi.restore("BeginListEdit", false);
       makeDirty(gdi, MakeDirty, MakeDirty);
-      show(gdi);      
+      show(gdi);
     }
     else if ( bi.id == "Remove" ) {
       DWORD id;
@@ -384,7 +396,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
         currentList->moveOnRow(groupIx, lineIx, ix, 1);
 
       MetaListPost &mlp = currentList->getMLP(groupIx, lineIx, ix);
-      
+
       ListBoxInfo lbi;
       bool force = false;
       gdi.getSelectedItem("Type", &lbi);
@@ -393,13 +405,14 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       string str = gdi.getText("Text");
       if (ptype != lString) {
-        if (!str.empty() && str.find_first_of('X') == string::npos) {
+        if (!str.empty() && str.find_first_of('X') == string::npos && str[0]!='@') {
           throw meosException("Texten ska innehålla tecknet X, som byts ut mot tävlingssspecifik data");
         }
       }
 
       string t1 = mlp.getType();
-      mlp.setType(EPostType(lbi.data));
+      EPostType newType = EPostType(lbi.data);
+      mlp.setType(newType);
       if (t1 != mlp.getType())
         force = true;
       mlp.setText(str);
@@ -411,21 +424,34 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       gdi.getSelectedItem("TextAdjust", &lbi);
       mlp.setTextAdjust(lbi.data);
-      
+
       mlp.setColor(GDICOLOR((int)gdi.getExtra("Color")));
 
       if (gdi.isChecked("UseLeg")) {
         int leg = gdi.getTextNo("Leg");
-        if (leg < 1 || leg > 1000)
-          throw meosException("X är inget giltigt sträcknummer#" + itos(leg));
-        mlp.setLeg(leg - 1);
+        if (newType == lResultModuleNumber || newType == lResultModuleTime ||
+            newType == lResultModuleNumberTeam || newType == lResultModuleTimeTeam) {
+           if (leg < 0 || leg > 1000)
+              throw meosException("X är inget giltigt index#" + itos(leg));
+           mlp.setLeg(leg);
+        }
+        else {
+          if (leg < 1 || leg > 1000)
+            throw meosException("X är inget giltigt sträcknummer#" + itos(leg));
+          mlp.setLeg(leg - 1);
+        }
       }
       else
         mlp.setLeg(-1);
 
+      if (gdi.hasField("UseResultModule") && gdi.isChecked("UseResultModule"))
+        mlp.setResultModule(currentList->getResultModule());
+      else
+        mlp.setResultModule("");
+
       mlp.setBlock(gdi.getTextNo("BlockSize"));
       mlp.indent(gdi.getTextNo("MinIndeent"));
-      
+
       gdi.getSelectedItem("Fonts", &lbi);
       mlp.setFont(gdiFonts(lbi.data));
       makeDirty(gdi, MakeDirty, MakeDirty);
@@ -450,21 +476,36 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       if (gdi.getSelectedItem("BaseType", &lbi))
         list.setListType(oListInfo::EBaseType(lbi.data));
 
+      if (gdi.getSelectedItem("ResultType", &lbi))
+        list.setResultModule(*oe, lbi.data);
+
       if (gdi.getSelectedItem("SubType", &lbi))
         list.setSubListType(oListInfo::EBaseType(lbi.data));
 
       vector< pair<string, bool> > filtersIn;
       vector< bool > filtersOut;
       list.getFilters(filtersIn);
-      for (size_t k = 0; k < filtersIn.size(); k++) 
+      for (size_t k = 0; k < filtersIn.size(); k++)
         filtersOut.push_back(gdi.isChecked("filter" + itos(k)));
 
       list.setFilters(filtersOut);
-  
+
+      vector< pair<string, bool> > subFiltersIn;
+      vector< bool > subFiltersOut;
+      list.getSubFilters(subFiltersIn);
+      for (size_t k = 0; k < subFiltersIn.size(); k++)
+        subFiltersOut.push_back(gdi.isChecked("subfilter" + itos(k)));
+
+      list.setSubFilters(subFiltersOut);
+
+
       for (int k = 0; k < 4; k++) {
         list.setFontFace(k, gdi.getText("Font" + itos(k)),
                             gdi.getTextNo("FontFactor" + itos(k)));
       }
+
+      list.setSupportFromTo(gdi.isChecked("SupportFrom"), gdi.isChecked("SupportTo"));
+
       makeDirty(gdi, MakeDirty, MakeDirty);
 
       if (!gdi.hasData("NoRedraw")) {
@@ -493,7 +534,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       /*
       currentList->setListName(lang.tl("Ny lista"));
       currentIndex = -1;
-      
+
       lastSaved = NotSaved;
       makeDirty(gdi,  ClearDirty, ClearDirty);
 
@@ -516,9 +557,9 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
         if (fileName.empty())
           return 0;
       }
-      
-      currentList->save(fileName);
- 
+
+      currentList->save(fileName, oe);
+
       lastSaved = SavedFile;
       makeDirty(gdi, NoTouch, ClearDirty);
       savedFileName = fileName;
@@ -550,6 +591,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       lastSaved = SavedFile;
 
       savedFileName = fileName;
+      oe->loadGeneralResults(true);
       makeDirty(gdi, ClearDirty, ClearDirty);
       show(gdi);
     }
@@ -564,27 +606,40 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       gdi.pushX();
       vector< pair<string, size_t> > lists;
-      oe->getListContainer().getLists(lists);
-      
+      oe->getListContainer().getLists(lists, true, false);
+      reverse(lists.begin(), lists.end());
+
       gdi.fillRight();
-      gdi.addSelection("OpenList", 250, 400, 0, "Välj lista:");
+      gdi.addSelection("OpenList", 250, 400, editListCB, "Välj lista:");
       gdi.addItem("OpenList", lists);
       gdi.selectFirstItem("OpenList");
 
+
       gdi.dropLine();
       gdi.addButton("DoOpen", "Öppna", editListCB);
-      gdi.addButton("CancelReload", "Avbryt", editListCB);
+      gdi.addButton("DoOpenCopy", "Open a Copy", editListCB);
+      enableOpen(gdi);
+
+      gdi.addButton("CancelReload", "Avbryt", editListCB).setCancel();
       gdi.dropLine(4);
       gdi.popX();
     }
-    else if (bi.id == "DoOpen") {
+    else if (bi.id == "DoOpen" || bi.id == "DoOpenCopy" ) {
       ListBoxInfo lbi;
       if (gdi.getSelectedItem("OpenList", &lbi)) {
         load(oe->getListContainer(), lbi.data);
       }
 
-      lastSaved = SavedInside;
-      makeDirty(gdi, ClearDirty, ClearDirty);
+      if (bi.id == "DoOpenCopy") {
+        currentIndex = -1;
+        currentList->clearTag();
+        lastSaved = NotSaved;
+        makeDirty(gdi, MakeDirty, MakeDirty);
+      }
+      else {
+        lastSaved = SavedInside;
+        makeDirty(gdi, ClearDirty, ClearDirty);
+      }
       gdi.clearPage(false);
       show(gdi);
     }
@@ -606,10 +661,10 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
         currentIndex = oe->getListContainer().getNumLists() - 1;
         oe->getListContainer().saveList(currentIndex, *currentList);
       }
-      
-      oe->synchronize(true); 
+
+      oe->synchronize(true);
       lastSaved = SavedInside;
-      makeDirty(gdi, ClearDirty, NoTouch);
+      makeDirty(gdi, ClearDirty, ClearDirty);
     }
     else if (bi.id == "RemoveInside") {
       if (currentIndex != -1) {
@@ -647,14 +702,69 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
   }
   else if (type == GUI_LISTBOX) {
     ListBoxInfo &lbi = dynamic_cast<ListBoxInfo &>(data);
-    
-    if (lbi.id == "AlignType")
+
+    if (lbi.id == "AlignType") {
       gdi.setInputStatus("AlignText", lbi.data == lString);
+      if (lbi.data == lString) {
+        int ix = lbi.text.find_first_of(":");
+        if (ix != lbi.text.npos)
+          gdi.setText("AlignText", lbi.text.substr(ix+1));
+      }
+      else
+        gdi.setText("AlignText", "");
+    }
+    else if (lbi.id == "Type") {
+      EPostType type = EPostType(lbi.data);
+      gdi.setTextTranslate("TUseLeg", getIndexDescription(type), true);
+      if (type == lResultModuleNumber || type == lResultModuleTime ||
+          type == lResultModuleNumberTeam || type == lResultModuleTimeTeam) {
+        gdi.check("UseLeg", true);
+        gdi.check("UseResultModule", true);
+        gdi.disableInput("UseResultModule");
+        gdi.disableInput("UseLeg");
+        gdi.enableInput("Leg");
+        if (gdi.getText("Leg").empty())
+          gdi.setText("Leg", "0");
+      }
+      else {
+        gdi.enableInput("UseLeg");
+        if (gdi.getTextNo("Leg") == 0) {
+          gdi.setText("Leg", "");
+          gdi.enableInput("UseLeg");
+          gdi.enableInput("UseResultModule", true);
+          gdi.check("UseLeg", false);
+          gdi.disableInput("Leg");
+        }
+      }
+    }
+    else if (lbi.id == "SubType") {
+      oListInfo::EBaseType subType = oListInfo::EBaseType(lbi.data);
+      vector< pair<string, bool> > subfilters;
+      currentList->getSubFilters(subfilters);
+      for (size_t k = 0; k < subfilters.size(); k++) {
+        gdi.setInputStatus("subfilter" + itos(k), subType != oListInfo::EBaseTypeNone);
+      }
+    }
+    else if (lbi.id == "ResultType") {
+      vector< pair<string, size_t> > types;
+      int currentType = 0;
+      currentList->getSortOrder(lbi.data != 0, types, currentType);
+      if (lbi.data == 0) {
+        ListBoxInfo mlbi;
+        gdi.getSelectedItem("SortOrder", &mlbi);
+        currentType = mlbi.data;
+      }
+      gdi.addItem("SortOrder", types);
+      gdi.selectItemByData("SortOrder", currentType);
+    }
+    else if (lbi.id == "OpenList") {
+      enableOpen(gdi);
+    }
   }
-  else if(type==GUI_CLEAR) {
+  else if (type==GUI_CLEAR) {
     return checkSave(gdi);
   }
-  
+
   return 0;
 }
 
@@ -677,35 +787,50 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   checkUnsaved(gdi);
   gdi.restore("EditList", false);
   gdi.dropLine();
-  
+
   gdi.enableInput("EditList");
   int groupIx, lineIx, ix;
   getPosFromId(id, groupIx, lineIx, ix);
-
+  const bool hasResultModule = currentList && !currentList->getResultModule().empty();
   int x1 = gdi.getCX();
   int y1 = gdi.getCY();
   int margin = gdi.scaleLength(10);
   gdi.setCX(x1+margin);
-  
+
   gdi.dropLine();
   gdi.pushX();
   gdi.fillRight();
   gdi.addString("", boldLarge, "Listpost").setColor(colorDarkGrey);
   gdi.setCX(gdi.getCX() + gdi.scaleLength(20));
-  
+
   gdi.addButton("MoveLeft", "<< Flytta vänster", editListCB);
   gdi.addButton("MoveRight", "Flytta höger >>", editListCB);
-  
+
   gdi.dropLine(3);
   gdi.popX();
   vector< pair<string, size_t> > types;
   int currentType;
   mlp.getTypes(types, currentType);
+  EPostType storedType = EPostType(currentType);
+
+  if (!hasResultModule) {
+    for (size_t k = 0; k < types.size(); k++) {
+      if ( (storedType != lResultModuleNumber && types[k].second == lResultModuleNumber) ||
+           (storedType != lResultModuleTime && types[k].second == lResultModuleTime) ||
+           (storedType != lResultModuleNumberTeam && types[k].second == lResultModuleNumberTeam) ||
+           (storedType != lResultModuleTimeTeam && types[k].second == lResultModuleTimeTeam)) {
+        swap(types[k], types.back());
+        types.pop_back();
+        k--;
+      }     
+    }
+  }
+
   sort(types.begin(), types.end());
   gdi.pushX();
   gdi.fillRight();
   int boxY = gdi.getCY();
-  gdi.addSelection("Type", 290, 500, 0, "Typ:");
+  gdi.addSelection("Type", 290, 500, editListCB, "Typ:");
   gdi.addItem("Type", types);
   gdi.selectItemByData("Type", currentType);
   gdi.addInput("Text", mlp.getText(), 16, 0, "Egen text:", "Använd symbolen X där MeOS ska fylla i typens data.");
@@ -725,14 +850,35 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.popX();
   gdi.dropLine(3);
   gdi.fillRight();
-  gdi.addCheckbox("BlockAlign", "Justera blockvis", 0, mlp.getAlignBlock());
+  gdi.addCheckbox("BlockAlign", "Justera blockvis:", 0, mlp.getAlignBlock());
+  gdi.dropLine(-0.2);
   gdi.addInput("BlockSize", itos(mlp.getBlockWidth()), 5, 0, "", "Blockbredd");
   gdi.dropLine(2.1);
   gdi.popX();
   gdi.fillRight();
+
+  if (hasResultModule) {
+    gdi.addCheckbox("UseResultModule", "Data from result module (X)#" + currentList->getResultModule(), 0, !mlp.getResultModule().empty());
+    gdi.dropLine(1.5);
+    gdi.popX();
+  }
+
   int leg = mlp.getLeg();
-  gdi.addCheckbox("UseLeg", "Applicera för specifik sträcka", editListCB, leg != -1);
-  gdi.addInput("Leg", leg>=0 ? itos(leg + 1) : "", 4);
+  gdi.addCheckbox("UseLeg", getIndexDescription(storedType), editListCB, leg != -1);
+  gdi.dropLine(-0.2);
+  gdi.setCX(gdi.getCX() + gdi.getLineHeight() * 5);
+  if (storedType == lResultModuleNumber || storedType == lResultModuleTime || storedType == lResultModuleTimeTeam || storedType == lResultModuleNumberTeam)
+    gdi.addInput("Leg", leg>=0 ? itos(leg) : "0", 4);
+  else
+    gdi.addInput("Leg", leg>=0 ? itos(leg + 1) : "", 4);
+  
+  if (storedType == lResultModuleNumber || storedType == lResultModuleTime || storedType == lResultModuleTimeTeam || storedType == lResultModuleNumberTeam) {
+    gdi.check("UseLeg", true);
+    gdi.check("UseResultModule", true);
+    gdi.disableInput("UseResultModule");
+    gdi.disableInput("UseLeg");
+  }
+
   gdi.dropLine(2);
   if (ix>0) {
     gdi.popX();
@@ -753,12 +899,12 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   vector< pair<string, size_t> > fonts;
   int currentFont;
   mlp.getFonts(fonts, currentFont);
-  
+
   gdi.addSelection("Fonts", 150, 500, 0, "Format:");
   gdi.addItem("Fonts", fonts);
   gdi.selectItemByData("Fonts", currentFont);
   int maxX = gdi.getCX();
-  
+
   gdi.popX();
   gdi.dropLine(3);
 
@@ -773,7 +919,7 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.dropLine();
   gdi.addButton("Color", "Färg...", editListCB).setExtra(mlp.getColorValue());
 
-  
+
   maxX = max(maxX, gdi.getCX());
   gdi.popX();
   gdi.dropLine(3);
@@ -781,7 +927,7 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.setData("CurrentId", id);
   gdi.addButton("Remove", "Radera", editListCB, "Ta bort listposten");
   gdi.addButton("Cancel", "Avbryt", editListCB).setCancel();
-  
+
   gdi.updatePos(gdi.getCX(), gdi.getCY(), gdi.scaleLength(20), 0);
   gdi.addButton("Apply", "OK", editListCB).setDefault();
 
@@ -792,7 +938,7 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.fillDown();
   gdi.popX();
   gdi.setData("IsEditing", 1);
-  
+
   RECT rc;
   rc.top = y1;
   rc.left = x1;
@@ -805,21 +951,30 @@ void ListEditor::editListPost(gdioutput &gdi, const MetaListPost &mlp, int id) {
   gdi.refresh();
 }
 
+const char *ListEditor::getIndexDescription(EPostType type) {
+  if (type == lResultModuleTime || type == lResultModuleTimeTeam)
+    return "Index in X[index]#OutputTimes";
+  else if (type == lResultModuleNumber || type == lResultModuleNumberTeam)
+    return "Index in X[index]#OutputNumbers";
+  else  
+    return "Applicera för specifik sträcka:";
+}
+
 void ListEditor::editListProp(gdioutput &gdi, bool newList) {
   checkUnsaved(gdi);
- 
+
   if (!currentList)
     return;
 
   MetaList &list = *currentList;
 
   if (!newList) {
-    gdi.restore("EditList", false);  
+    gdi.restore("EditList", false);
     gdi.disableInput("EditList");
   }
 
   gdi.dropLine(0.8);
-  
+
   int x1 = gdi.getCX();
   int y1 = gdi.getCY();
   int margin = gdi.scaleLength(10);
@@ -834,9 +989,9 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
 
   gdi.fillRight();
   gdi.pushX();
-  
+
   gdi.addInput("Name", list.getListName(), 20, 0, "Listnamn:");
-  
+
   if (newList) {
     gdi.dropLine(3.5);
     gdi.popX();
@@ -846,25 +1001,42 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
   int currentType = 0;
 
   int maxX = gdi.getCX();
-  
+
   list.getBaseType(types, currentType);
-  gdi.addSelection("BaseType", 170, 400, 0, "Listtyp:");
+  gdi.addSelection("BaseType", 150, 400, 0, "Listtyp:");
   gdi.addItem("BaseType", types);
   gdi.selectItemByData("BaseType", currentType);
+  gdi.autoGrow("BaseType");
+  
+  list.getResultModule(*oe, types, currentType);
+  gdi.addSelection("ResultType", 150, 400, editListCB, "Resultatuträkning:");
+  gdi.addItem("ResultType", types);
+  gdi.autoGrow("ResultType");
+  gdi.selectItemByData("ResultType", currentType);
 
-  list.getSortOrder(types, currentType);
-  gdi.addSelection("SortOrder", 200, 400, 0, "Global sorteringsordning:");
+  list.getSortOrder(false, types, currentType);
+  gdi.addSelection("SortOrder", 170, 400, 0, "Global sorteringsordning:");
   gdi.addItem("SortOrder", types);
+  gdi.autoGrow("SortOrder");
+  
   gdi.selectItemByData("SortOrder", currentType);
 
   list.getSubType(types, currentType);
-  gdi.addSelection("SubType", 170, 400, 0, "Sekundär typ:");
+  gdi.addSelection("SubType", 150, 400, editListCB, "Sekundär typ:");
   gdi.addItem("SubType", types);
   gdi.selectItemByData("SubType", currentType);
+  oListInfo::EBaseType subType = oListInfo::EBaseType(currentType);
 
   maxX = max(maxX, gdi.getCX());
   gdi.popX();
   gdi.dropLine(3);
+
+  gdi.fillRight();
+  gdi.addCheckbox("SupportFrom", "Support time from control", 0, list.supportFrom());
+  gdi.addCheckbox("SupportTo", "Support time to control", 0,  list.supportTo());
+  gdi.dropLine(2);
+  gdi.popX();
+
   gdi.fillDown();
   gdi.addString("", 1, "Filter");
   gdi.dropLine(0.5);
@@ -876,6 +1048,28 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
   const int w = gdi.scaleLength(130);
   for (size_t k = 0; k < filters.size(); k++) {
     gdi.addCheckbox(xp, yp, "filter" + itos(k), filters[k].first, 0, filters[k].second);
+    xp += w;
+    maxX = max(maxX, xp);
+    if (k % 10 == 9) {
+      xp = x1 + margin;
+      yp += int(1.3 * gdi.getLineHeight());
+    }
+  }
+
+  gdi.popX();
+  gdi.dropLine(2);
+  gdi.fillDown();
+  gdi.addString("", 1, "Underfilter");
+  gdi.dropLine(0.5);
+  vector< pair<string, bool> > subfilters;
+  list.getSubFilters(subfilters);
+  gdi.fillRight();
+  xp = gdi.getCX();
+  yp = gdi.getCY();
+  for (size_t k = 0; k < subfilters.size(); k++) {
+    gdi.addCheckbox(xp, yp, "subfilter" + itos(k), subfilters[k].first, 0, subfilters[k].second);
+    if (subType == oListInfo::EBaseTypeNone)
+      gdi.disableInput(("subfilter" + itos(k)).c_str());
     xp += w;
     maxX = max(maxX, xp);
     if (k % 10 == 9) {
@@ -900,7 +1094,7 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
     string id("Font" + itos(k));
     gdi.addCombo(id, 200, 300, 0, expl[k]);
     gdi.addItem(id, fonts);
-    
+
     gdi.setText(id, list.getFontFace(k));
     gdi.setCX(gdi.getCX()+20);
     int f = list.getFontFaceFactor(k);
@@ -958,7 +1152,7 @@ void ListEditor::makeDirty(gdioutput &gdi, DirtyFlag inside, DirtyFlag outside) 
     dirtyExt = true;
   else if (outside == ClearDirty)
     dirtyExt = false;
-    
+
   if (gdi.hasField("SaveInside")) {
     gdi.setInputStatus("SaveInside", dirtyInt || lastSaved != SavedInside);
   }
@@ -985,3 +1179,15 @@ bool ListEditor::checkSave(gdioutput &gdi) {
 
   return true;
 }
+
+void ListEditor::enableOpen(gdioutput &gdi) {
+  ListBoxInfo lbi;
+  bool enabled = true;
+  if (gdi.getSelectedItem("OpenList", &lbi)) {
+    if (oe->getListContainer().isInternal(lbi.data))
+      enabled = false;
+  }
+
+  gdi.setInputStatus("DoOpen", enabled);  
+}
+

@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 11, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -25,7 +25,7 @@
 #include "resource.h"
 
 #include <commctrl.h>
-#include <commdlg.h> 
+#include <commdlg.h>
 
 #include "oEvent.h"
 #include "xmlparser.h"
@@ -37,6 +37,7 @@
 #include "Table.h"
 #include "gdifonts.h"
 #include "meosexception.h"
+#include "MeOSFeatures.h"
 
 #include "TabCompetition.h"
 #include "TabClub.h"
@@ -57,7 +58,7 @@ TabClub::TabClub(oEvent *poe):TabBase(poe)
 }
 
 TabClub::~TabClub(void)
-{ 
+{
 }
 
 void TabClub::readFeeFilter(gdioutput &gdi) {
@@ -87,13 +88,13 @@ void TabClub::readFeeFilter(gdioutput &gdi) {
 
 void TabClub::selectClub(gdioutput &gdi,  pClub pc)
 {
-	if (pc) {
-		pc->synchronize();
+  if (pc) {
+    pc->synchronize();
     ClubId = pc->getId();
   }
-	else{
+  else{
     ClubId = 0;
-	}
+  }
 }
 
 void manualFees(gdioutput &gdi, bool on) {
@@ -116,17 +117,17 @@ int ClubsCB(gdioutput *gdi, int type, void *data)
 
 int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 {
-	if(type==GUI_BUTTON) {
-		ButtonInfo bi=*(ButtonInfo *)data;
+  if (type==GUI_BUTTON) {
+    ButtonInfo bi=*(ButtonInfo *)data;
 
-		if (bi.id=="Save") {
-		}
+    if (bi.id=="Save") {
+    }
     else if (bi.id == "EraseClubs") {
       if (gdi.ask("Vill du ta bort alla klubbar från tävlingen? Alla deltagare blir klubblösa.")) {
         oClub::clearClubs(*oe);
       }
     }
-		else if (bi.id=="Invoice") {
+    else if (bi.id=="Invoice") {
       ListBoxInfo lbi;
       gdi.getSelectedItem("Clubs", &lbi);
       pClub pc=oe->getClub(lbi.data);
@@ -138,21 +139,21 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
         oe->sortRunners(ClassStartTime);
         int pay, paid;
         pc->generateInvoice(gdi, pay, paid);
-        gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120), 
+        gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120),
                       "Cancel", "Återgå", ClubsCB, "", true, false);
-        gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120), 
-                      "Print", "Skriv ut...", ClubsCB, 
+        gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120),
+                      "Print", "Skriv ut...", ClubsCB,
                       "Skriv ut fakturan", true, false);
-        gdi.addButton(gdi.getWidth()+20, 75,  gdi.scaleLength(120), 
-                      "PDF", "PDF...", ClubsCB, 
+        gdi.addButton(gdi.getWidth()+20, 75,  gdi.scaleLength(120),
+                      "PDF", "PDF...", ClubsCB,
                       "Spara som PDF.", true, false);
         gdi.refresh();
       }
-		}
+    }
     else if (bi.id=="AllInvoice") {
       gdi.clearPage(false);
       gdi.addString("", boldLarge, "Skapa fakturor");
-      
+
       gdi.addSelection("Type", 300, 100, 0, "Val av export:");
 
       gdi.addItem("Type", lang.tl("Skriv ut alla"), oEvent::IPTAllPrint);
@@ -184,15 +185,15 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 
       oe->printInvoices(gdi, oEvent::InvoicePrintType(lbi.data), path, false);
 
-      gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120), 
+      gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120),
                     "Cancel", "Återgå", ClubsCB, "", true, false);
 
       if (lbi.data>10) { // To file
-        gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120), 
-                      "Print", "Skriv ut...", ClubsCB, 
+        gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120),
+                      "Print", "Skriv ut...", ClubsCB,
                       "", true, false);
-        gdi.addButton(gdi.getWidth()+20, 75,  gdi.scaleLength(120), 
-                      "PDF", "PDF...", ClubsCB, 
+        gdi.addButton(gdi.getWidth()+20, 75,  gdi.scaleLength(120),
+                      "PDF", "PDF...", ClubsCB,
                       "Spara som PDF.", true, false);
         gdi.refresh();
       }
@@ -237,18 +238,18 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
         gdi.getTable().update();
         gdi.refresh();
       }
-		}    
+    }
     else if (bi.id=="Summary") {
       gdi.clearPage(false);
       string nn;
       oe->printInvoices(gdi, oEvent::IPTAllPrint, nn, true);
-      gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), "Cancel", 
+      gdi.addButton(gdi.getWidth()+20, 15,  gdi.scaleLength(120), "Cancel",
                     "Återgå", ClubsCB, "", true, false);
       gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120), "Print",
                     "Skriv ut...", ClubsCB, "Skriv ut fakturan", true, false);
 
       gdi.refresh();
-		}
+    }
     else if (bi.id=="Merge") {
       ListBoxInfo lbi;
       gdi.getSelectedItem("Clubs", &lbi);
@@ -257,13 +258,13 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       if (pc) {
         gdi.clearPage(false);
         gdi.addString("", boldText, "Slå ihop klubb");
-        
+
         char bf[256];
         sprintf_s(bf, lang.tl("help:12352").c_str(), pc->getName().c_str(), pc->getId());
 
         gdi.addStringUT(10, bf);
 
-        gdi.addSelection("NewClub", 200, 300, 0, "Ny klubb:"); 
+        gdi.addSelection("NewClub", 200, 300, 0, "Ny klubb:");
         oe->fillClubs(gdi, "NewClub");
         gdi.selectItemByData("NewClub", pc->getId());
         gdi.removeSelected("NewClub");
@@ -280,7 +281,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 
         gdi.refresh();
       }
-		}    
+    }
     else if (bi.id=="DoMerge") {
       pClub pc1 = oe->getClub(ClubId);
       ListBoxInfo lbi;
@@ -301,9 +302,9 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       firstInvoice = oClub::getFirstInvoiceNumber(*oe);
       if (firstInvoice == 0)
         firstInvoice = oe->getPropertyInt("FirstInvoice", 1000);
-      
+
       gdi.addInput("FirstInvoice", itos(firstInvoice), 5, 0, "Första fakturanummer:");
-      
+
       gdi.dropLine();
       gdi.addString("", boldText, "Organisatör");
 
@@ -330,7 +331,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.fillDown();
       gdi.dropLine(2);
       gdi.popX();
-      
+
       gdi.addString("", boldText, "Formatering");
 
       gdi.fillRight();
@@ -341,21 +342,21 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.addInput("XC", xc + " [mm]", 6);
       gdi.addStringUT(0, "y:");
       gdi.addInput("YC", yc + " [mm]", 6);
-      
+
       gdi.fillDown();
       gdi.popX();
-      
+
       TabList::customTextLines(*oe, "IVExtra", gdi);
 
       gdi.dropLine(1);
-    
+
       gdi.fillRight();
       gdi.addButton("SaveSettings", "Spara", ClubsCB);
       gdi.addButton("Cancel", "Avbryt", ClubsCB);
       gdi.dropLine(2);
       gdi.setOnClearCb(ClubsCB);
       oe->getDI().fillDataFields(gdi);
-     
+
     }
     else if (bi.id == "SaveSettings") {
       oe->getDI().saveDataFields(gdi);
@@ -372,10 +373,10 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       }
       else
         oe->setProperty("FirstInvoice", fn);
-      
+
       int xc = gdi.getTextNo("XC");
       int yc = gdi.getTextNo("YC");
-      
+
       if (xc<=0 || yc<=0)
         throw meosException("Invalid coordinate (x,y)");
 
@@ -383,11 +384,11 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       oe->setProperty("addressypos", yc);
       loadPage(gdi);
     }
- 		else if (bi.id == "Fees") {
+    else if (bi.id == "Fees") {
       gdi.clearPage(true);
 
       gdi.addString("", boldLarge, "Tilldela avgifter");
-      
+
       gdi.dropLine();
       gdi.addString("", 10, "help:assignfee");
       gdi.dropLine();
@@ -410,7 +411,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.addCheckbox("DefaultFees", "Manuella avgifter:", ClubsCB, useManualFee);
 
       gdi.dropLine(-1);
-      
+
       int px = gdi.getCX();
       gdi.addInput("BaseFee", oe->formatCurrency(baseFee), 8, 0, "Avgift:");
       gdi.addInput("FirstDate", firstDate, 10, 0, "Undre datumgräns:", "ÅÅÅÅ-MM-DD");
@@ -433,7 +434,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.dropLine(3);
 
       gdi.addCheckbox("OnlyNoFee", "Tilldela endast avgift till deltagare utan avgift", ClubsCB, onlyNoFee);
-      
+
       gdi.pushX();
       gdi.fillRight();
       gdi.addButton("ShowFiltered", "Visa valda deltagare", ClubsCB);
@@ -446,7 +447,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.fillDown();
       gdi.dropLine(2);
       gdi.refresh();
-		}
+    }
     else if (bi.id == "FilterAge") {
       ageFilter(gdi, gdi.isChecked(bi.id), gdi.isChecked("DefaultFees"));
     }
@@ -454,13 +455,13 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       manualFees(gdi, gdi.isChecked(bi.id));
       ageFilter(gdi, gdi.isChecked("FilterAge"), gdi.isChecked(bi.id));
     }
-  	else if (bi.id == "DoFees" || bi.id == "ClearFees" || 
+    else if (bi.id == "DoFees" || bi.id == "ClearFees" ||
              bi.id == "ShowFiltered" || bi.id == "ResetFees") {
 
       readFeeFilter(gdi);
       int op;
 
-      if (bi.id == "DoFees") { 
+      if (bi.id == "DoFees") {
         if (useManualFee)
           op = 0;
         else
@@ -470,7 +471,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
         op = 1;
       else if (bi.id == "ResetFees")
         op = 2;
-      else 
+      else
         op = 3;
 
       gdi.restore("FeeList", false);
@@ -482,7 +483,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       oe->sortRunners(ClassStartTimeClub);
       string fdate, ldate;
       int lage = 0, hage = 0;
-      
+
       if (useManualFee) {
         fdate = firstDate;
         ldate = lastDate;
@@ -492,9 +493,9 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
           hage = highAge;
         }
       }
-      
+
       oe->selectRunners(typeS, lage, hage, fdate, ldate, !onlyNoFee, filtered);
-      
+
       gdi.dropLine(2);
       int modified = 0;
       int count = 0;
@@ -509,7 +510,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
         if (op == 0 || op == 1) {
           if (op == 0)
             fee = baseFee;
-          
+
           if (di.getInt("Fee") != fee) {
             di.setInt("Fee", fee);
             modified++;
@@ -535,22 +536,22 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 
       gdi.dropLine();
 
-      if (count == 0) 
+      if (count == 0)
         gdi.addString("", 1, "Ingen deltagare matchar sökkriteriet").setColor(colorRed);
       else if (op == 0 || op == 2)
         gdi.addString("", 1, "Ändrade avgift för X deltagare#" + itos(modified)).setColor(colorGreen);
       else if (op == 1)
         gdi.addString("", 1, "Nollställde avgift för X deltagare#" + itos(modified)).setColor(colorGreen);
 
-      gdi.refresh();   
-		}
-		else if (bi.id=="Cancel") {
+      gdi.refresh();
+    }
+    else if (bi.id=="Cancel") {
       loadPage(gdi);
-		}
-		else if (bi.id=="Print")	{
-			gdi.print(oe);			
-		}
-    else if (bi.id=="PDF")	{
+    }
+    else if (bi.id=="Print") {
+      gdi.print(oe);
+    }
+    else if (bi.id=="PDF") {
       vector< pair<string, string> > ext;
       ext.push_back(make_pair("Portable Document Format (PDF)", "*.pdf"));
 
@@ -559,23 +560,23 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
 
       if (!file.empty()) {
         pdfwriter pdf;
-        pdf.generatePDF(gdi, gdi.toWide(file), lang.tl("Faktura"), oe->getDCI().getString("Organizer"), gdi.getTL());        
+        pdf.generatePDF(gdi, gdi.toWide(file), lang.tl("Faktura"), oe->getDCI().getString("Organizer"), gdi.getTL());
         gdi.openDoc(file.c_str());
       }
-		}
+    }
 
-	}
-	else if(type==GUI_LISTBOX){
-		ListBoxInfo bi=*(ListBoxInfo *)data;
+  }
+  else if (type==GUI_LISTBOX){
+    ListBoxInfo bi=*(ListBoxInfo *)data;
 
-		if(bi.id=="Clubs"){			
-			pClub pc=oe->getClub(bi.data);
-      if(!pc)
+    if (bi.id=="Clubs"){
+      pClub pc=oe->getClub(bi.data);
+      if (!pc)
         throw std::exception("Internal error");
 
-			selectClub(gdi, pc);
-		}
-	}
+      selectClub(gdi, pc);
+    }
+  }
   else if (type == GUI_LINK) {
     TextInfo *ti = static_cast<TextInfo*>(data);
     if (ti->id == "CmpSettings") {
@@ -597,27 +598,27 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
     return 1;
   }
 
-	return 0;
+  return 0;
 }
 
 
 bool TabClub::loadPage(gdioutput &gdi)
 {
   oe->checkDB();
-	gdi.selectTab(tabId);
+  gdi.selectTab(tabId);
 
   if (baseFee == 0) {
     if (oe->getDCI().getInt("OrdinaryEntry") > 0)
       lastDate = oe->getDCI().getDate("OrdinaryEntry");
     baseFee = oe->getDCI().getInt("EntryFee");
-    
+
     lowAge = 0;
     highAge = oe->getDCI().getInt("YouthAge");
   }
 
-	gdi.clearPage(false);
-	gdi.fillDown();
-	gdi.addString("", boldLarge, "Klubbar");
+  gdi.clearPage(false);
+  gdi.fillDown();
+  gdi.addString("", boldLarge, "Klubbar");
   gdi.dropLine(0.5);
   gdi.pushX();
   gdi.fillRight();
@@ -625,26 +626,28 @@ bool TabClub::loadPage(gdioutput &gdi)
   oe->fillClubs(gdi, "Clubs");
   gdi.selectItemByData("Clubs", ClubId);
   gdi.addButton("Merge", "Ta bort / slå ihop...", ClubsCB);
-  gdi.addButton("Invoice", "Faktura", ClubsCB);
+  if (oe->getMeOSFeatures().hasFeature(MeOSFeatures::Economy))
+    gdi.addButton("Invoice", "Faktura", ClubsCB);
   if (oe->useRunnerDb())
     gdi.addButton("Update", "Uppdatera", ClubsCB, "Uppdatera klubbens uppgifter med data från löpardatabasen/distriktsregistret");
 
+  if (oe->getMeOSFeatures().hasFeature(MeOSFeatures::Economy)) {
+    gdi.popX();
+    gdi.dropLine(3);
+
+    gdi.addString("", boldText, "Ekonomi");
+    gdi.popX();
+    gdi.dropLine(1.5);
+    gdi.addButton("Fees", "Avgifter...", ClubsCB);
+    gdi.addButton("InvoiceSettings", "Fakturainställningar...", ClubsCB);
+
+    gdi.addButton("AllInvoice", "Skapa fakturor...", ClubsCB);
+    gdi.addButton("Summary", "Sammanställning", ClubsCB);
+  }
+
   gdi.popX();
   gdi.dropLine(3);
 
-  gdi.addString("", boldText, "Ekonomi");
-  gdi.popX();
-  gdi.dropLine(1.5);
-  gdi.addButton("Fees", "Avgifter...", ClubsCB);
-  gdi.addButton("InvoiceSettings", "Fakturainställningar...", ClubsCB);
-
-  gdi.addButton("AllInvoice", "Skapa fakturor...", ClubsCB);
-  gdi.addButton("Summary", "Sammanställning", ClubsCB);
-
-  
-  gdi.popX();
-  gdi.dropLine(3);
-  
   gdi.addString("", boldText, "Hantera klubbar");
 
   gdi.popX();
@@ -654,7 +657,7 @@ bool TabClub::loadPage(gdioutput &gdi)
     gdi.addButton("UpdateAllRunners", "Uppdatera klubbar && löpare", ClubsCB, "Uppdatera klubbarnas och löparnas uppgifter med data från löpardatabasen/distriktsregistret");
   }
   gdi.addButton("EraseClubs", "Radera alla klubbar", ClubsCB, "Radera alla klubbar och ta bort klubbtillhörighet");
-  
+
   gdi.popX();
   gdi.fillDown();
   gdi.dropLine(2);
@@ -663,7 +666,7 @@ bool TabClub::loadPage(gdioutput &gdi)
   Table *tbl=oe->getClubsTB();
   gdi.addTable(tbl, gdi.getCX(), gdi.getCY());
   gdi.refresh();
-  return true;	
+  return true;
 }
 
 void TabClub::importAcceptedInvoice(gdioutput &gdi, const string &file) {
@@ -684,7 +687,7 @@ void TabClub::importAcceptedInvoice(gdioutput &gdi, const string &file) {
       pClub pc = oe->getClub(id);
       if (pc) {
         hasAccepted[id].first = accepted;
-        if( hasAccepted[id].second.empty())
+        if ( hasAccepted[id].second.empty())
           hasAccepted[id].second = (*it)[2];
         else
           hasAccepted[id].second += ", " + (*it)[2];

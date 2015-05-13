@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // oEvent.cpp: implementation of the oEvent class.
@@ -53,39 +53,39 @@ bool oEvent::connectToServer()
     return false;
 
 #ifdef BUILD_DB_DLL
-	if(msOpenDatabase)
-		return true;
+  if (msOpenDatabase)
+    return true;
 #endif
 
 #ifdef BUILD_DB_DLL
-	hMod=LoadLibrary("meosdb.dll");
+  hMod=LoadLibrary("meosdb.dll");
 
-	msOpenDatabase = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msOpenDatabase");	
-	msConnectToServer = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msConnectToServer");	
-	msSynchronizeUpdate = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msSynchronizeUpdate");
-	msSynchronizeRead = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msSynchronizeRead");
-	msSynchronizeList = (SYNCHRONIZELIST_FCN)GetProcAddress(hMod, "msSynchronizeList");
-	msRemove = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msRemove");
+  msOpenDatabase = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msOpenDatabase");
+  msConnectToServer = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msConnectToServer");
+  msSynchronizeUpdate = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msSynchronizeUpdate");
+  msSynchronizeRead = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msSynchronizeRead");
+  msSynchronizeList = (SYNCHRONIZELIST_FCN)GetProcAddress(hMod, "msSynchronizeList");
+  msRemove = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msRemove");
   msMonitor = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msMonitor");
   msDropDatabase = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msDropDatabase");
-	msUploadRunnerDB = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msUploadRunnerDB");
-  
+  msUploadRunnerDB = (SYNCHRONIZE_FCN)GetProcAddress(hMod, "msUploadRunnerDB");
+
   msGetErrorState = (ERRORMESG_FCN)GetProcAddress(hMod, "msGetErrorState");
   msResetConnection = (OPENDB_FCN)GetProcAddress(hMod, "msResetConnection");
   msReConnect = (OPENDB_FCN)GetProcAddress(hMod, "msReConnect");
 
-	if (!msOpenDatabase || !msSynchronizeUpdate || !msSynchronizeRead 
-    || !msConnectToServer || !msReConnect || !msGetErrorState 
+  if (!msOpenDatabase || !msSynchronizeUpdate || !msSynchronizeRead
+    || !msConnectToServer || !msReConnect || !msGetErrorState
     || !msMonitor || !msDropDatabase || !msUploadRunnerDB) {
-		MessageBox(NULL, "Cannot load MySQL library.", NULL, MB_OK);
-		// handle the error
-		FreeLibrary(hMod);
+    MessageBox(NULL, "Cannot load MySQL library.", NULL, MB_OK);
+    // handle the error
+    FreeLibrary(hMod);
     hMod=0;
-		return false;//SOME_ERROR_CODE;
-	}
+    return false;//SOME_ERROR_CODE;
+  }
 #else/*
   msOpenDatabase = (SYNCHRONIZE_FCN)::msOpenDatabase;
-  msConnectToServer = (SYNCHRONIZE_FCN)::msConnectToServer;	
+  msConnectToServer = (SYNCHRONIZE_FCN)::msConnectToServer;
   msSynchronizeUpdate = (SYNCHRONIZE_FCN)::msSynchronizeUpdate;
   msSynchronizeRead = (SYNCHRONIZE_FCN)::msSynchronizeRead;
   msSynchronizeList = (SYNCHRONIZELIST_FCN)::msSynchronizeList;
@@ -97,7 +97,7 @@ bool oEvent::connectToServer()
   msResetConnection = (OPENDB_FCN)::msResetConnection;
   msReConnect = (OPENDB_FCN)::msReConnect;*/
 #endif
-	return true;
+  return true;
 }
 
 void oEvent::startReconnectDaemon()
@@ -121,14 +121,14 @@ void oEvent::startReconnectDaemon()
 
 bool oEvent::msSynchronize(oBase *ob)
 {
-	//if(!msSynchronizeRead) return true;
+  //if (!msSynchronizeRead) return true;
   if (!HasDBConnection && !HasPendingDBConnection)
     return true;
 
-	int ret = msSynchronizeRead(ob);
+  int ret = msSynchronizeRead(ob);
 
   char err[256];
-  if(msGetErrorState(err))
+  if (msGetErrorState(err))
     gdibase.addInfoBox("sqlerror", err, 15000);
 
   if (ret==0) {
@@ -136,15 +136,15 @@ bool oEvent::msSynchronize(oBase *ob)
     return false;
   }
 
-	if (typeid(*ob)==typeid(oTeam)) {
-		static_cast<pTeam>(ob)->apply(false, 0, false);
-	}
+  if (typeid(*ob)==typeid(oTeam)) {
+    static_cast<pTeam>(ob)->apply(false, 0, false);
+  }
 
   if (ret==1) {
     gdibase.RemoveFirstInfoBox("sqlwarning");
     gdibase.addInfoBox("sqlwarning", "Varning: ändringar i X blev överskrivna#" + ob->getInfo(), 5000);
   }
-	return ret!=0;
+  return ret!=0;
 }
 
 void oEvent::resetChangeStatus(bool onlyChangable)
@@ -152,9 +152,9 @@ void oEvent::resetChangeStatus(bool onlyChangable)
   if (HasDBConnection) {
     if (!onlyChangable) {
        // The object here has no dependeces that makes it necessary to set/rest
-  
+
       for (list<oFreePunch>::iterator it=oe->punches.begin();
-	        it!=oe->punches.end(); ++it)
+          it!=oe->punches.end(); ++it)
         it->resetChangeStatus();
 
       //synchronize changed objects
@@ -162,29 +162,29 @@ void oEvent::resetChangeStatus(bool onlyChangable)
             it!=oe->Cards.end(); ++it)
         it->resetChangeStatus();
 
-	    for (list<oClub>::iterator it=oe->Clubs.begin(); 
+      for (list<oClub>::iterator it=oe->Clubs.begin();
             it!=oe->Clubs.end(); ++it)
         it->resetChangeStatus();
 
       for (list<oControl>::iterator it=oe->Controls.begin();
-	          it!=oe->Controls.end(); ++it)
+            it!=oe->Controls.end(); ++it)
         it->resetChangeStatus();
 
       for (list<oCourse>::iterator it=oe->Courses.begin();
-	          it!=oe->Courses.end(); ++it)
+            it!=oe->Courses.end(); ++it)
         it->resetChangeStatus();
 
       for (list<oClass>::iterator it=oe->Classes.begin();
-	        it!=oe->Classes.end(); ++it)
+          it!=oe->Classes.end(); ++it)
         it->resetChangeStatus();
     }
 
     for (list<oRunner>::iterator it=oe->Runners.begin();
-	      it!=oe->Runners.end(); ++it)
+        it!=oe->Runners.end(); ++it)
       it->resetChangeStatus();
 
     for (list<oTeam>::iterator it=oe->Teams.begin();
-	      it!=oe->Teams.end(); ++it)
+        it!=oe->Teams.end(); ++it)
       it->resetChangeStatus();
   }
 }
@@ -195,85 +195,85 @@ void oEvent::storeChangeStatus(bool onlyChangable)
     if (!onlyChangable) {
        // The object here has no dependeces that makes it necessary to set/rest
       for (list<oFreePunch>::iterator it=oe->punches.begin();
-	          it!=oe->punches.end(); ++it)
+            it!=oe->punches.end(); ++it)
         it->storeChangeStatus();
- 
+
       for (list<oCard>::iterator it=oe->Cards.begin();
             it!=oe->Cards.end(); ++it)
         it->storeChangeStatus();
 
-	    for (list<oClub>::iterator it=oe->Clubs.begin(); 
+      for (list<oClub>::iterator it=oe->Clubs.begin();
             it!=oe->Clubs.end(); ++it)
         it->storeChangeStatus();
 
       for (list<oControl>::iterator it=oe->Controls.begin();
-	          it!=oe->Controls.end(); ++it)
+            it!=oe->Controls.end(); ++it)
         it->storeChangeStatus();
 
       for (list<oCourse>::iterator it=oe->Courses.begin();
-	          it!=oe->Courses.end(); ++it)
+            it!=oe->Courses.end(); ++it)
         it->storeChangeStatus();
 
       for (list<oClass>::iterator it=oe->Classes.begin();
-	        it!=oe->Classes.end(); ++it)
+          it!=oe->Classes.end(); ++it)
         it->storeChangeStatus();
     }
 
     for (list<oRunner>::iterator it=oe->Runners.begin();
-	      it!=oe->Runners.end(); ++it)
+        it!=oe->Runners.end(); ++it)
       it->storeChangeStatus();
 
     for (list<oTeam>::iterator it=oe->Teams.begin();
-	      it!=oe->Teams.end(); ++it)
+        it!=oe->Teams.end(); ++it)
       it->storeChangeStatus();
   }
 }
 
 
-bool oEvent::synchronizeList(oListId id, bool preSyncEvent, bool postSyncEvent) {  
-  if(!HasDBConnection)
+bool oEvent::synchronizeList(oListId id, bool preSyncEvent, bool postSyncEvent) {
+  if (!HasDBConnection)
     return true;
 
-  if(preSyncEvent) {
+  if (preSyncEvent) {
     msSynchronize(this);
     resetSQLChanged(true, false);
   }
 
-	if( !msSynchronizeList(this, id) ) {
+  if ( !msSynchronizeList(this, id) ) {
     verifyConnection();
-    return false;  
+    return false;
   }
 
   if (id == oLPunchId)
     advanceInformationPunches.clear();
 
   if (postSyncEvent) {
-		reEvaluateChanged();
+    reEvaluateChanged();
     resetChangeStatus();
-		return true;
-	}
+    return true;
+  }
 
   return true;
 }
 
 bool oEvent::needReEvaluate() {
-	return sqlChangedRunners | 
+  return sqlChangedRunners |
          sqlChangedClasses |
-	       sqlChangedCourses |
-	       sqlChangedControls |
-	       sqlChangedCards |
+         sqlChangedCourses |
+         sqlChangedControls |
+         sqlChangedCards |
          sqlChangedTeams;
 }
 
 void oEvent::resetSQLChanged(bool resetAllTeamsRunners, bool cleanClasses) {
-	sqlChangedRunners = false;
-	sqlChangedClasses = false;
-	sqlChangedCourses = false;
-	sqlChangedControls = false;
-	sqlChangedClubs = false;
-	sqlChangedCards = false;
-	sqlChangedPunches = false;
-	sqlChangedTeams = false;
+  sqlChangedRunners = false;
+  sqlChangedClasses = false;
+  sqlChangedCourses = false;
+  sqlChangedControls = false;
+  sqlChangedClubs = false;
+  sqlChangedCards = false;
+  sqlChangedPunches = false;
+  sqlChangedTeams = false;
 
   if (resetAllTeamsRunners) {
     for (list<oRunner>::iterator it=oe->Runners.begin();
@@ -304,44 +304,44 @@ bool BaseIsRemoved(const oBase &ob){return ob.isRemoved();}
 //Returns true if data is changed.
 bool oEvent::autoSynchronizeLists(bool SyncPunches)
 {
-  if(!HasDBConnection)
+  if (!HasDBConnection)
     return false;
 
-	bool changed=false;
-	string ot;
+  bool changed=false;
+  string ot;
 
   int mask = getListMask(*this);
   if (mask == 0)
     return false;
-  
+
   // Reset change data and store update status on objects
   // (which might be incorrectly changed during sql update)
   resetSQLChanged(true, false);
-  
+
   //Synchronize ourself
   if (mask & oLEventId) {
     ot=sqlUpdated;
     msSynchronize(this);
-    if(sqlUpdated!=ot) {
+    if (sqlUpdated!=ot) {
       changed=true;
       gdibase.setWindowTitle(getTitleName());
     }
   }
-	//Controls
+  //Controls
   if (mask & oLControlId) {
-	  int oc = sqlCounterControls;
+    int oc = sqlCounterControls;
     ot = sqlUpdateControls;
     synchronizeList(oLControlId, false, false);
-	  changed |= oc!=sqlCounterControls;
+    changed |= oc!=sqlCounterControls;
     changed |= ot!=sqlUpdateControls;
   }
 	
   //Courses
   if (mask & oLCourseId) {
-	  int oc = sqlCounterCourses;
+    int oc = sqlCounterCourses;
     ot = sqlUpdateCourses;
     synchronizeList(oLCourseId, false, false);
-	  changed |= oc!=sqlCounterCourses;
+    changed |= oc!=sqlCounterCourses;
     changed |= ot!=sqlUpdateCourses;
   }
 
@@ -349,57 +349,57 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
   if (mask & oLClassId) {
     int oc = sqlCounterClasses;
     ot = sqlUpdateClasses;
-	  synchronizeList(oLClassId, false, false);
-	  changed |= oc!=sqlCounterClasses;
+    synchronizeList(oLClassId, false, false);
+    changed |= oc!=sqlCounterClasses;
     changed |= ot!=sqlUpdateClasses;
   }
 
-	//Clubs
+  //Clubs
   if (mask & oLClubId) {
     int oc = sqlCounterClubs;
     ot = sqlUpdateClubs;
-	  synchronizeList(oLClubId, false, false);
-	  changed |= oc!=sqlCounterClubs;
+    synchronizeList(oLClubId, false, false);
+    changed |= oc!=sqlCounterClubs;
     changed |= ot!=sqlUpdateClubs;
   }
 
-	//Cards
+  //Cards
   if (mask & oLCardId) {
     int oc = sqlCounterCards;
     ot = sqlUpdateCards;
-	  synchronizeList(oLCardId, false, false);
-	  changed |= oc!=sqlCounterCards;
+    synchronizeList(oLCardId, false, false);
+    changed |= oc!=sqlCounterCards;
     changed |= ot!=sqlUpdateCards;
   }
 
-	//Runners
-	if (mask & oLRunnerId) {
+  //Runners
+  if (mask & oLRunnerId) {
     int oc = sqlCounterRunners;
     ot = sqlUpdateRunners;
-	  synchronizeList(oLRunnerId, false, false);
-	  changed |= oc!=sqlCounterRunners;
+    synchronizeList(oLRunnerId, false, false);
+    changed |= oc!=sqlCounterRunners;
     changed |= ot!=sqlUpdateRunners;
   }
 
-	//Teams
-	if (mask & oLTeamId) {
+  //Teams
+  if (mask & oLTeamId) {
     int oc = sqlCounterTeams;
     ot = sqlUpdateTeams;
-	  synchronizeList(oLTeamId, false, false);
-	  changed |= oc!=sqlCounterTeams;
+    synchronizeList(oLTeamId, false, false);
+    changed |= oc!=sqlCounterTeams;
     changed |= ot!=sqlUpdateTeams;
   }
 
   if (SyncPunches && (mask & oLPunchId)) {
-		//Punches
-		int oc = sqlCounterPunches;
+    //Punches
+    int oc = sqlCounterPunches;
     ot = sqlUpdatePunches;
-		synchronizeList(oLPunchId, false, false);
-		changed |= oc!=sqlCounterPunches;
+    synchronizeList(oLPunchId, false, false);
+    changed |= oc!=sqlCounterPunches;
     changed |= ot!=sqlUpdatePunches;
-	}
+  }
 
-	if (changed) {
+  if (changed) {
     if (needReEvaluate())
       reEvaluateChanged();
 
@@ -407,10 +407,10 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
     //Restore changed staus on object that might have been changed
     //during sql update, due to partial updates
     resetChangeStatus();
-		return true;
-	}
+    return true;
+  }
 
-	return false;
+  return false;
 }
 
 
@@ -419,23 +419,23 @@ bool oEvent::connectToMySQL(const string &server, const string &user, const stri
   if (isThreadReconnecting())
     return false;
 
-	if(!connectToServer())
-		return false;
+  if (!connectToServer())
+    return false;
 
-	MySQLServer=server;
-	MySQLPassword=pwd;
-	MySQLPort=port;
-	MySQLUser=user;
+  MySQLServer=server;
+  MySQLPassword=pwd;
+  MySQLPort=port;
+  MySQLUser=user;
 
   //Delete non-server competitions.
   list<CompetitionInfo> saved;
   list<CompetitionInfo>::iterator it;
-	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
-		if(it->Server.empty())
-			saved.push_back(*it);
-	}
-	cinfo=saved;
-	
+  for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
+    if (it->Server.empty())
+      saved.push_back(*it);
+  }
+  cinfo = saved;
+
   if (!msConnectToServer(this)) {
     char bf[256];
     msGetErrorState(bf);
@@ -443,12 +443,17 @@ bool oEvent::connectToMySQL(const string &server, const string &user, const stri
     return false;
   }
 
-	return true;
+  for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
+    if (it->Name.size() > 1 && it->Name[0] == '%')
+      it->Name = lang.tl(it->Name.substr(1));
+  }
+
+  return true;
 }
 
 
 bool oEvent::uploadSynchronize()
-{  
+{
   if (isThreadReconnecting())
     throw std::exception("Internt fel i anslutningen. Starta om MeOS");
   string newId = makeValidFileName(CurrentNameId, true);
@@ -478,33 +483,33 @@ bool oEvent::uploadSynchronize()
     }
   }
 
-	HasDBConnection=false;
+  HasDBConnection=false;
 
 #ifdef BUILD_DB_DLL
-	if (!msSynchronizeUpdate)
-		throw std::exception("Internt fel. Starta om MeOS");
+  if (!msSynchronizeUpdate)
+    throw std::exception("Internt fel. Starta om MeOS");
 #endif
 
-	if( !msOpenDatabase(this) ){
+  if ( !msOpenDatabase(this) ){
     char bf[256];
     msGetErrorState(bf);
-    string error = string("Kunde inte öppna databasen (X).#") + bf; 
+    string error = string("Kunde inte öppna databasen (X).#") + bf;
     throw std::exception(error.c_str());
   }
 
-  if( !msSynchronizeUpdate(this) ) {
+  if ( !msSynchronizeUpdate(this) ) {
     char bf[256];
     msGetErrorState(bf);
-    string error = string("Kunde inte ladda upp tävlingen (X).#") + bf; 
+    string error = string("Kunde inte ladda upp tävlingen (X).#") + bf;
     throw std::exception(error.c_str());
   }
 
   OpFailStatus stat = (OpFailStatus)msUploadRunnerDB(this);
 
-  if(stat == opStatusFail) {
+  if (stat == opStatusFail) {
     char bf[256];
     msGetErrorState(bf);
-    string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf; 
+    string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf;
     throw meosException(error);
   }
   else if (stat == opStatusWarning) {
@@ -513,60 +518,64 @@ bool oEvent::uploadSynchronize()
     gdibase.addInfoBox("", string("Kunde inte ladda upp löpardatabasen (X).#") + bf, 5000);
   }
 
-	HasDBConnection=true;
+  HasDBConnection=true;
 
   // Save local version of database
   saveRunnerDatabase(CurrentNameId, false);
 
-	return true;
+  return true;
 }
 
 //Load a (new) competition from the server.
 bool oEvent::readSynchronize(const CompetitionInfo &ci)
 {
-  if(ci.Id<=0)
+  if (ci.Id<=0)
     throw std::exception("help:12290");
 
   if (isThreadReconnecting())
     return false;
 
-	HasDBConnection=false;
+  HasDBConnection=false;
 
 #ifdef BUILD_DB_DLL
-	if(!msConnectToServer)
-		return false;
+  if (!msConnectToServer)
+    return false;
 #endif
 
-	MySQLServer=ci.Server;
-	MySQLPassword=ci.ServerPassword;
-	MySQLPort=ci.ServerPort;
-	MySQLUser=ci.ServerUser;
+  MySQLServer=ci.Server;
+  MySQLPassword=ci.ServerPassword;
+  MySQLPort=ci.ServerPort;
+  MySQLUser=ci.ServerUser;
 
   //Delete non-server competitions.
   list<CompetitionInfo> saved;
   list<CompetitionInfo>::iterator it;
-	for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
-		if(it->Server.empty())
-			saved.push_back(*it);
-	}
-	cinfo=saved;
-	
+  for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
+    if (it->Server.empty())
+      saved.push_back(*it);
+  }
+  cinfo=saved;
+
   if (!msConnectToServer(this)) {
     char bf[256];
     msGetErrorState(bf);
     throw std::exception(bf);
-    //MessageBox(NULL, bf, "Error", MB_OK);
     return false;
   }
 
-	newCompetition("");
-	Id=ci.Id;
-	strcpy_s(CurrentNameId, ci.FullPath.c_str());
+  for (it=cinfo.begin(); it!=cinfo.end(); ++it) {
+    if (it->Name.size() > 1 && it->Name[0] == '%')
+      it->Name = lang.tl(it->Name.substr(1));
+  }
 
-	char file[260];
-	sprintf_s(file, "%s.dbmeos", CurrentNameId);
-	getUserFile(CurrentFile, file);
-  if( !msOpenDatabase(this) ) {
+  newCompetition("");
+  Id=ci.Id;
+  strcpy_s(CurrentNameId, ci.FullPath.c_str());
+
+  char file[260];
+  sprintf_s(file, "%s.dbmeos", CurrentNameId);
+  getUserFile(CurrentFile, file);
+  if ( !msOpenDatabase(this) ) {
     char bf[256];
     msGetErrorState(bf);
     throw std::exception(bf);
@@ -574,10 +583,10 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
 
   updateFreeId();
   HasDBConnection=false;
-  
+
   openRunnerDatabase(CurrentNameId);
 
-  int ret = msSynchronizeRead(this); 
+  int ret = msSynchronizeRead(this);
   if (ret == 0) {
     char bf[256];
     msGetErrorState(bf);
@@ -596,10 +605,10 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
   // Cache database locally
   saveRunnerDatabase(CurrentNameId, false);
 
-  HasDBConnection=true;  
+  HasDBConnection=true;
 
   // Setup multirunner links
-  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) 
+  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it)
     it->createMultiRunner(false,false);
 
   // Remove incorrect references
@@ -629,7 +638,7 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
 
     for (size_t i = 0; i < it->Runners.size(); i++) {
       pRunner r = it->Runners[i];
-      
+
       if (r != 0) {
         int expectedIndex = -1;
         if (it->Class)
@@ -639,7 +648,7 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
           int baseLeg = it->Class->getLegRunner(i);
           it->setRunner(baseLeg, r->getMultiRunner(0), true);
           teamCorrected = true;
-        }        
+        }
       }
     }
 
@@ -666,7 +675,7 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
     }
   }
 
-	reEvaluateAll(set<int>(), false);
+  reEvaluateAll(set<int>(), false);
   vector<string> out;
   checkChanged(out);
   assert(out.empty());
@@ -687,12 +696,12 @@ bool oEvent::readSynchronize(const CompetitionInfo &ci)
     }
   }
 
- 	return true;
+  return true;
 }
 
 bool oEvent::reConnect(char *errorMsg256)
 {
-  if(HasDBConnection)
+  if (HasDBConnection)
     return true;
 
   if (isThreadReconnecting()){
@@ -707,48 +716,48 @@ bool oEvent::reConnect(char *errorMsg256)
   }
 #endif
 
-  if(msReConnect()) {
+  if (msReConnect()) {
     HasDBConnection = true;
     HasPendingDBConnection = false;
     //synchronize changed objects
     for (list<oCard>::iterator it=oe->Cards.begin();
           it!=oe->Cards.end(); ++it)
-      if(it->isChanged())
+      if (it->isChanged())
         it->synchronize(false);
 
-		for (list<oClub>::iterator it=oe->Clubs.begin(); 
+    for (list<oClub>::iterator it=oe->Clubs.begin();
           it!=oe->Clubs.end(); ++it)
-      if(it->isChanged())
+      if (it->isChanged())
         it->synchronize(false);
 
     for (list<oControl>::iterator it=oe->Controls.begin();
-		      it!=oe->Controls.end(); ++it)
-      if(it->isChanged())
+          it!=oe->Controls.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
     for (list<oCourse>::iterator it=oe->Courses.begin();
-		      it!=oe->Courses.end(); ++it)
-      if(it->isChanged())
+          it!=oe->Courses.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
     for (list<oClass>::iterator it=oe->Classes.begin();
-		    it!=oe->Classes.end(); ++it)
-      if(it->isChanged())
+        it!=oe->Classes.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
-	  for (list<oRunner>::iterator it=oe->Runners.begin();
-		    it!=oe->Runners.end(); ++it)
-      if(it->isChanged())
+    for (list<oRunner>::iterator it=oe->Runners.begin();
+        it!=oe->Runners.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
-	  for (list<oTeam>::iterator it=oe->Teams.begin();
-		    it!=oe->Teams.end(); ++it)
-      if(it->isChanged())
+    for (list<oTeam>::iterator it=oe->Teams.begin();
+        it!=oe->Teams.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
     for (list<oFreePunch>::iterator it=oe->punches.begin();
-		    it!=oe->punches.end(); ++it)
-      if(it->isChanged())
+        it!=oe->punches.end(); ++it)
+      if (it->isChanged())
         it->synchronize(false);
 
     autoSynchronizeLists(true);
@@ -769,16 +778,16 @@ int oEvent::checkChanged(vector<string> &out) const
 
   for (list<oCard>::iterator it=oe->Cards.begin();
     it!=oe->Cards.end(); ++it)
-    if(it->isChanged()) {
+    if (it->isChanged()) {
       changed++;
-      sprintf_s(bf, "Card %d", it->CardNo);
+      sprintf_s(bf, "Card %d", it->cardNo);
       out.push_back(bf);
       it->synchronize();
     }
 
-	for (list<oClub>::iterator it=oe->Clubs.begin(); 
+  for (list<oClub>::iterator it=oe->Clubs.begin();
     it!=oe->Clubs.end(); ++it)
-    if(it->isChanged()) {
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Club %s", it->name.c_str());
       out.push_back(bf);
@@ -786,8 +795,8 @@ int oEvent::checkChanged(vector<string> &out) const
     }
 
   for (list<oControl>::iterator it=oe->Controls.begin();
-	  it!=oe->Controls.end(); ++it)
-    if(it->isChanged()) {
+    it!=oe->Controls.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Control %d", it->Numbers[0]);
       out.push_back(bf);
@@ -795,8 +804,8 @@ int oEvent::checkChanged(vector<string> &out) const
     }
 
   for (list<oCourse>::iterator it=oe->Courses.begin();
-	      it!=oe->Courses.end(); ++it)
-    if(it->isChanged()) {
+        it!=oe->Courses.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Course %s", it->Name.c_str());
       out.push_back(bf);
@@ -804,8 +813,8 @@ int oEvent::checkChanged(vector<string> &out) const
     }
 
   for (list<oClass>::iterator it=oe->Classes.begin();
-	    it!=oe->Classes.end(); ++it)
-    if(it->isChanged()) {
+      it!=oe->Classes.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Class %s", it->Name.c_str());
       out.push_back(bf);
@@ -813,30 +822,30 @@ int oEvent::checkChanged(vector<string> &out) const
     }
 
   for (list<oRunner>::iterator it=oe->Runners.begin();
-	    it!=oe->Runners.end(); ++it)
-    if(it->isChanged()) {
+      it!=oe->Runners.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Runner %s", it->Name.c_str());
       out.push_back(bf);
       it->synchronize();
     }
   for (list<oTeam>::iterator it=oe->Teams.begin();
-	    it!=oe->Teams.end(); ++it)
-    if(it->isChanged()) {
+      it!=oe->Teams.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Team %s", it->Name.c_str());
       out.push_back(bf);
       it->synchronize();
     }
   for (list<oFreePunch>::iterator it=oe->punches.begin();
-	    it!=oe->punches.end(); ++it)
-    if(it->isChanged()) {
+      it!=oe->punches.end(); ++it)
+    if (it->isChanged()) {
       changed++;
       sprintf_s(bf, "Punch SI=%d, %d", it->CardNo, it->Type);
       out.push_back(bf);
       it->synchronize();
     }
-  
+
   return changed;
 }
 
@@ -866,11 +875,11 @@ const string &oEvent::getServerName() const
 }
 
 void oEvent::closeDBConnection()
-{  
+{
   bool hadDB=HasDBConnection;
- 
-  if(isThreadReconnecting()) {
-    //Don't know what to do?!  
+
+  if (isThreadReconnecting()) {
+    //Don't know what to do?!
   }
   gdibase.setWaitCursor(true);
   if (HasDBConnection) {
@@ -879,7 +888,7 @@ void oEvent::closeDBConnection()
   HasDBConnection=false;
 
   #ifdef BUILD_DB_DLL
-    if (msResetConnection) 
+    if (msResetConnection)
       msResetConnection();
   #else
     msResetConnection();
@@ -888,7 +897,6 @@ void oEvent::closeDBConnection()
 
   if (!oe->empty() && hadDB) {
     save();
-    tOriginalName=Name;
     Name+=" (Lokal kopia från: " + serverName + ")";
     char cn[260];
     sprintf_s(cn, "%s.%s.meos", CurrentNameId, serverName.c_str());
@@ -899,7 +907,7 @@ void oEvent::closeDBConnection()
   }
   else serverName.clear();
 
-  gdibase.setWaitCursor(false);  
+  gdibase.setWaitCursor(false);
 }
 
 void oEvent::listConnectedClients(gdioutput &gdi)
@@ -941,11 +949,11 @@ bool oEvent::hasClientChanged() const
 }
 
 void oEvent::dropDatabase()
-{  
+{
   bool dropped = false;
   if (HasDBConnection) {
     HasDBConnection=false;
-    
+
     dropped = msDropDatabase(this)!=0;
   }
   else throw std::exception("Inte ansluten");
@@ -953,9 +961,9 @@ void oEvent::dropDatabase()
   if (!dropped) {
     char bf[256];
     msGetErrorState(bf);
-    if(strlen(bf)>0)
+    if (strlen(bf)>0)
       throw std::exception(bf);
-    
+
     throw std::exception("Operationen misslyckades. Orsak okänd.");
   }
   clear();

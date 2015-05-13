@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -28,6 +28,8 @@
 #include "TabAuto.h"
 #include "meos_util.h"
 #include "socket.h"
+
+const int SYNC_FACTOR = 4; 
 
 //#define DEBUGPRINT
 //#define NODELAY
@@ -40,8 +42,9 @@ AutoTask::AutoTask(HWND hWnd, oEvent &oeIn, gdioutput &gdiIn) : hWndMain(hWnd), 
 
   autoSaveTimeBase = autoSaveTime = oe.getPropertyInt("AutoSaveTimeOut", (3*60+15)*1000);
   synchBaseTime = oe.getPropertyInt("SynchronizationTimeOut", 2500);
+  maxDelay = oe.getPropertyInt("MaximumSpeakerDelay", 10000)/SYNC_FACTOR;
 }
-  
+
 void AutoTask::autoSave() {
   if (!oe.empty()) {
     string msg;
@@ -50,9 +53,9 @@ void AutoTask::autoSave() {
         gdi.setWaitCursor(true);
 
       DWORD tic = GetTickCount();
-		  oe.save();
+      oe.save();
       DWORD toc = GetTickCount();
-		  
+
       if (toc > tic) {
         int timeToSave = toc - tic;
         int interval = max(autoSaveTimeBase, timeToSave * 10);
@@ -69,15 +72,15 @@ void AutoTask::autoSave() {
       msg="Ett okänt fel inträffade.";
     }
 
-    if(!msg.empty()) {
+    if (!msg.empty()) {
       gdi.alert(msg);
     }
     else
-		  gdi.addInfoBox("", "Tävlingsdata har sparats.", 10);
-    
+      gdi.addInfoBox("", "Tävlingsdata har sparats.", 10);
+
     gdi.setWaitCursor(false);
 
-	}
+  }
 }
 
 void AutoTask::resetSaveTimer() {
@@ -87,7 +90,7 @@ void AutoTask::resetSaveTimer() {
 
 void AutoTask::setTimers() {
   SetTimer(hWndMain, 2, 1000, 0); //Interface timeout
-	SetTimer(hWndMain, 3, synchBaseTime, 0); //DataSync
+  SetTimer(hWndMain, 3, synchBaseTime, 0); //DataSync
 }
 
 void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
@@ -102,11 +105,11 @@ void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
     DWORD tick = GetTickCount();
     for (size_t k = 0; k<windows.size(); k++) {
       if (windows[k])
-			  windows[k]->CheckInterfaceTimeouts(tick);
+        windows[k]->CheckInterfaceTimeouts(tick);
     }
 
-	  if(tabAuto)
-		  tabAuto->timerCallback(gdi);
+    if (tabAuto)
+      tabAuto->timerCallback(gdi);
   }
   catch(std::exception &ex) {
     msg=ex.what();
@@ -114,7 +117,7 @@ void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
   catch(...) {
     msg="Ett okänt fel inträffade.";
   }
-  if(!msg.empty()) {
+  if (!msg.empty()) {
     gdi.alert(msg);
     gdi.setWaitCursor(false);
   }
@@ -122,6 +125,9 @@ void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
 }
 
 void AutoTask::addSynchTime(DWORD tick) {
+  if (tick > 1000 * 60)
+    return; // Ignore extreme times
+
   if (synchQueue.size () > 8)
     synchQueue.pop_front();
 
@@ -132,15 +138,16 @@ DWORD AutoTask::getAvgSynchTime() {
 #ifdef NODELAY
   return 0;
 #else
-  DWORD res = 0;
+  double res = 0;
   for (size_t k = 0; k < synchQueue.size(); k++) {
-    res += synchQueue[k];
+    double sq = synchQueue[k];
+    res += sq*sq;
   }
 
   if (res > 0)
-    res /= synchQueue.size();
+    res = sqrt(res) / double(synchQueue.size());
 
-  return res;
+  return min(int(res), maxDelay);
 #endif
 }
 
@@ -150,7 +157,7 @@ void AutoTask::synchronize(const vector<gdioutput *> &windows) {
   //OutputDebugString(("AVG Update Time: " + itos(avg)).c_str());
   if (tic > lastSynchTime) {
     DWORD since = tic - lastSynchTime;
-    if (since < avg * 4) {
+    if (since < avg * SYNC_FACTOR) {
       //OutputDebugString((" skipped: " + itos(since) + "\n").c_str());
       return;
     }
@@ -189,7 +196,7 @@ void AutoTask::advancePunchInformation(const vector<gdioutput *> &windows) {
   //OutputDebugString(("Direct Update Time: " + itos(avg)).c_str());
   if (tic > lastSynchTime) {
     DWORD since = tic-lastSynchTime;
-    if (since < avg * 4) {
+    if (since < avg * SYNC_FACTOR) {
       //OutputDebugString((" skipped: " + itos(since) + "\n").c_str());
       return;
     }
@@ -219,7 +226,7 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
     return false;
   lock = true;
 
-	DWORD d=0;
+  DWORD d=0;
   bool doSync = false;
   bool doSyncPunch = false;
   TabAuto *tabAuto = dynamic_cast<TabAuto *>(gdi.getTabs().get(TAutoTab));
@@ -227,18 +234,18 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
   for (size_t k = 0; k<windows.size(); k++) {
     if (windows[k] && windows[k]->getData("DataSync", d)) {
       doSync = true;
-    }    
+    }
     if (windows[k] && windows[k]->getData("PunchSync", d)) {
       doSyncPunch = true;
       doSync = true;
-    } 
+    }
   }
 
   string msg;
   bool ret = false;
   try {
-    if (doSync || (tabAuto && tabAuto->synchronize)) {					
-	
+    if (doSync || (tabAuto && tabAuto->synchronize)) {
+
       if (tabAuto && tabAuto->synchronizePunches)
         doSyncPunch = true;
 
@@ -247,7 +254,7 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
         if (getAvgSynchTime() > 1000)
           gdi.setWaitCursor(true);
 
-        if(doSync) {
+        if (doSync) {
           for (size_t k = 0; k<windows.size(); k++) {
             if (windows[k]) {
               try {
@@ -263,10 +270,10 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
           }
         }
 
-        if(tabAuto)
+        if (tabAuto)
           tabAuto->syncCallback(gdi);
-      }			
-	  }
+      }
+    }
     oe.resetSQLChanged(false, true);
   }
   catch (std::exception &ex) {
@@ -278,7 +285,7 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
 
   currentRevision = oe.getRevision();
 
-  if(!msg.empty()) {
+  if (!msg.empty()) {
     gdi.alert(msg);
   }
   lock = false;
@@ -287,18 +294,18 @@ bool AutoTask::synchronizeImpl(const vector<gdioutput *> &windows) {
 }
 
 bool AutoTask::advancePunchInformationImpl(const vector<gdioutput *> &windows) {
-	DWORD d=0;
+  DWORD d=0;
   bool doSync = false;
   bool doSyncPunch = false;
 
   for (size_t k = 0; k<windows.size(); k++) {
     if (windows[k] && windows[k]->getData("DataSync", d)) {
       doSync = true;
-    }    
+    }
     if (windows[k] && windows[k]->getData("PunchSync", d)) {
       doSyncPunch = true;
       doSync = true;
-    } 
+    }
   }
 
   //string msg;
@@ -321,6 +328,6 @@ bool AutoTask::advancePunchInformationImpl(const vector<gdioutput *> &windows) {
   catch (...) {
     //msg = "Ett okänt fel inträffade.";
   }
-  
+
   return false;
 }

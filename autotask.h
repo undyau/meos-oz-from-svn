@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <vector>
@@ -42,9 +42,9 @@ private:
 
   deque<DWORD> synchQueue;
   deque<DWORD> directQueue;
-  
+
   DWORD lastSynchTime;
-  DWORD lastTriedSynchTime;  
+  DWORD lastTriedSynchTime;
   void addSynchTime(DWORD tick);
   DWORD getAvgSynchTime();
 
@@ -52,9 +52,9 @@ private:
 
   int autoSaveTime;
   int autoSaveTimeBase;
-  
-  int synchBaseTime;
 
+  int synchBaseTime;
+  int maxDelay; // The maximal delay between syncs
 public:
 
   void setTimers();

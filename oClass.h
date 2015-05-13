@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "oCourse.h"
@@ -42,52 +42,60 @@ class oDataInterface;
 
 enum PersonSex;
 
-enum StartTypes {   
+enum StartTypes {
   STTime=0,
   STChange,
   STDrawn,
   STHunting,
-  ST_max=STHunting
+  ST_max
 };
-enum { nStartTypes = ST_max + 1 };
+enum { nStartTypes = ST_max };
 
 enum LegTypes {
-  LTNormal=0, 
-  LTParallel, 
+  LTNormal=0,
+  LTParallel,
   LTExtra,
   LTSum,
   LTIgnore,
   LTParallelOptional,
-  LT_max=LTParallelOptional
+  LTGroup,
+  LT_max,
 };
-enum { nLegTypes = LT_max + 1 };
+enum { nLegTypes = LT_max };
+
+
+enum BibMode {
+  BibSame,
+  BibAdd,
+  BibFree
+};
 
 #ifdef DODECLARETYPESYMBOLS
   const char *StartTypeNames[4]={"ST", "CH", "DR", "HU"};
-  const char *LegTypeNames[6]={"NO", "PA", "EX", "SM", "IG", "PO"};
+  const char *LegTypeNames[7]={"NO", "PA", "EX", "SM", "IG", "PO", "GP"};
 #endif
 
 struct oLegInfo {
-	StartTypes startMethod;
-	LegTypes legMethod;
+  StartTypes startMethod;
+  LegTypes legMethod;
   bool isParallel() const {return legMethod == LTParallel || legMethod == LTParallelOptional;}
   bool isOptional() const {return legMethod == LTParallelOptional || legMethod == LTExtra || legMethod == LTIgnore;}
   //Interpreteation depends. Can be starttime/first start
   //or number of earlier legs to consider.
-	int legStartData;
+  int legStartData;
   int legRestartTime;
   int legRopeTime;
   int duplicateRunner;
 
   // Transient, deducable data
-  mutable int trueSubLeg;
-  mutable int trueLeg;
-  mutable string displayLeg;
+  int trueSubLeg;
+  int trueLeg;
+  string displayLeg;
 
-  oLegInfo():startMethod(STTime), legMethod(LTNormal), legStartData(0), 
+  oLegInfo():startMethod(STTime), legMethod(LTNormal), legStartData(0),
              legRestartTime(0), legRopeTime(0), duplicateRunner(-1) {}
-	string codeLegMethod() const;
-	void importLegMethod(const string &courses);
+  string codeLegMethod() const;
+  void importLegMethod(const string &courses);
 };
 
 struct ClassResultInfo {
@@ -99,12 +107,12 @@ struct ClassResultInfo {
 };
 
 
-enum ClassType {oClassIndividual=1, oClassPatrol=2, 
+enum ClassType {oClassIndividual=1, oClassPatrol=2,
                 oClassRelay=3, oClassIndividRelay=4};
 
-enum ClassMetaType {ctElite, ctNormal, ctYouth, ctTraining, 
+enum ClassMetaType {ctElite, ctNormal, ctYouth, ctTraining,
                     ctExercise, ctOpen, ctUnknown};
- 
+
 class Table;
 class oClass : public oBase
 {
@@ -112,10 +120,10 @@ public:
   enum ClassStatus {Normal, Invalid, InvalidRefund};
 
 protected:
-	string Name;
-	pCourse Course;
+  string Name;
+  pCourse Course;
 
-	vector< vector<pCourse> > MultiCourse;
+  vector< vector<pCourse> > MultiCourse;
   vector< oLegInfo > legInfo;
 
   //First: best time on leg
@@ -170,19 +178,19 @@ protected:
   BYTE oDataOld[256];
 
   //Multicourse data
-	string codeMultiCourse() const;
+  string codeMultiCourse() const;
   //Fill courseId with id:s of used courses.
-	void importCourses(const vector< vector<int> > &multi);
+  void importCourses(const vector< vector<int> > &multi);
   static void parseCourses(const string &courses, vector< vector<int> > &multi, set<int> &courseId);
   set<int> &getMCourseIdSet(set<int> &in) const;
 
   //Multicourse leg methods
-	string codeLegMethod() const;
-	void importLegMethod(const string &courses);
+  string codeLegMethod() const;
+  void importLegMethod(const string &courses);
 
   //bool sqlChanged;
-  /** Pairs of changed entities. (Leg number, control id (or PunchFinish)) 
-    (-1,-1) means all (leg, -1) means all on leg.    
+  /** Pairs of changed entities. (Leg number, control id (or PunchFinish))
+    (-1,-1) means all (leg, -1) means all on leg.
   */
   map< int, set<int> > sqlChangedControlLeg;
   map< int, set<int> > sqlChangedLegControl;
@@ -190,23 +198,23 @@ protected:
   void markSQLChanged(int leg, int control);
 
   void addTableRow(Table &table) const;
-  bool inputData(int id, const string &input, int inputId, 
+  bool inputData(int id, const string &input, int inputId,
                         string &output, bool noUpdate);
 
   void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected);
-  
+
   void exportIOFStart(xmlparser &xml);
 
   /** Setup transient data */
   void reinitialize();
 
   /** Recalculate derived data */
-  void apply() const;
-  
+  void apply();
+
   void calculateSplits();
   void clearSplitAnalysis();
 
-  /** Info about the result in the class for each leg. 
+  /** Info about the result in the class for each leg.
       Use oEvent::analyseClassResultStatus to setup */
   mutable vector<ClassResultInfo> tResultInfo;
 
@@ -218,8 +226,10 @@ protected:
 
   void changedObject();
 
+  static long long setupForkKey(const vector<int> indices, const vector< vector< vector<int> > > &courseKeys);
+
 public:
-  
+
   bool isParallel(size_t leg) {
     if (leg < legInfo.size())
       return legInfo[leg].isParallel();
@@ -255,7 +265,7 @@ public:
   int getLegPlace(int from, int to, int time) const;
 
   /** Get accumulated leg place */
-  int getAccLegPlace(int courseId, int controlNo, int time) const; 
+  int getAccLegPlace(int courseId, int controlNo, int time) const;
 
   /** Get cached sort index */
   int getSortIndex() const {return tSortIndex;};
@@ -266,13 +276,13 @@ public:
   bool isSingleRunnerMultiStage() const;
 
   bool wasSQLChanged(int leg, int control) const;// {return sqlChanged;}
-  
-  void getStatistics(const set<int> &feeLock, int &entries, int &started) const; 
+
+  void getStatistics(const set<int> &feeLock, int &entries, int &started) const;
 
   int getBestInputTime(int leg) const;
   int getBestLegTime(int leg) const;
   int getBestTimeCourse(int courseId) const;
-  
+
   int getTotalLegLeaderTime(int leg, bool includeInput) const;
 
   string getInfo() const;
@@ -287,7 +297,7 @@ public:
 
   void resetLeaderTime();
 
-  ClassType getClassType() const;  
+  ClassType getClassType() const;
 
   bool startdataIgnored(int i) const;
   bool restartIgnored(int i) const;
@@ -307,14 +317,14 @@ public:
   int getLegRunnerIndex(int leg) const;
   // Set the runner index for the specified leg. (Used when several legs are run be the same person)
   void setLegRunner(int leg, int runnerNo);
-  
+
   // Get number of races run by the runner of given leg
   int getNumMultiRunners(int leg) const;
 
   // Get number of legs, not counting parallel legs
   int getNumLegNoParallel() const;
 
-  // Split a linear leg index into non-parallel leg number and order 
+  // Split a linear leg index into non-parallel leg number and order
   // number on the leg (zero-indexed). Returns true if the legNumber is parallel
   bool splitLegNumberParallel(int leg, int &legNumber, int &legOrder) const;
 
@@ -338,30 +348,30 @@ public:
   void setStartData(int leg, const string &s);
   void setRestartTime(int leg, const string &t);
   void setRopeTime(int leg, const string &t);
-  
+
   void setNoTiming(bool noResult);
-  bool getNoTiming() const; 
+  bool getNoTiming() const;
 
   void setFreeStart(bool freeStart);
-  bool hasFreeStart() const; 
+  bool hasFreeStart() const;
 
   void setDirectResult(bool directResult);
-  bool hasDirectResult() const; 
+  bool hasDirectResult() const;
 
 
-	string getClassResultStatus() const;
+  string getClassResultStatus() const;
 
-	bool isCourseUsed(int Id) const;
+  bool isCourseUsed(int Id) const;
   string getLength(int leg) const;
 
   // True if the multicourse structure is in use
-	bool hasMultiCourse() const {return MultiCourse.size()>0;}
+  bool hasMultiCourse() const {return MultiCourse.size()>0;}
 
   // True if there is a true multicourse usage.
   bool hasTrueMultiCourse() const;
 
-	unsigned getNumStages() const {return MultiCourse.size();}
-  /** Get the set of true legs, identifying parallell legs etc. Returns indecs into 
+  unsigned getNumStages() const {return MultiCourse.size();}
+  /** Get the set of true legs, identifying parallell legs etc. Returns indecs into
    legInfo of the last leg of the true leg (first), and true leg (second).*/
   struct TrueLegInfo {
   protected:
@@ -372,44 +382,44 @@ public:
     int second;
     int nonOptional; // Index of a leg with a non-optional runner of that leg (which e.g. defines the course)
   };
-  
+
   void getTrueStages(vector<TrueLegInfo> &stages) const;
 
   unsigned getLastStageIndex() const {return max<signed>(MultiCourse.size(), 1)-1;}
 
   void setNumStages(int no);
 
-	bool operator<(const oClass &b){return tSortIndex<b.tSortIndex;}
-	
+  bool operator<(const oClass &b){return tSortIndex<b.tSortIndex;}
+
   // Get total number of runners running this class.
   // Use checkFirstLeg to only check the number of runners running leg 1.
-	int getNumRunners(bool checkFirstLeg) const;
+  int getNumRunners(bool checkFirstLeg) const;
 
-  //Get remaining maps for class (or int::minvalue) 
+  //Get remaining maps for class (or int::minvalue)
   int getNumRemainingMaps(bool recalculate) const;
 
-	const string &getName() const {return Name;}
-	void setName(const string &name);
+  const string &getName() const {return Name;}
+  void setName(const string &name);
 
-	void Set(const xmlobject *xo);
-	bool Write(xmlparser &xml);
-	
-	bool fillStages(gdioutput &gdi, const string &name) const;
-	bool fillStageCourses(gdioutput &gdi, int stage, 
+  void Set(const xmlobject *xo);
+  bool Write(xmlparser &xml);
+
+  bool fillStages(gdioutput &gdi, const string &name) const;
+  bool fillStageCourses(gdioutput &gdi, int stage,
                         const string &name) const;
 
   static void fillStartTypes(gdioutput &gdi, const string &name, bool firstLeg);
   static void fillLegTypes(gdioutput &gdi, const string &name);
 
-	pCourse getCourse(bool getSampleFromRunner = false) const;
+  pCourse getCourse(bool getSampleFromRunner = false) const;
 
   void getCourses(int leg, vector<pCourse> &courses) const;
-  
-  pCourse getCourse(int leg, unsigned fork=0, bool getSampleFromRunner = false) const;
-	int getCourseId() const {if(Course) return Course->getId(); else return 0;}
-	void setCourse(pCourse c);
 
-	bool addStageCourse(int stage, int courseId);
+  pCourse getCourse(int leg, unsigned fork=0, bool getSampleFromRunner = false) const;
+  int getCourseId() const {if (Course) return Course->getId(); else return 0;}
+  void setCourse(pCourse c);
+
+  bool addStageCourse(int stage, int courseId);
   bool addStageCourse(int stage, pCourse pc);
   void clearStageCourses(int stage);
 
@@ -417,20 +427,23 @@ public:
 
   void getAgeLimit(int &low, int &high) const;
   void setAgeLimit(int low, int high);
-  
+
   int getExpectedAge() const;
 
   PersonSex getSex() const;
   void setSex(PersonSex sex);
-  
+
   string getStart() const;
   void setStart(const string &start);
-  
+
   int getBlock() const;
   void setBlock(int block);
 
   bool getAllowQuickEntry() const;
   void setAllowQuickEntry(bool quick);
+
+  BibMode getBibMode() const;
+  void setBibMode(BibMode bibMode);
 
   string getType() const;
   void setType(const string &type);
@@ -445,15 +458,24 @@ public:
   // Clear cached data
   void clearCache(bool recalculate);
 
-	oClass(oEvent *poe);
-	oClass(oEvent *poe, int id);
+  // Check if forking is fair
+  bool checkForking(vector< vector<int> > &legOrder,
+                    vector< vector<int> > &forks,
+                    set< pair<int, int> > &unfairLegs) const;
+
+  // Automatically setup forkings using the specified courses.
+  // Returns <number of forkings created, number of courses used>
+  pair<int, int> autoForking(const vector< vector<int> > &inputCourses);
+
+  oClass(oEvent *poe);
+  oClass(oEvent *poe, int id);
   virtual ~oClass();
 
   friend class oAbstractRunner;
-	friend class oEvent;
-	friend class oRunner;
-	friend class oTeam;
-	friend class MeosSQL;
+  friend class oEvent;
+  friend class oRunner;
+  friend class oTeam;
+  friend class MeosSQL;
   friend class TabSpeaker;
 };
 

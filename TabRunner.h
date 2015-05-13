@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "tabbase.h"
 #include "Printer.h"
@@ -26,7 +26,7 @@
 class Table;
 
 class TabRunner :
-	public TabBase
+  public TabBase
 {
 private:
   void addToolbar(gdioutput &gdi);
@@ -40,13 +40,13 @@ private:
   void cellAction(gdioutput &gdi, DWORD id, oBase *obj);
 
   void selectRunner(gdioutput &gdi, pRunner r);
-  
+
   string lastSearchExpr;
   stdext::hash_set<int> lastFilter;
   DWORD timeToFill;
   int inputId;
   int searchCB(gdioutput &gdi, int type, void *data);
-  
+
   int runnerCB(gdioutput &gdi, int type, void *data);
   int punchesCB(gdioutput &gdi, int type, void *data);
   int vacancyCB(gdioutput &gdi, int type, void *data);
@@ -87,12 +87,12 @@ private:
 
 public:
   void showInForestList(gdioutput &gdi);
-  
-	bool loadPage(gdioutput &gdi);
+
+  bool loadPage(gdioutput &gdi);
   bool loadPage(gdioutput &gdi, int runnerId);
 
-	TabRunner(oEvent *oe);
-	~TabRunner(void);
+  TabRunner(oEvent *oe);
+  ~TabRunner(void);
 
   friend int runnerSearchCB(gdioutput *gdi, int type, void *data);
   friend int RunnerCB(gdioutput *gdi, int type, void *data);

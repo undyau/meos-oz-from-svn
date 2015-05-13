@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "TabAuto.h"
@@ -27,8 +27,8 @@
 
 class InfoCompetition;
 
-class OnlineInput : 
-	public AutoMachine
+class OnlineInput :
+  public AutoMachine
 {
 protected:
   string url;
@@ -48,7 +48,7 @@ protected:
       info.pop_back();
     info.push_front(line);
   }
-  
+
   void fillMappings(gdioutput &gdi) const;
 
   void processCards(gdioutput &gdi, oEvent &oe, const xmlList &cards);
@@ -60,12 +60,12 @@ protected:
 public:
 
   int processButton(gdioutput &gdi, ButtonInfo &bi);
- 
+
   void save(oEvent &oe, gdioutput &gdi);
   void settings(gdioutput &gdi, oEvent &oe, bool created);
-  OnlineInput *clone() const {return new OnlineInput(*this);} 
-	void status(gdioutput &gdi);
-	void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
+  OnlineInput *clone() const {return new OnlineInput(*this);}
+  void status(gdioutput &gdi);
+  void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
   OnlineInput() : AutoMachine("Onlineinput"), cmpId(0), importCounter(1),
                     bytesImported(0), lastSync(0), lastImportedId(0), useROCProtocol(false) {}
   ~OnlineInput();

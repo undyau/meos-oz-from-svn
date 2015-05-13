@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -103,55 +103,55 @@ void pdfwriter::selectFont(HPDF_Page page, const PDFFontSet &fs, int format, flo
   if (format==0 || format==10) {
     HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
   }
-  else if(format==fontMedium){
-		HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
-	}
-	else if(format==1){
-		HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
-	}	
-	else if(format==boldLarge){
-		HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
-	}	
-	else if(format==boldHuge){
-		HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
-	}
-	else if(format==boldSmall){
-		HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
-	}
-	else if(format==fontLarge){
-		HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
-	}
-  else if(format==fontMediumPlus){
-		HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
-	}
-	else if(format==fontSmall){
-		HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
-	}
-  else if(format==italicSmall){
-		HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
-	}
-  else if(format==italicText){
-		HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
-	}
-  else if(format==italicMediumPlus){
-		HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
-	}
-	else {
+  else if (format==fontMedium){
     HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
-  }	
+  }
+  else if (format==1){
+    HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==boldLarge){
+    HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==boldHuge){
+    HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==boldSmall){
+    HPDF_Page_SetFontAndSize (page, fs.fontBold, fs.fontScaleBold*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==fontLarge){
+    HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==fontMediumPlus){
+    HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==fontSmall){
+    HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==italicSmall){
+    HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==italicText){
+    HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
+  }
+  else if (format==italicMediumPlus){
+    HPDF_Page_SetFontAndSize (page, fs.fontItalic, fs.fontScaleItalic*GDIImplFontSet::baseSize(format, scale));
+  }
+  else {
+    HPDF_Page_SetFontAndSize (page, fs.font, fs.fontScale*GDIImplFontSet::baseSize(format, scale));
+  }
 }
 
 void pdfwriter::generatePDF(const gdioutput &gdi,
                             const wstring &file,
-                            const string &pageTitle, 
+                            const string &pageTitle,
                             const string &author,
                             const list<TextInfo> &tl) {
 
   pdf = HPDF_New(pdfErrorhandler, 0);
-  if (!pdf) 
+  if (!pdf)
     pdfErrorhandler(-1, -1, 0);
 
-  // Set compression mode 
+  // Set compression mode
   HPDF_SetCompressionMode (pdf, HPDF_COMP_ALL);
   string creator = "MeOS " + getMeosCompectVersion();
   HPDF_SetInfoAttr(pdf, HPDF_INFO_CREATOR, creator.c_str());
@@ -160,7 +160,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
   // Map font name to pdf font sets
   map<string, PDFFontSet> fonts;
 
-  // Create default-font 
+  // Create default-font
   PDFFontSet &fs = fonts[""];
   fs.font = HPDF_GetFont (pdf, "Helvetica", "WinAnsiEncoding");
   fs.fontBold = HPDF_GetFont (pdf, "Helvetica-Bold", "WinAnsiEncoding");
@@ -171,10 +171,10 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
 
   // Add a new page object.
   HPDF_Page page = HPDF_AddPage (pdf);
-    
+
   // Set page size
   HPDF_Page_SetSize(page, HPDF_PAGE_SIZE_A4, HPDF_PAGE_PORTRAIT);
-    
+
   float maxX = 0;
   for (list<TextInfo>::const_iterator it = tl.begin(); it != tl.end(); ++it) {
     if (gdioutput::skipTextRender(it->format))
@@ -198,7 +198,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
   pageInfo.yMM2PrintC = pageInfo.xMM2PrintC = 1199.551f / 420.f;
   pageInfo.xMM2PrintK = 0;
   pageInfo.yMM2PrintK = 0;
-      
+
   pageInfo.renderPages(tl, true, pages);
   for (size_t j = 0; j< pages.size(); j++) {
     string pinfo = pageInfo.pageInfo(pages[j]);
@@ -275,20 +275,20 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
     if (j+1 < pages.size()) {
       // Add a new page object.
       page = HPDF_AddPage (pdf);
-    
+
       // Set page size
       HPDF_Page_SetSize(page, HPDF_PAGE_SIZE_A4, HPDF_PAGE_PORTRAIT);
       HPDF_Page_SetFontAndSize (page, fs.font, 16);
     }
   }
- 
+
   // Save the document to a file
   string tmpRes = getTempFile();
   HPDF_SaveToFile (pdf, tmpRes.c_str());
   DeleteFileW(file.c_str());
   BOOL res = MoveFileW(gdi.toWide(tmpRes).c_str(), file.c_str());
   removeTempFile(tmpRes);
-  
+
   if (!res) {
     throw meosException("Failed to save pdf the specified file.");
   }

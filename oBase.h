@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "TimeStamp.h"
@@ -43,37 +43,39 @@ class oDataContainer;
 typedef void * pvoid;
 typedef vector< vector<string> > * pvectorstr;
 
-enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3, 
-                   StatusDNF=4, StatusDQ=5, StatusMAX=6, 
+enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3,
+                   StatusDNF=4, StatusDQ=5, StatusMAX=6,
                    StatusUnknown=0, StatusNotCompetiting=99};
 
 enum SortOrder {ClassStartTime,
                 ClassTeamLeg,
                 ClassResult,
                 ClassCourseResult,
-                ClassTotalResult, 
-                ClassFinishTime, 
+                ClassTotalResult,
+                ClassFinishTime,
                 ClassStartTimeClub,
-                ClassPoints, 
-                SortByName, 
-                SortByFinishTime, 
-                SortByStartTime, 
+                ClassPoints,
+                SortByName,
+                SortByFinishTime,
+                SortByFinishTimeReverse,
+                SortByStartTime,
                 CourseResult,
+                Custom,
 								CoursePoints,
                 SortEnumLastItem};
 
-class oBase  
+class oBase
 {
 private:
   void storeChangeStatus() {reChanged = changed;}
   void resetChangeStatus() {changed &= reChanged;}
   bool reChanged;
-	bool changed;
+  bool changed;
 
 protected:
-	int Id;
-	TimeStamp Modified;
-	string sqlUpdated; //SQL TIMESTAMP
+  int Id;
+  TimeStamp Modified;
+  string sqlUpdated; //SQL TIMESTAMP
   int counter;
 
   // True if the object is incorrect and needs correction
@@ -81,11 +83,11 @@ protected:
   // needs to be updated.
   bool correctionNeeded;
 
-	oEvent *oe;
-	bool Removed;
+  oEvent *oe;
+  bool Removed;
 
-	//Used for selections, etc.
-	int _objectmarker;
+  //Used for selections, etc.
+  int _objectmarker;
 
   /// Mark the object as changed (on client) and that it needs synchronize to server
   virtual void updateChanged();
@@ -103,31 +105,31 @@ protected:
   /** Get internal data buffers for DI */
   virtual oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const = 0;
   virtual int getDISize() const = 0;
-	
+
 public:
   /// Returns textual information on the object
   virtual string getInfo() const = 0;
 
   //Called (by a table) when user enters data in a cell
-  virtual bool inputData(int id, const string &input, int inputId, 
+  virtual bool inputData(int id, const string &input, int inputId,
                          string &output, bool noUpdate) {output=""; return false;}
-  
+
   //Called (by a table) to fill a list box with contents in a table
-  virtual void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected) 
+  virtual void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected)
     {throw std::exception("Not implemented");}
 
   oEvent *getEvent() const {return oe;}
-	int getId() const {return Id;}
-	bool isChanged() const {return changed;}
-	bool isRemoved() const {return Removed;}
-	int getAge() const {return Modified.getAge();}
-	bool synchronize(bool writeOnly=false);
+  int getId() const {return Id;}
+  bool isChanged() const {return changed;}
+  bool isRemoved() const {return Removed;}
+  int getAge() const {return Modified.getAge();}
+  bool synchronize(bool writeOnly=false);
   string getTimeStamp() const;
 
   bool existInDB() const { return !sqlUpdated.empty(); }
 
   oDataInterface getDI();
-  
+
   oDataConstInterface getDCI() const;
 
   // Remove object from the competition
@@ -138,17 +140,17 @@ public:
 
   /// Set an external identifier (0 if none)
   void setExtIdentifier(__int64 id);
-  
+
   /// Get an external identifier (or 0) if none
   __int64 getExtIdentifier() const;
 
-	oBase(oEvent *poe);
-	virtual ~oBase();
+  oBase(oEvent *poe);
+  virtual ~oBase();
 
   friend class RunnerDB;
-	friend class MeosSQL;
-	friend class oEvent;
-	friend class oDataInterface;
+  friend class MeosSQL;
+  friend class oEvent;
+  friend class oDataInterface;
   friend class oDataContainer;
   friend class MetaListContainer;
 };

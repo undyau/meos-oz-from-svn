@@ -10,8 +10,8 @@
 #endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -27,21 +27,21 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
-class TimeStamp  
+class TimeStamp
 {
-	int Time;
+  int Time;
 public:
-	void setStamp(string s);
-	string getStamp() const;
+  void setStamp(string s);
+  string getStamp() const;
   string getStampString() const;
-	int getAge() const;
-	void update();
-	void update(TimeStamp &ts);
-	TimeStamp();
-	virtual ~TimeStamp();
+  int getAge() const;
+  void update();
+  void update(TimeStamp &ts);
+  TimeStamp();
+  virtual ~TimeStamp();
 };
 
 #endif // !defined(AFX_TIMESTAMP_H__CC16BFC5_ECD9_4D76_AC98_79F802314B65__INCLUDED_)

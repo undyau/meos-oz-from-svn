@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <set>
@@ -33,6 +33,9 @@ enum EPostType
   lAlignNext,
   lNone,
   lString,
+  lResultDescription,
+  lTimingFromName,
+  lTimingToName,
   lCmpName,
   lCmpDate,
   lCurrentTime,
@@ -45,10 +48,10 @@ enum EPostType
   lCourseLength,
   lCourseName,
   lCourseClimb,
-  lRunnerName,  
-  lRunnerGivenName,  
-  lRunnerFamilyName,  
-  lRunnerCompleteName,  
+  lRunnerName,
+  lRunnerGivenName,
+  lRunnerFamilyName,
+  lRunnerCompleteName,
   lPatrolNameNames, // Single runner's name or both names in a patrol
   lPatrolClubNameNames, // Single runner's club or combination of patrol clubs
   lRunnerFinish,
@@ -76,7 +79,12 @@ enum EPostType
   lRunnerRank,
   lRunnerCourse,
   lRunnerRogainingPoint,
-  lRunnerPenaltyPoint,
+  lRunnerRogainingPointTotal,
+  lRunnerRogainingPointReduction,
+  lRunnerRogainingPointOvertime,
+  lRunnerTimeAdjustment,
+  lRunnerPointAdjustment,
+
   lRunnerUMMasterPoint,
   lRunnerTimePlaceFixed,
   lRunnerLegNumberAlpha,
@@ -96,6 +104,12 @@ enum EPostType
   lTeamLegTimeStatus,
   lTeamLegTimeAfter,
   lTeamRogainingPoint,
+  lTeamRogainingPointTotal,
+  lTeamRogainingPointReduction,
+  lTeamRogainingPointOvertime,
+  lTeamTimeAdjustment,
+  lTeamPointAdjustment,
+
   lTeamTime,
   lTeamStatus,
   lTeamClub,
@@ -111,7 +125,7 @@ enum EPostType
   lTeamTotalTimeAfter,
   lTeamTotalTimeDiff,
   lTeamPlaceDiff,
-  
+
   lPunchNamedTime,
   lPunchTime,
   lPunchControlNumber,
@@ -119,6 +133,11 @@ enum EPostType
   lPunchLostTime,
   lPunchControlPlace,
   lPunchControlPlaceAcc,
+
+  lResultModuleTime,
+  lResultModuleNumber,
+  lResultModuleTimeTeam,
+  lResultModuleNumberTeam,
   
   lRogainingPunch,
   lTotalCounter,
@@ -132,10 +151,8 @@ enum EStdListType
   EStdNone=-1,
   EStdStartList=1,
   EStdResultList,
-	EStdCourseResultList,
   EGeneralResultList,
   ERogainingInd,
-	ECourseRogainingInd,
   EStdTeamResultListAll,
   EStdTeamResultListLeg,
   EStdTeamResultList,
@@ -175,6 +192,7 @@ enum EStdListType
 enum EFilterList
 {
   EFilterHasResult,
+  EFilterHasPrelResult,
   EFilterRentCard,
   EFilterHasCard,
   EFilterHasNoCard,
@@ -184,18 +202,28 @@ enum EFilterList
   _EFilterMax
 };
 
+enum ESubFilterList
+{
+  ESubFilterHasResult,
+  ESubFilterHasPrelResult,
+  ESubFilterExcludeDNS,
+  ESubFilterVacant,
+  _ESubFilterMax
+};
+
 enum gdiFonts;
 
 struct oPrintPost {
   oPrintPost();
-  oPrintPost(EPostType type_, const string &format_, 
+  oPrintPost(EPostType type_, const string &format_,
                        int style_, int dx_, int dy_, int index_=0);
-  
+
   static string encodeFont(const string &face, int factor);
 
   EPostType type;
   string text;
   string fontFace;
+  int resultModuleIndex;
   int format;
   GDICOLOR color;
   int dx;
@@ -207,7 +235,8 @@ struct oPrintPost {
     return *this;
   }
   int fixedWidth;
-  const oPrintPost *mergeWith; // Merge text with this output
+  bool doMergeNext;
+  mutable const oPrintPost *mergeWithTmp; // Merge text with this output
 };
 
 class gdioutput;
@@ -230,8 +259,10 @@ struct oListParam {
   bool showInterTimes;
   bool showSplitTimes;
   bool splitAnalysis;
-  string title; 
+  string title;
   string name;
+  int inputNumber;
+
   mutable string defaultName; // Initialized when generating list
   // Generate a large-size list (supported as input when supportLarge is true)
   bool useLargeSize;
@@ -240,10 +271,13 @@ struct oListParam {
   void updateDefaultName(const string &name) const {defaultName = name;}
   void setCustomTitle(const string &t) {title = t;}
   void getCustomTitle(char *t) const; // 256 size buffer required. Get title if set
-  const string &getCustomTitle(const string &t) const; 
+  const string &getCustomTitle(const string &t) const;
   const string &getDefaultName() const {return defaultName;}
   void setName(const string &n) {name = n;}
   const string &getName() const {return name;}
+
+  int getInputNumber() const {return inputNumber;}
+  void setInputNumber(int n) {inputNumber = n;}
 
   void serialize(xmlparser &xml, const MetaListContainer &container) const;
   void deserialize(const xmlobject &xml, const MetaListContainer &container);
@@ -251,13 +285,21 @@ struct oListParam {
 
 class oListInfo {
 public:
-  enum EBaseType {EBaseTypeRunner, 
-                  EBaseTypeTeam, 
-                  EBaseTypeClub, 
-                  EBaseTypePunches, 
+  enum EBaseType {EBaseTypeRunner,
+                  EBaseTypeTeam,
+                  EBaseTypeClub,
+                  EBaseTypePunches,
                   EBaseTypeNone,
+                  EBaseTypeRunnerGlobal,  // Used only in metalist (meaning global, not classwise)
+                  EBaseTypeTeamGlobal, // Used only in metalist (meaning global, not classwise)
                   EBasedTypeLast_};
- 
+
+  
+  enum ResultType {
+    Global,
+    Classwise,
+  };
+
   static bool addRunners(EBaseType t) {return t == EBaseTypeRunner || t == EBaseTypeClub;}
   static bool addTeams(EBaseType t) {return t == EBaseTypeTeam || t == EBaseTypeClub;}
   static bool addPatrols(EBaseType t) {return t == EBaseTypeTeam || t == EBaseTypeClub;}
@@ -268,7 +310,7 @@ protected:
   EBaseType listType;
   EBaseType listSubType;
   SortOrder sortOrder;
- 
+     
   bool calcResults;
   bool calcCourseClassResults;
   bool calcTotalResults;
@@ -280,22 +322,37 @@ protected:
   list<oPrintPost> subHead;
   list<oPrintPost> listPost;
   vector<char> listPostFilter;
+  vector<char> listPostSubFilter;
   list<oPrintPost> subListPost;
   bool fixedType;
   bool needPunches;
+  string resultModule;
+  set<string> additionalModules;
+
+  void setupLinks(const list<oPrintPost> &lst) const;
+  void setupLinks() const;
 
   oListInfo *next;
 public:
+  ResultType getResultType() const;
 
   void addList(const oListInfo &lst);
 
   bool supportClasses;
   bool supportLegs;
-  bool supportExtra;
+  bool supportParameter;
   // True if large (and non-large) is supported
-  bool supportLarge; 
+  bool supportLarge;
   // True if a large-size list only
   bool largeSize;
+
+  // True if supports timing from control
+  bool supportTo;
+  // True if supports timing to control
+  bool supportFrom;
+  // Result type 
+  ResultType resType;
+
 
   bool needPunchCheck() const {return needPunches;}
   void setCallback(GUICALLBACK cb) {lp.cb=cb;}
@@ -318,8 +375,14 @@ public:
     return subListPost.back();
   }
   inline bool filter(EFilterList i) const {return listPostFilter[i]!=0;}
-  void setFilter(EFilterList i) {listPostFilter[i]=1;}
+  inline bool subFilter(ESubFilterList i) const {return listPostSubFilter[i]!=0;}
 
+  void setFilter(EFilterList i) {listPostFilter[i]=1;}
+  void setSubFilter(ESubFilterList i) {listPostSubFilter[i]=1;}
+
+  void setResultModule(const string &rm) {resultModule = rm;}
+  void additionalResultModule(const string &rm) {additionalModules.insert(rm);}
+  const string &getResultModule() const {return resultModule;}
   oListInfo(void);
   ~oListInfo(void);
 
@@ -327,7 +390,7 @@ public:
   friend class MetaList;
   friend class MetaListContainer;
 
-  int getMaxCharWidth(const oEvent *oe, EPostType type, 
+  int getMaxCharWidth(const oEvent *oe, EPostType type,
                       const string &format, gdiFonts font,
                       const char *fontFace = 0,
                       bool large = false, int minSize = 0);

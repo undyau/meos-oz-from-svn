@@ -10,8 +10,8 @@
 #endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -27,7 +27,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <vector>
@@ -55,42 +55,42 @@ struct xmlattrib
   const char *tag;
   char *data;
   operator bool() const {return data!=0;}
-  
+
   int getInt() const {if (data) return atoi(data); else return 0;}
   const char *get() const;
 };
 
 class ProgressWindow;
 
-class xmlparser  
+class xmlparser
 {
 protected:
-	static char *ltrim(char *s);
-	static const char *ltrim(const char *s);
+  static char *ltrim(char *s);
+  static const char *ltrim(const char *s);
 
-	string tagStack[32];
-	int tagStackPointer;
+  string tagStack[32];
+  int tagStackPointer;
 
   bool toString;
   ofstream foutFile;
   ostringstream foutString;
 
-	ifstream fin;
+  ifstream fin;
 
   std::ostream &fOut() {
     if (toString)
       return foutString;
-    else 
+    else
       return foutFile;
   }
 
-	int lineNumber;
-	string doctype;
+  int lineNumber;
+  string doctype;
 
   vector<int> parseStack;
   vector<xmldata> xmlinfo;
   vector<char> xbf;
-  
+
   bool processTag(char *start, char *end);
 
   bool checkUTF(const char *ptr) const;
@@ -116,24 +116,24 @@ public:
 
 //	bool failed(){return errorMessage.length()>0;}
 
-	const xmlobject getObject(const char *pname) const;
+  const xmlobject getObject(const char *pname) const;
 //	const char *getError();
-	
-  void read(const string &file, int maxobj = 0);
-	void readMemory(const string &mem, int maxobj);
 
-  void write(const char *tag, const char *prop, 
+  void read(const string &file, int maxobj = 0);
+  void readMemory(const string &mem, int maxobj);
+
+  void write(const char *tag, const char *prop,
               const string &value);
   void write(const char *tag); // Empty case
-  void write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop,
              const char *value);
-  void write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop,
              const bool value);
-  void write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop,
              const string &propValue, const string &value);
-  void write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop,
              bool propValue, const string &value);
-  void write(const char *tag, const char *prop, 
+  void write(const char *tag, const char *prop,
              const char *propValue, const string &value);
   void write(const char *tag, const vector< pair<string, string> > &propValue, const string &value);
 
@@ -143,24 +143,24 @@ public:
   void writeBool(const char *tag, bool value);
   void write64(const char *tag, __int64);
 
-	void startTag(const char *tag);	
-	void startTag(const char *tag, const char *Property, 
+  void startTag(const char *tag);
+  void startTag(const char *tag, const char *Property,
                 const string &Value);
   void startTag(const char *tag, const vector<string> &propvalue);
 
-	void endTag();
-	int closeOut();
-	void openOutput(const char *file, bool useCutMode);
+  void endTag();
+  int closeOut();
+  void openOutput(const char *file, bool useCutMode);
   void openOutputT(const char *file, bool useCutMode, const string &type);
-  
+
   void openMemoryOutput(bool useCutMode);
   void getMemoryOutput(string &res);
 
-  
+
   const string &encodeXML(const string &input);
 
   xmlparser(gdioutput *utfConverter);
-	virtual ~xmlparser();
+  virtual ~xmlparser();
 
   friend class xmlobject;
 };
@@ -175,35 +175,35 @@ protected:
   int index;
 public:
   const char *getName() const {return parser->xmlinfo[index].tag;}
-	xmlobject getObject(const char *pname) const;
-	xmlattrib getAttrib(const char *pname) const;
+  xmlobject getObject(const char *pname) const;
+  xmlattrib getAttrib(const char *pname) const;
 
-	int getObjectInt(const char *pname) const
-	{ 
-		xmlobject x(getObject(pname));
-		if(x) 
+  int getObjectInt(const char *pname) const
+  {
+    xmlobject x(getObject(pname));
+    if (x)
       return x.getInt();
     else {
       xmlattrib xa(getAttrib(pname));
       if (xa)
         return xa.getInt();
     }
-		return 0;
-	}
-	
+    return 0;
+  }
+
   bool getObjectBool(const char *pname) const;
 
-	string &getObjectString(const char *pname, string &out) const;
-	char *getObjectString(const char *pname, char *out, int maxlen) const;
-		
-	void getObjects(xmlList &objects) const;
-	void getObjects(const char *tag, xmlList &objects) const;
-	
+  string &getObjectString(const char *pname, string &out) const;
+  char *getObjectString(const char *pname, char *out, int maxlen) const;
+
+  void getObjects(xmlList &objects) const;
+  void getObjects(const char *tag, xmlList &objects) const;
+
   bool is(const char *pname) const {
     const char *n = getName();
-    return n[0] == pname[0] && strcmp(n, pname)==0;  
+    return n[0] == pname[0] && strcmp(n, pname)==0;
   }
-	
+
   const char *get() const {return parser->xmlinfo[index].data;}
   int getInt() const {const char *d = parser->xmlinfo[index].data;
                       return d ? atoi(d) : 0;}
@@ -211,12 +211,12 @@ public:
                            return d ? _atoi64(d) : 0;}
 
   bool isnull() const {return parser==0;}
-	
+
   operator bool() const {return parser!=0;}
-  
+
   xmlobject();
-	virtual ~xmlobject();
-	friend class xmlparser;
+  virtual ~xmlobject();
+  friend class xmlparser;
 };
 
 

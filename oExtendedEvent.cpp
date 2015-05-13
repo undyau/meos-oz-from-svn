@@ -66,7 +66,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	}
 
 	// Do the export
-	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, /*USe UTC*/false, classes, leg);
+	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, /*USe UTC*/false, classes, leg, true, true);
 
 	// Reassign all runners back to original classes
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
@@ -454,9 +454,9 @@ void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &k
 		runners[it->getCardNo()].push_back(&*it);
 		
 		if (it->getCard() != 0) {
-			int temp = atoi(it->getCard()->getCardNo().c_str());
+			int temp = it->getCard()->getCardNo();
 			if (temp != 0 && temp != it->getCardNo())
-			runners[temp].push_back(&*it);
+				runners[temp].push_back(&*it);
 			}
 		}
 
@@ -665,9 +665,9 @@ bool oExtendedEvent::exportOrCSV(const char *file, bool byClass)
 		row[17]=IsSydneySummerSeries && !byClass ? "1" : my_conv_is(it->getClassId());
 		row[18]=it->getClass();
 		row[19]=it->getClass();
-		row[20]=my_conv_is(it->getRogainingPoints());
-		row[21]=my_conv_is(it->getPenaltyPoints()+it->getRogainingPoints());
-		row[22]=my_conv_is(it->getPenaltyPoints());
+		row[20]=my_conv_is(it->getRogainingPoints(false));
+		row[21]=my_conv_is(it->getRogainingReduction()+it->getRogainingPoints(false));
+		row[22]=my_conv_is(it->getRogainingReduction());
 		row[23]=it->getClass();
 
 		row[35]=my_conv_is(di.getInt("CardFee"));

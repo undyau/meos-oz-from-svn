@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -25,7 +25,7 @@
 
 #include "oEvent.h"
 #include "xmlparser.h"
-#include <process.h>   
+#include <process.h>
 
 #include "gdioutput.h"
 #include "commctrl.h"
@@ -36,7 +36,7 @@
 
 void start_progress_thread(void *ptr)
 {
-	ProgressWindow *pw=(ProgressWindow *)ptr;
+  ProgressWindow *pw=(ProgressWindow *)ptr;
   pw->process();
 }
 
@@ -54,7 +54,7 @@ ProgressWindow::ProgressWindow(HWND hWndParent)
   running = false;
 }
 
-void ProgressWindow::init() 
+void ProgressWindow::init()
 {
   initialized = true;
   progress = 0;
@@ -64,13 +64,13 @@ void ProgressWindow::init()
   speed = 0;
   RECT rc;
   GetClientRect(hWnd, &rc);
-	hWnd=CreateWindowEx(WS_EX_TOPMOST, "STATIC", "",  WS_VISIBLE|WS_CHILD, 
-    (rc.right-p_width)/2, rc.bottom/2, p_width, p_height+1, hWnd, NULL,  
-		  (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), NULL);
+  hWnd=CreateWindowEx(WS_EX_TOPMOST, "STATIC", "",  WS_VISIBLE|WS_CHILD,
+    (rc.right-p_width)/2, rc.bottom/2, p_width, p_height+1, hWnd, NULL,
+      (HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), NULL);
 
   ShowWindow(hWnd, SW_SHOW);
   SetWindowPos(hWnd, HWND_TOPMOST, 0,0,0,0, SWP_NOSIZE|SWP_NOMOVE);
-  SetActiveWindow(hWnd);  
+  SetActiveWindow(hWnd);
   UpdateWindow(hWnd);
   InitializeCriticalSection(&syncObj);
   thread = (HANDLE)_beginthread(start_progress_thread, 0,  this);
@@ -82,8 +82,8 @@ ProgressWindow::~ProgressWindow()
     setProgress(1000);
     EnterCriticalSection(&syncObj);
     terminate = true;
-	  LeaveCriticalSection(&syncObj);
-	  
+    LeaveCriticalSection(&syncObj);
+
     int maxCount = 100;
     while (maxCount-- > 0 && running) {
       Sleep(20);
@@ -91,10 +91,10 @@ ProgressWindow::~ProgressWindow()
     EnterCriticalSection(&syncObj);
     if (running)
       TerminateThread(thread, 0);
-	  LeaveCriticalSection(&syncObj);
+    LeaveCriticalSection(&syncObj);
 
 //	  CloseHandle(thread);
-	  DeleteCriticalSection(&syncObj);
+    DeleteCriticalSection(&syncObj);
 
     DestroyWindow(hWnd);
   }
@@ -107,7 +107,7 @@ void ProgressWindow::process()
     EnterCriticalSection(&syncObj);
     if (!terminate)
       draw(GetTickCount()/40);
-	  LeaveCriticalSection(&syncObj);
+    LeaveCriticalSection(&syncObj);
     if (!terminate)
       Sleep(33);
   }
@@ -122,18 +122,18 @@ void ProgressWindow::draw(int count)
   int center = int(prg*((cos(count*0.1)+1)*0.8) / 2);
 
   DWORD c=GetSysColor(COLOR_ACTIVECAPTION);
-	double red=GetRValue(c);
-	double green=GetGValue(c);
-	double blue=GetBValue(c);
+  double red=GetRValue(c);
+  double green=GetGValue(c);
+  double blue=GetBValue(c);
 
-	double blue1=min(255., blue*1.4);
-	double green1=min(255., green*1.4);
-	double red1=min(255., red*1.4);
+  double blue1=min(255., blue*1.4);
+  double green1=min(255., green*1.4);
+  double red1=min(255., red*1.4);
 
   int blueD=int(blue/2);
-	int redD=int(red/2);
-	int greenD=int(green/2);
-	
+  int redD=int(red/2);
+  int greenD=int(green/2);
+
   SelectObject(hDC, GetStockObject(DC_PEN));
   SelectObject(hDC, GetStockObject(NULL_BRUSH));
   SetDCPenColor(hDC, RGB(redD,greenD,blueD));
@@ -141,43 +141,43 @@ void ProgressWindow::draw(int count)
   Rectangle(hDC, 0, 0, p_width, p_height-1);
   SelectObject(hDC, GetStockObject(DC_BRUSH));
   SelectObject(hDC, GetStockObject(NULL_PEN));
-  
+
   SetDCBrushColor(hDC, GetSysColor(COLOR_3DHIGHLIGHT));
 
   Rectangle(hDC, prg, 1, p_width-1, p_height-2);
 
   TRIVERTEX vert[4];
-	vert [0] .x      = 1;
-	vert [0] .y      = 1;
-	vert [0] .Red    = 0xff00&DWORD(red*256);
-	vert [0] .Green  = 0xff00&DWORD(green*256);
-	vert [0] .Blue   = 0xff00&DWORD(blue*256);
-	vert [0] .Alpha  = 0x0000;
+  vert [0] .x      = 1;
+  vert [0] .y      = 1;
+  vert [0] .Red    = 0xff00&DWORD(red*256);
+  vert [0] .Green  = 0xff00&DWORD(green*256);
+  vert [0] .Blue   = 0xff00&DWORD(blue*256);
+  vert [0] .Alpha  = 0x0000;
 
-	vert [1] .x      = center;
-	vert [1] .y      = p_height-2; 
-	vert [1] .Red    = 0xff00&DWORD(red1*256);
-	vert [1] .Green  = 0xff00&DWORD(green1*256);
-	vert [1] .Blue   = 0xff00&DWORD(blue1*256);
-	vert [1] .Alpha  = 0x0000;
+  vert [1] .x      = center;
+  vert [1] .y      = p_height-2;
+  vert [1] .Red    = 0xff00&DWORD(red1*256);
+  vert [1] .Green  = 0xff00&DWORD(green1*256);
+  vert [1] .Blue   = 0xff00&DWORD(blue1*256);
+  vert [1] .Alpha  = 0x0000;
 
   vert [2] .x      = center;
-	vert [2] .y      = 1; 
-	vert [2] .Red    = 0xff00&DWORD(red1*256);
-	vert [2] .Green  = 0xff00&DWORD(green1*256);
-	vert [2] .Blue   = 0xff00&DWORD(blue1*256);
-	vert [2] .Alpha  = 0x0000;
+  vert [2] .y      = 1;
+  vert [2] .Red    = 0xff00&DWORD(red1*256);
+  vert [2] .Green  = 0xff00&DWORD(green1*256);
+  vert [2] .Blue   = 0xff00&DWORD(blue1*256);
+  vert [2] .Alpha  = 0x0000;
 
   vert [3] .x      = prg;
-	vert [3] .y      = p_height-2; 
-	vert [3] .Red    = 0xff00&DWORD(red*256);
-	vert [3] .Green  = 0xff00&DWORD(green*256);
-	vert [3] .Blue   = 0xff00&DWORD(blue*256);
-	vert [3] .Alpha  = 0x0000;
+  vert [3] .y      = p_height-2;
+  vert [3] .Red    = 0xff00&DWORD(red*256);
+  vert [3] .Green  = 0xff00&DWORD(green*256);
+  vert [3] .Blue   = 0xff00&DWORD(blue*256);
+  vert [3] .Alpha  = 0x0000;
 
-	GRADIENT_RECT gr[2];
-	gr[0].UpperLeft=0;
-	gr[0].LowerRight=1;
+  GRADIENT_RECT gr[2];
+  gr[0].UpperLeft=0;
+  gr[0].LowerRight=1;
   gr[1].UpperLeft=2;
   gr[1].LowerRight=3;
 
@@ -197,7 +197,7 @@ int ProgressWindow::getProgress() const
   return min(progress + dp, 1000);
 }
 
-void ProgressWindow::setProgress(int prg) 
+void ProgressWindow::setProgress(int prg)
 {
   if (prg <= lastPrg + 1)
     return;

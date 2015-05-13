@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -25,7 +25,7 @@
 #include "resource.h"
 
 #include <commctrl.h>
-#include <commdlg.h> 
+#include <commdlg.h>
 #include <algorithm>
 
 #include "oEvent.h"
@@ -37,6 +37,7 @@
 #include "gdifonts.h"
 #include "table.h"
 #include <cassert>
+#include "MeOSFeatures.h"
 
 #include "TabControl.h"
 
@@ -47,89 +48,91 @@ TabControl::TabControl(oEvent *poe):TabBase(poe)
  }
 
 TabControl::~TabControl(void)
-{ 
+{
 }
 
 void TabControl::selectControl(gdioutput &gdi,  pControl pc)
 {
-	if (pc) {
-		pc->synchronize();
-		
+  if (pc) {
+    pc->synchronize();
+
     if (pc->getStatus() == oControl::StatusStart ||
           pc->getStatus() == oControl::StatusFinish) {
       gdi.selectItemByData("Controls", pc->getId());
       gdi.selectItemByData("Status", oControl::StatusOK);
-		  gdi.setText("ControlID", "-", true);
+      gdi.setText("ControlID", "-", true);
 
-		  gdi.setText("Code", "");
-		  gdi.setText("Name", pc->getName());
+      gdi.setText("Code", "");
+      gdi.setText("Name", pc->getName());
       gdi.setText("TimeAdjust", "00:00");
       gdi.setText("MinTime", "-");
       gdi.setText("Point", "");
       controlId = pc->getId();
-  	
-		  gdi.enableInput("Remove");
-		  gdi.enableInput("Save");
+
+      gdi.enableInput("Remove");
+      gdi.enableInput("Save");
       gdi.enableEditControls(false);
       gdi.enableInput("Name");
     }
     else {
       gdi.selectItemByData("Controls", pc->getId());
-		  gdi.selectItemByData("Status", pc->getStatus());
+      gdi.selectItemByData("Status", pc->getStatus());
       oe->setupMissedControlTime();
       const int numVisit = pc->getNumVisitors();
       string info;
       if (numVisit > 0) {
          info = "Antal besökare X, genomsnittlig bomtid Y, största bomtid Z#" +
-          itos(pc->getNumVisitors()) + "#" + getTimeMS(pc->getMissedTimeTotal() / numVisit) + 
+          itos(pc->getNumVisitors()) + "#" + getTimeMS(pc->getMissedTimeTotal() / numVisit) +
           "#" + getTimeMS(pc->getMissedTimeMax());
       }
       gdi.setText("ControlID", itos(pc->getId()), true);
 
       gdi.setText("Info", lang.tl(info), true);
-		  gdi.setText("Code", pc->codeNumbers());
-		  gdi.setText("Name", pc->getName());
+      gdi.setText("Code", pc->codeNumbers());
+      gdi.setText("Name", pc->getName());
       gdi.setText("TimeAdjust", pc->getTimeAdjustS());
       gdi.setText("MinTime", pc->getMinTimeS());
-      gdi.setText("Point", pc->getRogainingPointsS());
-      
+      if (gdi.hasField("Point"))
+        gdi.setText("Point", pc->getRogainingPointsS());
+
       controlId = pc->getId();
-  	
-		  gdi.enableInput("Remove");
-		  gdi.enableInput("Save");
+
+      gdi.enableInput("Remove");
+      gdi.enableInput("Save");
       gdi.enableInput("Visitors");
       gdi.enableInput("Courses");
       gdi.enableEditControls(true);
 
-      oControl::ControlStatus st = pc->getStatus(); 
-      if (st == oControl::StatusRogaining || st == oControl::StatusNoTiming) 
+      oControl::ControlStatus st = pc->getStatus();
+      if (st == oControl::StatusRogaining || st == oControl::StatusNoTiming)
         gdi.disableInput("MinTime");
-      
-      if (st == oControl::StatusNoTiming) 
+
+      if (st == oControl::StatusNoTiming)
         gdi.disableInput("TimeAdjust");
 
-      if (st != oControl::StatusRogaining) 
+      if (gdi.hasField("Point") && st != oControl::StatusRogaining)
         gdi.disableInput("Point");
     }
-	}
-	else {
+  }
+  else {
     gdi.selectItemByData("Controls", -1);
     gdi.selectItemByData("Status", oControl::StatusOK);
-		gdi.setText("Code", "");
-		gdi.setText("Name", "");
+    gdi.setText("Code", "");
+    gdi.setText("Name", "");
     controlId = 0;
-	
-		gdi.setText("ControlID", "-", true);
+
+    gdi.setText("ControlID", "-", true);
     gdi.setText("TimeAdjust", "00:00");
-    gdi.setText("Point", "");
-      
-		gdi.disableInput("Remove");
-		gdi.disableInput("Save");
+    if (gdi.hasField("Point"))
+      gdi.setText("Point", "");
+
+    gdi.disableInput("Remove");
+    gdi.disableInput("Save");
     gdi.disableInput("Visitors");
     gdi.disableInput("Courses");
 
     gdi.enableEditControls(false);
-	}
+  }
 }
 
 int ControlsCB(gdioutput *gdi, int type, void *data)
@@ -140,7 +143,7 @@ int ControlsCB(gdioutput *gdi, int type, void *data)
 
 void TabControl::save(gdioutput &gdi)
 {
-	if (controlId==0)
+  if (controlId==0)
     return;
 
   DWORD pcid = controlId;
@@ -148,14 +151,14 @@ void TabControl::save(gdioutput &gdi)
   pControl pc;
   pc = oe->getControl(pcid, false);
 
-  if(!pc) 
+  if (!pc)
     throw std::exception("Internal error");
   if (pc->getStatus() != oControl::StatusFinish && pc->getStatus() != oControl::StatusStart) {
-	  if(!pc->setNumbers(gdi.getText("Code")))
-		  gdi.alert("Kodsiffran måste vara ett heltal. Flera kodsiffror måste separeras med komma.");
-  					
-	  ListBoxInfo lbi;
-	  gdi.getSelectedItem("Status", &lbi);
+    if (!pc->setNumbers(gdi.getText("Code")))
+      gdi.alert("Kodsiffran måste vara ett heltal. Flera kodsiffror måste separeras med komma.");
+
+    ListBoxInfo lbi;
+    gdi.getSelectedItem("Status", &lbi);
     pc->setStatus(oControl::ControlStatus(lbi.data));
     pc->setTimeAdjust(gdi.getText("TimeAdjust"));
     if (pc->getStatus() != oControl::StatusRogaining) {
@@ -164,19 +167,23 @@ void TabControl::save(gdioutput &gdi)
       pc->setRogainingPoints(0);
     }
     else {
-      pc->setMinTime(0);
-      pc->setRogainingPoints(gdi.getTextNo("Point"));
+      if (gdi.hasField("Point")) {
+        pc->setMinTime(0);
+        pc->setRogainingPoints(gdi.getTextNo("Point"));
+      }
     }
   }
 
-	pc->setName(gdi.getText("Name"));
-  
-	pc->synchronize();
-	oe->fillControls(gdi, "Controls");
+  pc->setName(gdi.getText("Name"));
+
+  pc->synchronize();
+  vector< pair<string, size_t> > d;
+  oe->fillControls(d, oEvent::CTAll);
+  gdi.addItem("Controls", d);
 
   oe->reEvaluateAll(set<int>(), true);
 
-	selectControl(gdi, pc);
+  selectControl(gdi, pc);
 }
 
 static void visitorTable(Table &table, void *ptr) {
@@ -212,16 +219,16 @@ void TabControl::courseTable(Table &table) const {
         used++;
       }
     }
-    
+
     oCourse &it = *crs[k];
     if (used > 0) {
-      table.addRow(ix++, &it);		
+      table.addRow(ix++, &it);
 
       int row = 0;
       table.set(row++, it, TID_ID, itos(it.getId()), false);
       table.set(row++, it, TID_MODIFIED, it.getTimeStamp(), false);
 
-      table.set(row++, it, TID_COURSE, crs[k]->getName(), false);   
+      table.set(row++, it, TID_COURSE, crs[k]->getName(), false);
       table.set(row++, it, TID_INDEX, itos(used), false);
       table.set(row++, it, TID_RUNNER, itos(runnersPerCourse[crs[k]->getId()]), false);
     }
@@ -247,7 +254,7 @@ void TabControl::visitorTable(Table &table) const {
         return card < c.card;
       else if (code != c.code)
         return code < c.code;
-      else 
+      else
         return time < c.time;
     }
     bool operator==(const PI&c) const {
@@ -264,12 +271,12 @@ void TabControl::visitorTable(Table &table) const {
     //oPunch *punch = it.getPunchByType(pc->getFirstNumber()); //XXX
 
     for (size_t j = 0; j < p.size(); j++) {
-  
+
       vector<int>::iterator res = find(n.begin(), n.end(), p[j]->getTypeCode());
       if (res != n.end()) {
         oPunch *punch = p[j];
-        registeredPunches.insert(PI(it.cardNo(), p[j]->getTypeCode(), p[j]->getAdjustedTime()));
-        table.addRow(ix++, &it);		
+        registeredPunches.insert(PI(it.getCardNo(), p[j]->getTypeCode(), p[j]->getAdjustedTime()));
+        table.addRow(ix++, &it);
 
         int row = 0;
         table.set(row++, it, TID_ID, itos(it.getId()), false);
@@ -278,19 +285,19 @@ void TabControl::visitorTable(Table &table) const {
         pRunner r = it.getOwner();
         if (r) {
           table.set(row++, it, TID_RUNNER, r->getName(), false);
-          table.set(row++, it, TID_COURSE, r->getCourseName(), false);          
+          table.set(row++, it, TID_COURSE, r->getCourseName(), false);
         }
         else {
           table.set(row++, it, TID_RUNNER, "-", false);
-          table.set(row++, it, TID_COURSE, "-", false);          
+          table.set(row++, it, TID_COURSE, "-", false);
         }
-        table.set(row++, it, TID_FEE, punch->isUsedInCourse() ? 
+        table.set(row++, it, TID_FEE, punch->isUsedInCourse() ?
                   lang.tl("Ja") : lang.tl("Nej"), false);
-        table.set(row++, it, TID_CARD, it.getCardNo(), false);
+        table.set(row++, it, TID_CARD, it.getCardNoString(), false);
 
         table.set(row++, it, TID_STATUS, punch->getTime(), false);
         table.set(row++, it, TID_CONTROL, punch->getType(), false);
-        table.set(row++, it, TID_CODES, j>0 ? p[j-1]->getType() : "-", true);        
+        table.set(row++, it, TID_CODES, j>0 ? p[j-1]->getType() : "-", true);
       }
     }
   }
@@ -298,41 +305,45 @@ void TabControl::visitorTable(Table &table) const {
 
 int TabControl::controlCB(gdioutput &gdi, int type, void *data)
 {
-	if (type==GUI_BUTTON) {
-		ButtonInfo bi=*(ButtonInfo *)data;
+  if (type==GUI_BUTTON) {
+    ButtonInfo bi=*(ButtonInfo *)data;
 
-		if (bi.id=="Save")
+    if (bi.id=="Save")
       save(gdi);
-		else if (bi.id=="Add") {
+    else if (bi.id=="Add") {
       bool rogaining = false;
       if (controlId>0) {
         save(gdi);
         pControl pc = oe->getControl(controlId, false);
         rogaining = pc && pc->getStatus() == oControl::StatusRogaining;
       }
-      pControl pc = oe->addControl(0,oe->getNextControlNumber(), ""); 
-			
+      pControl pc = oe->addControl(0,oe->getNextControlNumber(), "");
+
       if (rogaining)
         pc->setStatus(oControl::StatusRogaining);
-      oe->fillControls(gdi, "Controls");
-			selectControl(gdi, pc);
-		}
-		else if (bi.id=="Remove") {
+      vector< pair<string, size_t> > d;
+      oe->fillControls(d, oEvent::CTAll);
+      gdi.addItem("Controls", d);
+      selectControl(gdi, pc);
+    }
+    else if (bi.id=="Remove") {
 
-			DWORD cid = controlId;
-			if (cid==0) {
-				gdi.alert("Ingen kontroll vald vald.");
-				return 0;
-			}
+      DWORD cid = controlId;
+      if (cid==0) {
+        gdi.alert("Ingen kontroll vald vald.");
+        return 0;
+      }
 
-			if(oe->isControlUsed(cid))
-				gdi.alert("Kontrollen används och kan inte tas bort.");
-			else
-				oe->removeControl(cid);
+      if (oe->isControlUsed(cid))
+        gdi.alert("Kontrollen används och kan inte tas bort.");
+      else
+        oe->removeControl(cid);
 
-			oe->fillControls(gdi, "Controls");
-			selectControl(gdi, 0);
-		}
+      vector< pair<string, size_t> > d;
+      oe->fillControls(d, oEvent::CTAll);
+      gdi.addItem("Controls", d);
+      selectControl(gdi, 0);
+    }
     else if (bi.id=="SwitchMode") {
       if (!tableMode)
         save(gdi);
@@ -347,18 +358,18 @@ int TabControl::controlCB(gdioutput &gdi, int type, void *data)
       table->addColumn("Id", 70, true, true);
       table->addColumn("Ändrad", 70, false);
 
-	    table->addColumn("Namn", 150, false);
+      table->addColumn("Namn", 150, false);
       table->addColumn("Bana", 70, false);
       table->addColumn("På banan", 70, false);
       table->addColumn("Bricka", 70, true, true);
 
-      table->addColumn("Tidpunkt", 70, false);    
+      table->addColumn("Tidpunkt", 70, false);
       table->addColumn("Stämpelkod", 70, true);
       table->addColumn("Föregående kontroll", 70, false);
       table->setGenerator(::visitorTable, this);
       table->setTableProp(0);
-      table->update();  
-    	gdi.clearPage(false);
+      table->update();
+      gdi.clearPage(false);
       int xp=gdi.getCX();
       gdi.fillDown();
       gdi.addButton("Show", "Återgå", ControlsCB);
@@ -371,14 +382,14 @@ int TabControl::controlCB(gdioutput &gdi, int type, void *data)
       table->addColumn("Id", 70, true, true);
       table->addColumn("Ändrad", 70, false);
 
-	    table->addColumn("Bana", 70, false, true);
+      table->addColumn("Bana", 70, false, true);
       table->addColumn("Förekomst", 70, true, true);
       table->addColumn("Antal deltagare", 70, true, true);
-      
+
       table->setGenerator(::courseTable, this);
       table->setTableProp(0);
-      table->update();  
-    	gdi.clearPage(false);
+      table->update();
+      gdi.clearPage(false);
       int xp=gdi.getCX();
       gdi.fillDown();
       gdi.addButton("Show", "Återgå", ControlsCB);
@@ -388,115 +399,121 @@ int TabControl::controlCB(gdioutput &gdi, int type, void *data)
     else if (bi.id=="Show") {
       loadPage(gdi);
     }
-	}
-	else if(type==GUI_LISTBOX){
-		ListBoxInfo bi=*(ListBoxInfo *)data;
+  }
+  else if (type==GUI_LISTBOX){
+    ListBoxInfo bi=*(ListBoxInfo *)data;
 
-		if (bi.id=="Controls") {
+    if (bi.id=="Controls") {
       if (gdi.isInputChanged(""))
         save(gdi);
 
-			pControl pc=oe->getControl(bi.data, false);
-      if(!pc)
+      pControl pc=oe->getControl(bi.data, false);
+      if (!pc)
         throw std::exception("Internal error");
 
-			selectControl(gdi, pc);
-		}
-    else if (bi.id == "Status" ) {
-      gdi.setInputStatus("MinTime",  bi.data != oControl::StatusRogaining && bi.data != oControl::StatusNoTiming);
-      gdi.setInputStatus("Point",  bi.data == oControl::StatusRogaining);
-      gdi.setInputStatus("TimeAdjust", bi.data != oControl::StatusNoTiming);
+      selectControl(gdi, pc);
     }
-	}
-  else if(type==GUI_CLEAR) {
+    else if (bi.id == "Status" ) {
+      gdi.setInputStatus("MinTime",  bi.data != oControl::StatusRogaining && bi.data != oControl::StatusNoTiming, true);
+      gdi.setInputStatus("Point",  bi.data == oControl::StatusRogaining, true);
+      gdi.setInputStatus("TimeAdjust", bi.data != oControl::StatusNoTiming, true);
+    }
+  }
+  else if (type==GUI_CLEAR) {
     if (controlId>0)
       save(gdi);
 
     return true;
   }
-	return 0;
+  return 0;
 }
 
 
 bool TabControl::loadPage(gdioutput &gdi)
 {
   oe->checkDB();
-	gdi.selectTab(tabId);
-	gdi.clearPage(false);
+  gdi.selectTab(tabId);
+  gdi.clearPage(false);
   int xp=gdi.getCX();
 
   const int button_w=gdi.scaleLength(90);
   string switchMode;
   switchMode=tableMode ? "Formulärläge" : "Tabelläge";
-  gdi.addButton(2, 2, button_w, "SwitchMode", switchMode, 
+  gdi.addButton(2, 2, button_w, "SwitchMode", switchMode,
     ControlsCB, "Välj vy", false, false).fixedCorner();
 
-  if(tableMode) {
+  if (tableMode) {
     Table *tbl=oe->getControlTB();
     gdi.addTable(tbl, xp, 30);
     return true;
   }
 
-	gdi.fillDown();
-	gdi.addString("", boldLarge, "Kontroller");
+  gdi.fillDown();
+  gdi.addString("", boldLarge, "Kontroller");
 
-	gdi.pushY();
+  gdi.pushY();
   gdi.addListBox("Controls", 250, 530, ControlsCB).isEdit(false).ignore(true);
-	gdi.setTabStops("Controls", 40, 160);
-	oe->fillControls(gdi, "Controls");
+  gdi.setTabStops("Controls", 40, 160);
 
-	gdi.newColumn();
-	gdi.fillDown();
-	gdi.popY();
+  vector< pair<string, size_t> > d;
+  oe->fillControls(d, oEvent::CTAll);
+  gdi.addItem("Controls", d);
+
+  gdi.newColumn();
+  gdi.fillDown();
+  gdi.popY();
 
   gdi.pushX();
-	gdi.fillRight();
+  gdi.fillRight();
   gdi.addString("", 1, "Kontrollens ID-nummer:");
-	gdi.fillDown();
+  gdi.fillDown();
   gdi.addString("ControlID", 1, "#-").setColor(colorGreen);
   gdi.popX();
 
   gdi.fillRight();
-	gdi.addInput("Name", "", 16, 0, "Kontrollnamn:");
+  gdi.addInput("Name", "", 16, 0, "Kontrollnamn:");
 
   gdi.addSelection("Status", 150, 100, ControlsCB, "Status:", "Ange om kontrollen fungerar och hur den ska användas.");
   oe->fillControlStatus(gdi, "Status");
-	
-	gdi.addInput("TimeAdjust", "", 6, 0, "Tidsjustering:");
-	gdi.fillDown();
+
+  gdi.addInput("TimeAdjust", "", 6, 0, "Tidsjustering:");
+  gdi.fillDown();
   gdi.addInput("MinTime", "", 6, 0, "Minsta sträcktid:");
-	
+
   gdi.popX();
   gdi.dropLine(0.5);
-	gdi.addString("", 10, "help:9373");
-  
+  gdi.addString("", 10, "help:9373");
+
   gdi.fillRight();
-  
+
   gdi.dropLine(0.5);
   gdi.addInput("Code", "", 16, 0, "Stämpelkod(er):");
-  gdi.addInput("Point", "", 6, 0, "Rogaining-poäng:");
-  gdi.popX();
-	gdi.dropLine(3.5);
 
-  gdi.fillRight();	
-	gdi.addButton("Save", "Spara", ControlsCB, "help:save");	
+  if (oe->getMeOSFeatures().hasFeature(MeOSFeatures::Rogaining)) {
+    gdi.addInput("Point", "", 6, 0, "Rogaining-poäng:");
+  }
+  gdi.popX();
+  gdi.dropLine(3.5);
+
+  gdi.fillRight();
+  gdi.addButton("Save", "Spara", ControlsCB, "help:save");
   gdi.disableInput("Save");
-	gdi.addButton("Remove", "Radera", ControlsCB);
-	gdi.disableInput("Remove");
-	gdi.addButton("Courses", "Banor...", ControlsCB);
+  gdi.addButton("Remove", "Radera", ControlsCB);
+  gdi.disableInput("Remove");
+  gdi.addButton("Courses", "Banor...", ControlsCB);
   gdi.addButton("Visitors", "Besökare...", ControlsCB);
-	gdi.addButton("Add", "Ny kontroll", ControlsCB);
+  gdi.addButton("Add", "Ny kontroll", ControlsCB);
 
   gdi.dropLine(2.5);
-	gdi.popX();
-  
+  gdi.popX();
+
   gdi.fillDown();
 
   gdi.addString("Info", 0, "").setColor(colorGreen);
 
   gdi.dropLine(1.5);
-	gdi.addString("", 10, "help:89064");
-  
+  gdi.addString("", 10, "help:89064");
+
   selectControl(gdi, oe->getControl(controlId, false));
 
   gdi.setOnClearCb(ControlsCB);
@@ -504,5 +521,5 @@ bool TabControl::loadPage(gdioutput &gdi)
   oe->setupMissedControlTime();
 
   gdi.refresh();
-  return true;	
+  return true;
 }

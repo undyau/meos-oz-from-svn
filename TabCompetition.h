@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "tabbase.h"
@@ -26,11 +26,11 @@
 #include "oFreeImport.h"
 
 class TabCompetition :
-	public TabBase
+  public TabBase
 {
   string eventorBase;
   void textSizeControl(gdioutput &gdi) const;
-  
+
   bool showConnectionPage;
   bool importFile(HWND hWnd, gdioutput &gdi);
   bool exportFileAs(HWND hWnd, gdioutput &gdi);
@@ -46,7 +46,7 @@ class TabCompetition :
   string entryText;
   vector<oEntryBlock> entries;
   void loadConnectionPage(gdioutput &gdi);
-    
+
   string defaultServer;
   string defaultName;
   string defaultPwd;
@@ -56,6 +56,8 @@ class TabCompetition :
   void loadAboutPage(gdioutput &gdi) const;
 
   int organizorId;
+
+  int lastChangeClassType;
 
   struct {
     string name;
@@ -73,7 +75,7 @@ class TabCompetition :
                               const string &fromDate,
                               vector<CompetitionInfo> &events) const;
 
-  void getEventorCmpData(gdioutput &gdi, int id, 
+  void getEventorCmpData(gdioutput &gdi, int id,
                          const string &eventFile,
                          const string &clubFile,
                          const string &classFile,
@@ -90,7 +92,7 @@ class TabCompetition :
   bool useEventor() const;
   bool useEventorUTC() const;
 
-  bool openCompetition(gdioutput &gdi, int id);
+  void openCompetition(gdioutput &gdi, int id);
   void selectTransferClasses(gdioutput &gdi, bool expand);
 
   // Welcome page for new users
@@ -98,19 +100,35 @@ class TabCompetition :
 
   // Class id for last selected class for entry
   int lastSelectedClass;
- 
+
   set<int> allTransfer;
 
   void displayRunners(gdioutput &gdi, const vector<pRunner> &changedClass) const;
 
+  void meosFeatures(gdioutput &gdi, bool newGuide);
+
+  void newCompetitionGuide(gdioutput &gdi, int step);
+
+  void entryForm(gdioutput &gdi, bool isGuide);
+  void saveEntries(gdioutput &gdi, bool updateClass, bool isGuide);
+
+  void selectStartlistOptions(gdioutput &gdi);
+  void selectExportSplitOptions(gdioutput &gdi);
+
+  void entryChoice(gdioutput &gdi);
+  void createCompetition(gdioutput &gdi);
 public:
+  void saveMeosFeatures(gdioutput &gdi, bool write);
+  void updateFeatureStatus(gdioutput &gdi);
 
   void setEventorServer(const string &server);
   void setEventorUTC(bool useUTC);
-  
+
   int competitionCB(gdioutput &gdi, int type, void *data);
   int restoreCB(gdioutput &gdi, int type, void *data);
-	bool loadPage(gdioutput &gdi);
-	TabCompetition(oEvent *oe);
-	~TabCompetition(void);
+  int newGuideCB(gdioutput &gdi, int type, void *data);
+
+  bool loadPage(gdioutput &gdi);
+  TabCompetition(oEvent *oe);
+  ~TabCompetition(void);
 };

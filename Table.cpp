@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -31,13 +31,14 @@
 #include "localizer.h"
 #include <cassert>
 #include "gdiconstants.h"
+#include "meosexception.h"
 
 extern HINSTANCE hInst;
 const char *tId="_TABLE_SEL";
 
 const Table *TableSortIndex::table = 0;
 
-Table::Table(oEvent *oe_, int rowH, 
+Table::Table(oEvent *oe_, int rowH,
              const string &name, const string &iName)
 {
   commandLock = false;
@@ -45,7 +46,7 @@ Table::Table(oEvent *oe_, int rowH,
   tableName=name;
   internalName = iName;
   nTitles=0;
-	PrevSort=-1;
+  PrevSort=-1;
   baseRowHeight=rowH;
   rowHeight = 0;
   highRow=-1;
@@ -104,37 +105,52 @@ void Table::clearCellSelection(gdioutput *gdi) {
   }
 }
 
-int Table::addColumn(const string &Title, int width, bool isnum, bool formatRight)
-{
-	RowInfo ri;
-	strcpy_s(ri.name, lang.tl(Title).c_str());
-	ri.baseWidth = width;
+int Table::addColumn(const string &Title, int width, bool isnum, bool formatRight) {
+  ColInfo ri;
+  strcpy_s(ri.name, lang.tl(Title).c_str());
+  ri.baseWidth = width;
   ri.width = 0;
-	ri.isnumeric = isnum;
+  ri.padWidthZeroSort = 0;
+  ri.isnumeric = isnum;
   ri.formatRight = formatRight;
-	Titles.push_back(ri);
+  Titles.push_back(ri);
   columns.push_back(nTitles);
-	nTitles++;
+  nTitles++;
   return Titles.size()-1;
 }
 
-void Table::moveColumn(int src, int target) 
+int Table::addColumnPaddedSort(const string &title, int width, int padding, bool formatRight) {
+  ColInfo ri;
+  strcpy_s(ri.name, lang.tl(title).c_str());
+  ri.baseWidth = width;
+  ri.width = 0;
+  ri.padWidthZeroSort = padding;
+  ri.isnumeric = false;
+  ri.formatRight = formatRight;
+  Titles.push_back(ri);
+  columns.push_back(nTitles);
+  nTitles++;
+  return Titles.size()-1;
+}
+
+
+void Table::moveColumn(int src, int target)
 {
-  if(src==target)
+  if (src==target)
     return;
 
   vector<int>::iterator it_s=find(columns.begin(), columns.end(), src);
   vector<int>::iterator it_t=find(columns.begin(), columns.end(), target);
 
-  if(it_s!=columns.end()) {
+  if (it_s!=columns.end()) {
 
-    if(it_s<it_t) {
+    if (it_s<it_t) {
       columns.erase(it_s);
       it_t=find(columns.begin(), columns.end(), target);
 
-      if(it_t!=columns.end())
+      if (it_t!=columns.end())
         ++it_t;
-      
+
       columns.insert(it_t, src);
     }
     else {
@@ -148,16 +164,26 @@ void Table::moveColumn(int src, int target)
 void Table::reserve(size_t siz) {
   Data.reserve(siz+3);
   sortIndex.reserve(siz+3);
+  idToRow.resize(siz+3);
 }
+
+TableRow *Table::getRowById(int rowId) {
+  int ix;
+  if (idToRow.lookup(rowId, ix)) {
+    return &Data[ix];
+  }
+  return 0;
+}
+
 void Table::addRow(int rowId, oBase *object)
-{  
+{
   int ix;
   if (rowId>0 && idToRow.lookup(rowId, ix)) {
     dataPointer = ix;
     return;
   }
 
-	TableRow tr(nTitles, object);
+  TableRow tr(nTitles, object);
   tr.height=rowHeight;
   tr.id = rowId;
   TableSortIndex tsi;
@@ -182,7 +208,7 @@ void Table::addRow(int rowId, oBase *object)
 
       Data[1].cells[i].canEdit=false;
       Data[1].cells[i].type=cellEdit;
-      Data[1].cells[i].owner=0;      
+      Data[1].cells[i].owner=0;
     }
   }
   else {
@@ -202,8 +228,8 @@ void Table::set(int column, oBase &owner, int id, const string &data, bool canEd
   if (dataPointer >= Data.size() || dataPointer<2)
     throw std::exception("Internal table error: wrong data pointer");
 
-  TableRow &row=Data[dataPointer];    
-  TableCell &cell=row.cells[column];  
+  TableRow &row=Data[dataPointer];
+  TableCell &cell=row.cells[column];
   cell.contents=data;
   cell.owner=&owner;
   cell.id=id;
@@ -230,7 +256,7 @@ void Table::filter(int col, const string &filt, bool forceFilter)
     //Filter less -> refilter all!
     Titles[col].filter=filt;
     sortIndex.resize(Data.size());
-    for (size_t k=0; k<Data.size();k++) {      
+    for (size_t k=0; k<Data.size();k++) {
       sortIndex[k].index = k;
     }
 
@@ -238,9 +264,9 @@ void Table::filter(int col, const string &filt, bool forceFilter)
       filter(k, Titles[k].filter, true);
     }
 
-    PrevSort = -1; 
+    PrevSort = -1;
     return;
-  }  
+  }
 
   char filt_lc[1024];
   strcpy_s(filt_lc, filt.c_str());
@@ -268,17 +294,16 @@ void Table::sort(int col)
   if (col < 0)
     col = -(10+col);
 
-  if(sortIndex.size()<2)
+  if (sortIndex.size()<2)
     return;
   currentSortColumn=col;
-	if (PrevSort!=col && PrevSort!=-(10+col)) {
-	  if (Titles[col].isnumeric) {
+  if (PrevSort!=col && PrevSort!=-(10+col)) {
+    if (Titles[col].isnumeric) {
       bool hasDeci = false;
-      for(size_t k=2; k<sortIndex.size(); k++){					
+      for(size_t k=2; k<sortIndex.size(); k++){
         Data[sortIndex[k].index].key.clear();
         const char *str = Data[sortIndex[k].index].cells[col].contents.c_str();
-       
-        
+
         int i = 0;
         while (str[i] != 0 && str[i] != ':' && str[i] != ',' && str[i] != '.')
           i++;
@@ -287,19 +312,19 @@ void Table::sort(int col)
           hasDeci = true;
           break;
         }
-        
+
         i = 0;
         while (str[i] != 0 && (str[i] < '0' || str[i] > '9'))
           i++;
 
         Data[sortIndex[k].index].intKey = atoi(str + i);
-		  }
+      }
 
       if (hasDeci) { // Times etc.
-       for(size_t k=2; k<sortIndex.size(); k++){					
+       for(size_t k=2; k<sortIndex.size(); k++){
           Data[sortIndex[k].index].key.clear();
           const char *str = Data[sortIndex[k].index].cells[col].contents.c_str();
-          
+
           int i = 0;
           while (str[i] != 0 && (str[i] < '0' || str[i] > '9'))
             i++;
@@ -326,68 +351,96 @@ void Table::sort(int col)
             key *= 10000;
           }
 
-          Data[sortIndex[k].index].intKey = key;         
-		    }
+          Data[sortIndex[k].index].intKey = key;
+        }
       }
     }
-    else {		
-      for (size_t k=2; k<sortIndex.size(); k++) {					      
-        string &key = Data[sortIndex[k].index].key;
-        key = Data[sortIndex[k].index].cells[col].contents;
-        const BYTE *strBuff = (const BYTE *)key.c_str();
-        CharUpperBuff(LPSTR(strBuff), key.size());
-        
-        int &intKey = Data[sortIndex[k].index].intKey;
-        intKey = unsigned(strBuff[0])<<16;
-        if (key.length() > 1) {
-          intKey |= unsigned(strBuff[1])<<8;
-          intKey |= unsigned(strBuff[2]);
+    else {
+      if (Titles[col].padWidthZeroSort) {
+        for (size_t k=2; k<sortIndex.size(); k++) {
+          string &key = Data[sortIndex[k].index].key;
+          const string &contents = Data[sortIndex[k].index].cells[col].contents;
+          if (contents.length() < unsigned(Titles[col].padWidthZeroSort)) {
+            key.resize(Titles[col].padWidthZeroSort+1);
+            int cl = Titles[col].padWidthZeroSort-contents.length();
+            for (int i = 0; i < cl; i++)
+              key[i] = '0';
+            for (int i = cl; i < Titles[col].padWidthZeroSort; i++)
+              key[i] = contents[i-cl];
+          }
+          else
+            key = contents;
+          //key = Data[sortIndex[k].index].cells[col].contents;
+          const BYTE *strBuff = (const BYTE *)key.c_str();
+          CharUpperBuff(LPSTR(strBuff), key.size());
+
+          int &intKey = Data[sortIndex[k].index].intKey;
+          intKey = unsigned(strBuff[0])<<16;
+          if (key.length() > 1) {
+            intKey |= unsigned(strBuff[1])<<8;
+            intKey |= unsigned(strBuff[2]);
+          }
         }
-		  }
+      }
+      else {
+        for (size_t k=2; k<sortIndex.size(); k++) {
+          string &key = Data[sortIndex[k].index].key;
+          key = Data[sortIndex[k].index].cells[col].contents;
+          const BYTE *strBuff = (const BYTE *)key.c_str();
+          CharUpperBuff(LPSTR(strBuff), key.size());
+
+          int &intKey = Data[sortIndex[k].index].intKey;
+          intKey = unsigned(strBuff[0])<<16;
+          if (key.length() > 1) {
+            intKey |= unsigned(strBuff[1])<<8;
+            intKey |= unsigned(strBuff[2]);
+          }
+        }
+      }
     }
     assert(TableSortIndex::table == 0);
     TableSortIndex::table = this;
-    DWORD sStart = GetTickCount();
+    //DWORD sStart = GetTickCount();
     std::stable_sort(sortIndex.begin()+2, sortIndex.end());
-		DWORD sEnd = GetTickCount();
-    string st = itos(sEnd-sStart);
+    //DWORD sEnd = GetTickCount();
+    //string st = itos(sEnd-sStart);
     TableSortIndex::table = 0;
     PrevSort=col;
 
     if (reverse)
       std::reverse(sortIndex.begin()+2, sortIndex.end());
-	} 
-	else {
+  }
+  else {
     std::reverse(sortIndex.begin()+2, sortIndex.end());
 
-    if(PrevSort==col)
-		  PrevSort=-(10+col);
+    if (PrevSort==col)
+      PrevSort=-(10+col);
     else
       PrevSort=col;
-	}
+  }
 }
 
 int TablesCB(gdioutput *gdi, int type, void *data)
 {
-	if(type!=GUI_LINK || gdi->Tables.empty())
-		return 0;
+  if (type!=GUI_LINK || gdi->Tables.empty())
+    return 0;
 
-	TableInfo &tai=gdi->Tables.front();
-	Table *t=tai.table;
+  TableInfo &tai=gdi->Tables.front();
+  Table *t=tai.table;
 
-	TextInfo *ti=(TextInfo *)data;
+  TextInfo *ti=(TextInfo *)data;
 
 
-	if(ti->id.substr(0,4)=="sort"){
-		int col=atoi(ti->id.substr(4).c_str());
-		t->sort(col);
-	}
+  if (ti->id.substr(0,4)=="sort"){
+    int col=atoi(ti->id.substr(4).c_str());
+    t->sort(col);
+  }
 
-	gdi->refresh();
-	//gdi->Restore();
-	//t->Render(*gdi);
+  gdi->refresh();
+  //gdi->Restore();
+  //t->Render(*gdi);
 //*/
-	return 0;
+  return 0;
 }
 
 void Table::getDimension(gdioutput &gdi, int &dx, int &dy, bool filteredResult) const
@@ -397,16 +450,16 @@ void Table::getDimension(gdioutput &gdi, int &dx, int &dy, bool filteredResult) 
   if (filteredResult)
     dy = rowHeight * (1+sortIndex.size());
   else
- 	  dy = rowHeight * (1+max<size_t>(2,Data.size()));
+    dy = rowHeight * (1+max<size_t>(2,Data.size()));
 
-	dx=1;
+  dx=1;
   for(size_t i=0;i<columns.size();i++) {
     Titles[columns[i]].width = gdi.scaleLength(Titles[columns[i]].baseWidth);
-		dx += Titles[columns[i]].width + 1;
+    dx += Titles[columns[i]].width + 1;
   }
 }
 
-void Table::redrawCell(gdioutput &gdi, HDC hDC, int c, int r) 
+void Table::redrawCell(gdioutput &gdi, HDC hDC, int c, int r)
 {
   if (unsigned(r)<Data.size() && unsigned(c)<unsigned(nTitles)) {
     const TableRow &row=Data[r];
@@ -421,10 +474,10 @@ void Table::startMoveCell(HDC hDC, const TableCell &cell)
   int cx=rc.right-rc.left+1;
   int cy=rc.bottom-rc.top;
 
-  hdcCompatible = CreateCompatibleDC(hDC); 
-  hbmStored = CreateCompatibleBitmap(hDC, cx, cy); 
- 
-  // Select the bitmaps into the compatible DC. 
+  hdcCompatible = CreateCompatibleDC(hDC);
+  hbmStored = CreateCompatibleBitmap(hDC, cx, cy);
+
+  // Select the bitmaps into the compatible DC.
   SelectObject(hdcCompatible, hbmStored);
 
   lastX=rc.left;
@@ -438,7 +491,7 @@ void Table::restoreCell(HDC hDC, const TableCell &cell)
   int cx=rc.right-rc.left+1;
   int cy=rc.bottom-rc.top;
 
-  if(hdcCompatible) {  
+  if (hdcCompatible) {
     //Restore bitmap
     BitBlt(hDC, lastX, lastY, cx, cy, hdcCompatible, 0, 0, SRCCOPY);
   }
@@ -452,7 +505,7 @@ void Table::moveCell(HDC hDC, gdioutput &gdi, const TableCell &cell, int dx, int
   int cx=rc.right-rc.left+1;
   int cy=rc.bottom-rc.top;
 
-  if(hdcCompatible) {  
+  if (hdcCompatible) {
     lastX=rc.left;
     lastY=rc.top;
     //Take new
@@ -468,7 +521,7 @@ void Table::moveCell(HDC hDC, gdioutput &gdi, const TableCell &cell, int dx, int
 
 void Table::stopMoveCell(HDC hDC, const TableCell &cell, int dx, int dy)
 {
-  if(hdcCompatible) {
+  if (hdcCompatible) {
     restoreCell(hDC, cell);
 /*    RECT rc=cell.absPos;
     rc.left+=dx; rc.right+=dx;
@@ -483,7 +536,7 @@ void Table::stopMoveCell(HDC hDC, const TableCell &cell, int dx, int dy)
     hdcCompatible=0;
   }
 
-  if(hbmStored) {
+  if (hbmStored) {
     DeleteObject(hbmStored);
     hbmStored=0;
   }
@@ -494,26 +547,26 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
   int row=getRow(y);
   int col=-1;
 
-  if(row!=-1)
+  if (row!=-1)
     col=getColumn(x);
 
   HWND hWnd=gdi.getTarget();
 
-  if(colSelected!=-1) {
+  if (colSelected!=-1) {
     TableCell &cell=Data[0].cells[colSelected];
     HDC hDC=GetDC(hWnd);
 
     restoreCell(hDC, cell);
 
     if (col!=highCol) {
-      if(unsigned(highRow)<Data.size() && unsigned(highCol)<nTitles) 
+      if (unsigned(highRow)<Data.size() && unsigned(highCol)<nTitles)
         redrawCell(gdi, hDC, highCol, highRow);
 
-      DWORD c=RGB(240, 200, 140);      
-      if(unsigned(col)<nTitles)
+      DWORD c=RGB(240, 200, 140);
+      if (unsigned(col)<nTitles)
         highlightCell(hDC, gdi, Data[0].cells[col], c, 0,0);
     }
-    
+
     //highlightCell(hDC, cell, RGB(255,0,0), x-startX, y-startY);
     moveCell(hDC, gdi, cell,  x-startX, y-startY);
     ReleaseDC(hWnd, hDC);
@@ -525,7 +578,7 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
   RECT rc;
   GetClientRect(hWnd, &rc);
 
-  if(x<=rc.left || x>=rc.right || y<rc.top || y>rc.bottom)
+  if (x<=rc.left || x>=rc.right || y<rc.top || y>rc.bottom)
     row=-1;
 
   bool ret = false;
@@ -536,11 +589,11 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
       upperCol = c;
     c = getRow(y, true);
     if (c != -1 && c>=0) {
-      upperRow = max<int>(c, 2); 
+      upperRow = max<int>(c, 2);
     }
 
     HDC hDC=GetDC(hWnd);
-    if(unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size()) 
+    if (unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size())
       redrawCell(gdi, hDC, highCol, highRow);
     highRow = -1;
     drawSelection(gdi, hDC, false);
@@ -557,21 +610,21 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
       //int index=sortIndex[row].index;
       TableRow &trow=Data[row];
       TableCell &cell=trow.cells[col];
-     
-      if(highRow!=row || highCol!=col) {
 
-        HDC hDC=GetDC(hWnd); 
+      if (highRow!=row || highCol!=col) {
 
-        if(unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size()) 
+        HDC hDC=GetDC(hWnd);
+
+        if (unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size())
           redrawCell(gdi, hDC, highCol, highRow);
-   
+
         if (row >= 2) {
           DWORD c;
-          if(cell.canEdit)
+          if (cell.canEdit)
             c=RGB(240, 240, 150);
           else
             c=RGB(240, 200, 140);
-          
+
           highlightCell(hDC, gdi, cell, c, 0,0);
         }
 
@@ -582,12 +635,12 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
       }
       ret = true;
     }
-  }  
+  }
 
   if (ret)
     return true;
 
-  if(unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size()) {
+  if (unsigned(highRow)<Data.size() && unsigned(highCol)<Titles.size()) {
     ReleaseCapture();
     HDC hDC=GetDC(hWnd);
     redrawCell(gdi, hDC, highCol, highRow);
@@ -599,9 +652,9 @@ bool Table::mouseMove(gdioutput &gdi, int x, int y)
 
 bool Table::mouseLeftUp(gdioutput &gdi, int x, int y)
 {
-  if(colSelected!=-1) {
+  if (colSelected!=-1) {
 
-    if(hdcCompatible) {
+    if (hdcCompatible) {
       TableCell &cell=Data[0].cells[colSelected];
       HWND hWnd=gdi.getTarget();
       HDC hDC=GetDC(hWnd);
@@ -636,7 +689,7 @@ bool Table::mouseLeftUp(gdioutput &gdi, int x, int y)
   return false;
 }
 
-int tblSelectionCB(gdioutput *gdi, int type, void *data) 
+int tblSelectionCB(gdioutput *gdi, int type, void *data)
 {
   if (type == GUI_LISTBOX) {
     ListBoxInfo lbi = *static_cast<ListBoxInfo *>(data);
@@ -688,8 +741,8 @@ bool Table::keyCommand(gdioutput &gdi, KeyCommandCode code) {
       gdi.refresh();
     }
     else if (code == KC_PRINT) {
-      gdioutput gdiPrint(gdi.getScale(), gdi.getEncoding(), gdi.getHWND());	
-	    gdiPrint.clearPage(false);
+      gdioutput gdiPrint("temp", gdi.getScale(), gdi.getEncoding());
+      gdiPrint.clearPage(false);
       gdiPrint.print(getEvent(), this);
     }
   }
@@ -708,10 +761,12 @@ bool Table::deleteSelection(gdioutput &gdi) {
   int r1, r2;
   getRowRange(r1, r2);
   if (r1 != -1 && r2 != -1 && r1<=r2) {
-    if (!gdi.ask("Vill du radera X rader från tabellen?#" + itos(r2-r1+1))) 
+    if (!gdi.ask("Vill du radera X rader från tabellen?#" + itos(r2-r1+1)))
       return false;
+    gdi.setWaitCursor(true);
     int failed = deleteRows(r1, r2);
     gdi.refresh();
+    gdi.setWaitCursor(false);
     if (failed > 0)
       gdi.alert("X rader kunde inte raderas.#" + itos(failed));
   }
@@ -788,17 +843,17 @@ bool Table::mouseLeftDown(gdioutput &gdi, int x, int y) {
   }
   else if (highRow==1) {
     //filter(highCol, "lots");
-    RECT rc=Data[1].cells[columns[0]].absPos; 
+    RECT rc=Data[1].cells[columns[0]].absPos;
     //rc.right=rc.left+tableWidth;
     editRow=highRow;
     editCol=highCol;
 
-    hEdit=CreateWindowEx(0, "EDIT", Titles[highCol].filter.c_str(), 
+    hEdit=CreateWindowEx(0, "EDIT", Titles[highCol].filter.c_str(),
         WS_TABSTOP|WS_VISIBLE | WS_CHILD | ES_AUTOHSCROLL|WS_BORDER,
         rc.left+105, rc.top, tableWidth-105, (rc.bottom-rc.top-1), gdi.getTarget(),
-        0, hInst, 0); 
+        0, hInst, 0);
     drawFilterLabel=true;
-    SendMessage(hEdit, EM_SETSEL, 0, -1); 
+    SendMessage(hEdit, EM_SETSEL, 0, -1);
     SetFocus(hEdit);
     SendMessage(hEdit, WM_SETFONT, (WPARAM) gdi.getGUIFont(), 0);
     gdi.refresh();
@@ -824,7 +879,7 @@ bool Table::mouseLeftDblClick(gdioutput &gdi, int x, int y)
     return false;
   }
 
- 
+
   if (highRow != 0 && highRow != 1) {
     if (editCell(gdi, highRow, highCol))
       return true;
@@ -865,13 +920,13 @@ bool Table::editCell(gdioutput &gdi, int row, int col) {
       width = max<int>(width, 8*out[k].first.length());
 
     if (cell.type == cellSelection) {
-      gdi.addSelection(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId, 
-              max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10, 
+      gdi.addSelection(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId,
+              max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10,
               tblSelectionCB).setExtra(this);
     }
     else {
-      gdi.addCombo(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId, 
-              max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10, 
+      gdi.addCombo(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId,
+              max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10,
               tblSelectionCB).setExtra(this);
     }
     gdi.addItem(tId, out);
@@ -879,15 +934,15 @@ bool Table::editCell(gdioutput &gdi, int row, int col) {
     return true;
   }
   else if (cell.type==cellEdit) {
-    hEdit=CreateWindowEx(0, "EDIT", cell.contents.c_str(), 
+    hEdit=CreateWindowEx(0, "EDIT", cell.contents.c_str(),
       WS_TABSTOP|WS_VISIBLE | WS_CHILD | ES_AUTOHSCROLL|WS_BORDER,
       rc.left, rc.top, rc.right-rc.left+1, (rc.bottom-rc.top), gdi.getTarget(),
-      0, hInst, 0);    
-    SendMessage(hEdit, EM_SETSEL, 0, -1); 
+      0, hInst, 0);
+    SendMessage(hEdit, EM_SETSEL, 0, -1);
     SetFocus(hEdit);
     SendMessage(hEdit, WM_SETFONT, (WPARAM) gdi.getGUIFont(), 0);
     return true;
-  }  
+  }
 
   return false;
 }
@@ -909,32 +964,32 @@ RGBQUAD transform(RGBQUAD src, double scale) {
   return src;
 }
 
-void gradRect(HDC hDC, int left, int top, int right, int bottom, 
+void gradRect(HDC hDC, int left, int top, int right, int bottom,
               bool horizontal, RGBQUAD c1, RGBQUAD c2) {
-  
+
   TRIVERTEX vert[2];
-	vert [0] .x      = left;
-	vert [0] .y      = top;
-	vert [0] .Red    = 0xff00 & (DWORD(c1.rgbRed)<<8);
-	vert [0] .Green  = 0xff00 & (DWORD(c1.rgbGreen)<<8);
-	vert [0] .Blue   = 0xff00 & (DWORD(c1.rgbBlue)<<8);
+  vert [0] .x      = left;
+  vert [0] .y      = top;
+  vert [0] .Red    = 0xff00 & (DWORD(c1.rgbRed)<<8);
+  vert [0] .Green  = 0xff00 & (DWORD(c1.rgbGreen)<<8);
+  vert [0] .Blue   = 0xff00 & (DWORD(c1.rgbBlue)<<8);
   vert [0] .Alpha  = 0xff00 & (DWORD(c1.rgbReserved)<<8);
 
-	vert [1] .x      = right;
-	vert [1] .y      = bottom; 
-	vert [1] .Red    = 0xff00 & (DWORD(c2.rgbRed)<<8);
-	vert [1] .Green  = 0xff00 & (DWORD(c2.rgbGreen)<<8);
-	vert [1] .Blue   = 0xff00 & (DWORD(c2.rgbBlue)<<8);
+  vert [1] .x      = right;
+  vert [1] .y      = bottom;
+  vert [1] .Red    = 0xff00 & (DWORD(c2.rgbRed)<<8);
+  vert [1] .Green  = 0xff00 & (DWORD(c2.rgbGreen)<<8);
+  vert [1] .Blue   = 0xff00 & (DWORD(c2.rgbBlue)<<8);
   vert [1] .Alpha  = 0xff00 & (DWORD(c2.rgbReserved)<<8);
 
   GRADIENT_RECT gr[1];
-	gr[0].UpperLeft=0;
-	gr[0].LowerRight=1;
-  
+  gr[0].UpperLeft=0;
+  gr[0].LowerRight=1;
+
   if (horizontal)
-		GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_H);
-	else
-		GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_V);
+    GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_H);
+  else
+    GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_V);
 }
 
 void Table::initEmpty() {
@@ -945,7 +1000,7 @@ void Table::initEmpty() {
   }
 }
 
-void drawSymbol(gdioutput &gdi, HDC hDC, int height, 
+void drawSymbol(gdioutput &gdi, HDC hDC, int height,
                 const TextInfo &ti, const string &symbol, bool highLight) {
   int cx = ti.xp - gdi.GetOffsetX() + ti.xlimit/2;
   int cy = ti.yp - gdi.GetOffsetY() + height/2 - 2;
@@ -988,7 +1043,7 @@ void Table::highlightCell(HDC hDC, gdioutput &gdi, const TableCell &cell, DWORD 
 {
   SelectObject(hDC, GetStockObject(DC_BRUSH));
   SelectObject(hDC, GetStockObject(NULL_PEN));
-  
+
   SetDCBrushColor(hDC, color);
 
   RECT rc=cell.absPos;
@@ -996,8 +1051,8 @@ void Table::highlightCell(HDC hDC, gdioutput &gdi, const TableCell &cell, DWORD 
   rc.right+=dx;
   rc.top+=dy;
   rc.bottom+=dy;
-  
-  Rectangle(hDC, rc.left+1, rc.top, 
+
+  Rectangle(hDC, rc.left+1, rc.top,
                  rc.right+2, rc.bottom);
 
   TextInfo ti;
@@ -1019,7 +1074,7 @@ void Table::highlightCell(HDC hDC, gdioutput &gdi, const TableCell &cell, DWORD 
   }
 }
 
-void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen) 
+void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
 {
   gdi.resetLast();
   initEmpty();
@@ -1028,11 +1083,11 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
   table_xp=dx-gdi.OffsetX;
   table_yp=dy-gdi.OffsetY;
 
-  if(currentSortColumn==-1)
+  if (currentSortColumn==-1)
     sort(0);
 
-	int wi, he;
-	getDimension(gdi, wi, he, true);
+  int wi, he;
+  getDimension(gdi, wi, he, true);
 
   tableWidth=wi;
   tableHeight=he;
@@ -1050,9 +1105,9 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
   xpos.resize(columns.size()+1);
 
   xpos[0]=dx-gdi.OffsetX;
-  for (size_t i=1;i<=columns.size();i++) 
+  for (size_t i=1;i<=columns.size();i++)
     xpos[i]=xpos[i-1]+Titles[columns[i-1]].width+1;
- 
+
   //Find first and last visible column
   while(firstCol<int(columns.size()) && xpos[firstCol+1]<=screen.left)
     firstCol++;
@@ -1060,12 +1115,12 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
   while(lastCol>0 && xpos[lastCol-1]>screen.right)
     lastCol--;
 
- 	SelectObject(hDC, GetStockObject(DC_BRUSH));
-	SelectObject(hDC, GetStockObject(DC_PEN));
-  
+  SelectObject(hDC, GetStockObject(DC_BRUSH));
+  SelectObject(hDC, GetStockObject(DC_PEN));
+
   SetDCPenColor(hDC, RGB(190,190,190));
   SetDCBrushColor(hDC, RGB(60,25,150));
-  
+
   //Title
   TextInfo ti;
   gdi.formatString(ti, hDC);
@@ -1075,13 +1130,13 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
   hls.saturation = min<WORD>(90,hls.saturation);
   DWORD lightColor = hls.HLStoRGB();
 
-  if(firstRow==0 && lastRow>=0) {
-    //Rectangle(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY, 
-    //          dx+tableWidth-gdi.OffsetX, dy+rowHeight-gdi.OffsetY);  
+  if (firstRow==0 && lastRow>=0) {
+    //Rectangle(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY,
+    //          dx+tableWidth-gdi.OffsetX, dy+rowHeight-gdi.OffsetY);
     RGBQUAD c1 = RGBA(GetSysColor(COLOR_ACTIVECAPTION));
-    gradRect(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY, 
+    gradRect(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY,
             dx+tableWidth-gdi.OffsetX, dy+rowHeight-gdi.OffsetY, false,
-            c1, transform(c1, 0.7));  
+            c1, transform(c1, 0.7));
 
     RECT rc;
     rc.left=dx+5-gdi.OffsetX;
@@ -1098,7 +1153,7 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
     SetTextColor(hDC, RGB(255,255,255));
     char bf[256];
     string info = lang.tl(string("sortering: X, antal rader: Y#") + Titles[currentSortColumn].name + "#" + itos(sortIndex.size()-2));
-    //sprintf_s(bf, .c_str(), 
+    //sprintf_s(bf, .c_str(),
     //          Titles[currentSortColumn].name, int(sortIndex.size())-2);
     rc.left=rc.right+30;
     rc.right=dx + tableWidth - gdi.OffsetX - 10;
@@ -1109,8 +1164,8 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
     if (drawFilterLabel) {
       SetDCBrushColor(hDC, RGB(100,200,100));
 
-      Rectangle(hDC, dx-gdi.OffsetX, dy+2*rowHeight-gdi.OffsetY, 
-              dx+tableWidth-gdi.OffsetX, dy+3*rowHeight-gdi.OffsetY);  
+      Rectangle(hDC, dx-gdi.OffsetX, dy+2*rowHeight-gdi.OffsetY,
+              dx+tableWidth-gdi.OffsetX, dy+3*rowHeight-gdi.OffsetY);
 
       rc.left=dx+5-gdi.OffsetX;
       rc.right=rc.left+100;
@@ -1121,20 +1176,20 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
       tbf[1]=0;
       CharLower(tbf);
       string filter = lang.tl("Urval %c%s:")+" ";
-      sprintf_s(bf, filter.c_str(), tbf[0], 
+      sprintf_s(bf, filter.c_str(), tbf[0],
               Titles[editCol].name+1, int(sortIndex.size())-2);
-      
+
       DrawText(hDC, bf, -1, &rc, DT_RIGHT|DT_NOPREFIX);
     }
   }
-  
+
   int yp;
   yp=dy+rowHeight;
 
-  if(firstRow<=2 && lastRow>=1) {
+  if (firstRow<=2 && lastRow>=1) {
     string filterText = lang.tl("Urval...");
 
- 	  for (int k=firstCol;k<lastCol;k++) {
+    for (int k=firstCol;k<lastCol;k++) {
       int xp=xpos[k];
       int index=columns[k];
       RECT rc;
@@ -1143,8 +1198,8 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
       rc.top=yp+1-gdi.OffsetY;
       rc.bottom=rc.top+rowHeight;
       SetDCBrushColor(hDC, RGB(200,200,200));
-      Rectangle(hDC, rc.left, rc.top-1, rc.right+2, rc.bottom);  
-      
+      Rectangle(hDC, rc.left, rc.top-1, rc.right+2, rc.bottom);
+
       if (index == PrevSort || PrevSort == -(10+index) ) {
         SetDCBrushColor(hDC, RGB(100,250,100));
         POINT pt[3];
@@ -1152,7 +1207,7 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
         int s = rc.bottom - rc.top - r;
         int px = (rc.right + rc.left + s)/2;
         int py = rc.top + r/2;
-       
+
         pt[0].x = px - s;
         pt[1].x = px - s/2;
         pt[2].x = px;
@@ -1178,42 +1233,42 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
 
       if (!drawFilterLabel) {
         rc.top+=rowHeight;
-        rc.bottom+=rowHeight; 
+        rc.bottom+=rowHeight;
         Titles[index].condition=rc;
         Data[1].cells[index].absPos=rc;
-        if(Titles[index].filter.empty()) {
+        if (Titles[index].filter.empty()) {
           SetDCBrushColor(hDC, lightColor);
           Rectangle(hDC, rc.left, rc.top-1, rc.right+2, rc.bottom);
           rc.left+=3;
           DrawText(hDC, filterText.c_str(), -1, &rc, DT_LEFT|DT_NOPREFIX);
         }
-        else { 
-          SetDCBrushColor(hDC, RGB(230,100,100));  
+        else {
+          SetDCBrushColor(hDC, RGB(230,100,100));
           Rectangle(hDC, rc.left, rc.top-1, rc.right+2, rc.bottom);
           rc.left+=3;
-          DrawText(hDC, Titles[index].filter.c_str(), -1, &rc, DT_LEFT|DT_NOPREFIX);          
+          DrawText(hDC, Titles[index].filter.c_str(), -1, &rc, DT_LEFT|DT_NOPREFIX);
         }
       }
     }
   }
 
-	SelectObject(hDC, GetStockObject(DC_BRUSH));
+  SelectObject(hDC, GetStockObject(DC_BRUSH));
 
-	SetDCPenColor(hDC, RGB(190,190, 190));
-   
+  SetDCPenColor(hDC, RGB(190,190, 190));
+
   RECT desktop, target;
   GetClientRect(GetDesktopWindow(), &desktop);
   GetClientRect(gdi.getTarget(), &target);
   int marginPixel = (desktop.bottom - desktop.top)  - (target.bottom - target.top);
 
   int margin = max(5, (marginPixel + rowHeight) / rowHeight);
- 
+
   const int rStart = max(2, firstRow - margin);
   const int rEnd = min<int>(lastRow + margin, sortIndex.size());
   for (int k1 = rStart; k1 < rEnd; k1++){
     int yp = dy + rowHeight*(k1+1);
     TableRow &tr = Data[sortIndex[k1].index];
-	  for(size_t k=0;k<columns.size();k++){
+    for(size_t k=0;k<columns.size();k++){
       int xp = xpos[k];
       int i = columns[k];
       tr.cells[i].absPos.left = xp;
@@ -1226,30 +1281,30 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
   for (size_t k1=max(2, firstRow); int(k1)<lastRow; k1++){
     int yp=dy+rowHeight*(k1+1);
     TableRow &tr=Data[sortIndex[k1].index];
-		int xp=xpos[0];
+    int xp=xpos[0];
 
-		if(k1&1)
-			SetDCBrushColor(hDC, RGB(230,230, 240));
-		else
-			SetDCBrushColor(hDC, RGB(230,230, 250));
+    if (k1&1)
+      SetDCBrushColor(hDC, RGB(230,230, 240));
+    else
+      SetDCBrushColor(hDC, RGB(230,230, 250));
 
-		SelectObject(hDC, GetStockObject(NULL_PEN));
-    Rectangle(hDC, max(xpos[firstCol], int(screen.left)), yp-gdi.OffsetY, 
+    SelectObject(hDC, GetStockObject(NULL_PEN));
+    Rectangle(hDC, max(xpos[firstCol], int(screen.left)), yp-gdi.OffsetY,
               min(xpos[lastCol]+1, int(screen.right+2)), yp+rowHeight-gdi.OffsetY);
-  	SelectObject(hDC, GetStockObject(DC_PEN));
+    SelectObject(hDC, GetStockObject(DC_PEN));
     const int cy=yp+rowHeight-gdi.OffsetY-1;
     MoveToEx(hDC, xp, cy, 0);
     LineTo(hDC, xp+wi, cy);
-    
-		for(int k=firstCol;k<lastCol;k++) {
+
+    for(int k=firstCol;k<lastCol;k++) {
       xp=xpos[k];
       int i=columns[k];
-      if(!tr.cells[i].contents.empty()) {
+      if (!tr.cells[i].contents.empty()) {
         ti.xp = xp + 4 + gdi.OffsetX;
-			  ti.yp = yp + 2;
+        ti.yp = yp + 2;
         ti.format = 0;
         ti.xlimit = Titles[i].width - 4;
-  
+
         if (tr.cells[i].type == cellAction && tr.cells[i].contents[0] == '@') {
           drawSymbol(gdi, hDC, rowHeight, ti, tr.cells[i].contents, false);
           SetDCPenColor(hDC, RGB(190,190,190));
@@ -1262,29 +1317,29 @@ void Table::draw(gdioutput &gdi, HDC hDC, int dx, int dy, const RECT &screen)
           gdi.RenderString(ti, tr.cells[i].contents, hDC);
         }
       }
-		}			
-	}
+    }
+  }
 
   const int miy=dy+rowHeight-gdi.OffsetY;
   const int may=dy+rowHeight*(sortIndex.size()+1)-gdi.OffsetY;
 
- 	for (size_t i=firstCol;i<=columns.size();i++) {
-		int xp=xpos[i];
-		MoveToEx(hDC, xp, miy, 0);
+  for (size_t i=firstCol;i<=columns.size();i++) {
+    int xp=xpos[i];
+    MoveToEx(hDC, xp, miy, 0);
     LineTo(hDC, xp, may);
-	}
+  }
 
 
   SelectObject(hDC, GetStockObject(NULL_BRUSH));
   SelectObject(hDC, GetStockObject(DC_PEN));
   SetDCPenColor(hDC, RGB(64,64,64));
-  Rectangle(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY, 
+  Rectangle(hDC, dx-gdi.OffsetX, dy-gdi.OffsetY,
             dx+tableWidth-gdi.OffsetX, dy+tableHeight-gdi.OffsetY);
   SetDCPenColor(hDC, RGB(200,200,200));
-  Rectangle(hDC, dx-gdi.OffsetX-1, dy-gdi.OffsetY-1, 
+  Rectangle(hDC, dx-gdi.OffsetX-1, dy-gdi.OffsetY-1,
             dx+tableWidth-gdi.OffsetX+1, dy+tableHeight-gdi.OffsetY+1);
   SetDCPenColor(hDC, RGB(64,64,64));
-  Rectangle(hDC, dx-gdi.OffsetX-2, dy-gdi.OffsetY-2, 
+  Rectangle(hDC, dx-gdi.OffsetX-2, dy-gdi.OffsetY-2,
             dx+tableWidth-gdi.OffsetX+2, dy+tableHeight-gdi.OffsetY+2);
   drawSelection(gdi, hDC, true);
 }
@@ -1295,9 +1350,9 @@ TableCell &Table::getCell(int row, int col) const {
     throw std::exception("Index out of range");
   const TableRow &tr = Data[sortIndex[row].index];
 
-	if( size_t(col) >= columns.size())
+  if ( size_t(col) >= columns.size())
     throw std::exception("Index out of range");
-  
+
   col = columns[col];
   return *((TableCell *)&tr.cells[col]);
 }
@@ -1307,12 +1362,12 @@ void Table::clearSelectionBitmap(gdioutput *gdi, HDC hDC)
   if (gdi)
     restoreSelection(*gdi, hDC);
 
-  if (hdcCompatibleCell) {    
+  if (hdcCompatibleCell) {
     DeleteDC(hdcCompatibleCell);
     hdcCompatibleCell = 0;
   }
 
-  if(hbmStoredCell) {
+  if (hbmStoredCell) {
     DeleteObject(hbmStoredCell);
     hbmStoredCell = 0;
   }
@@ -1324,11 +1379,11 @@ void Table::restoreSelection(gdioutput &gdi, HDC hDC) {
     rc.left -= gdi.OffsetX;
     rc.right -= gdi.OffsetX;
     rc.top -= gdi.OffsetY;
-    rc.bottom -= gdi.OffsetY;      
+    rc.bottom -= gdi.OffsetY;
     InvalidateRect(gdi.getTarget(), &rc, false);
     partialCell = false;
   }
-  else if(hdcCompatibleCell) {  
+  else if (hdcCompatibleCell) {
     //Restore bitmap
     int cx = lastCell.right - lastCell.left + 1;
     int cy = lastCell.bottom - lastCell.top + 1;
@@ -1340,13 +1395,13 @@ void Table::restoreSelection(gdioutput &gdi, HDC hDC) {
 
 void Table::drawSelection(gdioutput &gdi, HDC hDC, bool forceDraw) {
   bool modified = false;
-  if (lowerColOld != lowerCol || upperCol != upperColOld || 
+  if (lowerColOld != lowerCol || upperCol != upperColOld ||
       lowerRow != lowerRowOld || upperRow != upperRowOld) {
     modified = true;
     restoreSelection(gdi, hDC);
   }
 
-  if (lowerCol != -1  && upperCol != -1 && 
+  if (lowerCol != -1  && upperCol != -1 &&
        lowerRow != -1  && upperRow != -1 &&
        (forceDraw || modified)) {
     TableCell &c1 = Data[lowerRow].cells[lowerCol];
@@ -1363,7 +1418,7 @@ void Table::drawSelection(gdioutput &gdi, HDC hDC, bool forceDraw) {
 
       clearSelectionBitmap(&gdi, hDC);
 
-      lastCell = rc; 
+      lastCell = rc;
       int x = lastCell.left - 1 - gdi.OffsetX;
       int y = lastCell.top - 1 - gdi.OffsetY;
       int maxX, maxY;
@@ -1373,10 +1428,10 @@ void Table::drawSelection(gdioutput &gdi, HDC hDC, bool forceDraw) {
         partialCell = true;
       }
       else {
-        hdcCompatibleCell = CreateCompatibleDC(hDC); 
-        hbmStoredCell = CreateCompatibleBitmap(hDC, cx, cy); 
-       
-        // Select the bitmaps into the compatible DC. 
+        hdcCompatibleCell = CreateCompatibleDC(hDC);
+        hbmStoredCell = CreateCompatibleBitmap(hDC, cx, cy);
+
+        // Select the bitmaps into the compatible DC.
         SelectObject(hdcCompatibleCell, hbmStoredCell);
         BitBlt(hdcCompatibleCell, 0, 0, cx, cy, hDC, x, y, SRCCOPY);
         partialCell = false;
@@ -1386,11 +1441,11 @@ void Table::drawSelection(gdioutput &gdi, HDC hDC, bool forceDraw) {
     SelectObject(hDC, GetStockObject(NULL_BRUSH));
     SelectObject(hDC, GetStockObject(DC_PEN));
     SetDCPenColor(hDC, RGB(0,0, 128));
-    Rectangle(hDC, rc.left - gdi.OffsetX, rc.top - gdi.OffsetY, 
+    Rectangle(hDC, rc.left - gdi.OffsetX, rc.top - gdi.OffsetY,
                    rc.right - gdi.OffsetX, rc.bottom - gdi.OffsetY);
 
     lowerColOld = lowerCol;
-    upperColOld = upperCol; 
+    upperColOld = upperCol;
     lowerRowOld = lowerRow;
     upperRowOld = upperRow;
   }
@@ -1452,17 +1507,17 @@ void Table::print(gdioutput &gdi, HDC hDC, int dx, int dy)
         ti.format = fontSmall;
         ti.text = ct;
         gdi.calcStringSize(ti, hDC);
-        widths[j] = max<int>(widths[j], 
+        widths[j] = max<int>(widths[j],
           int(1.1*(ti.textRect.right-ti.textRect.left)+extra));
         rh = max<int>(rh, ti.textRect.bottom-ti.textRect.top);
       }
     }
-	}
+  }
 
   rh = int(rh*1.3);
   vector<int> adj_xp(columns.size());
   int w = widths[0];
-  for (size_t j=1;j<columns.size();j++) 
+  for (size_t j=1;j<columns.size();j++)
     if (!skip[j]) {
       adj_xp[j] = adj_xp[j-1] + w +5;
       w = widths[j];
@@ -1481,17 +1536,17 @@ void Table::print(gdioutput &gdi, HDC hDC, int dx, int dy)
   for (size_t k=2; k<sortIndex.size(); k++) {
     TableRow &tr=Data[sortIndex[k].index];
     int yp=dy+rh*k;
-    
+
     for (size_t j=0;j<columns.size();j++) {
       if (!skip[j]) {
         int xp=dx+adj_xp[j];
         int i=columns[j];
-        
-        if(!tr.cells[i].contents.empty()) 
+
+        if (!tr.cells[i].contents.empty())
           gdi.addString("", yp, xp, fontSmall, tr.cells[i].contents, widths[j]);
       }
     }
-	}
+  }
 }
 
 bool Table::UpDown(gdioutput &gdi, int direction)
@@ -1501,7 +1556,7 @@ bool Table::UpDown(gdioutput &gdi, int direction)
 
 bool Table::tabFocus(gdioutput &gdi, int direction)
 {
-  if(hEdit) {
+  if (hEdit) {
     DestroyWindow(hEdit);
     drawFilterLabel=false;
     gdi.refresh();
@@ -1514,7 +1569,7 @@ bool Table::tabFocus(gdioutput &gdi, int direction)
 bool Table::enter(gdioutput &gdi)
 {
   if (hEdit) {
-    if (unsigned(editRow)<Data.size() && unsigned(editCol)<Titles.size()) {            
+    if (unsigned(editRow)<Data.size() && unsigned(editCol)<Titles.size()) {
       char bf[1024];
       GetWindowText(hEdit, bf, 1024);
 
@@ -1522,7 +1577,7 @@ bool Table::enter(gdioutput &gdi)
         TableCell &cell=Data[editRow].cells[editCol];
         string output;
 
-        //try 
+        //try
         {
           cell.owner->inputData(cell.id, bf, 0, output, false);
           cell.contents=output;
@@ -1539,7 +1594,7 @@ bool Table::enter(gdioutput &gdi)
           gdi.alert(msg);
         }*/
       }
-      else if(editRow==1) {//Filter
+      else if (editRow==1) {//Filter
         filter(editCol, bf);
         DestroyWindow(hEdit);
         hEdit=0;
@@ -1552,7 +1607,7 @@ bool Table::enter(gdioutput &gdi)
   else if (gdi.hasField(tId)) {
     ListBoxInfo lbi;
     gdi.getSelectedItem(tId, &lbi);
-  
+
     if (lbi.IsCombo) {
       if (size_t(selectionRow) < Data.size() && size_t(selectionCol) < Titles.size()) {
         selection(gdi, lbi.text, lbi.data);
@@ -1564,7 +1619,7 @@ bool Table::enter(gdioutput &gdi)
 
 void Table::escape(gdioutput &gdi)
 {
-  if(hEdit) {
+  if (hEdit) {
     DestroyWindow(hEdit);
     hEdit = 0;
   }
@@ -1576,7 +1631,7 @@ void Table::escape(gdioutput &gdi)
 bool Table::inputChange(gdioutput &gdi, HWND hdt)
 {
   if (hEdit==hdt) {
-  
+
     if (drawFilterLabel) {
       char bf[256];
       GetWindowText(hEdit, bf, 256);
@@ -1595,15 +1650,15 @@ int Table::getColumn(int x, bool limit) const
   if (columns.empty())
     return -1;
 
-  if(x<xpos[0]) {
+  if (x<xpos[0]) {
     if (!limit)
       return -1;
     else
       return columns[0];
-  }  
- 
+  }
+
   for(size_t k=0;k<columns.size();k++) {
-    if(x<xpos[k+1])
+    if (x<xpos[k+1])
       return columns[k];
   }
   if (!limit)
@@ -1621,7 +1676,7 @@ int Table::getRow(int y, bool limit) const
     else if (r>=int(sortIndex.size()))
       r = sortIndex.size() - 1;
   }
-  if(r>=0 && r<int(sortIndex.size()))
+  if (r>=0 && r<int(sortIndex.size()))
     return sortIndex[r].index;
   else return -1;
 }
@@ -1632,7 +1687,7 @@ void Table::reloadRow(int rowId)
   if (!idToRow.lookup(rowId, index))
     throw std::exception("Row not found.");
 
-  if(index >= int(Data.size()))
+  if (index >= int(Data.size()))
     throw std::exception("Index out of bounds.");
 
   TableRow &row=Data[index];
@@ -1667,12 +1722,12 @@ vector<Table::ColSelection> Table::getColumns() const
   }
   /*
   // Get all columns
-  for (size_t k=0; k<cols.size(); k++) 
+  for (size_t k=0; k<cols.size(); k++)
     cols[k].first = Titles[k].name;
-  
+
   // Mark shown columns as selected
-  for (size_t k=0; k<columns.size(); k++) 
-    cols[columns[k]].second = true; 
+  for (size_t k=0; k<columns.size(); k++)
+    cols[columns[k]].second = true;
 */
   return cols;
 }
@@ -1695,7 +1750,7 @@ void Table::selectColumns(const std::set<int> &sel)
     ++it;
   }
 
-  swap(columns, newcols);  
+  swap(columns, newcols);
   doAutoSelectColumns = false;
 }
 
@@ -1706,13 +1761,13 @@ void Table::resetColumns()
   for (size_t k=0;k<columns.size();k++)
     columns[k] = k;
 
-  for (size_t k=0;k<nTitles;k++) 
+  for (size_t k=0;k<nTitles;k++)
     filter(k, "", false);
 
   doAutoSelectColumns = false;
 }
 
-void Table::update() 
+void Table::update()
 {
   int oldSort = PrevSort;
   Data.clear();
@@ -1730,10 +1785,10 @@ void Table::update()
   }
 
   //Refilter all
-  for (size_t k=0;k<nTitles;k++) 
+  for (size_t k=0;k<nTitles;k++)
     filter(k, Titles[k].filter, true);
 
-  
+
   PrevSort = -1;
   if (oldSort != -1)
     sort(oldSort);
@@ -1751,7 +1806,7 @@ void Table::getExportData(int col1, int col2, int row1, int row2, string &html, 
     const TableRow &tr = Data[sortIndex[k].index];
     html += "<tr>";
     for (size_t j = col1; j<= size_t(col2); j++) {
-      if( j >= columns.size())
+      if ( j >= columns.size())
         throw std::exception("Index out of range");
       int col = columns[j];
       const TableCell &cell = tr.cells[col];
@@ -1769,7 +1824,7 @@ void Table::getExportData(int col1, int col2, int row1, int row2, string &html, 
 }
 
 void Table::getRowRange(int &rowLo, int &rowHi) const {
-  int row1 = -1, row2 = -1; 
+  int row1 = -1, row2 = -1;
   for (size_t k = 0; k < sortIndex.size(); k++) {
     if (upperRow == sortIndex[k].index)
       row1 = k;
@@ -1781,7 +1836,7 @@ void Table::getRowRange(int &rowLo, int &rowHi) const {
 }
 
 void Table::getColRange(int &colLo, int &colHi) const {
-  int col1 = -1, col2 = -1; 
+  int col1 = -1, col2 = -1;
   for (size_t k = 0; k < columns.size(); k++) {
     if (upperCol == columns[k])
       col1 = k;
@@ -1797,7 +1852,7 @@ void Table::exportClipboard(gdioutput &gdi)
   string str;// = "<html><table><tr><td>a</td><td>b</td></tr></table></html>";
   string txt;
 
-  int col1 = -1, col2 = -1; 
+  int col1 = -1, col2 = -1;
   getColRange(col1, col2);
   /*for (size_t k = 0; k < columns.size(); k++) {
     if (upperCol == columns[k])
@@ -1806,7 +1861,7 @@ void Table::exportClipboard(gdioutput &gdi)
       col2 = k;
   }*/
 
-  int row1 = -1, row2 = -1; 
+  int row1 = -1, row2 = -1;
   getRowRange(row1, row2);
   /*for (size_t k = 0; k < sortIndex.size(); k++) {
     if (upperRow == sortIndex[k].index)
@@ -1818,75 +1873,75 @@ void Table::exportClipboard(gdioutput &gdi)
   if (col1 == -1 || col2 == -1 || row1 == -1 || row2 == -1)
     return;
 
-  getExportData(min(col1, col2), max(col1, col2), 
+  getExportData(min(col1, col2), max(col1, col2),
                 min(row1, row2), max(row1, row2), str, txt);
 
-  if(OpenClipboard(gdi.getHWND()) != false) {
+  if (OpenClipboard(gdi.getHWND()) != false) {
 
     EmptyClipboard();
-		
+
     const char *HTML = str.c_str();
-    size_t len = str.length() + 1;		
-		
+    size_t len = str.length() + 1;
+
     size_t bsize = len*2;
     char *bf = new char[bsize];
-    
-		//Convert to UTF-8		
-		WORD *wide = new WORD[len];
-		MultiByteToWideChar(CP_ACP, 0, HTML, -1, LPWSTR(wide), len);//To Wide
-		memset(bf, 0, bsize);
-		WideCharToMultiByte(CP_UTF8, 0, LPCWSTR(wide), -1, bf, bsize, NULL, NULL);
-		delete[] wide;
 
-		len = strlen(bf) + 1;
-			
-		const char cbd[]=
-			"Version:0.9\n"
-			"StartHTML:%08u\n"
-			"EndHTML:%08u\n"
-			"StartFragment:%08u\n"
-			"EndFragment:%08u\n";
-		
-		char head[256];
-		sprintf_s(head, cbd, 1,0,0,0);
-		
-		int offset=strlen(head);
-			/*	
-		char *start=FindMemEx("<!--StartFragment-->", HTML, len);
-		char *end=FindMemEx("<!--EndFragment-->", HTML, len) - strlen("<!--StartFragment-->");
-		
-		DWORD ho_start=start-HTML+offset;
-		DWORD ho_end=end-HTML+offset;
-		*/
-		//Fill header with relevant information
+    //Convert to UTF-8
+    WORD *wide = new WORD[len];
+    MultiByteToWideChar(CP_ACP, 0, HTML, -1, LPWSTR(wide), len);//To Wide
+    memset(bf, 0, bsize);
+    WideCharToMultiByte(CP_UTF8, 0, LPCWSTR(wide), -1, bf, bsize, NULL, NULL);
+    delete[] wide;
+
+    len = strlen(bf) + 1;
+
+    const char cbd[]=
+      "Version:0.9\n"
+      "StartHTML:%08u\n"
+      "EndHTML:%08u\n"
+      "StartFragment:%08u\n"
+      "EndFragment:%08u\n";
+
+    char head[256];
+    sprintf_s(head, cbd, 1,0,0,0);
+
+    int offset=strlen(head);
+      /*
+    char *start=FindMemEx("<!--StartFragment-->", HTML, len);
+    char *end=FindMemEx("<!--EndFragment-->", HTML, len) - strlen("<!--StartFragment-->");
+
+    DWORD ho_start=start-HTML+offset;
+    DWORD ho_end=end-HTML+offset;
+    */
+    //Fill header with relevant information
     int ho_start = offset;
     int ho_end = offset + len;
-		sprintf_s(head, cbd, offset,offset+len,ho_start,ho_end);
-		
-		
-		HANDLE hMem=GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, offset+len);
-		LPVOID data=GlobalLock(hMem);
-		
-		memcpy(LPSTR(data), head, offset);		
-		memcpy(LPSTR(data)+offset, bf, len);
-		
-		GlobalUnlock(hMem);
-		
+    sprintf_s(head, cbd, offset,offset+len,ho_start,ho_end);
+
+
+    HANDLE hMem=GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, offset+len);
+    LPVOID data=GlobalLock(hMem);
+
+    memcpy(LPSTR(data), head, offset);
+    memcpy(LPSTR(data)+offset, bf, len);
+
+    GlobalUnlock(hMem);
+
     // Text format
     HANDLE hMemText = GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, txt.length()+1);
-		LPVOID dataText=GlobalLock(hMemText);
-		memcpy(LPSTR(dataText), txt.c_str() , txt.length()+1);		
-		GlobalUnlock(hMemText);
-		
+    LPVOID dataText=GlobalLock(hMemText);
+    memcpy(LPSTR(dataText), txt.c_str() , txt.length()+1);
+    GlobalUnlock(hMemText);
 
-		UINT CF_HTML = RegisterClipboardFormat("HTML format");
-		
-		SetClipboardData(CF_HTML, hMem);
+
+    UINT CF_HTML = RegisterClipboardFormat("HTML format");
+
+    SetClipboardData(CF_HTML, hMem);
     SetClipboardData(CF_TEXT, hMemText);
 
-    delete[] bf;	
-		CloseClipboard();
-	}
+    delete[] bf;
+    CloseClipboard();
+  }
 }
 
 
@@ -1896,17 +1951,17 @@ void Table::importClipboard(gdioutput &gdi)
     throw std::exception("Operationen stöds ej");
 
   string str;
-  if(OpenClipboard(gdi.getHWND()) != false) {
+  if (OpenClipboard(gdi.getHWND()) != false) {
     HANDLE data = GetClipboardData(CF_TEXT);
     if (data) {
-      LPVOID lptstr = GlobalLock(data); 
-      if (lptstr) { 
+      LPVOID lptstr = GlobalLock(data);
+      if (lptstr) {
         str = string(((char*)lptstr));
-        GlobalUnlock(data); 
-      } 
+        GlobalUnlock(data);
+      }
     }
-		CloseClipboard();
-	}
+    CloseClipboard();
+  }
   if (!str.empty()) {
     // Parse raw data
     vector< vector<string> > table(1);
@@ -1935,13 +1990,13 @@ void Table::importClipboard(gdioutput &gdi)
     if (table.empty())
       return;
 
-    int rowS = 2; 
+    int rowS = 2;
     int colS = 0;
-  
+
     size_t tw = 0;
-    for (size_t k = 0; k<table.size(); k++) 
+    for (size_t k = 0; k<table.size(); k++)
       tw = max(tw, table[k].size());
-   
+
     if (tw > columns.size())
       throw std::exception("Antalet columner i urklippet är större än antalet kolumner i tabellen.");
 
@@ -1951,17 +2006,17 @@ void Table::importClipboard(gdioutput &gdi)
       rowS = sortIndex.size(); // Add new rows
     }
     else {
-      int col1 = -1, col2 = -1; 
+      int col1 = -1, col2 = -1;
       getColRange(col1, col2);
-      int row1 = -1, row2 = -1; 
+      int row1 = -1, row2 = -1;
       getRowRange(row1, row2);
 
       if ( (row1 + table.size()) > sortIndex.size() )
         throw std::exception("Antalet rader i urklipp får inte plats i selektionen.");
-      
+
       if ( (col1 + tw) > columns.size() )
         throw std::exception("Antalet kolumner i urklipp får inte plats i selektionen.");
-      
+
       bool wrongSize = false;
 
       if (row1 != row2 && (row2 - row1 + 1) != table.size())
@@ -1970,7 +2025,7 @@ void Table::importClipboard(gdioutput &gdi)
       if (col1 != col2 && (col2 - col1 +1 ) != tw)
         wrongSize = true;
 
-      if(wrongSize && !gdi.ask("Selektionens storlek matchar inte urklippets storlek. Klistra in i alla fall?"))
+      if (wrongSize && !gdi.ask("Selektionens storlek matchar inte urklippets storlek. Klistra in i alla fall?"))
         return;
 
       rowS = row1;
@@ -1995,8 +2050,8 @@ void Table::importClipboard(gdioutput &gdi)
       }
 
       TableRow &tr = Data[sortIndex[rowS + k].index];
-	    for (size_t j = 0; j<table[k].size(); j++) {
-        if( (colS + j) >= columns.size())
+      for (size_t j = 0; j<table[k].size(); j++) {
+        if ( (colS + j) >= columns.size())
           throw std::exception("Index out of range");
         int col = columns[colS + j];
 
@@ -2017,23 +2072,27 @@ void Table::importClipboard(gdioutput &gdi)
         }
         try {
           if (index != -1) {
-            cell.owner->inputData(cell.id, table[k][j], index, output, false); 
+            cell.owner->inputData(cell.id, table[k][j], index, output, false);
             cell.contents = output;
           }
           else if (cell.type == cellCombo) {
-            cell.owner->inputData(cell.id, table[k][j], index, output, false); 
+            cell.owner->inputData(cell.id, table[k][j], index, output, false);
             cell.contents = output;
           }
         }
-        catch(const std::exception &ex) {         
+        catch(const std::exception &ex) {
           string msg(ex.what());
         }
       }
     }
 
     if (addedRow) {
+      TableUpdateInfo tui;
+      tui.doRefresh = true;
+      oe->generateTableData(internalName, *this, tui);
+
       updateDimension(gdi);
-      int dx,dy;      
+      int dx,dy;
       getDimension(gdi, dx, dy, true);
       gdi.scrollTo(0, dy + table_yp + gdi.OffsetY);
       gdi.refresh();
@@ -2041,7 +2100,7 @@ void Table::importClipboard(gdioutput &gdi)
   }
 }
 
-int Table::deleteRows(int row1, int row2) 
+int Table::deleteRows(int row1, int row2)
 {
   if (!canDelete())
     throw std::exception("Operationen stöds ej");
@@ -2072,6 +2131,7 @@ void Table::insertRow(gdioutput &gdi) {
 
   TableUpdateInfo tui;
   tui.doAdd = true;
+  tui.doRefresh = true;
   oe->generateTableData(internalName, *this, tui);
   int dx,dy;
   updateDimension(gdi);
@@ -2096,14 +2156,23 @@ void Table::autoAdjust(gdioutput &gdi) {
     int minlen = 0;
     int diff = Titles[k].isnumeric ? 0 : 4;
     size_t dsize = Data.size();
-    for (size_t r = 0; r < dsize; r++) {
+    int sample = max<size_t>(1, dsize/1973);
+    int sameCount = 0;
+    for (size_t r = 0; r < dsize; r+=sample) {
       const TableCell &c = Data[r].cells[k];
       if (r==0 && c.contents == filterName)
         w = max(w, 100);
 
       const string &str = r != 1 ? c.contents : filterText;
       int len = str.length();
-      if (len > minlen - diff) {        
+      if (len == minlen) {
+        sameCount++;
+        if (sameCount > 40)
+          continue;
+      }
+
+      if (len > minlen - diff) {
+        sameCount = 0;
         if (Titles[k].isnumeric && r>2)
           DrawText(hDC, (str + "55").c_str(), len, &rc, DT_CALCRECT|DT_NOPREFIX);
         else
@@ -2111,9 +2180,9 @@ void Table::autoAdjust(gdioutput &gdi) {
         w = max<int>(w, rc.right - rc.left);
         if (r>2)
           minlen = max(len, minlen);
-      }      
+      }
     }
-    Titles[k].baseWidth = int( (w + 25)/ gdi.getScale());   
+    Titles[k].baseWidth = int( (w + 25)/ gdi.getScale());
   }
   if (columns.empty())
     columns.push_back(0);
@@ -2136,10 +2205,10 @@ void Table::autoSelectColumns() {
   initEmpty();
   vector<bool> empty(Titles.size(), true);
   int nonEmpty = 0;
- 
+
   // Filter away empty and all-equal columns
   for (size_t k = 0; k<Titles.size(); k++) {
-    
+
     if (Data.size() < 3) {
       if (Data.size() > 2 && Data[2].cells[k].type == cellAction)
         nonEmpty++;
@@ -2151,9 +2220,9 @@ void Table::autoSelectColumns() {
         empty[k] = false;
       }
       else {
-        const string &first = Data.size() > 3 ? 
+        const string &first = Data.size() > 3 ?
           Data[2].cells[k].contents : _EmptyString;
-      
+
         for (size_t r = 2; r<Data.size(); r++) {
           const string &c = Data[r].cells[k].contents;
           if (!c.empty() && c != first) {
@@ -2166,7 +2235,7 @@ void Table::autoSelectColumns() {
     }
   }
 
-  if(nonEmpty > 1) {
+  if (nonEmpty > 1) {
     columns.clear();
     string id = lang.tl("Id");
     string mod = lang.tl("Ändrad");
@@ -2175,7 +2244,7 @@ void Table::autoSelectColumns() {
         columns.push_back(k);
     }
   }
-  
+
   doAutoSelectColumns = true;
 }
 
@@ -2201,4 +2270,12 @@ void Table::updateDimension(gdioutput &gdi) {
 
 int Table::getNumDataRows() const {
   return Data.size() - 2;
+}
+
+void TableRow::setObject(oBase &obj) {
+  ob = &obj;
+  for (size_t k = 0; k < cells.size(); k++) {
+    if (cells[k].owner != 0)
+      cells[k].owner = &obj;
+  }
 }

@@ -1,14 +1,14 @@
 // Download.h: interface for the Download class.
 //
 //////////////////////////////////////////////////////////////////////
-		    
+
 #if !defined(AFX_DOWNLOAD_H__DEBC6296_9CAE_4FF6_867B_DD896D0B6A7A__INCLUDED_)
 #define AFX_DOWNLOAD_H__DEBC6296_9CAE_4FF6_867B_DD896D0B6A7A__INCLUDED_
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -24,7 +24,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 
@@ -46,19 +46,19 @@ class ProgressWindow;
 
 class Download {
 private:
-	volatile unsigned hThread;
-	volatile bool doExit;
-	//HWND hProgress;
+  volatile unsigned hThread;
+  volatile bool doExit;
+  //HWND hProgress;
 
-	HINTERNET hInternet;
-	HINTERNET hURL;
+  HINTERNET hInternet;
+  HINTERNET hURL;
 
-	int fileno;
+  int fileno;
 
-	DWORD bytesLoaded;
-	DWORD bytesToLoad;
-	bool success;
-	void initThread();
+  DWORD bytesLoaded;
+  DWORD bytesToLoad;
+  bool success;
+  void initThread();
 
   bool httpSendReqEx(HINTERNET hConnect, const string &dest, const vector< pair<string, string> > &headers,
                      const string &upFile, const string &outFile, ProgressWindow &pw) const;
@@ -68,22 +68,22 @@ public:
   void postFile(const string &url, const string &file, const string &fileOut,
                 const vector< pair<string, string> > &headers, ProgressWindow &pw);
   void postData(const string &url, const string &data, ProgressWindow &pw);
-	int processMessages();
-	bool successful();
-	bool isWorking();
-	void setBytesToDownload(DWORD btd);
-	void endDownload();
-	void downloadFile(const string &url, const string &file, const vector< pair<string, string> > &headers);
-	void initInternet();
-	void shutDown();
-	bool createDownloadThread();
+  int processMessages();
+  bool successful();
+  bool isWorking();
+  void setBytesToDownload(DWORD btd);
+  void endDownload();
+  void downloadFile(const string &url, const string &file, const vector< pair<string, string> > &headers);
+  void initInternet();
+  void shutDown();
+  bool createDownloadThread();
   void downLoadNoThread() {initThread();}
 
   Download();
-	virtual ~Download();
+  virtual ~Download();
 
 protected:
-	bool doDownload();
+  bool doDownload();
 
   friend void SUThread(void *ptr);
 

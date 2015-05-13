@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "oBase.h"
 #include "oRunner.h"
@@ -32,40 +32,61 @@ const unsigned int maxRunnersTeam=32;
 
 class oTeam : public oAbstractRunner
 {
+public:
+  enum ResultCalcCacheSymbol {
+    RCCCourse,
+    RCCSplitTime,
+    RCCCardTimes,
+    RCCCardPunches,
+    RCCCardControls,
+    RCCLast
+  };
+
+private:
+  int getLegRunningTimeUnadjusted(int leg, bool multidayTotal) const;
+
+  void speakerLegInfo(int leg, int specifiedLeg, int courseControlId,
+                      int &missingLeg, RunnerStatus &status, int &runningTime) const;
+
 protected:
-	//pRunner Runners[maxRunnersTeam];
+  //pRunner Runners[maxRunnersTeam];
   vector<pRunner> Runners;
-	void setRunnerInternal(int k, pRunner r); 
+  void setRunnerInternal(int k, pRunner r);
 
   static const int dataSize = 96;
   int getDISize() const {return dataSize;}
-	BYTE oData[dataSize];
+  BYTE oData[dataSize];
   BYTE oDataOld[dataSize];
-  
+
   // Remove runner r by force and mark as need correction
   void correctRemove(pRunner r);
+
+  // Update hash
+  void changeId(int newId);
 
   struct TeamPlace {
     int p; // Day result
     int totalP; // Total result
   };
 
-	TeamPlace _places[maxRunnersTeam];
-	//unsigned _nrunners;
-	int _sorttime;
-	int _sortstatus;
+  TeamPlace _places[maxRunnersTeam];
+  //unsigned _nrunners;
+  int _sorttime;
+  int _sortstatus;
 
-	string getRunners() const;
+  mutable vector< vector< vector<int> > > resultCalculationCache;
+
+  string getRunners() const;
   bool matchTeam(int number, const char *s_lc) const;
   int tNumRestarts; //Number of restarts for team
 
-  int getLegToUse(int leg) const; // Get the number of the actual 
+  int getLegToUse(int leg) const; // Get the number of the actual
                                   // runner to consider for a given leg
                                   // Maps -1 to last runner
 
   void addTableRow(Table &table) const;
 
-  bool inputData(int id, const string &input, 
+  bool inputData(int id, const string &input,
                  int inputId, string &output, bool noUpdate);
 
   void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
@@ -74,6 +95,10 @@ protected:
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
 public:
+
+  void resetResultCalcCache() const;
+  vector< vector<int> > &getResultCache(ResultCalcCacheSymbol symb) const;
+  void setResultCache(ResultCalcCacheSymbol symb, int leg, vector<int> &data) const;
 
   void markClassChanged(int controlId);
 
@@ -103,29 +128,31 @@ public:
   bool canRemove() const;
 
   void prepareRemove();
-	
+
   bool skip() const {return isRemoved();}
   void setTeamNoStart(bool dns);
-	// If apply is triggered by a runner, don't go further than that runner.
+  // If apply is triggered by a runner, don't go further than that runner.
   bool apply(bool sync, pRunner source, bool setTmpOnly);
-  
-  
+
   void quickApply();
-	
+
   void evaluate(bool sync);
-  
+
   bool adjustMultiRunners(bool sync);
 
-  int getRogainingPoints() const;
+  int getRogainingPoints(bool multidayTotal) const;
+  int getRogainingReduction() const;
+  int getRogainingOvertime() const;
 
-  void fillSpeakerObject(int leg, int controlId, oSpeakerObject &spk) const;
+  void fillSpeakerObject(int leg, int courseControlId, int previousControlCourseId,
+                          bool totalResult, oSpeakerObject &spk) const;
 
-	bool isRunnerUsed(int Id) const;
-	void setRunner(unsigned i, pRunner r, bool syncRunner);
+  bool isRunnerUsed(int Id) const;
+  void setRunner(unsigned i, pRunner r, bool syncRunner);
 
   pRunner getRunner(unsigned leg) const;
-	int getNumRunners() const {return Runners.size();}
-	
+  int getNumRunners() const {return Runners.size();}
+
   void decodeRunners(const string &rns, vector<int> &rid);
   void importRunners(const vector<int> &rns);
   void importRunners(const vector<pRunner> &rns);
@@ -139,42 +166,43 @@ public:
   void setBib(const string &bib, bool updateStartNo, bool setTmpOnly);
 
   int getLegStartTime(int leg) const;
-	string getLegStartTimeS(int leg) const;
+  string getLegStartTimeS(int leg) const;
   string getLegStartTimeCompact(int leg) const;
 
   string getLegFinishTimeS(int leg) const;
-	int getLegFinishTime(int leg) const;
-  
+  int getLegFinishTime(int leg) const;
+
   int getTimeAfter(int leg) const;
 
-  //Get total running time after leg 
+  //Get total running time after leg
   string getLegRunningTimeS(int leg, bool multidayTotal) const;
+
   int getLegRunningTime(int leg, bool multidayTotal) const;
   int getLegPrelRunningTime(int leg) const;
-	string getLegPrelRunningTimeS(int leg) const;
-  
-  RunnerStatus getLegStatus(int leg, bool multidayTotal) const;
-	const string &getLegStatusS(int leg, bool multidayTotal) const;
+  string getLegPrelRunningTimeS(int leg) const;
 
-	string getLegPlaceS(int leg, bool multidayTotal) const;
-  string getLegPrintPlaceS(int leg, bool multidayTotal) const;
-	int getLegPlace(int leg, bool multidayTotal) const;
+  RunnerStatus getLegStatus(int leg, bool multidayTotal) const;
+  const string &getLegStatusS(int leg, bool multidayTotal) const;
+
+  string getLegPlaceS(int leg, bool multidayTotal) const;
+  string getLegPrintPlaceS(int leg, bool multidayTotal, bool withDot) const;
+  int getLegPlace(int leg, bool multidayTotal) const;
 
   static bool compareSNO(const oTeam &a, const oTeam &b);
-	static bool compareName(const oTeam &a, const oTeam &b) {return a.Name<b.Name;} 
-	static bool compareResult(const oTeam &a, const oTeam &b);
-	static bool compareStartTime(const oTeam &a, const oTeam &b);
-	
-	
-	void set(const xmlobject &xo);
-	bool write(xmlparser &xml);
+  static bool compareName(const oTeam &a, const oTeam &b) {return a.Name<b.Name;}
+  static bool compareResult(const oTeam &a, const oTeam &b);
+  static bool compareStartTime(const oTeam &a, const oTeam &b);
+
+
+  void set(const xmlobject &xo);
+  bool write(xmlparser &xml);
 
   oTeam(oEvent *poe, int id);
-	oTeam(oEvent *poe);
-	virtual ~oTeam(void);
+  oTeam(oEvent *poe);
+  virtual ~oTeam(void);
 
   friend class oClass;
-	friend class oRunner;
-	friend class MeosSQL;
-	friend class oEvent;
+  friend class oRunner;
+  friend class MeosSQL;
+  friend class oEvent;
 };

@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,13 +18,13 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "tabbase.h"
 
 class TabControl :
-	public TabBase
+  public TabBase
 {
   int controlCB(gdioutput &gdi, int type, void *data);
 
@@ -36,9 +36,9 @@ public:
   void courseTable(Table &table) const;
   void selectControl(gdioutput &gdi,  pControl pc);
 
-	bool loadPage(gdioutput &gdi);
-	TabControl(oEvent *oe);
-	~TabControl(void);
+  bool loadPage(gdioutput &gdi);
+  TabControl(oEvent *oe);
+  ~TabControl(void);
 
   friend int ControlsCB(gdioutput *gdi, int type, void *data);
 };

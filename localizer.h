@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include <map>
 #include <set>
@@ -32,16 +32,16 @@ class Localizer {
   class LocalizerInternal {
   private:
     map<string, string> langResource;
-    LocalizerImpl *impl;  
-    LocalizerImpl *implBase;  
-  
+    LocalizerImpl *impl;
+    LocalizerImpl *implBase;
+
     bool owning;
     LocalizerInternal *user;
 
   public:
 
     void debugDump(const string &untranslated, const string &translated) const;
- 
+
     vector<string> getLangResource() const;
     void loadLangResource(const string &name);
     void addLangResource(const string &name, const string &resource);
@@ -53,7 +53,7 @@ class Localizer {
 
     /** Get database with given names */
     const oWordList &getGivenNames() const;
- 
+
     LocalizerInternal();
     ~LocalizerInternal();
   };

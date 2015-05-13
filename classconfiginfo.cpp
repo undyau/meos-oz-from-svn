@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "stdafx.h"
 
@@ -31,7 +31,7 @@ void ClassConfigInfo::clear() {
 
   legNStart.clear();
   raceNStart.clear();
-  
+
   legNRes.clear();
   raceNRes.clear();
 
@@ -109,13 +109,12 @@ void ClassConfigInfo::getLegNRes(int leg, set<int> &sel) const {
 
 void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 {
-  oClassList::const_iterator it;	
+  oClassList::const_iterator it;
   cnf.clear();
 
-  cnf.hasMultiEvent = !getDCI().getString("PreEvent").empty() ||
-                      !getDCI().getString("PostEvent").empty();
-  
-	for (it = Classes.begin(); it != Classes.end(); ++it) {
+  cnf.hasMultiEvent = hasPrevStage() || hasNextStage();
+
+  for (it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
       continue;
     ClassType ct = it->getClassType();
@@ -128,7 +127,7 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 
     if ( !it->hasCoursePool() ) {
       for (size_t k = 0; k< it->MultiCourse.size(); k++) {
-        if(it->MultiCourse[k].size() > 1)
+        if (it->MultiCourse[k].size() > 1)
           cnf.hasMultiCourse = true;
       }
     }
@@ -157,7 +156,7 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
           cnf.timeStart[k].push_back(it->getId());
         }
         LegTypes lt = it->getLegType(k);
-        if (lt != LTIgnore && lt != LTExtra)
+        if (lt != LTIgnore && lt != LTExtra && lt != LTGroup)
           cnf.legNRes[k].push_back(it->getId());
       }
     }
@@ -177,21 +176,21 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 
         }
         LegTypes lt = it->getLegType(k);
-        if (lt != LTIgnore && lt != LTExtra)
+        if (lt != LTIgnore && lt != LTExtra && lt != LTGroup)
           cnf.raceNRes[k].push_back(it->getId());
       }
     }
   }
 
-  oRunnerList::const_iterator rit;	
- 	for (rit = Runners.begin(); rit != Runners.end(); ++rit) {
+  oRunnerList::const_iterator rit;
+  for (rit = Runners.begin(); rit != Runners.end(); ++rit) {
     if (rit->isRemoved())
       continue;
 
     if (rit->getDCI().getInt("CardFee") != 0) {
       cnf.hasRentedCard = true;
     }
-    RunnerStatus st = rit->getStatus(); 
+    RunnerStatus st = rit->getStatus();
     if (st != StatusUnknown && st != StatusDNS && st != StatusNotCompetiting)
       cnf.results = true;
 

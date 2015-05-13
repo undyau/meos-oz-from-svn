@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,37 +18,45 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "tabbase.h"
 
 class spkClassSelection {
-  // The currently selected leg 
+  // The currently selected leg
   int selectedLeg;
-  // Given a leg, get the corresponding control to watch
-  map<int, int> legToControl;
+  // True if total results, otherwise stage results
+  bool total;
+  // Given a leg, get the corresponding (control, previous control) to watch
+  map<int, pair<int, int> > legToControl;
 public:
-  spkClassSelection() : selectedLeg(0) {}
-  void setLeg(int leg) {selectedLeg=leg;}
+  spkClassSelection() : selectedLeg(0), total(false) {}
+  void setLeg(bool totalIn, int leg) {total = totalIn, selectedLeg=leg;}
   int getLeg() const {return selectedLeg;}
+  bool isTotal() const {return total;}
 
-  void setControl(int controlId) { 
-    legToControl[selectedLeg]=controlId;
-  }  
-  int getControl()  { 
-    if(legToControl.count(selectedLeg)==1)
-      return legToControl[selectedLeg];
+  void setControl(int controlId, int previousControl) {
+    legToControl[selectedLeg] = make_pair(controlId, previousControl);
+  }
+  int getControl()  {
+    if (legToControl.count(selectedLeg)==1)
+      return legToControl[selectedLeg].first;
+    else return -1;
+  }
+  int getPreviousControl()  {
+    if (legToControl.count(selectedLeg)==1)
+      return legToControl[selectedLeg].second;
     else return -1;
   }
 };
 
 class TabSpeaker :
-	public TabBase {
+  public TabBase {
 private:
   set<int> controlsToWatch;
   set<int> classesToWatch;
   set<int> controlsToWatchSI;
-  
+
   int lastControlToWatch;
   int lastClassToWatch;
 
@@ -57,14 +65,14 @@ private:
   oTimeLine::Priority watchLevel;
   int watchNumber;
 
-  void generateControlList(gdioutput &gdi, int classId);  
+  void generateControlList(gdioutput &gdi, int classId);
   void generateControlListForLeg(gdioutput &gdi, int classId, int leg);
 
   string lastControl;
-  
+
   void manualTimePage(gdioutput &gdi) const;
   void storeManualTime(gdioutput &gdi);
-  
+
   //Curren class-
   int classId;
   //Map CourseNo -> selected Control.
@@ -90,11 +98,11 @@ public:
   //Clear selection data
   void clear();
 
- 	int processButton(gdioutput &gdi, const ButtonInfo &bu);
-	int processListBox(gdioutput &gdi, const ListBoxInfo &bu);
+  int processButton(gdioutput &gdi, const ButtonInfo &bu);
+  int processListBox(gdioutput &gdi, const ListBoxInfo &bu);
   int handleEvent(gdioutput &gdi, const EventInfo &ei);
-	
+
   bool loadPage(gdioutput &gdi);
-	TabSpeaker(oEvent *oe);
-	~TabSpeaker(void);
+  TabSpeaker(oEvent *oe);
+  ~TabSpeaker(void);
 };

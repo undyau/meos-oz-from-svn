@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -35,7 +35,7 @@
 #include <cassert>
 #include <algorithm>
 
-void oWordDB::insert(const char *s) 
+void oWordDB::insert(const char *s)
 {
   str.insert(s);
 }
@@ -45,16 +45,16 @@ bool oWordDB::lookup(const char *s) const
   return str.count(s)==1;
 }
 
-const char *oWordDB::deserialize(const char *bf, const char *end) 
+const char *oWordDB::deserialize(const char *bf, const char *end)
 {
-  BYTE s=bf[0];  
+  BYTE s=bf[0];
   bf++;
   str.clear();
   for (int k=0;k<s;k++) {
     string n(bf);
     bf+=n.size()+1;
 
-    if(bf>end)
+    if (bf>end)
       throw std::exception("Internal error deserializing wordlist.");
 
     str.insert(n);
@@ -68,11 +68,11 @@ char *oWordDB::serialize(char *bf) const
   BYTE s=BYTE(str.size());
   vector<string> rnd(s);
   int k=0;
-  for (set<string>::const_iterator it=str.begin(); it!=str.end(); ++it) 
+  for (set<string>::const_iterator it=str.begin(); it!=str.end(); ++it)
     rnd[k++]=*it;
 
   bf[0]=s;
-  bf++;  
+  bf++;
   for (k=0;k<s;k++) {
     int i=rand() % rnd.size();
     memcpy(bf, rnd[i].c_str(), rnd[i].size()+1);
@@ -82,13 +82,13 @@ char *oWordDB::serialize(char *bf) const
   }
   return bf;
 }
-  
+
 int oWordDB::serialSize() const
 {
   int s=1;
-  for(set<string>::const_iterator it=str.begin(); it!=str.end(); ++it) 
+  for(set<string>::const_iterator it=str.begin(); it!=str.end(); ++it)
     s+=it->size()+1;
- 
+
   return s;
 }
 
@@ -118,22 +118,22 @@ void oWordIndexHash::clear()
   MapTable::iterator it;
 
   for(it=unMapped.begin(); it!=unMapped.end(); ++it)
-    if(it->second)
+    if (it->second)
       delete it->second;
 
   unMapped.clear();
 
   for(int k=0;k<hashTableSize;k++)
-    if(hashTable[k]) {
+    if (hashTable[k]) {
       delete hashTable[k];
       hashTable[k]=0;
     }
 }
 
-const char *oWordIndexHash::deserialize(const char *bf, const char *end) 
+const char *oWordIndexHash::deserialize(const char *bf, const char *end)
 {
   clear();
-  BYTE s=bf[0];  
+  BYTE s=bf[0];
   bf++;
 
   for (int k=0;k<s;k++) {
@@ -142,19 +142,19 @@ const char *oWordIndexHash::deserialize(const char *bf, const char *end)
     pWordDatabase db=0;
     bf+=2;
     if (a) {
-      if (b==1) 
+      if (b==1)
         db = new oWordDB;
       else if (b==2)
         db = new oWordIndexHash(false);
-      else 
+      else
         throw std::exception("Internal error deserilizing wordlist.");
 
       bf = db->deserialize(bf, end);
     }
-    
+
     DWORD i=a-indexMapStart;
     if (i<=(indexMapEnd-indexMapStart)) {
-      if(hashTable[i]) 
+      if (hashTable[i])
         throw std::exception("Internal error deserilizing wordlist.");
       else hashTable[i]=db;
     }
@@ -167,16 +167,16 @@ const char *oWordIndexHash::deserialize(const char *bf, const char *end)
 char *oWordIndexHash::serialize(char *bf) const
 {
   int s=unMapped.size();
-  for (int k=0;k<hashTableSize;k++) 
-    if(hashTable[k]) 
-      s++;      
+  for (int k=0;k<hashTableSize;k++)
+    if (hashTable[k])
+      s++;
 
   bf[0]=BYTE(s);
   bf++;
   for(MapTable::const_iterator it=unMapped.begin(); it!=unMapped.end(); ++it) {
     bf[0]=it->first;
     if (bf[0]) {
-      bf[1]=it->second->getType();    
+      bf[1]=it->second->getType();
       bf=it->second->serialize(bf+2);
     }
     else { //Empty string.
@@ -184,27 +184,27 @@ char *oWordIndexHash::serialize(char *bf) const
       bf+=2;
     }
   }
- 
+
   for (int k=0;k<hashTableSize;k++) {
-    if(hashTable[k]) {
+    if (hashTable[k]) {
       bf[0]=k+indexMapStart;
-      bf[1]=hashTable[k]->getType(); 
+      bf[1]=hashTable[k]->getType();
       bf=hashTable[k]->serialize(bf+2);
     }
   }
   return bf;
 }
-  
+
 int oWordIndexHash::serialSize() const
 {
   int s=1;
   for (int k=0;k<hashTableSize;k++) {
-    if(hashTable[k]) 
-      s+=hashTable[k]->serialSize()+2;      
+    if (hashTable[k])
+      s+=hashTable[k]->serialSize()+2;
   }
-  for(MapTable::const_iterator it=unMapped.begin(); it!=unMapped.end(); ++it) 
+  for(MapTable::const_iterator it=unMapped.begin(); it!=unMapped.end(); ++it)
     s+=it->second ? it->second->serialSize()+2: 2;
- 
+
   return s;
 }
 
@@ -213,35 +213,35 @@ void oWordIndexHash::insert(const char *s)
   DWORD i=BYTE(s[0])-indexMapStart;
 
   if (i<=(indexMapEnd-indexMapStart)) {
-    if(!hashTable[i]) {
+    if (!hashTable[i]) {
       hashTable[i]=new oWordDB();
-      hashTable[i]->insert(s+1);      
-    }      
+      hashTable[i]->insert(s+1);
+    }
     else {
       hashTable[i]=hashTable[i]->split();
       hashTable[i]->insert(s+1);
     }
   }
   else {
-    if(s[0]==0)
+    if (s[0]==0)
       unMapped[0]=0; //Empty string
     else {
       MapTable::iterator it=unMapped.find(s[0]);
-      if(it==unMapped.end()) {
+      if (it==unMapped.end()) {
         pWordDatabase db(hashAll ? pWordDatabase(new oWordIndexHash(false)):
                                    pWordDatabase(new oWordDB()));
         db->insert(s+1);
         unMapped[s[0]]=db;
       }
       else {
-        if(it->second) {
+        if (it->second) {
           it->second=it->second->split();
           it->second->insert(s+1);
         }
-        else 
+        else
           assert(s[0]==0);
       }
-    }        
+    }
   }
 }
 
@@ -250,20 +250,20 @@ bool oWordIndexHash::lookup(const char *s) const
   DWORD i=BYTE(s[0])-indexMapStart;
 
   if (i<=(indexMapEnd-indexMapStart)) {
-    if(!hashTable[i]) 
-      return false;    
-    else 
+    if (!hashTable[i])
+      return false;
+    else
       return hashTable[i]->lookup(s+1);
   }
   else {
     MapTable::const_iterator it=unMapped.find(s[0]);
-    if(it==unMapped.end()) 
+    if (it==unMapped.end())
       return false;
-    else if(s[0]==0)
+    else if (s[0]==0)
       return true;
     else
       return it->second->lookup(s+1);
-  }    
+  }
 }
 
 oWordIndexHash::oWordIndexHash(bool hashAll_) : hashAll(hashAll_)
@@ -284,7 +284,7 @@ oWordList::~oWordList() {}
 void oWordList::insert(const char *s)
 {
   int len=strlen(s);
-  if(len<511) {
+  if (len<511) {
     char bf[512];
     strcpy_s(bf, s);
     CharLowerBuff(bf, len);
@@ -296,7 +296,7 @@ void oWordList::insert(const char *s)
 bool oWordList::lookup(const char *s) const
 {
   int len=strlen(s);
-  if(len<511) {
+  if (len<511) {
     char bf[512];
     strcpy_s(bf, s);
     CharLowerBuff(bf, len);
@@ -321,9 +321,9 @@ void oWordList::deserialize(const vector<char> &serial)
 void oWordList::save(const char *file) const
 {
   int f=-1;
-  _sopen_s(&f, file, _O_BINARY|_O_CREAT|_O_TRUNC|_O_WRONLY, 
+  _sopen_s(&f, file, _O_BINARY|_O_CREAT|_O_TRUNC|_O_WRONLY,
             _SH_DENYWR, _S_IREAD|_S_IWRITE);
- 
+
   if (f!=-1) {
     vector<char> serial;
     serialize(serial);
@@ -331,7 +331,7 @@ void oWordList::save(const char *file) const
 
     _write(f, hdr, 4);
     DWORD s=serial.size();
-    _write(f, &s, 4);    
+    _write(f, &s, 4);
     _write(f, &serial[0], s);
 
     _close(f);
@@ -343,24 +343,24 @@ void oWordList::load(const char *file)
 {
   string ex=string("Bad word database. ")+file;
   int f=-1;
-  _sopen_s(&f, file, _O_BINARY|_O_RDONLY, 
+  _sopen_s(&f, file, _O_BINARY|_O_RDONLY,
             _SH_DENYWR, _S_IREAD|_S_IWRITE);
- 
-  if (f!=-1) {  
+
+  if (f!=-1) {
     char hdr[5]={0,0,0,0,0};
     _read(f, hdr, 4);
-    
-    if( strcmp(hdr, "MWDB")!=0 )
+
+    if ( strcmp(hdr, "MWDB")!=0 )
       throw std::exception(ex.c_str());
 
     DWORD s=0;
     _read(f, &s, 4);
 
     vector<char> serial(s);
-    
-    if(_read(f, &serial[0], s)!=s)
+
+    if (_read(f, &serial[0], s)!=s)
       throw std::exception(ex.c_str());
-    
+
     _close(f);
 
     deserialize(serial);
@@ -369,7 +369,7 @@ void oWordList::load(const char *file)
 }
 
 oFreeImport::oFreeImport(void)
-{  
+{
   separator[0]=0;
 
   for(int k=1;k<256;k++)
@@ -406,9 +406,9 @@ char *oFreeImport::extractPart(char *&str, int &wordCount) const
   while (separator[*LPBYTE(str)])
     str++;
 
-  if(!*str)
+  if (!*str)
     return str;
-  
+
   char *out=str;
 
   wordCount=1;
@@ -416,16 +416,16 @@ char *oFreeImport::extractPart(char *&str, int &wordCount) const
     if (*str==' ') {
       while (*++str==' ');
       if (separator[*LPBYTE(str)] || !*str) {
-        if(*str)
-          *str++=0;        
+        if (*str)
+          *str++=0;
         return trim(out);
       }
       wordCount++;
     }
     str++;
   }
-  if(*str)
-    *str++=0;   
+  if (*str)
+    *str++=0;
   return trim(out);
 }
 
@@ -435,9 +435,9 @@ char *oFreeImport::extractWord(char *&str, int &count) const
   while (separator[*str])
     str++;
 
-  if(!*str)
+  if (!*str)
     return str;
-  
+
   char *out=str;
 
   count=1;
@@ -445,9 +445,9 @@ char *oFreeImport::extractWord(char *&str, int &count) const
     count++;
     str++;
   }
-  if(*str) 
+  if (*str)
     *str++=0;
-  
+
   return out;
 }
 
@@ -455,7 +455,7 @@ char *oFreeImport::extractLine(char *&str, int &count) const
 {
   count=0;
 
-  while (*str=='\n') 
+  while (*str=='\n')
     str++;
 
   char *out=str;
@@ -465,9 +465,9 @@ char *oFreeImport::extractLine(char *&str, int &count) const
     count++;
   }
 
-  if(*str) 
+  if (*str)
     *str++=0;
-  
+
   return out;
 }
 
@@ -479,8 +479,8 @@ oEntryPerson::oEntryPerson(const string &clb)
 }
 
 void oEntryPerson::swap()
-{ 
-  if(!name1.empty())
+{
+  if (!name1.empty())
     std::swap(name1, name2);
 }
 
@@ -520,7 +520,7 @@ oEntryBlock::oEntryBlock(const oEntryBlock &eb) : freeImporter(eb.freeImporter)
   nClubsSet = eb.nClubsSet;
 }
 
-void oEntryBlock::operator=(const oEntryBlock &eb) 
+void oEntryBlock::operator=(const oEntryBlock &eb)
 {
   ePersons = eb.ePersons;
   eClub = eb.eClub;
@@ -534,7 +534,7 @@ void oEntryBlock::operator=(const oEntryBlock &eb)
 void oEntryBlock::setClass(const char *s)
 {
   eClass=s;
-  if(!ePersons.empty()) 
+  if (!ePersons.empty())
     canInsertName=false;
   isClassSet = true;
   completeName();
@@ -565,7 +565,7 @@ void oEntryBlock::completeName() {
 void oEntryBlock::setStartTime(const char *s)
 {
   eStartTime=s;
-  if(!ePersons.empty())
+  if (!ePersons.empty())
     canInsertName=false;
 
   completeName();
@@ -573,7 +573,7 @@ void oEntryBlock::setStartTime(const char *s)
 
 void oEntryBlock::setCardNo(int c)
 {
-  if(ePersons.empty() || ePersons.back().cardNo!=0)
+  if (ePersons.empty() || ePersons.back().cardNo!=0)
     ePersons.push_back(oEntryPerson(eClub));
 
   ePersons.back().cardNo=c;
@@ -597,7 +597,7 @@ string oEntryBlock::getTeamName() const
     for (set<string>::iterator it = clubs.begin(); it != clubs.end(); ++it) {
       if (!tname.empty())
         tname += "/";
-      tname += *it; 
+      tname += *it;
     }
     return tname;
   }
@@ -612,7 +612,7 @@ string oEntryBlock::getName(int k) const
 
   string n=ePersons[k].name1;
 
-  if(!ePersons[k].name2.empty())
+  if (!ePersons[k].name2.empty())
     n+=" "+ePersons[k].name2;
 
   return n;
@@ -631,7 +631,7 @@ string oEntryBlock::getClub(int k) const
 }
 
 
-int oEntryBlock::getCard(int k) const 
+int oEntryBlock::getCard(int k) const
 {
   if (k<int(ePersons.size()))
     return ePersons[k].cardNo;
@@ -647,11 +647,11 @@ vector<string> oEntryBlock::getPersons() const
   char bf[256];
   for (size_t k=0;k<ePersons.size();k++) {
     n+=ePersons[k].name1;
-    
-    if(!ePersons[k].name2.empty())
+
+    if (!ePersons[k].name2.empty())
       n+=" "+ePersons[k].name2;
 
-    if(ePersons[k].cardNo>0) {
+    if (ePersons[k].cardNo>0) {
       sprintf_s(bf, " (%d)", ePersons[k].cardNo);
       n+=bf;
     }
@@ -663,9 +663,9 @@ vector<string> oEntryBlock::getPersons() const
   return names;
 }
 
-int oEntryBlock::nameCount() 
+int oEntryBlock::nameCount()
 {
-  if(ePersons.empty())
+  if (ePersons.empty())
     return 0;
   int space=0;
   const string &name1=ePersons.back().name1;
@@ -688,22 +688,22 @@ int oEntryBlock::nameCount()
 
 void oEntryBlock::addPerson(const char *s, bool complete)
 {
-  if(ePersons.empty())
+  if (ePersons.empty())
     ePersons.push_back(oEntryPerson(eClub));
 
   if (ePersons.back().nameCount()>=2 && countWords(s)>=2)
     completeName();
 
   if (complete) {
-    if(!ePersons.back().name1.empty()) 
-      ePersons.push_back(oEntryPerson(eClub));    
+    if (!ePersons.back().name1.empty())
+      ePersons.push_back(oEntryPerson(eClub));
 
     ePersons.back().name1=s;
   }
   else {
     if (ePersons.back().name1.empty())
       ePersons.back().name1=s;
-    else if(ePersons.back().name2.empty())
+    else if (ePersons.back().name2.empty())
       ePersons.back().name2=s;
     else {
       ePersons.push_back(oEntryPerson(eClub));
@@ -726,7 +726,7 @@ bool oEntryBlock::expectMoreNames(int expectedNumRunners) const
 }
 
 
-void oEntryBlock::cleanEntry() 
+void oEntryBlock::cleanEntry()
 {
   for (size_t k=0;k<ePersons.size(); k++) {
     if (ePersons[k].name1.empty()) {
@@ -744,10 +744,10 @@ bool oFreeImport::analyze(vector<bool> &b, int &offset, int &delta) const
   vector<int> d;
   d.reserve(b.size()/3);
 
-  for (size_t k=0;k<b.size();k++) 
+  for (size_t k=0;k<b.size();k++)
     if (b[k]) d.push_back(k);
 
-  if(d.size()<2) {
+  if (d.size()<2) {
     delta=0;
     offset=0;
     return false;
@@ -756,12 +756,12 @@ bool oFreeImport::analyze(vector<bool> &b, int &offset, int &delta) const
   offset=d[0];
 
   delta=0;
-  for (size_t k=1;k<d.size();k++) 
+  for (size_t k=1;k<d.size();k++)
     delta=gcd(delta, d[k]-d[k-1]);
-  
+
   if (delta>1) {
     int x=offset;
-    while(unsigned(x)<b.size()) 
+    while(unsigned(x)<b.size())
       b[x]=true, x+=delta;
 
     return true;
@@ -779,49 +779,49 @@ bool oFreeImport::isCard(const char *p) const
 
 bool oFreeImport::isTime(const string &m) const
 {
-  if(m.empty() || m.length()>9)
-		return false;
-
-  for(size_t k=0;k<m.length();k++)
-    if(!isdigit(BYTE(m[k])) && !(m[k]==':' || m[k]=='.'))
-      return false;
-
-	int hour=atoi(m.c_str());
-	if(hour<0 || hour>23)
-		return false;
-
-	int minute=0;
-	int second=0;
-	int kp=m.find_first_of(':');
-	
-	if (kp>0) {
-		string mtext=m.substr(kp+1);
-		minute=atoi(mtext.c_str());
-
-		if(minute<0 || minute>60)
-			return false;
-
-		kp=mtext.find_last_of(':');
-
-		if(kp>0) {
-			second=atoi(mtext.substr(kp+1).c_str());
-			if(second<0 || second>60)
-				return false;
-		}
-	}
-	int t=hour*3600+minute*60+second;
-	if(t<=0)	
+  if (m.empty() || m.length()>9)
     return false;
 
-	return true;
+  for(size_t k=0;k<m.length();k++)
+    if (!isdigit(BYTE(m[k])) && !(m[k]==':' || m[k]=='.'))
+      return false;
+
+  int hour=atoi(m.c_str());
+  if (hour<0 || hour>23)
+    return false;
+
+  int minute=0;
+  int second=0;
+  int kp=m.find_first_of(':');
+
+  if (kp>0) {
+    string mtext=m.substr(kp+1);
+    minute=atoi(mtext.c_str());
+
+    if (minute<0 || minute>60)
+      return false;
+
+    kp=mtext.find_last_of(':');
+
+    if (kp>0) {
+      second=atoi(mtext.substr(kp+1).c_str());
+      if (second<0 || second>60)
+        return false;
+    }
+  }
+  int t=hour*3600+minute*60+second;
+  if (t<=0)
+    return false;
+
+  return true;
 }
 
 bool oFreeImport::isCrap(const char *p) const
 {
   int s=strlen(p);
-  
+
   for (int k=0;k<s;k++) {
-    if (p[k]=='(' || p[k]==')' || 
+    if (p[k]=='(' || p[k]==')' ||
         (p[k]>='0' && p[k]<='9'))
       return true;
   }
@@ -838,24 +838,24 @@ bool oFreeImport::isName(const char *p) const
 
   while(c>0) {
     const char *out= extractWord(str,c);
-    if(c>0)
+    if (c>0)
       w.push_back(out);
   }
-  if(w.size()==1)
+  if (w.size()==1)
     return familyDB.lookup(w[0]) || givenDB.lookup(w[0]);
-  else if(w.size()<4) {
+  else if (w.size()<4) {
     int n=0;
     int t=(w.size()+1)/2;
     for (size_t k=0;k<w.size();k++) {
       n+=familyDB.lookup(w[k]) || givenDB.lookup(w[k]) ? 1:0;
-      if(isCard(w[k]))
+      if (isCard(w[k]))
         return false;
      // if(classDB.lookup(w[k]))
      //   return false;
     }
     return n>=t;
   }
-  
+
   return false;
 }
 
@@ -867,7 +867,7 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
 
   while (count>0) {
     const char *out=extractWord(part, count);
-    if(count>0)
+    if (count>0)
       words.push_back(out);
   }
 
@@ -887,38 +887,38 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
   int times=0;
 
   for (size_t j=0;j<words.size();j++) {
-    if(familyDB.lookup(words[j]) || givenDB.lookup(words[j])) {
+    if (familyDB.lookup(words[j]) || givenDB.lookup(words[j])) {
       isNameV[j]=true;
       names++;
     }
-    if(clubDB.lookup(words[j])) {
+    if (clubDB.lookup(words[j])) {
       isClub[j]=true;
       clubs++;
     }
-    if(classDB.lookup(words[j])) {
+    if (classDB.lookup(words[j])) {
       isClass[j]=true;
       classes++;
     }
-    if(isCard(words[j])) {
+    if (isCard(words[j])) {
       isCardV[j]=true;
       cards++;
     }
-    if(isTime(words[j])) {
+    if (isTime(words[j])) {
       isTimeV[j]=true;
       times++;
     }
   }
 
-  if(allowName) { 
-    if(names>0 && (clubs+classes+cards+times)<1) {
-      if(!entry.canInsertName) {
+  if (allowName) {
+    if (names>0 && (clubs+classes+cards+times)<1) {
+      if (!entry.canInsertName) {
         entry.cleanEntry();
         entries.push_back(entry);
         entry.clear(rulingClub, rulingClass);
       }
       string n;
       for (size_t j=0;j<words.size();j++) {
-        if(!isCrap(words[j]))
+        if (!isCrap(words[j]))
           n+=string(words[j])+" ";
       }
       n.resize(n.size()-1);
@@ -931,25 +931,25 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
   string clb;
   string name;
   Types lastType = Name; //Name
-  if(entry.nameCount()>0 && !entry.expectMoreNames(getExpectedNumRunners(entry.eClass)) 
+  if (entry.nameCount()>0 && !entry.expectMoreNames(getExpectedNumRunners(entry.eClass))
     && !allowName)
     lastType = Club; //Guess club
 
   for (size_t k=0;k<words.size();) {
-    if(isTimeV[k]) {
+    if (isTimeV[k]) {
       entry.setStartTime(words[k]);
       lastInsertedType = Time;
       used[k]=true, k++;
-      if(entry.expectMoreNames(getExpectedNumRunners(entry.eClass)))
+      if (entry.expectMoreNames(getExpectedNumRunners(entry.eClass)))
         lastType = Name;
       else lastType = Unknown;
     }
-    else if(isCardV[k]) {
+    else if (isCardV[k]) {
       entry.setCardNo(atoi(words[k]));
       lastInsertedType = Card;
       used[k]=true, k++;
       lastType = Name;
-      if(entry.expectMoreNames(getExpectedNumRunners(entry.eClass)))
+      if (entry.expectMoreNames(getExpectedNumRunners(entry.eClass)))
         lastType = Name;
       else lastType = Unknown;
     }
@@ -958,13 +958,13 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
         cls+=string(words[k])+" ", used[k]=true, k++;
       lastType = Class;
     }
-    else if(isClub[k]) {
+    else if (isClub[k]) {
       while(k<words.size() && isClub[k])
         clb+=string(words[k])+" ", used[k]=true, k++;
       if (k==words.size())
       lastType = Club;
     }
-    else if(isNameV[k] && allowName) {
+    else if (isNameV[k] && allowName) {
       while(k<words.size() && isNameV[k]) {
         if (!isCrap(words[k]))
           name+=string(words[k])+" ";
@@ -973,17 +973,17 @@ void oFreeImport::analyzePart(char *part, const MatchPattern &ptrn, int nNamesPe
       lastType = Name;
     }
     else {
-      if(lastType == Name) {
+      if (lastType == Name) {
         if (!isCrap(words[k]))
           name+=string(words[k])+" ";
         k++;
       }
-      else if(lastType == Class)
+      else if (lastType == Class)
         cls+=string(words[k])+" ", k++;
-      else if(lastType == Club)
+      else if (lastType == Club)
         clb+=string(words[k])+" ", k++;
       else k++;
-    }     
+    }
   }
 
   if (!clb.empty()) {
@@ -1026,12 +1026,12 @@ void oFreeImport::test(const oRunnerList &li)
 
   const int end='z'+5;
   for(int k='a';k<=end+1;k++)
-    if(k>end)
+    if (k>end)
       givenDB.insert(b.c_str());
     else {
       string z=b+char(k);
       for( int j='a';j<=end+1;j++) {
-        if(j>end)
+        if (j>end)
           givenDB.insert(z.c_str());
         else {
           givenDB.insert( (z+char(j)+d).c_str() );
@@ -1043,9 +1043,9 @@ void oFreeImport::test(const oRunnerList &li)
   oWordList wl;
   wl.load("test.mwd");
   wl.save("test2.mwd");
-  for(it=li.begin();it!=li.end();++it) 
+  for(it=li.begin();it!=li.end();++it)
     givenDB.insert(it->getGivenName().c_str());
-  
+
   wl.save("test3.mwd");
   //char bf[256]=" Erik  Melin , 37837, OK Linné , H21\nJan Troeng, 54323, OK Linné, H21\nLinna Willdén, 810230,IF Thor,D21";
   //vector<oEntryBlock> entries;
@@ -1057,7 +1057,7 @@ int oFreeImport::getExpectedNumRunners(const string &cls) const
 {
   string key(canonizeName(cls.c_str()));
   map<string,int>::const_iterator it = runnersPerClass.find(key);
-  
+
   if (it != runnersPerClass.end())
     return it->second;
   else
@@ -1076,7 +1076,7 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
     familyDB.insert(f.c_str());
 
     split(f, sep, split_vector);
-    if(split_vector.size()>1) 
+    if (split_vector.size()>1)
       for(size_t k=0;k<split_vector.size();k++) {
         familyDB.insert(split_vector[k].c_str());
       }
@@ -1085,7 +1085,7 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
   for(oClubList::const_iterator it=clb.begin();it!=clb.end();++it) {
     clubDB.insert(it->getName().c_str());
     split(it->getName().c_str(), sep, split_vector);
-    if(split_vector.size()>1) 
+    if (split_vector.size()>1)
       for(size_t k=0;k<split_vector.size();k++) {
         clubDB.insert(split_vector[k].c_str());
       }
@@ -1094,7 +1094,7 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
   for(oClassList::const_iterator it=cls.begin();it!=cls.end();++it) {
     classDB.insert(it->getName().c_str());
     split(it->getName().c_str(), sep, split_vector);
-    if(split_vector.size()>1) 
+    if (split_vector.size()>1)
       for(size_t k=0;k<split_vector.size();k++) {
         classDB.insert(split_vector[k].c_str());
       }
@@ -1117,10 +1117,10 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
   ages.push_back(21);
   for (int k=35;k<=100;k+=5)
     ages.push_back(k);
-  
+
   for (int k=0;k<8;k++) {
     classDB.insert(clsPrefix[k]);
-    
+
     for (size_t j=0; j<ages.size();j++) {
       sprintf_s(bf, "%d", ages[j]);
       classDB.insert(bf);
@@ -1129,28 +1129,28 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
       classDB.insert(bf);
       sprintf_s(bf, "%s %d", clsPrefix[k], ages[j]);
       classDB.insert(bf);
-      
+
       sprintf_s(bf, "%s%dM", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s%dL", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s%dK", clsPrefix[k], ages[j]);
       classDB.insert(bf);
-      
+
       sprintf_s(bf, "%s %dM", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s %dL", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s %dK", clsPrefix[k], ages[j]);
       classDB.insert(bf);
-      
+
       sprintf_s(bf, "%s%d M", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s%d L", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s%d K", clsPrefix[k], ages[j]);
       classDB.insert(bf);
-      
+
       sprintf_s(bf, "%s%d Lång", clsPrefix[k], ages[j]);
       classDB.insert(bf);
       sprintf_s(bf, "%s%d Kort", clsPrefix[k], ages[j]);
@@ -1170,19 +1170,19 @@ void oFreeImport::init(const oRunnerList &r, const oClubList &clb, const oClassL
       }
     }
   }
-  classDB.insert("L");  
+  classDB.insert("L");
   classDB.insert("Lång");
-  classDB.insert("E");  
+  classDB.insert("E");
   classDB.insert("Elit");
   classDB.insert("Elite");
   classDB.insert("Adult");
   classDB.insert("Vuxen");
   classDB.insert("Insk");
   classDB.insert("Insk.");
-  classDB.insert("Inskolning");  
+  classDB.insert("Inskolning");
   classDB.insert("M");
   classDB.insert("ÖM");
-  classDB.insert("Motion");  
+  classDB.insert("Motion");
   classDB.insert("K");
   classDB.insert("Kort");
   classDB.insert("Mellan");
@@ -1298,7 +1298,7 @@ bool oFreeImport::analyzeHeaders(vector<char *> &line) const
       }
     }
   }
-    
+
   if (!forceNoHeader && header > nonheader)
     return true;
 
@@ -1322,18 +1322,18 @@ const int CLEARROW = 1;
 const int IGNOREROW = 2;
 const int COMPLETEROW = 4;
 
-int oFreeImport::preAnalyzeRow(vector<char *> &p, 
-                               const vector<MatchPattern> &ptrn, 
+int oFreeImport::preAnalyzeRow(vector<char *> &p,
+                               const vector<MatchPattern> &ptrn,
                                vector<int> &classified)
 {
   int stat = 0;
-  
+
   int names = 0;
   int clubs = 0;
   int cards = 0;
   int classes = 0;
   int unknown = 0;
-  
+
   for (size_t j=0;j<p.size();j++) {
     int type=-1;
     if (ptrn[j].isClub() && clubDB.lookup(p[j]))
@@ -1375,7 +1375,7 @@ int oFreeImport::preAnalyzeRow(vector<char *> &p,
       names++;
     else if (type==0)
       clubs++;
-    else 
+    else
       unknown++;
 
     const char *canP = canonizeName(p[j]);
@@ -1418,7 +1418,7 @@ int oFreeImport::preAnalyzeRow(vector<char *> &p,
   }
   return stat;
 }
- 
+
 
 void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
 {
@@ -1428,7 +1428,7 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
   parts.reserve(strlen(str)/24);
   set<int> lineTypes;
   int count=1;
-  
+
   while(count>0) {
     char *line=extractLine(str, count);
 
@@ -1437,10 +1437,10 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
 
       while(count>0) {
         char *out=extractPart(line, count);
-        if(count>0)
+        if (count>0)
           parts.back().push_back(out);
       }
-      if ( analyzeHeaders(parts.back()) ) { 
+      if ( analyzeHeaders(parts.back()) ) {
         parts.pop_back();
         count = 1;
       }
@@ -1449,7 +1449,7 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
         count=1;
       }
     }
-    
+
   }
 
   map<int, vector<MatchPattern> > patterns;
@@ -1460,45 +1460,45 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
     vector<MatchPattern> mp(*it);
     int limit=0;
     for (size_t k=0;k<parts.size();k++) {
-      if(parts[k].size()==*it) {
+      if (parts[k].size()==*it) {
         limit++;
         const vector<char *> &p=parts[k];
         for (int j=0;j<*it; j++) {
-          if(classDB.lookup(p[j]))
+          if (classDB.lookup(p[j]))
             mp[j].nClass++;
-          if(clubDB.lookup(p[j]))
+          if (clubDB.lookup(p[j]))
             mp[j].nClub++;
-          if(isName(p[j])) {
+          if (isName(p[j])) {
             mp[j].nName++;
             if (countWords(p[j])==1)
               mp[j].singleName++;
           }
-          if(isCard(p[j]))
+          if (isCard(p[j]))
             mp[j].nCard++;
-          if(isTime(p[j]))
+          if (isTime(p[j]))
             mp[j].nTime++;
         }
       }
     }
 
-    if(limit==1)
+    if (limit==1)
       limit=0;
-    else if(limit<=3)
+    else if (limit<=3)
       limit=1;
-    else if(limit<=10)
+    else if (limit<=10)
       limit=2;
     else
       limit=limit/5;
 
     int nn=0;
-    
-    for (size_t k=0;k<mp.size();k++) 
-      if(mp[k].isName(limit))
+
+    for (size_t k=0;k<mp.size();k++)
+      if (mp[k].isName(limit))
         nn++;
 
     // Check that single names (Andersson, Karl) are neighbors.
-    for (size_t k=0;k<mp.size();k++) 
-      if(mp[k].isName(limit) && 
+    for (size_t k=0;k<mp.size();k++)
+      if (mp[k].isName(limit) &&
           (k+1>=mp.size() || !mp[k+1].isName(limit)) &&
           (k==0 || !mp[k-1].isName(limit)) ) {
         mp[k].singleName=false;
@@ -1523,9 +1523,14 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
 
     vector<int> classified;
     int res = preAnalyzeRow(p, patterns[p.size()], classified);
-    
+
     int s = p.size();
     vector<MatchPattern> &ptrn=patterns[s];
+
+    if (ptrn.empty())
+      ptrn.resize(s);
+    assert(ptrn.size() == s);
+
     lastInsertedType = None;
     if (res & CLEARROW) {
       entry.cleanEntry();
@@ -1578,27 +1583,27 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
 
       //We have a suggested name, but there should only
       //be one name and we already got one.
-      if((type == Name && entry.hasName() && (2*nNames[s])<=readNames))
+      if ((type == Name && entry.hasName() && (2*nNames[s])<=readNames))
         type = Unknown;
 
-      if(type==Name && isCrap(p[j]))
+      if (type==Name && isCrap(p[j]))
         type = Unknown;
 
-      if (type == Unknown) 
-        analyzePart(p[j], ptrn[j], nNames[s], entry, 
+      if (type == Unknown)
+        analyzePart(p[j], ptrn[j], nNames[s], entry,
                       entries, (2*nNames[s])>readNames);
       else if (type == Club) {
         bool moreClubs = entry.acceptMoreClubs(getExpectedNumRunners(entry.eClass));
         if (!moreClubs && lastInsertedType == Club)
           continue;
 
-        if(!moreClubs && entry.hasName()) {
+        if (!moreClubs && entry.hasName()) {
           readNames=0;
           entry.cleanEntry();
           entries.push_back(entry);
           entry.clear(rulingClub, rulingClass);
         }
-        else if (j<=1 && s<=2) 
+        else if (j<=1 && s<=2)
           // Set a ruling club if it first on a line containing at most 2 parts. (We allow club+class)
           rulingClub = p[j];
 
@@ -1607,8 +1612,8 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
         // If we have an odd number of names read
         // we were expecting a completing name,
         // but none came, so we complete what we have instead.
-        if (readNames&1) { 
-          readNames++;     
+        if (readNames&1) {
+          readNames++;
           entry.completeName();
         }
       }
@@ -1616,16 +1621,16 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
         if (lastInsertedType == Class)
           continue;
 
-        if(entry.hasClass() && entry.hasName()) {
+        if (entry.hasClass() && entry.hasName()) {
           readNames=0;
           entry.cleanEntry();
           entries.push_back(entry);
           entry.clear(rulingClub, rulingClass);
         }
-        else if (j<=1 && s<=2) 
+        else if (j<=1 && s<=2)
           // Set a ruling class if it first on a line containing at most 2 parts. (We allow club+class)
           rulingClass = p[j];
-  
+
         lastInsertedType = Class;
         entry.setClass(p[j]);
         if (readNames&1) {
@@ -1637,7 +1642,7 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
         if (lastInsertedType == Time)
           continue;
 
-        if(!entry.eStartTime.empty()) {
+        if (!entry.eStartTime.empty()) {
           if (entry.ePersons.size()>1 && !entry.hasName())
             entry.ePersons.pop_back(); //Warning
 
@@ -1666,15 +1671,15 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
           entry.completeName();
         }
       }
-      else if(type == Name) {
+      else if (type == Name) {
         lastInsertedType = Name;
         bool complete = ptrn[j].isCompleteName();
         entry.addPerson(p[j], complete);
-        readNames += complete ? 2:1; 
+        readNames += complete ? 2:1;
       }
     }// End loop over parts
 
-    if(entry.hasName()) {
+    if (entry.hasName()) {
       entry.cleanEntry();
       entries.push_back(entry);
       entry.clear(rulingClub, rulingClass);
@@ -1685,7 +1690,7 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
         entries.push_back(entry); // Else lost data
       entry.clear(rulingClub, rulingClass);
     }
-  }  
+  }
 
   for (size_t k=1;k<entries.size(); k++) {
     if (entries[k].eClub.empty())
@@ -1705,7 +1710,7 @@ void oFreeImport::extractEntries(char *str, vector<oEntryBlock> &entries)
 }
 
 void oFreeImport::showEntries(gdioutput &gdi, const vector<oEntryBlock> &entries)
-{  
+{
   gdi.setCX(20);
   for (size_t k=0;k<entries.size();k++) {
     gdi.pushX();
@@ -1726,7 +1731,7 @@ void oFreeImport::showEntries(gdioutput &gdi, const vector<oEntryBlock> &entries
 }
 
 void oFreeImport::addEntries(pEvent oe, const vector<oEntryBlock> &entries)
-{  
+{
   map<int, int> teamno; //For automatic name generation Club/Class
   for (size_t k=0;k<entries.size();k++) {
 
@@ -1742,10 +1747,10 @@ void oFreeImport::addEntries(pEvent oe, const vector<oEntryBlock> &entries)
     if (pc) {
       int nr=pc->getNumDistinctRunners();
       if (nr==1) {
-        pRunner r=oe->addRunner(entries[k].getName(0), 
-                                entries[k].getClub(0), pc->getId(), 
+        pRunner r=oe->addRunner(entries[k].getName(0),
+                                entries[k].getClub(0), pc->getId(),
                                 entries[k].getCard(0), 0, true);
-        
+
         r->setStartTimeS(entries[k].eStartTime);
         r->setCardNo(entries[k].getCard(0), false);
 
@@ -1756,7 +1761,7 @@ void oFreeImport::addEntries(pEvent oe, const vector<oEntryBlock> &entries)
         pClub club=oe->getClubCreate(0, entries[k].eClub);
         string team = entries[k].getTeamName();
         //int id=pc->getId() + 10000 * (club ? club->getId() : 0);
-        
+
         //char tname[256];
         //sprintf_s(tname, "%s %d", entries[k].eClub.c_str(), ++teamno[id]);
         pTeam t=oe->addTeam(team, club ? club->getId() : 0, pc->getId());
@@ -1764,7 +1769,7 @@ void oFreeImport::addEntries(pEvent oe, const vector<oEntryBlock> &entries)
           t->setStartNo(t->getId(), false);
 
           for (int j=0;j<max(nr, entries[k].getNumPersons());j++) {
-            pRunner r=oe->addRunner(entries[k].getName(j), entries[k].getClub(j), 
+            pRunner r=oe->addRunner(entries[k].getName(j), entries[k].getClub(j),
                                     pc->getId(), entries[k].getCard(j), 0, false);
             r->setCardNo(entries[k].getCard(j), false);
             r->addClassDefaultFee(false);
@@ -1799,7 +1804,7 @@ void oFreeImport::load()
   try {
     classDB.load(bf);
   } catch(std::exception &) {warn=true;}
-  
+
   loaded=true;
 }
 

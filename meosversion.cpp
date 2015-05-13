@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,51 +17,56 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "stdafx.h"
 #include <vector>
+#include "meos_util.h"
 
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJKMN
-//V31: ab
+//V31: a
 int getMeosBuild() {
-  string revision("$Rev: 232 $");
+  string revision("$Rev: 307 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
 //ABCDEFGHIJKILMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz
 //V2: abcdefgh
 //V3: abcdefghijklmnopqrstuvxyz
-//V31: abc
+//V31: abcde
+//V32: abcdefgh
 string getMeosDate() {
-  string date("$Date: 2014-08-03 13:59:34 +0200 (sÃ¶, 03 aug 2014) $");
+  string date("$Date: 2015-04-26 21:12:58 +0200 (sÃ¶, 26 apr 2015) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return "U3";
+  return ""; // No parantheses (...)
+}
+
+string getMajorVersion() {
+  return "3.2";
 }
 
 string getMeosFullVersion() {
   char bf[256];
+  string maj = getMajorVersion();
   if (getBuildType().empty())
-    sprintf_s(bf, "Version X#3.1.%d, %s (+ minor Australian customisations)", getMeosBuild(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#%s.%d, %s (+ minor Australian customisations)", maj.c_str(), getMeosBuild(), getMeosDate().c_str());
   else
-    sprintf_s(bf, "Version X#3.1.%d, %s %s (+ minor Australian customisations)", getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#%s.%d, %s %s (+ minor Australian customisations)", maj.c_str(), getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
   return bf;
 }
 
 string getMeosCompectVersion() {
-  char bf[256];
   if (getBuildType().empty())
-    sprintf_s(bf, "3.1.%d", getMeosBuild());
+    return getMajorVersion() + "." + itos(getMeosBuild());
   else
-    sprintf_s(bf, "3.1.%d (%s)", getMeosBuild(), getBuildType().c_str());
-  return bf;
+    return getMajorVersion() + "." + itos(getMeosBuild()) + "(" + getBuildType() + ")";
 }
 
-void getSupporters(vector<string> &supp) 
+void getSupporters(vector<string> &supp)
 {
   supp.push_back("Centrum OK");
   supp.push_back("Ove Persson, Piteå IF");
@@ -77,7 +82,7 @@ void getSupporters(vector<string> &supp)
   supp.push_back("OK Gipens OL-skytte");
   supp.push_back("Rune Thurén, Vallentuna-Össeby OL");
   supp.push_back("Roland Persson, Kalmar OK");
-  supp.push_back("Robert Jessen, Främmestads IK");  
+  supp.push_back("Robert Jessen, Främmestads IK");
   supp.push_back("Almby IK, Örebro");
   supp.push_back("Peter Rydesäter, Rehns BK");
   supp.push_back("IK Hakarpspojkarna");
@@ -102,11 +107,27 @@ void getSupporters(vector<string> &supp)
   supp.push_back("GoIF Tjalve");
   supp.push_back("OK Skärmen");
   supp.push_back("Østkredsen");
+  supp.push_back("OK Roskilde");
   supp.push_back("Holbæk Orienteringsklub");
   supp.push_back("Bodens BK");
   supp.push_back("OK Tyr, Karlstad");
   supp.push_back("Göteborg-Majorna OK");
   supp.push_back("OK Järnbärarna, Kopparberg");
   supp.push_back("FK Åsen");
+  supp.push_back("Ballerup OK");
+  supp.push_back("Olivier Benevello, Valbonne SAO");
+  supp.push_back("Tommy Wåhlin, OK Enen");
+  supp.push_back("Hjobygdens OK");
+  supp.push_back("Tisvilde Hegn OK");
+  supp.push_back("Lindebygdens OK");
+  supp.push_back("OK Flundrehof");
+  supp.push_back("Vittjärvs IK");
+  supp.push_back("Annebergs GIF");
+  supp.push_back("Lars-Eric Gahlin, Östersunds OK");
+  supp.push_back("Sundsvalls OK:s Veteraner");
+  supp.push_back("Kinnaströms SK");
+  supp.push_back("OK Pan Århus");
+  supp.push_back("Jan Ernberg, Täby OK");
+  supp.push_back("Stjärnorps SK");
+  supp.push_back("Mölndal Outdoor IF");
 }
- 

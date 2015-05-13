@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 #include "tabbase.h"
 #include "SportIdent.h"
@@ -28,9 +28,8 @@ struct PunchInfo;
 class csvparser;
 
 class TabSI :
-	public TabBase
+  public TabBase
 {
-
   /** Try to automatcally assign a class to runner (if none is given)
       Return true if runner has a class on exist */
   bool autoAssignClass(pRunner r, const SICard &sic);
@@ -39,9 +38,9 @@ class TabSI :
 
   pRunner autoMatch(const SICard &sic, pRunner db_r);
   void processPunchOnly(gdioutput &gdi, const SICard &sic);
-  void startInteractive(gdioutput &gdi, const SICard &sic, 
+  void startInteractive(gdioutput &gdi, const SICard &sic,
                         pRunner r, pRunner db_r);
-  bool processCard(gdioutput &gdi, pRunner runner, const SICard &csic, 
+  bool processCard(gdioutput &gdi, pRunner runner, const SICard &csic,
                    bool silent=false);
   bool processUnmatched(gdioutput &gdi, const SICard &csic, bool silent);
 
@@ -61,7 +60,8 @@ class TabSI :
   enum SIMode {
     ModeReadOut,
     ModeAssignCards,
-    ModeEntry
+    ModeEntry,
+    ModeCardData
   };
 
   int runnerMatchedId;
@@ -78,9 +78,9 @@ class TabSI :
   int lastClassId;
   int lastClubId;
   int lastFee;
-  
+
   int inputId;
-      
+
   void showReadPunches(gdioutput &gdi, vector<PunchInfo> &punches, set<string> &dates);
   void showReadCards(gdioutput &gdi, vector<SICard> &cards);
 
@@ -95,7 +95,7 @@ class TabSI :
   // Insert card without converting times and with/without runner
   void processInsertCard(const SICard &csic);
 
-  
+
   void generateSplits(const pRunner r, gdioutput &gdi);
 	void generateLabel(const pRunner r, gdioutput &gdi);
   int logcounter;
@@ -107,6 +107,17 @@ class TabSI :
 
   // Ask if card is to be overwritten
   bool askOverwriteCard(gdioutput &gdi, pRunner r) const;
+
+  list<SICard> savedCards;
+  void showModeCardData(gdioutput &gdi);
+
+  void printCard(gdioutput &gdi, SICard &c, bool forPrinter) const;
+
+  void generateSplits(SICard &card, gdioutput &gdi);
+  static int analyzePunch(SIPunch &p, int &start, int &accTime, int &days);
+
+
+  void createCompetitionFromCards(gdioutput &gdi);
 
 public:
 
@@ -128,7 +139,7 @@ public:
 
   void refillComPorts(gdioutput &gdi);
 
-	bool loadPage(gdioutput &gdi);
-	TabSI(oEvent *oe);
-	~TabSI(void);
+  bool loadPage(gdioutput &gdi);
+  TabSI(oEvent *oe);
+  ~TabSI(void);
 };

@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -29,7 +29,7 @@
 #include "meosdb/sqltypes.h"
 #include <process.h>
 
-MySQLReconnect::MySQLReconnect(const string &errorIn) : AutoMachine("MySQL-daemon"), error(errorIn) 
+MySQLReconnect::MySQLReconnect(const string &errorIn) : AutoMachine("MySQL-daemon"), error(errorIn)
 {
   timeError = getLocalTime();
   hThread=0;
@@ -43,7 +43,7 @@ MySQLReconnect::~MySQLReconnect()
 
 bool MySQLReconnect::stop()
 {
-  if(interval==0)
+  if (interval==0)
     return true;
 
   return MessageBox(0, "If this daemon is stopped, then MeOS will not reconnect to the network. Continue?",
@@ -78,14 +78,14 @@ unsigned __stdcall reconnectThread(void *v) {
   bool res = msReConnect();
 
   EnterCriticalSection(&CS_MySQL);
-    if(res) 
-      mysqlStatus=1;     
+    if (res)
+      mysqlStatus=1;
     else
       mysqlStatus=-1;
 
     mysqlConnecting=0;
   LeaveCriticalSection(&CS_MySQL);
-  
+
   return 0;
 }
 
@@ -94,11 +94,11 @@ void MySQLReconnect::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
 void MySQLReconnect::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 {
-  if(isThreadReconnecting())
+  if (isThreadReconnecting())
     return;
 
   if (mysqlStatus==1) {
-    if(hThread){
+    if (hThread){
       CloseHandle(hThread);
       hThread=0;
     }
@@ -117,7 +117,7 @@ void MySQLReconnect::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
     }
   }
   else if (mysqlStatus==-1) {
-    if(hThread){
+    if (hThread){
       CloseHandle(hThread);
       hThread=0;
     }
@@ -142,18 +142,18 @@ int AutomaticCB(gdioutput *gdi, int type, void *data);
 
 void MySQLReconnect::status(gdioutput &gdi) {
   gdi.dropLine(0.5);
-	gdi.addString("", 1, name);
+  gdi.addString("", 1, name);
   gdi.pushX();
-	if(interval>0){	
+  if (interval>0){
     gdi.addStringUT(1, timeError + ": " + lang.tl("DATABASE ERROR")).setColor(colorDarkRed);
-		gdi.fillRight();
-	  gdi.addString("", 0, "Nästa försök:");
-		gdi.addTimer(gdi.getCY(),  gdi.getCX()+10, timerCanBeNegative, (GetTickCount()-timeout)/1000);
-	}
+    gdi.fillRight();
+    gdi.addString("", 0, "Nästa försök:");
+    gdi.addTimer(gdi.getCY(),  gdi.getCX()+10, timerCanBeNegative, (GetTickCount()-timeout)/1000);
+  }
   else {
     gdi.addStringUT(0, timeError + ": " + lang.tl("DATABASE ERROR")).setColor(colorDarkGrey);
     gdi.fillRight();
-	  gdi.addStringUT(0, timeReconnect + ":");
+    gdi.addStringUT(0, timeReconnect + ":");
     gdi.addString("", 1, "Återansluten mot databasen, tävlingen synkroniserad.").setColor(colorDarkGreen);
     gdi.dropLine();
     gdi.fillDown();

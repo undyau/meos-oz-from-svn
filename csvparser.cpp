@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -47,7 +47,7 @@ static char THIS_FILE[]=__FILE__;
 
 csvparser::csvparser()
 {
-	LineNumber=0;
+  LineNumber=0;
 }
 
 csvparser::~csvparser()
@@ -57,55 +57,55 @@ csvparser::~csvparser()
 
 int csvparser::iscsv(const char *file)
 {
-	fin.open(file);
+  fin.open(file);
 
-	if(!fin.good())
-		return false;
+  if (!fin.good())
+    return false;
 
-	char bf[2048];
-	fin.getline(bf, 2048);
+  char bf[2048];
+  fin.getline(bf, 2048);
 
-	while(fin.good() && strlen(bf)<3)
-		fin.getline(bf, 2048);
+  while(fin.good() && strlen(bf)<3)
+    fin.getline(bf, 2048);
 
-	fin.close();
+  fin.close();
 
-	vector<char *> sp;
+  vector<char *> sp;
 
-	split(bf, sp);
+  split(bf, sp);
 
-  if(sp.size()==1 && strcmp(sp[0], "RAIDDATA")==0)
+  if (sp.size()==1 && strcmp(sp[0], "RAIDDATA")==0)
     return 3;
 
 	if (sp.size()==1 && _stricmp(bf, "FName,SName,Club,Class")==0)
 		return 99; //Ór
 
-	if(sp.size()<5)//No csv
-		return 0;
+  if (sp.size()<5)//No csv
+    return 0;
 
-	if(_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0) //OS-fil (SWE/ENG)??
-		return 2;
+  if (_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0) //OS-fil (SWE/ENG)??
+    return 2;
 
-	else return 1; //OE?!
+  else return 1; //OE?!
 }
 
 RunnerStatus ConvertOEStatus(int i)
 {
-	switch(i)
-	{
-	    case 0:
-			return StatusOK;	    	
-	    case 1:  // Ej start
-			return StatusDNS;	    	
-	    case 2:  // Utg.
-			return StatusDNF;	    	
-	    case 3:  // Felst.
-			return StatusMP;
-	    case 4: //Disk
-			return StatusDQ;  	    	
-	    case 5: //Maxtid 
-			return StatusMAX;
-	} 
+  switch(i)
+  {
+      case 0:
+      return StatusOK;
+      case 1:  // Ej start
+      return StatusDNS;
+      case 2:  // Utg.
+      return StatusDNF;
+      case 3:  // Felst.
+      return StatusMP;
+      case 4: //Disk
+      return StatusDQ;
+      case 5: //Maxtid
+      return StatusMAX;
+  }
   return StatusUnknown;
 }
 
@@ -114,117 +114,117 @@ RunnerStatus ConvertOEStatus(int i)
 
 bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 {
-	enum {OSstno=0, OSdesc=1, OSstart=4, OStime=5, OSstatus=6, OSclubno=7, OSclub=9, 
-		OSnat=10, OSclassno=11, OSclass=12, OSlegs=14, OSfee=21, OSpaid=22};
-	
-	const int Offset=23;
-	const int PostSize=11;
+  enum {OSstno=0, OSdesc=1, OSstart=4, OStime=5, OSstatus=6, OSclubno=7, OSclub=9,
+    OSnat=10, OSclassno=11, OSclass=12, OSlegs=14, OSfee=21, OSpaid=22};
 
-	enum {OSRsname=0, OSRfname=1, OSRyb=2, OSRsex=3, OSRstart=4, 
-		OSRfinish=5, OSRstatus=7, OSRcard=8, OSRrentcard=9};
-	
-	fin.open(file);
+  const int Offset=23;
+  const int PostSize=11;
 
-	if(!fin.good())
-		return false;
+  enum {OSRsname=0, OSRfname=1, OSRyb=2, OSRsex=3, OSRstart=4,
+    OSRfinish=5, OSRstatus=7, OSRcard=8, OSRrentcard=9};
 
-	char bf[1024];
-	fin.getline(bf, 1024);
-	
-	nimport=0;
-	while(!fin.eof())
-	{	
-		fin.getline(bf, 1024);
-	
-		vector<char *> sp;
+  fin.open(file);
 
-		split(bf, sp);
+  if (!fin.good())
+    return false;
 
-		if(sp.size()>20 && strlen(sp[OSclub])>0)
-		{
-			nimport++;
+  char bf[1024];
+  fin.getline(bf, 1024);
 
-			//Create club with this club number...
-			int ClubId=atoi(sp[OSclubno]);
-			pClub pclub=event.getClubCreate(ClubId, sp[OSclub]);
+  nimport=0;
+  while(!fin.eof())
+  {
+    fin.getline(bf, 1024);
 
-			if(pclub){
-				pclub->getDI().setString("Nationality", sp[OSnat]);
+    vector<char *> sp;
+
+    split(bf, sp);
+
+    if (sp.size()>20 && strlen(sp[OSclub])>0)
+    {
+      nimport++;
+
+      //Create club with this club number...
+      int ClubId=atoi(sp[OSclubno]);
+      pClub pclub=event.getClubCreate(ClubId, sp[OSclub]);
+
+      if (pclub){
+        pclub->getDI().setString("Nationality", sp[OSnat]);
         pclub->synchronize(true);
-			}
+      }
 
-			//Create class with this class number...		
-			int ClassId=atoi(sp[OSclassno]);
-			event.getClassCreate(ClassId, sp[OSclass]);
+      //Create class with this class number...
+      int ClassId=atoi(sp[OSclassno]);
+      event.getClassCreate(ClassId, sp[OSclass]);
 
-			//Club is autocreated...
-			pTeam team=event.addTeam(string(sp[OSclub])+" "+string(sp[OSdesc]), ClubId,  ClassId);
-			
-			team->setStartNo(atoi(sp[OSstno]), false);
+      //Club is autocreated...
+      pTeam team=event.addTeam(string(sp[OSclub])+" "+string(sp[OSdesc]), ClubId,  ClassId);
 
-			if(strlen(sp[12])>0)
-				team->setStatus( ConvertOEStatus( atoi(sp[OSstatus]) ), true, false);
+      team->setStartNo(atoi(sp[OSstno]), false);
 
-			team->setStartTime(event.convertAbsoluteTime(sp[OSstart]), true, false);
+      if (strlen(sp[12])>0)
+        team->setStatus( ConvertOEStatus( atoi(sp[OSstatus]) ), true, false);
 
-			if(strlen(sp[OStime])>0)
-				team->setFinishTime( event.convertAbsoluteTime(sp[OSstart])+event.convertAbsoluteTime(sp[OStime])-event.getZeroTimeNum() );
+      team->setStartTime(event.convertAbsoluteTime(sp[OSstart]), true, false);
 
-			if(team->getStatus()==StatusOK && team->getFinishTime()==0)
-				team->setStatus(StatusUnknown, true, false);
-			
-			unsigned rindex=Offset;
+      if (strlen(sp[OStime])>0)
+        team->setFinishTime( event.convertAbsoluteTime(sp[OSstart])+event.convertAbsoluteTime(sp[OStime])-event.getZeroTimeNum() );
 
-			oDataInterface teamDI=team->getDI();
+      if (team->getStatus()==StatusOK && team->getFinishTime()==0)
+        team->setStatus(StatusUnknown, true, false);
 
-			teamDI.setInt("Fee", atoi(sp[OSfee]));
-			teamDI.setInt("Paid", atoi(sp[OSpaid]));
-			teamDI.setString("Nationality", sp[OSnat]);
+      unsigned rindex=Offset;
 
-			//Import runners!
-			int runner=0;
-			while( (rindex+OSRrentcard)<sp.size() && strlen(sp[rindex+OSRfname])>0 ){
+      oDataInterface teamDI=team->getDI();
+
+      teamDI.setInt("Fee", atoi(sp[OSfee]));
+      teamDI.setInt("Paid", atoi(sp[OSpaid]));
+      teamDI.setString("Nationality", sp[OSnat]);
+
+      //Import runners!
+      int runner=0;
+      while( (rindex+OSRrentcard)<sp.size() && strlen(sp[rindex+OSRfname])>0 ){
         int year = extendYear(atoi(sp[rindex+OSRyb]));
         int cardNo = atoi(sp[rindex+OSRcard]);
-				pRunner r = event.addRunner(string(sp[rindex+OSRfname])+" "+string(sp[rindex+OSRsname]), ClubId, 
+        pRunner r = event.addRunner(string(sp[rindex+OSRfname])+" "+string(sp[rindex+OSRsname]), ClubId,
                                     ClassId, cardNo, year, false);
-				
-				oDataInterface DI=r->getDI();
-				//DI.setInt("BirthYear", extendYear(atoi(sp[rindex+OSRyb])));
-				DI.setString("Sex", sp[rindex+OSRsex]);
-				DI.setString("Nationality", sp[OSnat]);
-				
-				if(strlen(sp[rindex+OSRrentcard])>0)
-					DI.setInt("CardFee", event.getDCI().getInt("CardFee"));
-		
-				//r->setCardNo(atoi(sp[rindex+OSRcard]), false);
-				r->setStartTime(event.convertAbsoluteTime(sp[rindex+OSRstart]), true, false);
-				r->setFinishTime( event.convertAbsoluteTime(sp[rindex+OSRfinish]) );
 
-				if(strlen(sp[rindex+OSRstatus])>0)
-					r->setStatus( ConvertOEStatus( atoi(sp[rindex+OSRstatus]) ), true, false);
+        oDataInterface DI=r->getDI();
+        //DI.setInt("BirthYear", extendYear(atoi(sp[rindex+OSRyb])));
+        DI.setString("Sex", sp[rindex+OSRsex]);
+        DI.setString("Nationality", sp[OSnat]);
 
-				if(r->getStatus()==StatusOK && r->getRunningTime()==0)
-					r->setStatus(StatusUnknown, true, false);
+        if (strlen(sp[rindex+OSRrentcard])>0)
+          DI.setInt("CardFee", event.getDCI().getInt("CardFee"));
+
+        //r->setCardNo(atoi(sp[rindex+OSRcard]), false);
+        r->setStartTime(event.convertAbsoluteTime(sp[rindex+OSRstart]), true, false);
+        r->setFinishTime( event.convertAbsoluteTime(sp[rindex+OSRfinish]) );
+
+        if (strlen(sp[rindex+OSRstatus])>0)
+          r->setStatus( ConvertOEStatus( atoi(sp[rindex+OSRstatus]) ), true, false);
+
+        if (r->getStatus()==StatusOK && r->getRunningTime()==0)
+          r->setStatus(StatusUnknown, true, false);
 
         r->addClassDefaultFee(false);
 
-				team->setRunner(runner++, r, true);
-				
-				rindex+=PostSize;
-			}
-			//int nrunners=team->GetNumRunners();
-			pClass pc=event.getClass(ClassId);
+        team->setRunner(runner++, r, true);
 
-			if(pc && runner>(int)pc->getNumStages())
-				pc->setNumStages(runner);
+        rindex+=PostSize;
+      }
+      //int nrunners=team->GetNumRunners();
+      pClass pc=event.getClass(ClassId);
+
+      if (pc && runner>(int)pc->getNumStages())
+        pc->setNumStages(runner);
 
       team->apply(true, 0, false);
-		}
-	}
-	fin.close();
+    }
+  }
+  fin.close();
 
-	return true;
+  return true;
 }
 
 bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
@@ -260,7 +260,7 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
       pRunner pr = 0;            
       if (pr == 0) {        
         oRunner r(&event);         
-        pr = event.addRunner(r);
+        pr = event.addRunner(r, false);
       }
       
       if (pr==0)
@@ -319,58 +319,58 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
 
 bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 {
-	enum {OEstno=0, OEcard=1, OEid=2, OEsurname=3, OEfirstname=4,
-			OEbirth=5, OEsex=6, OEstart=9,  OEfinish=10, OEstatus=12,
-			OEclubno=13, OEclub=15, OEnat=16, OEclassno=17, OEclass=18, OEbib=23,
-			OErent=35, OEfee=36, OEpaid=37, OEcourseno=38, OEcourse=39,
-			OElength=40};
+  enum {OEstno=0, OEcard=1, OEid=2, OEsurname=3, OEfirstname=4,
+      OEbirth=5, OEsex=6, OEstart=9,  OEfinish=10, OEstatus=12,
+      OEclubno=13, OEclub=15, OEnat=16, OEclassno=17, OEclass=18, OEbib=23,
+      OErent=35, OEfee=36, OEpaid=37, OEcourseno=38, OEcourse=39,
+      OElength=40};
 
-	fin.open(file);
+  fin.open(file);
 
-	if(!fin.good())
-		return false;
+  if (!fin.good())
+    return false;
 
-	char bf[1024];
-	fin.getline(bf, 1024);
-	
-	nimport=0;
-	while (!fin.eof()) {	
-		fin.getline(bf, 1024);
-	
-		vector<char *> sp;
+  char bf[1024];
+  fin.getline(bf, 1024);
 
-		split(bf, sp);
+  nimport=0;
+  while (!fin.eof()) {
+    fin.getline(bf, 1024);
 
-		if (sp.size()>20) {
-			nimport++;
+    vector<char *> sp;
+
+    split(bf, sp);
+
+    if (sp.size()>20) {
+      nimport++;
 
       int clubId = atoi(sp[OEclubno]);
       pClub pclub = event.getClubCreate(clubId, sp[OEclub]);
 
-			if (pclub) {
-				if(strlen(sp[OEnat])>0)
+      if (pclub) {
+        if (strlen(sp[OEnat])>0)
           pclub->getDI().setString("Nationality", sp[OEnat]);
-        
+
         pclub->synchronize(true);
-			}       
+      }
 
       int id = atoi(sp[OEid]);
       pRunner pr = 0;
-            
+
       if (id>0)
         pr = event.getRunner(id, 0);
 
-      if (pr == 0) {        
+      if (pr == 0) {
         if (id==0) {
-          oRunner r(&event);         
-          pr = event.addRunner(r);
+          oRunner r(&event);
+          pr = event.addRunner(r, true);
         }
         else {
           oRunner r(&event, id);
-          pr = event.addRunner(r);
+          pr = event.addRunner(r, true);
         }
       }
-      
+
       if (pr==0)
         continue;
 
@@ -380,55 +380,55 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       string name = string(sp[OEfirstname])+" "+string(sp[OEsurname]);
       pr->setName(name);
       pr->setClubId(pclub ? pclub->getId():0);
-			pr->setCardNo( atoi(sp[OEcard]), false );
-			
-			pr->setStartTime(event.convertAbsoluteTime(sp[OEstart]), true, false);
-			pr->setFinishTime(event.convertAbsoluteTime(sp[OEfinish]));
+      pr->setCardNo( atoi(sp[OEcard]), false );
 
-			if(strlen(sp[OEstatus])>0)
-				pr->setStatus( ConvertOEStatus( atoi(sp[OEstatus]) ), true, false);
+      pr->setStartTime(event.convertAbsoluteTime(sp[OEstart]), true, false);
+      pr->setFinishTime(event.convertAbsoluteTime(sp[OEfinish]));
 
-			if(pr->getStatus()==StatusOK && pr->getRunningTime()==0)
-				pr->setStatus(StatusUnknown, true, false);
+      if (strlen(sp[OEstatus])>0)
+        pr->setStatus( ConvertOEStatus( atoi(sp[OEstatus]) ), true, false);
+
+      if (pr->getStatus()==StatusOK && pr->getRunningTime()==0)
+        pr->setStatus(StatusUnknown, true, false);
 
       //Autocreate class if it does not exist...
-			int classId=atoi(sp[OEclassno]);
+      int classId=atoi(sp[OEclassno]);
       if (classId>0) {
-  			pClass pc=event.getClassCreate(classId, sp[OEclass]);
+        pClass pc=event.getClassCreate(classId, sp[OEclass]);
 
-        if (pc) { 
-          pc->synchronize();        
+        if (pc) {
+          pc->synchronize();
           pr->setClassId(pc->getId());
         }
       }
-			int stno=atoi(sp[OEstno]);
+      int stno=atoi(sp[OEstno]);
 
-			if(stno>0)
-				pr->setStartNo(stno, false);
-			else
-				pr->setStartNo(nimport, false);
+      if (stno>0)
+        pr->setStartNo(stno, false);
+      else
+        pr->setStartNo(nimport, false);
 
-			oDataInterface DI=pr->getDI();
+      oDataInterface DI=pr->getDI();
 
-			DI.setString("Sex", sp[OEsex]);			
-			DI.setInt("BirthYear", extendYear(atoi(sp[OEbirth])));			
-			DI.setString("Nationality", sp[OEnat]);
-      
+      DI.setString("Sex", sp[OEsex]);
+      DI.setInt("BirthYear", extendYear(atoi(sp[OEbirth])));
+      DI.setString("Nationality", sp[OEnat]);
+
       if (sp.size()>OEbib)
         pr->setBib(sp[OEbib], false, false);
 
-			if (sp.size()>=38) {//ECO
-				DI.setInt("Fee", atoi(sp[OEfee]));
-				DI.setInt("CardFee", atoi(sp[OErent]));
-				DI.setInt("Paid", atoi(sp[OEpaid]));
-			}
+      if (sp.size()>=38) {//ECO
+        DI.setInt("Fee", atoi(sp[OEfee]));
+        DI.setInt("CardFee", atoi(sp[OErent]));
+        DI.setInt("Paid", atoi(sp[OEpaid]));
+      }
 
-			if (sp.size()>=40) {//Course
-        if(pr->getCourse(false) == 0){
-					const char *cid=sp[OEcourseno];
+      if (sp.size()>=40) {//Course
+        if (pr->getCourse(false) == 0){
+          const char *cid=sp[OEcourseno];
           const int courseid=atoi(cid);
           if (courseid>0) {
-					  pCourse course=event.getCourse(courseid);
+            pCourse course=event.getCourse(courseid);
 
             if (!course) {
               oCourse oc(&event, courseid);
@@ -445,116 +445,116 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
                 pr->setCourseId(course->getId());
             }
           }
-				}
-			}
+        }
+      }
       if (pr)
         pr->synchronize();
-		}
-	}
-	fin.close();
+    }
+  }
+  fin.close();
 
-	return true;
+  return true;
 }
 
 bool csvparser::openOutput(const char *filename)
 {
-	//Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller
-	fout.open(filename);
+  //Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller
+  fout.open(filename);
 
-	if(fout.bad())
-		return false;
-	return true;
+  if (fout.bad())
+    return false;
+  return true;
 }
 
 bool csvparser::OutputRow(const string &row)
 {
-	fout << row << endl;
-	return true;
+  fout << row << endl;
+  return true;
 }
 bool csvparser::OutputRow(vector<string> &out)
 {
-	int size=out.size();
+  int size=out.size();
 
-	for(int i=0;i<size;i++){
-		string p=out[i];
+  for(int i=0;i<size;i++){
+    string p=out[i];
 
-		//Replace " with '
-		int found=p.find_first_of("\"");
-		while (found!=string::npos){
-			p[found]='\'';
-			found=p.find_first_of("\"",found+1);
-		}
+    //Replace " with '
+    int found=p.find_first_of("\"");
+    while (found!=string::npos){
+      p[found]='\'';
+      found=p.find_first_of("\"",found+1);
+    }
 
-		if(i>0) fout << ";";
-		
-		if(p.find_first_of("; ,\t.")!=string::npos)
-			fout << "\"" << p << "\"";
-		else fout << p;
-	}
-	fout << endl;
+    if (i>0) fout << ";";
+
+    if (p.find_first_of("; ,\t.")!=string::npos)
+      fout << "\"" << p << "\"";
+    else fout << p;
+  }
+  fout << endl;
   fout.flush();
-	return true;
+  return true;
 }
 
 bool csvparser::closeOutput()
 {
-	fout.close();
-	return true;
+  fout.close();
+  return true;
 }
 
 
 int csvparser::split(char *line, vector<char *> &split_vector, char sep)
 {
-	
-	int len=strlen(line);
-	bool cite=false;
 
-	for(int m=0;m<len;m++)
-	{
-		char *ptr=&line[m];
-		
-		if(*ptr=='"')
-			ptr++;
+  int len=strlen(line);
+  bool cite=false;
 
-		while(line[m])
-		{
+  for(int m=0;m<len;m++)
+  {
+    char *ptr=&line[m];
+
+    if (*ptr=='"')
+      ptr++;
+
+    while(line[m])
+    {
 			if(!cite && line[m]==sep)
-				line[m]=0;
-			else
-			{
-				if(line[m]=='"')	
-				{
-					cite=!cite;		
-					line[m]=0;
-          if(cite)
+        line[m]=0;
+      else
+      {
+        if (line[m]=='"')
+        {
+          cite=!cite;
+          line[m]=0;
+          if (cite)
             ptr=&line[m+1];
-				}
-				m++;
-			}
-		}
-		line[m]=0;
+        }
+        m++;
+      }
+    }
+    line[m]=0;
 
-		split_vector.push_back(ptr);
+    split_vector.push_back(ptr);
 
-		//m++;
-	}
+    //m++;
+  }
 
-	return 0;
+  return 0;
 }
 
 bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses) {
-	fin.open(file);
+  fin.open(file);
 
-	if(!fin.good())
-		return false;
+  if (!fin.good())
+    return false;
 
-	char bf[1024];
-	
-	while(!fin.eof())	{	
-		fin.getline(bf, 1024);
-		vector<char *> sp;
-		split(bf, sp);
-		if (sp.size()>7) {
+  char bf[1024];
+
+  while(!fin.eof()) {
+    fin.getline(bf, 1024);
+    vector<char *> sp;
+    split(bf, sp);
+    if (sp.size()>7) {
       size_t firstIndex = 7;
       bool hasLengths = true;
       int offset = 0;
@@ -578,33 +578,33 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
       string Class = "";
 
       if (firstIndex>=6) {
-			  Class = sp[0];
-			  Course = sp[1+offset];
+        Class = sp[0];
+        Course = sp[1+offset];
         Start = sp[5+offset];
-			  Length = atof(sp[3+offset]);
-        
+        Length = atof(sp[3+offset]);
+
         if (Start[0]=='S') {
           int num = atoi(Start.substr(1).c_str());
           if (num>0)
             Start = lang.tl("Start ") + Start.substr(1);
         }
       }
-      else 
+      else
         hasLengths = false;
 
-			//Get controls
-			pCourse pc=event.getCourse(Course);				
-				
-			if (!pc) {
-				pc = event.addCourse(Course, int(Length*1000));	
-			}
-			else {
-        // Reset control
-				pc->importControls("");
-        pc->setLength(int(Length*1000));
-			}
+      //Get controls
+      pCourse pc=event.getCourse(Course);
 
-      
+      if (!pc) {
+        pc = event.addCourse(Course, int(Length*1000));
+      }
+      else {
+        // Reset control
+        pc->importControls("");
+        pc->setLength(int(Length*1000));
+      }
+
+
       vector<int> legLengths;
 
       if (hasLengths) {
@@ -622,7 +622,7 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
             if (ctrl == 0 && trim(sp[k+1]).length() == 0)
               break; // Done
 
-				    if (ctrl >= 30 && ctrl < 1000)
+            if (ctrl >= 30 && ctrl < 1000)
               pc->addControl(atoi(sp[k]));
             else {
               string str = "Oväntad kontroll 'X' i bana Y.#" + ctrlStr + "#" + pc->getName();
@@ -634,18 +634,18 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
             if (legLen > 0.001 && legLen < 30)
               legLengths.push_back(int(legLen*1000));
           }
-				}
+        }
         pc->setLength(int(Length*1000));
         pc->setStart(Start, true);
 
         if (legLengths.size() == pc->getNumControls()+1)
           pc->setLegLengths(legLengths);
 
-        if(!Class.empty() && addClasses) {
+        if (!Class.empty() && addClasses) {
           pClass cls = event.getBestClassMatch(Class);
           if (!cls)
-					  cls = event.addClass(Class);
-          
+            cls = event.addClass(Class);
+
           if (cls->getNumStages()==0) {
             cls->setCourse(pc);
           }
@@ -659,95 +659,91 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
 
         pc->synchronize();
       }
-		}
-	}
-	return true;
+    }
+  }
+  return true;
 }
 
 
 bool csvparser::ImportRAID(oEvent &event, const char *file)
 {
-	enum {RAIDid=0, RAIDteam=1, RAIDcity=2, RAIDedate=3, RAIDclass=4,
+  enum {RAIDid=0, RAIDteam=1, RAIDcity=2, RAIDedate=3, RAIDclass=4,
         RAIDclassid=5, RAIDrunner1=6, RAIDrunner2=7, RAIDcanoe=8};
-		
-	fin.open(file);
 
-	if(!fin.good())
-		return false;
+  fin.open(file);
 
-	char bf[1024];
-	fin.getline(bf, 1024);
-	
-	nimport=0;
-	while (!fin.eof()) {	
-		fin.getline(bf, 1024);
-	
-		vector<char *> sp;
-		split(bf, sp);
+  if (!fin.good())
+    return false;
 
-		if(sp.size()>8) {
-			nimport++;
+  char bf[1024];
+  fin.getline(bf, 1024);
 
-			//Create club with this club number...
-//			pClub pclub=event.AddClub(sp[RAIDcity]);
+  nimport=0;
+  while (!fin.eof()) {
+    fin.getline(bf, 1024);
 
-//      int ClubId=pclub->getId();
+    vector<char *> sp;
+    split(bf, sp);
+
+    if (sp.size()>8) {
+      nimport++;
+
       int ClubId=0;
-			//Create class with this class number...		
-			int ClassId=atoi(sp[RAIDclassid]);
-			pClass pc = event.getClassCreate(ClassId, sp[RAIDclass]);
+      //Create class with this class number...
+      int ClassId=atoi(sp[RAIDclassid]);
+      pClass pc = event.getClassCreate(ClassId, sp[RAIDclass]);
       ClassId = pc->getId();
 
-			//Club is autocreated...
-			pTeam team=event.addTeam(sp[RAIDteam], ClubId,  ClassId);
-			
-			team->setStartNo(atoi(sp[RAIDid]), false);
-			team->getDI().setInt("SortIndex", atoi(sp[RAIDcanoe]));
+      //Club is autocreated...
+      pTeam team=event.addTeam(sp[RAIDteam], ClubId,  ClassId);
+
+      team->setStartNo(atoi(sp[RAIDid]), false);
+      team->getDI().setInt("SortIndex", atoi(sp[RAIDcanoe]));
 				
-			oDataInterface teamDI=team->getDI();
-			teamDI.setDate("EntryDate", sp[RAIDedate]);
+      oDataInterface teamDI=team->getDI();
+      teamDI.setDate("EntryDate", sp[RAIDedate]);
 
       //Import runners!
-			pRunner r1=event.addRunner(sp[RAIDrunner1], ClubId, ClassId, 0, 0, false);
-			team->setRunner(0, r1, false);
-			
+      pRunner r1=event.addRunner(sp[RAIDrunner1], ClubId, ClassId, 0, 0, false);
+      team->setRunner(0, r1, false);
+
       pRunner r2=event.addRunner(sp[RAIDrunner2], ClubId, ClassId, 0, 0, false);
-			team->setRunner(1, r2, false);
-						
+      team->setRunner(1, r2, false);
+
       if (pc) {
-			  if(pc->getNumStages()<2)
-			    pc->setNumStages(2);
+        if (pc->getNumStages()<2)
+          pc->setNumStages(2);
 
         pc->setLegType(0, LTNormal);
         pc->setLegType(1, LTIgnore);
       }
       team->apply(true, 0, false);
-		}
-	}
-	fin.close();
+    }
+  }
+  fin.close();
 
-	return true;
+  return true;
 }
 
 bool csvparser::importPunches(const oEvent &oe, const char *file, vector<PunchInfo> &punches)
 {
   punches.clear();
-	fin.clear();
+  fin.clear();
   fin.open(file);
-	if(!fin.good())
-		return false;
+  if (!fin.good())
+    return false;
 
-	char bf[1024];
-	fin.getline(bf, 1024);
-	
-	nimport=0;
-	while (!fin.eof()) {	
-		fin.getline(bf, 1024);
-	
-		vector<char *> sp;
-		split(bf, sp);
+  char bf[1024];
+  fin.getline(bf, 1024);
 
-		if(sp.size()==4) {
+  nimport=0;
+  while (!fin.eof()) {
+    fin.getline(bf, 1024);
+
+    vector<char *> sp;
+    split(bf, sp);
+
+    if (sp.size()==4) {
       int no = atoi(sp[0]);
       int card = atoi(sp[1]);
       int time = oe.getRelativeTime(sp[3]);
@@ -761,14 +757,14 @@ bool csvparser::importPunches(const oEvent &oe, const char *file, vector<PunchIn
         punches.push_back(pi);
         nimport++;
       }
-		}
-	}
-	fin.close();
+    }
+  }
+  fin.close();
 
-	return true;
+  return true;
 }
 
-int analyseSITime(const oEvent &oe, const char *dow, const char *time) 
+int analyseSITime(const oEvent &oe, const char *dow, const char *time)
 {
   int t=-1;
   if (trim(dow).length()>0)
@@ -842,22 +838,22 @@ bool csvparser::importCards(const oEvent &oe, const char *file, vector<SICard> &
   cards.clear();
   fin.clear();
   fin.open(file);
-  
-	if(!fin.good()) 
-		return false;
+
+  if (!fin.good())
+    return false;
 
   //[1024*16];
   int s = 1024*256;
   vector<char> bbf(s);
-	char *bf = &bbf[0];
+  char *bf = &bbf[0];
   fin.getline(bf, s);
-	
-	nimport=0;
-	while (!fin.eof()) {	
-		fin.getline(bf, s);
-	  
-		vector<char *> sp;
-		split(bf, sp);
+
+  nimport=0;
+  while (!fin.eof()) {
+    fin.getline(bf, s);
+
+    vector<char *> sp;
+    split(bf, sp);
 
     SICard card;
 
@@ -865,7 +861,7 @@ bool csvparser::importCards(const oEvent &oe, const char *file, vector<SICard> &
       cards.push_back(card);
       nimport++;
     }
-		else if(sp.size()>28) {
+    else if (sp.size()>28) {
       int no = atoi(sp[0]);
       card.CardNumber = atoi(sp[2]);
       strncpy_s(card.FirstName, sp[5], 20);
@@ -875,11 +871,11 @@ bool csvparser::importCards(const oEvent &oe, const char *file, vector<SICard> &
       if (trim(sp[21]).length()>1) {
         card.CheckPunch.Code = atoi(sp[19]);
         card.CheckPunch.Time = analyseSITime(oe, sp[20], sp[21]);
-      } 
+      }
       else {
         card.CheckPunch.Code = -1;
         card.CheckPunch.Time = 0;
-      } 
+      }
 
       if (trim(sp[24]).length()>1) {
         card.StartPunch.Code = atoi(sp[22]);
@@ -912,26 +908,26 @@ bool csvparser::importCards(const oEvent &oe, const char *file, vector<SICard> &
           cards.push_back(card);
         }
       }
-		}
-	}
-	fin.close();
+    }
+  }
+  fin.close();
 
-	return true;
+  return true;
 }
 
 
 void csvparser::parse(const string &file, list< vector<string> > &data) {
-	data.clear();
+  data.clear();
 
   fin.open(file.c_str());
   char bf[1024];
-	if(!fin.good())
+  if (!fin.good())
     throw meosException("Failed to read file");
 
-	while(!fin.eof()) {	
-		fin.getline(bf, 1024);
-		vector<char *> sp;
-		split(bf, sp);
+  while(!fin.eof()) {
+    fin.getline(bf, 1024);
+    vector<char *> sp;
+    split(bf, sp);
 
     if (!sp.empty()) {
       data.push_back(vector<string>());
@@ -940,6 +936,64 @@ void csvparser::parse(const string &file, list< vector<string> > &data) {
         data.back()[k] = sp[k];
       }
     }
-	}
-	fin.close();
+  }
+  fin.close();
+}
+
+void csvparser::importTeamLineup(const string &file,
+                                 const map<string, int> &classNameToNumber,
+                                 vector<TeamLineup> &teams) {
+  list< vector<string> > data;
+  parse(file, data);
+  teams.clear();
+  teams.reserve(data.size()/3);
+  int membersToRead = 0;
+  int lineNo = 1;
+  while (!data.empty()) {
+    vector<string> &line = data.front();
+    if (!line.empty()) {
+      if (membersToRead == 0) {
+        if (line.size() < 2 || line.size() > 3)
+          throw meosException("Ogiltigt lag på rad X.#" + itos(lineNo) + ": " + line[0]);
+        const string cls = trim(line[0]);
+        map<string, int>::const_iterator res = classNameToNumber.find(cls);
+        if (res == classNameToNumber.end())
+          throw meosException("Okänd klass på rad X.#" + itos(lineNo) + ": " + cls);
+        if (res->second <= 1)
+          throw meosException("Klassen X är individuell.#" + cls);
+
+        membersToRead = res->second;
+        teams.push_back(TeamLineup());
+        teams.back().teamClass = cls;
+        teams.back().teamName = trim(line[1]);
+        if (line.size() >= 3)
+          teams.back().teamClub = trim(line[2]);
+      }
+      else {
+        membersToRead--;
+        teams.back().members.push_back(TeamLineup::TeamMember());
+        TeamLineup::TeamMember &member = teams.back().members.back();
+        member.name = trim(line[0]);
+        if (line.size()>1)
+          member.cardNo = atoi(line[1].c_str());
+        else
+          member.cardNo = 0;
+
+        if (line.size()>2)
+          member.club = trim(line[2]);
+
+        if (line.size() > 3)
+          member.course = trim(line[3]);
+
+        if (line.size() > 4)
+          member.cls = trim(line[4]);
+      }
+    }
+    else if (membersToRead>0) {
+      membersToRead--;
+      teams.back().members.push_back(TeamLineup::TeamMember());
+    }
+    lineNo++;
+    data.pop_front();
+  }
 }

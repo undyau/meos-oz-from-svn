@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <vector>
@@ -85,10 +85,11 @@ int convertAbsoluteTimeISO(const string &m);
 //Returns a time converted from HH:MM:SS or -1, in seconds
 int convertAbsoluteTimeHMS(const string &m);
 
-void split(const string &line, const string &separators, vector<string> &split_vector);
+const vector<string> &split(const string &line, const string &separators, vector<string> &split_vector);
+const string &unsplit(const vector<string> &split_vector, const string &separators, string &line);
 
-string MakeDash(const string &t);
-string MakeDash(const char *t);
+const string &MakeDash(const string &t);
+const string &MakeDash(const char *t);
 string FormatRank(int rank);
 const string &itos(int i);
 string itos(unsigned long i);
@@ -102,6 +103,7 @@ bool matchNumber(int number, const char *key);
 int getMeosBuild();
 string getMeosDate();
 string getMeosFullVersion();
+string getMajorVersion();
 
 void getSupporters(vector<string> &supp);
 
@@ -137,7 +139,7 @@ double stringDistance(const char *a, const char *b);
 int getNumberSuffix(const string &str);
 
 /// Extract any number from a string and return the number, prefix and suffix
-int extractAnyNumber(const string &str, string &prefix, string &suffix); 
+int extractAnyNumber(const string &str, string &prefix, string &suffix);
 
 
 /** Compare classnames, match H21 Elit with H21E and H21 E */
@@ -191,3 +193,11 @@ string getTimeZoneString(const string &date);
 /** Return bias in seconds. UTC = local time + bias. */
 int getTimeZoneInfo(const string &date);
 
+/** Compare bib numbers (which may contain non-digits, e.g. A-203, or 301a, 301b)*/
+bool compareBib(const string &b1, const string &b2);
+
+/** Split a name into Given, Family, and return Given.*/
+string getGivenName(const string &name);
+
+/** Split a name into Given, Family, and return Family.*/
+string getFamilyName(const string &name);

@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
     Copyright (C) 2009-2012 Melin Software HB
-    
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,20 +17,21 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #pragma once
 
-enum gdiFonts {  
+enum gdiFonts {
   normalText=0,
   boldText=1,
   boldLarge=2,
   boldHuge=3,
   boldSmall=5,
-  
+
   italicText = 6,
   italicMediumPlus = 7,
+  monoText = 8,
 
   fontLarge=11,
   fontMedium=12,
@@ -50,7 +51,7 @@ const int textCenter=512;
 const int timerCanBeNegative=1024;
 const int breakLines=2048;
 
-enum GDICOLOR {colorRed = RGB(128,0,0), 
+enum GDICOLOR {colorRed = RGB(128,0,0),
               colorGreen = RGB(0,128,0),
               colorDarkGrey = RGB(40,40,40),
               colorDarkRed = RGB(64,0,0),

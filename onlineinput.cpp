@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -25,7 +25,7 @@
 #include "resource.h"
 
 #include <commctrl.h>
-#include <commdlg.h> 
+#include <commdlg.h>
 #include <sys/stat.h>
 
 #include "oEvent.h"
@@ -49,14 +49,14 @@ int AutomaticCB(gdioutput *gdi, int type, void *data);
 
 static int OnlineCB(gdioutput *gdi, int type, void *data) {
   switch (type) {
-		case GUI_BUTTON: {
-			//Make a copy
-			ButtonInfo bu=*static_cast<ButtonInfo *>(data);
+    case GUI_BUTTON: {
+      //Make a copy
+      ButtonInfo bu=*static_cast<ButtonInfo *>(data);
       OnlineInput *ores = (OnlineInput *)bu.getExtra();
-  
-			return ores->processButton(*gdi, bu);
-		}
-		case GUI_LISTBOX:{
+
+      return ores->processButton(*gdi, bu);
+    }
+    case GUI_LISTBOX:{
     }
   }
   return 0;
@@ -72,7 +72,7 @@ int OnlineInput::processButton(gdioutput &gdi, ButtonInfo &bi) {
       throw meosException("Ogiltig kontrollkod");
     ListBoxInfo lbi;
     if (!gdi.getSelectedItem("Function", &lbi))
-      throw meosException("Ogiltig funktion");    
+      throw meosException("Ogiltig funktion");
     specialPunches[ctrl] = (oPunch::SpecialPunch)lbi.data;
     fillMappings(gdi);
   }
@@ -120,8 +120,8 @@ void OnlineInput::settings(gdioutput &gdi, oEvent &oe, bool created) {
   gdi.addCheckbox("UseROC", "Använd ROC-protokoll", OnlineCB, useROCProtocol).setExtra(this);
   gdi.addInput("CmpID", itos(cmpId), 10, 0, "Tävlingens ID-nummer:");
 
-  gdi.dropLine(1);  
-  
+  gdi.dropLine(1);
+
   gdi.addString("", boldText, "Kontrollmappning");
   gdi.dropLine(0.5);
   gdi.fillRight();
@@ -146,35 +146,35 @@ void OnlineInput::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
 void OnlineInput::save(oEvent &oe, gdioutput &gdi) {
   int iv=gdi.getTextNo("Interval");
-	const string &xurl=gdi.getText("URL");
+  const string &xurl=gdi.getText("URL");
 
   if (!xurl.empty())
     oe.setProperty("MIPURL", xurl);
 
   cmpId = gdi.getTextNo("CmpID");
-  
-  
+
+
   if (xurl.empty()) {
     throw meosException("URL måste anges.");
   }
-  url = xurl; 
-  
+  url = xurl;
+
   process(gdi, &oe, SyncNone);
-	interval = iv;
+  interval = iv;
 }
 
 void OnlineInput::status(gdioutput &gdi)
 {
-	gdi.addString("", 1, name);
+  gdi.addString("", 1, name);
   gdi.fillRight();
   gdi.pushX();
 
   gdi.addString("", 0, "URL:");
-  gdi.addStringUT(0, url);      
+  gdi.addStringUT(0, url);
   gdi.popX();
   gdi.dropLine(1);
 
-  gdi.addString("", 0, "Antal hämtade uppdateringar X (Y kb)#" + 
+  gdi.addString("", 0, "Antal hämtade uppdateringar X (Y kb)#" +
                         itos(importCounter-1) + "#" + itos(bytesImported/1024));
   gdi.popX();
   gdi.fillDown();
@@ -185,11 +185,11 @@ void OnlineInput::status(gdioutput &gdi)
   }
 
   gdi.fillRight();
-	gdi.dropLine(1);
+  gdi.dropLine(1);
   gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
   gdi.fillDown();
-	gdi.addButton("OnlineInput", "Inställningar...", AutomaticCB).setExtra(this);
-	gdi.popX();		
+  gdi.addButton("OnlineInput", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.popX();
 }
 
 void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
@@ -213,8 +213,8 @@ void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
     dwl.downLoadNoThread();
 
     if (!useROCProtocol) {
-      xmlobject res;    
-      xmlparser xml(0);    
+      xmlobject res;
+      xmlparser xml(0);
       try {
         xml.read(result);
         res = xml.getObject("MIPData");
@@ -247,7 +247,7 @@ void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
       csv.parse(result, rocData);
       processPunches(*oe, rocData);
     }
-       
+
     struct stat st;
     stat(result.c_str(), &st);
     bytesImported += st.st_size;
@@ -275,27 +275,27 @@ void OnlineInput::processPunches(oEvent &oe, const xmlList &punches) {
 
     int card = punches[k].getObjectInt("card");
     int time = punches[k].getObjectInt("time") / 10;
+    time = oe.getRelativeTime(formatTimeHMS(time));
 
     if (startno.length() > 0)
       r = oe.getRunnerByBibOrStartNo(startno, false);
     else
-      r = oe.getRunnerByCard(card);
+      r = oe.getRunnerByCardNo(card, time);
 
     string rname;
-    if(r) {
+    if (r) {
       rname = r->getName();
       card = r->getCardNo();
     }
     else {
       rname=lang.tl("Okänd");
     }
-    time = oe.getRelativeTime(formatTimeHMS(time));
     if (time < 0) {
       time = 0;
       addInfo("Ogiltig tid");
     }
     oe.addFreePunch(time, code, card, true);
-     
+
     addInfo("Löpare: X, kontroll: Y, kl Z#" + rname + "#" + oPunch::getType(code) + "#" +  oe.getAbsTime(time));
   }
 }
@@ -310,7 +310,7 @@ void OnlineInput::processPunches(oEvent &oe, list< vector<string> > &rocData) {
       string timeS = line[3].substr(11);
       int time = oe.getRelativeTime(timeS);
 
-      pRunner r = oe.getRunnerByCard(card);
+      pRunner r = oe.getRunnerByCardNo(card, time);
 
       string rname;
       if (r) {
@@ -326,7 +326,7 @@ void OnlineInput::processPunches(oEvent &oe, list< vector<string> > &rocData) {
         addInfo("Ogiltig tid");
       }
       oe.addFreePunch(time, code, card, true);
-     
+
       lastImportedId = max(lastImportedId, punchId);
 
       addInfo("Löpare: X, kontroll: Y, kl Z#" + rname + "#" + oPunch::getType(code) + "#" +  oe.getAbsTime(time));
@@ -337,7 +337,7 @@ void OnlineInput::processPunches(oEvent &oe, list< vector<string> > &rocData) {
 }
 
 void OnlineInput::processCards(gdioutput &gdi, oEvent &oe, const xmlList &cards) {
-  for (size_t k = 0; k < cards.size(); k++) {    
+  for (size_t k = 0; k < cards.size(); k++) {
     SICard sic;
     sic.clear(0);
     sic.CardNumber = cards[k].getObjectInt("number");
@@ -349,10 +349,10 @@ void OnlineInput::processCards(gdioutput &gdi, oEvent &oe, const xmlList &cards)
     cards[k].getObjects("p", punches);
     for (size_t j = 0; j < punches.size(); j++) {
       sic.Punch[j].Code = punches[j].getObjectInt("code");
-      sic.Punch[j].Time = punches[j].getObjectInt("time") / 10;      
+      sic.Punch[j].Time = punches[j].getObjectInt("time") / 10;
     }
     sic.nPunch = punches.size();
-    TabSI::getSI(gdi).AddCard(sic);    
+    TabSI::getSI(gdi).AddCard(sic);
   }
 }
 

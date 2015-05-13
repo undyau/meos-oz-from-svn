@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <vector>
@@ -39,9 +39,10 @@ typedef void (*GENERATETABLEDATA)(Table &table, void *ptr);
 
 struct TableUpdateInfo {
   bool doAdd;
+  bool doRefresh;
   oBase *object;
   int id;
-  TableUpdateInfo() : doAdd(false), object(0), id(0) {}
+  TableUpdateInfo() : doAdd(false), object(0), id(0), doRefresh(false) {}
 };
 
 
@@ -49,7 +50,7 @@ class TableCell
 {
   string contents;
   RECT absPos;
-  
+
   DWORD id;
   oBase *owner;
   bool canEdit;
@@ -57,7 +58,7 @@ class TableCell
 
   friend class TableRow;
   friend class Table;
-  friend int tblSelectionCB(gdioutput *gdi, int type, void *data); 
+  friend int tblSelectionCB(gdioutput *gdi, int type, void *data);
 };
 
 class TableRow
@@ -66,49 +67,51 @@ protected:
   string key;
   int intKey;
 
-	vector<TableCell> cells;
+  vector<TableCell> cells;
   int id;
 
-	string *SortString;
-	int sInt;
+  string *SortString;
+  int sInt;
 
   int ypos;
   int height;
   oBase *ob;
-  
+
 public:
   oBase *getObject() const {return ob;}
-	bool operator<(const TableRow &r){return *SortString<*r.SortString;}
-	static bool cmpint(const TableRow &r1, const TableRow &r2) {return r1.sInt<r2.sInt;}
+  void setObject(oBase &obj);
+  bool operator<(const TableRow &r){return *SortString<*r.SortString;}
+  static bool cmpint(const TableRow &r1, const TableRow &r2) {return r1.sInt<r2.sInt;}
 
-	TableRow(int elem, oBase *object): sInt(0)
-	{
-		cells.resize(elem);
-		SortString=&cells[0].contents;
+  TableRow(int elem, oBase *object): sInt(0)
+  {
+    cells.resize(elem);
+    SortString=&cells[0].contents;
     ob = object;
     id = -1;
-	}
+  }
 
-	TableRow(const TableRow &t)
-	{
-		cells=t.cells;
+  TableRow(const TableRow &t)
+  {
+    cells=t.cells;
     SortString=&cells[0].contents;
     ob = t.ob;
     id = t.id;
-	}
-	friend class Table;
+  }
+  friend class Table;
   friend struct TableSortIndex;
 
 };
 
 class gdioutput;
 
-struct RowInfo
-{	
-	char name[64];
-	mutable int width;
+struct ColInfo
+{
+  char name[64];
+  mutable int width;
   int baseWidth;
-	bool isnumeric;
+  bool isnumeric;
+  int padWidthZeroSort;
   bool formatRight;
   RECT title;
   RECT condition;
@@ -134,13 +137,13 @@ protected:
   bool commandLock;
   string tableName;
   string internalName;
-	vector<RowInfo> Titles;
+  vector<ColInfo> Titles;
   vector<int> xpos;
-	unsigned nTitles;
-	int PrevSort;
-	mutable int rowHeight;
+  unsigned nTitles;
+  int PrevSort;
+  mutable int rowHeight;
   int baseRowHeight;
-	vector<TableRow> Data;
+  vector<TableRow> Data;
   size_t dataPointer; // Insertation pointer
   vector<TableSortIndex> sortIndex;
   vector<int> columns;
@@ -221,12 +224,12 @@ protected:
   void scrollToCell(gdioutput &gdi, int row, int col);
 
   bool destroyEditControl(gdioutput &gdi);
-  
 
-  void getExportData(int col1, int col2, int row1, int row2, 
-                     string &html, string &txt) const; 
 
-  
+  void getExportData(int col1, int col2, int row1, int row2,
+                     string &html, string &txt) const;
+
+
   // Delete rows in selected range. Return number of rows that could not be removed
   int deleteRows(int row1, int row2);
 
@@ -257,7 +260,7 @@ public:
   const string& getTableName() const {return tableName;}
   /// Get the internal identifier of the table
   const string& getInternalName() const {return internalName;}
-  
+
   bool hasAutoSelect() const {return  doAutoSelectColumns;}
 
   void updateDimension(gdioutput &gdi);
@@ -286,7 +289,7 @@ public:
   void setPosition(int x, int y, int maxX, int maxY) {t_xpos = x, t_ypos = y; t_maxX = maxX, t_maxY = maxY;}
   void exportClipboard(gdioutput &gdi);
   void importClipboard(gdioutput &gdi);
-  
+
 
   bool hasEditControl() {return hEdit!=0;}
 
@@ -301,12 +304,12 @@ public:
   void selectColumns(const set<int> &sel);
 
   oEvent *getEvent() const {return oe;}
-	void getDimension(gdioutput &gdi, int &dx, int &dy, bool filteredResult) const;
-	void draw(gdioutput &gdi, HDC hDC, int dx, int dy, 
+  void getDimension(gdioutput &gdi, int &dx, int &dy, bool filteredResult) const;
+  void draw(gdioutput &gdi, HDC hDC, int dx, int dy,
             const RECT &screen);
 
   void print(gdioutput &gdi, HDC hDC, int dx, int dy);
-  
+
   //Returns true if capture is taken
   bool mouseMove(gdioutput &gdi, int x, int y);
   bool mouseLeftDown(gdioutput &gdi, int x, int y);
@@ -316,15 +319,17 @@ public:
   bool editCell(gdioutput &gdi, int row, int col);
 
   bool keyCommand(gdioutput &gdi, KeyCommandCode code);
-	void sort(int col);
+  void sort(int col);
   void filter(int col, const string &filt, bool forceFilter=false);
 
-	int addColumn(const string &Title, int width, bool isnum, bool formatRight = false);
+  int addColumn(const string &Title, int width, bool isnum, bool formatRight = false);
+  int addColumnPaddedSort(const string &title, int width, int padding, bool formatRight = false);
 
   void reserve(size_t siz);
 
-	void addRow(int rowId, oBase *object);
-	void set(int column, oBase &owner, int id, const string &data, 
+  TableRow *getRowById(int rowId);
+  void addRow(int rowId, oBase *object);
+  void set(int column, oBase &owner, int id, const string &data,
            bool canEdit=true, CellType type=cellEdit);
 
   //Reload a row from data
@@ -338,9 +343,9 @@ public:
   void resetColumns();
   void update();
 
-	Table(oEvent *oe_, int rowHeight, 
+  Table(oEvent *oe_, int rowHeight,
         const string &name, const string &tname);
-	~Table(void);
+  ~Table(void);
 
   friend struct TableSortIndex;
 };
@@ -356,7 +361,7 @@ struct TableSortIndex {
 
 enum {TID_CLASSNAME, TID_COURSE, TID_NUM, TID_ID, TID_MODIFIED,
 TID_RUNNER, TID_CLUB, TID_START, TID_TIME,
-TID_FINISH, TID_STATUS, TID_RUNNINGTIME, TID_PLACE, 
+TID_FINISH, TID_STATUS, TID_RUNNINGTIME, TID_PLACE,
 TID_CARD, TID_TEAM, TID_LEG, TID_CONTROL, TID_CODES, TID_FEE, TID_PAID,
 TID_INPUTTIME, TID_INPUTSTATUS, TID_INPUTPOINTS, TID_INPUTPLACE,
 TID_NAME, TID_NATIONAL, TID_SEX, TID_YEAR, TID_INDEX, TID_ENTER, TID_STARTNO};

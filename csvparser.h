@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // csvparser.h: interface for the csvparser class.
@@ -32,6 +32,7 @@
 #endif // _MSC_VER > 1000
 
 #include <vector>
+#include <map>
 
 class oEvent;
 struct SICard;
@@ -43,14 +44,30 @@ struct PunchInfo {
   char date[28];
 };
 
-class csvparser  
+
+struct TeamLineup {
+  struct TeamMember {
+    string name;
+    string club;
+    int cardNo;
+    string course;
+    string cls;
+  };
+
+  string teamName;
+  string teamClass;
+  string teamClub;
+  vector<TeamMember> members;
+};
+
+class csvparser
 {
 protected:
-	ofstream fout;
-	ifstream fin;
+  ofstream fout;
+  ifstream fin;
 
-	int LineNumber;
-	string ErrorMessage;
+  int LineNumber;
+  string ErrorMessage;
 
   // Returns true if a SI-manager line is identified
   bool checkSimanLine(const oEvent &oe, const vector<char *> &sp, SICard &cards);
@@ -58,29 +75,33 @@ protected:
 public:
   void parse(const string &file, list< vector<string> > &dataOutput);
 
-	bool openOutput(const char *file);
-	bool closeOutput();
-	bool OutputRow(vector<string> &out);
-	bool OutputRow(const string &row);
+  void importTeamLineup(const string &file,
+                        const map<string, int> &classNameToNumber,
+                        vector<TeamLineup> &teams);
 
-	int nimport;
-	bool ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses);
-	bool ImportOS_CSV(oEvent &event, const char *file);
+  bool openOutput(const char *file);
+  bool closeOutput();
+  bool OutputRow(vector<string> &out);
+  bool OutputRow(const string &row);
+
+  int nimport;
+  bool ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses);
+  bool ImportOS_CSV(oEvent &event, const char *file);
 	bool ImportOr_CSV(oEvent &event, const char *file);
-	bool ImportRAID(oEvent &event, const char *file);
+  bool ImportRAID(oEvent &event, const char *file);
 
-  bool importPunches(const oEvent &oe, const char *file, 
+  bool importPunches(const oEvent &oe, const char *file,
                      vector<PunchInfo> &punches);
 
-  bool importCards(const oEvent &oe, const char *file, 
+  bool importCards(const oEvent &oe, const char *file,
                    vector<SICard> &punches);
 
 	int split(char *line, vector<char *> &split, char sep = ';');
 
-	bool ImportOE_CSV(oEvent &event, const char *file);
-	int iscsv(const char *file);
-	csvparser();
-	virtual ~csvparser();
+  bool ImportOE_CSV(oEvent &event, const char *file);
+  int iscsv(const char *file);
+  csvparser();
+  virtual ~csvparser();
 
 };
 

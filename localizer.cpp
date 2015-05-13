@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -43,7 +43,7 @@ public:
   void translateAll(const LocalizerImpl &all);
 
   const string &translate(const string &str, bool &found);
-  
+
   void saveUnknown(const string &file);
   void saveTable(const string &file);
   void loadTable(const string &file, const string &language);
@@ -87,7 +87,7 @@ void Localizer::LocalizerInternal::set(Localizer &lio) {
 
   implBase = li.implBase;
   impl = li.impl;
-  li.user = this;  
+  li.user = this;
 }
 
 vector<string> Localizer::LocalizerInternal::getLangResource() const {
@@ -123,8 +123,7 @@ const string &Localizer::LocalizerInternal::tl(const string &str) {
   return *ret;
 }
 
-
-const string &LocalizerImpl::translate(const string &str, bool &found) 
+const string &LocalizerImpl::translate(const string &str, bool &found)
 {
   found = false;
   static int i = 0;
@@ -132,7 +131,7 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
   static string value[bsize];
   int len = str.length();
 
-  if(len==0)
+  if (len==0)
     return str;
 
   if (str[0]=='#') {
@@ -142,12 +141,12 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
     return value[i];
   }
 
-  if (str[0]==',' || str[0]==' ' || str[0]=='.'  
+  if (str[0]==',' || str[0]==' ' || str[0]=='.'
        || str[0]==':'  || str[0]==';' || str[0]=='<' || str[0]=='>') {
     unsigned k=1;
     while(str[k] && (str[k]==' ' || str[k]=='.' || str[k]==':' || str[k]=='<' || str[k]=='>'))
       k++;
-    
+
     if (k<str.length()) {
       string sub = str.substr(k);
       i = (i + 1)%bsize;
@@ -196,7 +195,7 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 
 
   char last = str[len-1];
-  if (last != ':' && last != '.' && last != ' ' && last != ',' && 
+  if (last != ':' && last != '.' && last != ' ' && last != ',' &&
       last != ';' && last != '<' && last != '>') {
 #ifdef _DEBUG
     if (str.length()>1)
@@ -213,10 +212,10 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 
   while(pos>0) {
     char last = str[pos];
-    if (last != ':' && last != ' ' && last != ',' && last != '.' && 
+    if (last != ':' && last != ' ' && last != ',' && last != '.' &&
         last != ';' && last != '<' && last != '>')
       break;
-  
+
     pos = str.find_last_not_of(last, pos);
   }
 
@@ -242,7 +241,7 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 }
 const string newline = "\n";
 
-void LocalizerImpl::saveUnknown(const string &file) 
+void LocalizerImpl::saveUnknown(const string &file)
 {
   if (!unknown.empty()) {
     ofstream fout(file.c_str(), ios::trunc|ios::out);
@@ -324,7 +323,7 @@ void LocalizerImpl::translateAll(const LocalizerImpl &all) {
   }
 }
 
-void LocalizerImpl::saveTable(const string &file) 
+void LocalizerImpl::saveTable(const string &file)
 {
   ofstream fout((language+"_"+file).c_str(), ios::trunc|ios::out);
   for (map<string, string>::iterator it = table.begin(); it!=table.end(); ++it) {
@@ -338,7 +337,7 @@ void LocalizerImpl::saveTable(const string &file)
   }
 }
 
-void LocalizerImpl::loadTable(int id, const string &language) 
+void LocalizerImpl::loadTable(int id, const string &language)
 {
   string sname = "#"+itos(id);
   const char *name = sname.c_str();
@@ -360,7 +359,7 @@ void LocalizerImpl::loadTable(int id, const string &language)
     bf = &lang[pos];
     while(pos<size && lang[pos] != '\n' && lang[pos] != '\r')
       pos++;
-  
+
     if (lang[pos]=='\n' || lang[pos]=='\r') {
       lang[pos] = 0;
       if (strlen(bf)>0 && bf[0] != '#')
@@ -372,14 +371,14 @@ void LocalizerImpl::loadTable(int id, const string &language)
   }
 
   delete[] lang;
-  loadTable(raw, language);  
+  loadTable(raw, language);
 }
 
-void LocalizerImpl::loadTable(const string &file, const string &language) 
+void LocalizerImpl::loadTable(const string &file, const string &language)
 {
   clear();
   ifstream fin(file.c_str(), ios::in);
-  
+
   if (!fin.good())
     return;
 
@@ -402,12 +401,12 @@ void LocalizerImpl::loadTable(const string &file, const string &language)
     if (bf[0]!=0 && bf[0]!='#')
       raw.push_back(bf);
   }
-  
+
   loadTable(raw, language);
 }
 
 
-void LocalizerImpl::loadTable(const vector<string> &raw, const string &language) 
+void LocalizerImpl::loadTable(const vector<string> &raw, const string &language)
 {
   vector<int> order(raw.size());
   for (size_t k = 0; k<raw.size(); k++)
@@ -447,7 +446,7 @@ void LocalizerImpl::loadTable(const vector<string> &raw, const string &language)
 
 #endif
 
-void LocalizerImpl::clear() 
+void LocalizerImpl::clear()
 {
   table.clear();
   unknown.clear();

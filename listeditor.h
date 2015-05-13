@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 class MetaList;
@@ -29,7 +29,7 @@ class gdioutput;
 class BaseInfo;
 class ButtonInfo;
 class oEvent;
-
+enum EPostType;
 #include <vector>
 
 class ListEditor {
@@ -43,6 +43,8 @@ private:
   bool dirtyExt;
   bool dirtyInt;
   SaveType lastSaved;
+  const char *getIndexDescription(EPostType type);
+
   void showLine(gdioutput &gdi, const vector<MetaListPost> &line, int ix) const;
   int editList(gdioutput &gdi, int type, BaseInfo &data);
   ButtonInfo &addButton(gdioutput &gdi, const MetaListPost &mlp, int x, int y,
@@ -59,7 +61,10 @@ private:
   /// Check and ask if there are changes to save
   bool checkSave(gdioutput &gdi);
 
-  void makeDirty(gdioutput &gdi, DirtyFlag inside, DirtyFlag outside); 
+  // Enable or disable open button
+  void enableOpen(gdioutput &gdi);
+
+  void makeDirty(gdioutput &gdi, DirtyFlag inside, DirtyFlag outside);
 public:
   ListEditor(oEvent *oe);
   virtual ~ListEditor();
@@ -68,6 +73,9 @@ public:
   void load(const MetaListContainer &mlc, int index);
 
   void show(gdioutput &gdi);
+
+  MetaList *getCurrentList() const {return currentList;};
+
 
   friend int editListCB(gdioutput*, int, void *);
 

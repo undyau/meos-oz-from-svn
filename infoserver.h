@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 /** Class for keeping an external information server (online results) up-to-date */
@@ -33,26 +33,51 @@ class oAbstractRunner;
 class oRunner;
 class oTeam;
 class oClub;
-class xmlparser;
 class oControl;
-
+class xmlparser;
 class gdioutput;
 
-class InfoBase  
+
+class xmlbuffer {
+private:
+  struct block {
+    string tag;
+    vector<pair<string, string>> prop;
+    string value;
+    vector<xmlbuffer> subValues;
+  };
+
+  list<block> blocks;
+  bool complete;
+public:
+  void setComplete(bool c) {complete = c;}
+  xmlbuffer &startTag(const char *tag, const vector< pair<string, string> > &prop);
+  void endTag();
+  void write(const char *tag,
+             const vector< pair<string, string> > &prop,
+             const string &value);
+
+  size_t size() const {return blocks.size();}
+  bool commit(xmlparser &xml, int count);
+
+  void startXML(xmlparser &xml, const string &dest);
+};
+
+class InfoBase
 {
-private: 
+private:
 	bool committed;
 	const int id;
 protected:
   void modified() {committed = false;}
-  virtual void serialize(xmlparser &xml, bool diffOnly) const = 0;
+  virtual void serialize(xmlbuffer &xml, bool diffOnly) const = 0;
 
-  // Converts a relative time to absolute time: 
-  // number of tenths of a second since 00:00:00 on the day of 
+  // Converts a relative time to absolute time:
+  // number of tenths of a second since 00:00:00 on the day of
   // the zero time of the competition
   int convertRelativeTime(const oBase &elem, int t);
 public:
-  
+
 	int getId() const {return id;}
 	bool isCommitted() const {return committed;}
 
@@ -70,7 +95,7 @@ class InfoRadioControl : public InfoBase {
   protected:
     string name;
     bool synchronize(oControl &c);
-    void serialize(xmlparser &xml, bool diffOnly) const; 
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
   public:
     InfoRadioControl(int id);
     virtual ~InfoRadioControl() {}
@@ -85,7 +110,7 @@ class InfoClass : public InfoBase {
     vector< vector<int> > radioControls;
     vector<int> linearLegNumberToActual;
     bool synchronize(oClass &c);
-    void serialize(xmlparser &xml, bool diffOnly) const;
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
   public:
     InfoClass(int id);
     virtual ~InfoClass() {}
@@ -97,7 +122,7 @@ class InfoOrganization : public InfoBase {
   protected:
     string name;
     bool synchronize(oClub &c);
-    void serialize(xmlparser &xml, bool diffOnly) const;
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
   public:
     InfoOrganization(int id);
     virtual ~InfoOrganization() {}
@@ -123,7 +148,7 @@ class InfoBaseCompetitor : public InfoBase {
     int status;
     int startTime;
     int runningTime;
-    void serialize(xmlparser &xml, bool diffOnly) const;
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
     bool synchronizeBase(oAbstractRunner &bc);
   public:
     InfoBaseCompetitor(int id);
@@ -136,7 +161,7 @@ class InfoCompetitor : public InfoBaseCompetitor {
     int inputTime;
     int totalStatus;
     bool synchronize(const InfoCompetition &cmp, oRunner &c);
-    void serialize(xmlparser &xml, bool diffOnly) const;
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
     bool changeTotalSt;
     bool changeRadio;
   public:
@@ -151,7 +176,7 @@ class InfoTeam : public InfoBaseCompetitor {
     // The outer level holds legs, the inner level holds (parallel/patrol) runners on each leg.
     vector< vector<int> > competitors;
     bool synchronize(oTeam &t);
-    void serialize(xmlparser &xml, bool diffOnly) const;
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
   public:
     InfoTeam(int id);
     virtual ~InfoTeam() {}
@@ -166,6 +191,7 @@ private:
     string homepage;
 protected:
     bool forceComplete;
+
     list<InfoBase *> toCommit;
 
     map<int, InfoRadioControl> controls;
@@ -175,15 +201,15 @@ protected:
     map<int, InfoTeam> teams;
 
     void needCommit(InfoBase &obj);
-    void serialize(xmlparser &xml, bool diffOnly) const;
-    
+    void serialize(xmlbuffer &xml, bool diffOnly) const;
+
 
   public:
     const vector<int> &getControls(int classId, int legNumber) const;
     bool synchronize(oEvent &oe, const set<int> &classes);
-    
-    int getCompleteXML(const string &destination, bool zip, gdioutput &utfConverter);
-    int getDiffXML(const string &destination, bool zip, gdioutput &utfConverter);
+
+    void getCompleteXML(xmlbuffer &xml);
+    void getDiffXML(xmlbuffer &xml);
 
     void commitComplete();
 

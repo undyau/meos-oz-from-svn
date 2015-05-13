@@ -4,8 +4,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -21,7 +21,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "gdistructures.h"
@@ -43,7 +43,7 @@ struct PageInfo {
   float pageY;
   float leftMargin;
   float scale;
-  
+
   bool printHeader;
   bool noPrintMargin;
   int nPagesTotal; //Total number of pages to print
@@ -74,11 +74,11 @@ struct RenderedPage {
 };
 
 struct PrinterObject {
-	//Printing
+  //Printing
   HDC hDC;
-	HGLOBAL hDevMode;
-	HGLOBAL hDevNames;
-	
+  HGLOBAL hDevMode;
+  HGLOBAL hDevNames;
+
   void freePrinter();
 
   string Device;
@@ -90,19 +90,19 @@ struct PrinterObject {
   bool onlyChanged;
 
   struct DATASET {
-	  int pWidth_mm;
-	  int pHeight_mm;
-	  double pMgBottom;
-	  double pMgTop;
-	  double pMgRight;
-	  double pMgLeft;
+    int pWidth_mm;
+    int pHeight_mm;
+    double pMgBottom;
+    double pMgTop;
+    double pMgRight;
+    double pMgLeft;
 
-	  int MarginX;
-	  int MarginY;
-	  int PageX;
-	  int PageY;
-	  double Scale;
-	  bool LastPage;
+    int MarginX;
+    int MarginY;
+    int PageX;
+    int PageY;
+    double Scale;
+    bool LastPage;
   } ds;
 
   void operator=(const PrinterObject &po);

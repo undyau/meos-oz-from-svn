@@ -7,8 +7,8 @@
 #include <hash_set>
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -72,12 +72,16 @@ struct RunnerDBEntry {
 
   __int64 getExtId() const;
   void setExtId(__int64 id);
+
+  bool isRemoved() const {return (reserved & 1) == 1;}
+  void remove() {reserved |= 1;}
 };
 
 typedef vector<RunnerDBEntry> RunnerDBVector;
 
 class oDBRunnerEntry;
 class oClass;
+class oDBClubEntry;
 
 class RunnerDB {
 private:
@@ -91,27 +95,29 @@ private:
   intkeymap<oClass *> runnerInEvent;
 
   /** Init name hash lazy */
-  void setupNameHash() const; 
-  void setupIdHash() const; 
-  void setupCNHash() const; 
+  void setupNameHash() const;
+  void setupIdHash() const;
+  void setupCNHash() const;
 
   vector<RunnerDBEntry> rdb;
-  vector<oClub> cdb;
+  vector<oDBClubEntry> cdb;
   vector<oDBRunnerEntry> oRDB;
 
   // Runner card hash
   inthashmap rhash;
 
   // Runner id hash
-  //mutable map<int, int> idhash;
   mutable inthashmap idhash;
-  
+
   // Club id hash
   inthashmap chash;
 
+  // Last known free index
+  int freeCIx;
+
   // Name hash
   mutable multimap<string, int> nhash;
-  
+
   // Club name hash
   mutable multimap<string, int> cnhash;
 
@@ -131,7 +137,11 @@ public:
 
   void generateRunnerTableData(Table &table, oDBRunnerEntry *addEntry);
   void generateClubTableData(Table &table, oClub *addEntry);
-  
+
+  void refreshRunnerTableData(Table &table);
+  void refreshClubTableData(Table &table);
+  void refreshTables();
+
   Table *getRunnerTB();
   Table *getClubTB();
 
@@ -152,33 +162,36 @@ public:
   /** Prepare for loading runner from server*/
   void prepareLoadFromServer(int nrunner, int nclub);
 
-  const vector<RunnerDBEntry>& getRunnerDB();
-  const vector<oClub>& getClubDB();
+  const vector<RunnerDBEntry>& getRunnerDB() const;
+  const vector<oDBClubEntry>& getClubDB() const;
 
   void clearRunners();
   void clearClubs();
 
   /** Add a club. Create a new Id if necessary*/
   int addClub(oClub &c, bool createNewId);
-  RunnerDBEntry *addRunner(const char *name, __int64 extId, 
+  RunnerDBEntry *addRunner(const char *name, __int64 extId,
                            int club, int card);
-  
+
+  oDBRunnerEntry *addRunner();
+  oClub *addClub();
+
   RunnerDBEntry *getRunnerByIndex(size_t index) const;
   RunnerDBEntry *getRunnerById(int extId) const;
   RunnerDBEntry *getRunnerByCard(int card) const;
-  RunnerDBEntry *getRunnerByName(const string &name, int clubId, 
+  RunnerDBEntry *getRunnerByName(const string &name, int clubId,
                                  int expectedBirthYear) const;
-  
+
   bool getClub(int clubId, string &club) const;
   oClub *getClub(int clubId) const;
-  
-  oClub *getClub(const string &name) const; 
-  
+
+  oClub *getClub(const string &name) const;
+
   void saveClubs(const char *file);
   void saveRunners(const char *file);
   void loadRunners(const char *file);
   void loadClubs(const char *file);
-  
+
   void updateAdd(const oRunner &r, map<int, int> &clubIdMap);
 
   void importClub(oClub &club, bool matchName);
@@ -188,10 +201,11 @@ public:
   RunnerDB(oEvent *);
   ~RunnerDB(void);
   friend class oDBRunnerEntry;
+  friend class oDBClubEntry;
 };
 
 class oDBRunnerEntry : public oBase {
-private: 
+private:
   RunnerDB *db;
   int index;
 protected:
@@ -207,7 +221,7 @@ public:
   const RunnerDBEntry &getRunner() const;
 
   void addTableRow(Table &table) const;
-  bool inputData(int id, const string &input, 
+  bool inputData(int id, const string &input,
                  int inputId, string &output, bool noUpdate);
   void fillInput(int id, vector< pair<string, size_t> > &out, size_t &selected);
 
@@ -218,4 +232,19 @@ public:
   bool canRemove() const;
 
   string getInfo() const {return "Database Runner";}
+};
+
+
+class oDBClubEntry : public oClub {
+private:
+  int index;
+  RunnerDB *db;
+public:
+  oDBClubEntry(oEvent *oe, int id, int index, RunnerDB *db);
+  oDBClubEntry(const oClub &c, int index, RunnerDB *db);
+
+  int getTableId() const;
+  virtual ~oDBClubEntry();
+  void remove();
+  bool canRemove() const;
 };

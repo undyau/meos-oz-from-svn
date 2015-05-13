@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -19,27 +19,54 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 class oRunner;
+#include "gdifonts.h"
+#include "gdioutput.h"
+
+struct SpeakerString {
+  string str;
+  int format;
+  bool hasTimer;
+  int timer;
+  int timeout;
+  string moveKey;
+  GDICOLOR color;
+  SpeakerString() : format(0), hasTimer(false), timer(0), timeout(NOTIMEOUT), color(colorDefault) {}
+  SpeakerString(int formatIn, const string &in) : str(in), format(formatIn), hasTimer(false),
+                                           timer(0), timeout(NOTIMEOUT),  color(colorDefault) {}
+  SpeakerString(int formatIn, int timerIn, int timeoutIn = NOTIMEOUT) : format(formatIn),
+                                           hasTimer(true), timer(timerIn),
+                                           timeout(timeoutIn), color(colorDefault) {}
+};
 
 class oSpeakerObject
 {
 public:
+  struct RunningTime {
+    int time;
+    int preliminary;
+    RunningTime() : time(0), preliminary(0) {}
+  };
+
   oRunner *owner;
-  string name;
+  string bib;
+  vector<string> names;
+  vector<string> outgoingnames;
+  string resultRemark;
   string club;
-  string placeS;
   string startTimeS;
 
+  bool useSinceLast;
   int place;
+  int parallelScore;
   RunnerStatus status;
   RunnerStatus finishStatus;
-  int runningTime;
-  int preliminaryRunningTime;
 
-  int runningTimeLeg;
-  int preliminaryRunningTimeLeg;
+  RunningTime runningTime;
+  RunningTime runningTimeLeg;
+  RunningTime runningTimeSinceLast;
 
   bool isRendered;
   int priority;
@@ -47,4 +74,10 @@ public:
 
   // In seconds. Negative if undefined.
   int timeSinceChange;
+
+  oSpeakerObject() : owner(0), place(0), parallelScore(0), status(StatusUnknown),
+                     finishStatus(StatusUnknown), isRendered(false),
+                     priority(0), missingStartTime(false), timeSinceChange(-1), useSinceLast(false) {}
+
 };
+

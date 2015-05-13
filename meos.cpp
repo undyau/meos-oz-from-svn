@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -61,6 +61,8 @@
 #include "socket.h"
 #include "oExtendedEvent.h"
 #include "autotask.h"
+#include "meosexception.h"
+#include "parser.h"
 
 gdioutput *gdi_main=0;
 oEvent *gEvent=0;
@@ -79,7 +81,7 @@ HWND hWndWorkspace;
 #pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 void removeTempFiles();
-void Setup(bool overwrite);
+void Setup(bool overwrite, bool overwriteAll);
 
 // Global Variables:
 HINSTANCE hInst; // current instance
@@ -88,16 +90,16 @@ TCHAR szWindowClass[MAX_LOADSTRING]; // The title bar text
 TCHAR szWorkSpaceClass[MAX_LOADSTRING]; // The title bar text
 
 // Foward declarations of functions included in this code module:
-ATOM				MyRegisterClass(HINSTANCE hInstance);
-BOOL				InitInstance(HINSTANCE, int);
-LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK	WorkSpaceWndProc(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam); 
+ATOM MyRegisterClass(HINSTANCE hInstance);
+BOOL InitInstance(HINSTANCE, int);
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK WorkSpaceWndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam);
 void registerToolbar(HINSTANCE hInstance);
 extern const char *szToolClass;
 
-HHOOK g_hhk; //- handle to the hook procedure. 
+HHOOK g_hhk; //- handle to the hook procedure.
 
 HWND hMainTab=NULL;
 
@@ -115,7 +117,7 @@ void LoadPage(const string &name)
   list<TabObject>::iterator it;
 
   for (it=tabList->begin(); it!=tabList->end(); ++it) {
-    if(it->name==name)
+    if (it->name==name)
       it->loadPage(*gdi_main);
   }
 }
@@ -148,29 +150,31 @@ int APIENTRY WinMain(HINSTANCE hInstance,
                      int       nCmdShow)
 {
   atexit(dumpLeaks);	//
-	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+  _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 
   if (strstr(lpCmdLine, "-s") != 0) {
-    Setup(true);
+    Setup(true, false);
     exit(0);
   }
 
   lang.init();
   StringCache::getInstance().init();
-    
+
   GetCurrentDirectory(MAX_PATH, programPath);
-  
+
   getUserFile(settings, "meospref.xml");
+
+  Parser::test();
 
   int rInit = (GetTickCount() / 100);
   InitRanom(rInit, rInit/379);
 
   tabList=new list<TabObject>;
 
-	MSG msg;
-	HACCEL hAccelTable;
+  MSG msg;
+  HACCEL hAccelTable;
 
-  gdi_main = new gdioutput(1.0, ANSI, 0);
+  gdi_main = new gdioutput("main", 1.0, ANSI);
   gdi_extra.push_back(gdi_main);
 
   try {
@@ -180,16 +184,16 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     gdi_main->alert(string("Failed to create base event: ") + ex.what());
     return 0;
   }
-  
+
   gEvent->loadProperties(settings);
-  
+
   lang.get().addLangResource("English", "104");
   lang.get().addLangResource("Svenska", "103");
   lang.get().addLangResource("Deutsch", "105");
   lang.get().addLangResource("Dansk", "106");
   lang.get().addLangResource("Russian (ISO 8859-5)", "107");
   lang.get().addLangResource("English (ISO 8859-2)", "108");
-  
+
   if (fileExist("extra.lng")) {
     lang.get().addLangResource("Extraspråk", "extra.lng");
   }
@@ -199,7 +203,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     if (fileExist(lpath))
       lang.get().addLangResource("Extraspråk", lpath);
   }
-  
+
   string defLang = gEvent->getPropertyString("Language", "Svenska");
 
   // Backward compatibility
@@ -222,8 +226,11 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     getUserFile(listpath, "");
     vector<string> res;
     expandDirectory(listpath, "*.lxml", res);
+    expandDirectory(listpath, "*.listdef", res);
+#
 #ifdef _DEBUG
     expandDirectory(".\\Lists\\", "*.lxml", res);
+    expandDirectory(".\\Lists\\", "*.listdef", res);
 #endif
     string err;
 
@@ -235,7 +242,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         xml.read(listpath);
 
         xmlobject xlist = xml.getObject(0);
-        gEvent->getListContainer().load(MetaListContainer::InternalList, xlist);
+        gEvent->getListContainer().load(MetaListContainer::InternalList, xlist, true);
       }
       catch (std::exception &ex) {
         string errLoc = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
@@ -254,47 +261,47 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   }
 
   gEvent->openRunnerDatabase("database");
-	strcpy_s(szTitle, "MeOS");
-	strcpy_s(szWindowClass, "MeosMainClass");
-	strcpy_s(szWorkSpaceClass, "MeosWorkSpace");
-	MyRegisterClass(hInstance);  
+  strcpy_s(szTitle, "MeOS");
+  strcpy_s(szWindowClass, "MeosMainClass");
+  strcpy_s(szWorkSpaceClass, "MeosWorkSpace");
+  MyRegisterClass(hInstance);
   registerToolbar(hInstance);
 
   string encoding = lang.tl("encoding");
   gdi_main->setFont(gEvent->getPropertyInt("TextSize", 0),
                   gEvent->getPropertyString("TextFont", "Arial"), interpetEncoding(encoding));
 
-	// Perform application initialization:
-	if (!InitInstance (hInstance, nCmdShow)) {
-		return FALSE;
-	}
+  // Perform application initialization:
+  if (!InitInstance (hInstance, nCmdShow)) {
+    return FALSE;
+  }
 
-	RECT rc;
-	GetClientRect(hWndMain, &rc);
-	SendMessage(hWndMain, WM_SIZE, 0, MAKELONG(rc.right, rc.bottom));
+  RECT rc;
+  GetClientRect(hWndMain, &rc);
+  SendMessage(hWndMain, WM_SIZE, 0, MAKELONG(rc.right, rc.bottom));
 
-	gdi_main->init(hWndWorkspace, hWndMain, hMainTab);
-	gdi_main->getTabs().get(TCmpTab)->loadPage(*gdi_main);
-	
+  gdi_main->init(hWndWorkspace, hWndMain, hMainTab);
+  gdi_main->getTabs().get(TCmpTab)->loadPage(*gdi_main);
+
   autoTask = new AutoTask(hWndMain, *gEvent, *gdi_main);
-	
+
   autoTask->setTimers();
 
-  // Install a hook procedure to monitor the message stream for mouse 
-  // messages intended for the controls in the dialog box. 
-  g_hhk = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, 
+  // Install a hook procedure to monitor the message stream for mouse
+  // messages intended for the controls in the dialog box.
+  g_hhk = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc,
       (HINSTANCE) NULL, GetCurrentThreadId());
 
-	hAccelTable = LoadAccelerators(hInstance, (LPCTSTR)IDC_MEOS);
+  hAccelTable = LoadAccelerators(hInstance, (LPCTSTR)IDC_MEOS);
 
   initMySQLCriticalSection(true);
-	// Main message loop:
-	while (GetMessage(&msg, NULL, 0, 0)) {
-		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-	}
+  // Main message loop:
+  while (GetMessage(&msg, NULL, 0, 0)) {
+    if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+    }
+  }
 
   tabAutoRegister(0);
   tabList->clear();
@@ -319,7 +326,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   if (gEvent)
     gEvent->saveProperties(settings);
 
-	delete gEvent;
+  delete gEvent;
   gEvent = 0;
 
   initMySQLCriticalSection(false);
@@ -332,8 +339,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
   StringCache::getInstance().clear();
   lang.unload();
-  
-	return msg.wParam;
+
+  return msg.wParam;
 }
 
 
@@ -353,77 +360,77 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 //
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
-	WNDCLASSEX wcex;
+  WNDCLASSEX wcex;
 
-	wcex.cbSize = sizeof(WNDCLASSEX); 
-	wcex.style			= CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc	= (WNDPROC)WndProc;
-	wcex.cbClsExtra		= 0;
-	wcex.cbWndExtra		= 0;
-	wcex.hInstance		= hInstance;
-	wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);
-	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground	= (HBRUSH)(COLOR_WINDOW+1);
-	wcex.lpszMenuName	= 0;//(LPCSTR)IDC_MEOS;
-	wcex.lpszClassName	= szWindowClass;
-	wcex.hIconSm		= LoadIcon(wcex.hInstance, (LPCTSTR)IDI_SMALL);
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style			= CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc	= (WNDPROC)WndProc;
+  wcex.cbClsExtra		= 0;
+  wcex.cbWndExtra		= 0;
+  wcex.hInstance		= hInstance;
+  wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);
+  wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground	= (HBRUSH)(COLOR_WINDOW+1);
+  wcex.lpszMenuName	= 0;//(LPCSTR)IDC_MEOS;
+  wcex.lpszClassName	= szWindowClass;
+  wcex.hIconSm		= LoadIcon(wcex.hInstance, (LPCTSTR)IDI_SMALL);
 
-	RegisterClassEx(&wcex);
+  RegisterClassEx(&wcex);
 
-	wcex.cbSize = sizeof(WNDCLASSEX); 
+  wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.style			= CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-	wcex.lpfnWndProc	= (WNDPROC)WorkSpaceWndProc;
-	wcex.cbClsExtra		= 0;
-	wcex.cbWndExtra		= 0;
-	wcex.hInstance		= hInstance;
-	wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);
-	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground	= 0;
-	wcex.lpszMenuName	= 0;
-	wcex.lpszClassName	= szWorkSpaceClass;
-	wcex.hIconSm = LoadIcon(wcex.hInstance, (LPCTSTR)IDI_SMALL);
-	RegisterClassEx(&wcex);
+  wcex.lpfnWndProc	= (WNDPROC)WorkSpaceWndProc;
+  wcex.cbClsExtra		= 0;
+  wcex.cbWndExtra		= 0;
+  wcex.hInstance		= hInstance;
+  wcex.hIcon			= LoadIcon(hInstance, (LPCTSTR)IDI_MEOS);
+  wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground	= 0;
+  wcex.lpszMenuName	= 0;
+  wcex.lpszClassName	= szWorkSpaceClass;
+  wcex.hIconSm = LoadIcon(wcex.hInstance, (LPCTSTR)IDI_SMALL);
+  RegisterClassEx(&wcex);
 
-	return true;
+  return true;
 }
-		
 
-// GetMsgProc - monitors the message stream for mouse messages intended 
-//     for a control window in the dialog box. 
-// Returns a message-dependent value. 
-// nCode - hook code. 
-// wParam - message flag (not used). 
-// lParam - address of an MSG structure. 
-LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) 
-{ 
-    MSG *lpmsg; 
-	
-    lpmsg = (MSG *) lParam; 
-    if (nCode < 0 || !(IsChild(hWndWorkspace, lpmsg->hwnd))) 
-        return (CallNextHookEx(g_hhk, nCode, wParam, lParam)); 
-	
-    switch (lpmsg->message) { 
-	case WM_MOUSEMOVE: 
-	case WM_LBUTTONDOWN:  
-	case WM_LBUTTONUP: 
-	case WM_RBUTTONDOWN: 
-	case WM_RBUTTONUP: 
-		if (gdi_main->getToolTip() != NULL) { 
-			MSG msg; 
-			
-			msg.lParam = lpmsg->lParam; 
-			msg.wParam = lpmsg->wParam; 
-			msg.message = lpmsg->message; 
-			msg.hwnd = lpmsg->hwnd; 
-			SendMessage(gdi_main->getToolTip(), TTM_RELAYEVENT, 0, 
-				(LPARAM) (LPMSG) &msg); 
-		} 
-		break; 
-	default: 
-		break; 
-    } 
-    return (CallNextHookEx(g_hhk, nCode, wParam, lParam)); 
-} 
+
+// GetMsgProc - monitors the message stream for mouse messages intended
+//     for a control window in the dialog box.
+// Returns a message-dependent value.
+// nCode - hook code.
+// wParam - message flag (not used).
+// lParam - address of an MSG structure.
+LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    MSG *lpmsg;
+
+    lpmsg = (MSG *) lParam;
+    if (nCode < 0 || !(IsChild(hWndWorkspace, lpmsg->hwnd)))
+        return (CallNextHookEx(g_hhk, nCode, wParam, lParam));
+
+    switch (lpmsg->message) {
+  case WM_MOUSEMOVE:
+  case WM_LBUTTONDOWN:
+  case WM_LBUTTONUP:
+  case WM_RBUTTONDOWN:
+  case WM_RBUTTONUP:
+    if (gdi_main->getToolTip() != NULL) {
+      MSG msg;
+
+      msg.lParam = lpmsg->lParam;
+      msg.wParam = lpmsg->wParam;
+      msg.message = lpmsg->message;
+      msg.hwnd = lpmsg->hwnd;
+      SendMessage(gdi_main->getToolTip(), TTM_RELAYEVENT, 0,
+        (LPARAM) (LPMSG) &msg);
+    }
+    break;
+  default:
+    break;
+    }
+    return (CallNextHookEx(g_hhk, nCode, wParam, lParam));
+}
 
 void flushEvent(const string &id, const string &origin, DWORD data, void *extra)
 {
@@ -449,30 +456,30 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
 
 
   HWND hWnd = gdi ? gdi->getHWND() : 0;
-  
+
   bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000) == 0x8000;
   bool shiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) == 0x8000;
-  
-	//if(code<0) return CallNextHookEx(
-	if(wParam==VK_TAB) {
-    if ( (lParam& (1<<31)))	{
-		  SHORT state=GetKeyState(VK_SHIFT);
-      if(gdi) {
-		    if(state&(1<<16))
-			    gdi->TabFocus(-1);
-		    else
-			    gdi->TabFocus(1);
+
+  //if (code<0) return CallNextHookEx(
+  if (wParam==VK_TAB) {
+    if ( (lParam& (1<<31))) {
+      SHORT state=GetKeyState(VK_SHIFT);
+      if (gdi) {
+        if (state&(1<<16))
+          gdi->TabFocus(-1);
+        else
+          gdi->TabFocus(1);
       }
     }
     return 1;
-	}
-  else if(wParam==VK_RETURN && (lParam & (1<<31))) {
-		if(gdi)
+  }
+  else if (wParam==VK_RETURN && (lParam & (1<<31))) {
+    if (gdi)
       gdi->Enter();
   }
-  else if(wParam==VK_UP) {
+  else if (wParam==VK_UP) {
     bool c = false;
-		if(gdi  && (lParam & (1<<31)))
+    if (gdi  && (lParam & (1<<31)))
       c = gdi->UpDown(1);
 
     if (!c  && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown))
@@ -484,29 +491,29 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
   else if (wParam == VK_PRIOR && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown)) {
     SendMessage(hWnd, WM_VSCROLL, MAKELONG(SB_PAGEUP, 0), 0);
   }
-  else if(wParam==VK_DOWN) {
+  else if (wParam==VK_DOWN) {
     bool c = false;
-    if(gdi && (lParam & (1<<31)))
+    if (gdi && (lParam & (1<<31)))
       c = gdi->UpDown(-1);
 
-    if (!c && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown)) 
+    if (!c && !(lParam & (1<<31)) && !(gdi && gdi->lockUpDown))
       SendMessage(hWnd, WM_VSCROLL, MAKELONG(SB_LINEDOWN, 0), 0);
   }
-  else if(wParam==VK_LEFT && !(lParam & (1<<31))) {
+  else if (wParam==VK_LEFT && !(lParam & (1<<31))) {
     if (!gdi || !gdi->hasEditControl())
       SendMessage(hWnd, WM_HSCROLL, MAKELONG(SB_LINEUP, 0), 0);
   }
-  else if(wParam==VK_RIGHT && !(lParam & (1<<31))) {
+  else if (wParam==VK_RIGHT && !(lParam & (1<<31))) {
     if (!gdi || !gdi->hasEditControl())
       SendMessage(hWnd, WM_HSCROLL, MAKELONG(SB_LINEDOWN, 0), 0);
   }
-  else if(wParam==VK_ESCAPE && (lParam & (1<<31))) {
-		if(gdi)
+  else if (wParam==VK_ESCAPE && (lParam & (1<<31))) {
+    if (gdi)
       gdi->Escape();
   }
   else if (wParam==VK_F2) {
     ProgressWindow pw(hWnd);
-    
+
     pw.init();
     for (int k=0;k<=20;k++) {
       pw.setProgress(k*50);
@@ -567,7 +574,7 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
     if (gdi)
       gdi->keyCommand(KC_AUTOCOMPLETE);
   }
-  
+
   return 0;
 }
 //
@@ -582,10 +589,10 @@ LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	HWND hWnd;
-	
-	hInst = hInstance; // Store instance handle in our global variable
-	//WS_EX_CONTROLPARENT
+  HWND hWnd;
+
+  hInst = hInstance; // Store instance handle in our global variable
+  //WS_EX_CONTROLPARENT
   HWND hDskTop=GetDesktopWindow();
   RECT rc;
   GetClientRect(hDskTop, &rc);
@@ -602,32 +609,32 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
   gEvent->setProperty("ypos", yp);
   gEvent->setProperty("xpos", xp);
 
-  hWnd = CreateWindowEx(0, szWindowClass, szTitle, 
+  hWnd = CreateWindowEx(0, szWindowClass, szTitle,
           WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
-          xp, yp, max(min(int(rc.right)-yp, xs), 200), 
+          xp, yp, max(min(int(rc.right)-yp, xs), 200),
                   max(min(int(rc.bottom)-yp-40, ys), 100),
           NULL, NULL, hInstance, NULL);
-	
-	if (!hWnd)
-		return FALSE;	
-	
-	hWndMain = hWnd;
+
+  if (!hWnd)
+    return FALSE;
+
+  hWndMain = hWnd;
 
   SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, 0, GetCurrentThreadId());
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
-	
-	hWnd = CreateWindowEx(0, szWorkSpaceClass, "WorkSpace", WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
-		50, 200, 200, 100, hWndMain, NULL, hInstance, NULL);
-	
-	if (!hWnd)
-		return FALSE;
-	
-	hWndWorkspace=hWnd;
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
-	
-	return TRUE;
+  ShowWindow(hWnd, nCmdShow);
+  UpdateWindow(hWnd);
+
+  hWnd = CreateWindowEx(0, szWorkSpaceClass, "WorkSpace", WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
+    50, 200, 200, 100, hWndMain, NULL, hInstance, NULL);
+
+  if (!hWnd)
+    return FALSE;
+
+  hWndWorkspace=hWnd;
+  ShowWindow(hWnd, nCmdShow);
+  UpdateWindow(hWnd);
+
+  return TRUE;
 }
 
 void destroyExtraWindows() {
@@ -638,9 +645,33 @@ void destroyExtraWindows() {
   }
 }
 
-gdioutput *createExtraWindow(const string &title, int max_x, int max_y)
-{
-	HWND hWnd;
+string uniqueTag(const char *base) {
+  int j = 0;
+  string b = base;
+  while(true) {
+    string tag = b + itos(j++);
+    if (getExtraWindow(tag, false) == 0)
+      return tag;
+  }
+}
+
+gdioutput *getExtraWindow(const string &tag, bool toForeGround) {
+  for (size_t k = 0; k<gdi_extra.size(); k++) {
+    if (gdi_extra[k] && gdi_extra[k]->hasTag(tag)) {
+      if (toForeGround)
+        SetForegroundWindow(gdi_extra[k]->getHWND());
+      return gdi_extra[k];
+    }
+  }
+  return 0;
+}
+
+gdioutput *createExtraWindow(const string &tag, const string &title, int max_x, int max_y) {
+  if (getExtraWindow(tag, false) != 0)
+    throw meosException("Window already exists");
+
+  HWND hWnd;
+
 
   HWND hDskTop=GetDesktopWindow();
   RECT rc;
@@ -667,17 +698,17 @@ gdioutput *createExtraWindow(const string &title, int max_x, int max_y)
     xs = min(max_x, xs);
   if (max_y>0)
     ys = min(max_y, ys);
-  
-  hWnd = CreateWindowEx(0, szWorkSpaceClass, title.c_str(), 
+
+  hWnd = CreateWindowEx(0, szWorkSpaceClass, title.c_str(),
     WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
-		xp, yp, max(xs, 200), max(ys, 100), 0, NULL, hInst, NULL);
-	
-	if (!hWnd)
-		return 0;
-	
-	ShowWindow(hWnd, SW_SHOWNORMAL);
-	UpdateWindow(hWnd);
-  gdioutput *gdi = new gdioutput(1.0, gdi_main->getEncoding(), hWnd);
+    xp, yp, max(xs, 200), max(ys, 100), 0, NULL, hInst, NULL);
+
+  if (!hWnd)
+    return 0;
+
+  ShowWindow(hWnd, SW_SHOWNORMAL);
+  UpdateWindow(hWnd);
+  gdioutput *gdi = new gdioutput(tag, 1.0, gdi_main->getEncoding());
   gdi->setFont(gEvent->getPropertyInt("TextSize", 0),
                gEvent->getPropertyString("TextFont", "Arial"), gdi_main->getEncoding());
 
@@ -687,7 +718,7 @@ gdioutput *createExtraWindow(const string &title, int max_x, int max_y)
   currentFocusIx = gdi_extra.size();
   gdi_extra.push_back(gdi);
 
-	return gdi;
+  return gdi;
 }
 
 
@@ -704,27 +735,27 @@ gdioutput *createExtraWindow(const string &title, int max_x, int max_y)
 /*
 void CallBack(gdioutput *gdi, int type, void *data)
 {
-	ButtonInfo bi=*(ButtonInfo* )data;
+  ButtonInfo bi=*(ButtonInfo* )data;
 
-	string t=gdi->getText("input");
-	gdi->ClearPage();
+  string t=gdi->getText("input");
+  gdi->ClearPage();
 
-	gdi->addButton(bi.text+" *"+t, bi.xp+5, bi.yp+30, "", CallBack);
+  gdi->addButton(bi.text+" *"+t, bi.xp+5, bi.yp+30, "", CallBack);
 }
 
 void CallBackLB(gdioutput *gdi, int type, void *data)
 {
-	ListBoxInfo lbi=*(ListBoxInfo* )data;
+  ListBoxInfo lbi=*(ListBoxInfo* )data;
 
-	gdi->setText("input", lbi.text);
+  gdi->setText("input", lbi.text);
 }
 
 void CallBackINPUT(gdioutput *gdi, int type, void *data)
 {
-	InputInfo lbi=*(InputInfo* )data;
+  InputInfo lbi=*(InputInfo* )data;
 
-	MessageBox(NULL, "MB_OK", 0, MB_OK);
-	//gdi->setText("input", lbi.text);
+  MessageBox(NULL, "MB_OK", 0, MB_OK);
+  //gdi->setText("input", lbi.text);
 }*/
 
 void InsertSICard(gdioutput &gdi, SICard &sic);
@@ -733,7 +764,7 @@ void InsertSICard(gdioutput &gdi, SICard &sic);
     (int)SNDMSG((hwnd), TCM_INSERTITEMW, (WPARAM)(int)(iItem), (LPARAM)(const TC_ITEM *)(pitem))
 
 //static int xPos=0, yPos=0;
-void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker, 
+void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
                 bool skipEconomy, bool skipLists, bool skipRunners, bool skipControls)
 {
   static bool onlyMainP = false;
@@ -745,7 +776,7 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
   static bool skipControlsP = false;
 
   if (!force && onlyMain==onlyMainP && skipTeam==skipTeamP && skipSpeaker==skipSpeakerP &&
-      skipEconomy==skipEconomyP && skipLists==skipListsP && 
+      skipEconomy==skipEconomyP && skipLists==skipListsP &&
       skipRunners==skipRunnersP && skipControls==skipControlsP)
     return;
 
@@ -757,21 +788,21 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
   skipRunnersP = skipRunners;
   skipControlsP = skipControls;
 
-	int oldid=TabCtrl_GetCurSel(hMainTab);
+  int oldid=TabCtrl_GetCurSel(hMainTab);
   TabObject *to = 0;
-	for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
-	  if (it->id==oldid) {
+  for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
+    if (it->id==oldid) {
       to = &*it;
-  	}
+    }
   }
 
-	SendMessage(hMainTab, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 0);
-	int id=0;
+  SendMessage(hMainTab, WM_SETFONT, (WPARAM) GetStockObject(DEFAULT_GUI_FONT), 0);
+  int id=0;
   TabCtrl_DeleteAllItems(hMainTab);
-	for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
+  for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
     it->setId(-1);
 
-    if (onlyMain && it->getType() != typeid(TabCompetition))
+    if (onlyMain && it->getType() != typeid(TabCompetition) && it->getType() != typeid(TabSI))
       continue;
 
     if (skipTeam && it->getType() == typeid(TabTeam))
@@ -782,7 +813,7 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
 
     if (skipEconomy && it->getType() == typeid(TabClub))
       continue;
-    
+
     if (skipRunners && it->getType() == typeid(TabRunner))
       continue;
 
@@ -792,15 +823,15 @@ void createTabs(bool force, bool onlyMain, bool skipTeam, bool skipSpeaker,
     if (skipLists && (it->getType() == typeid(TabList) || it->getType() == typeid(TabAuto)))
       continue;
 
-		TCITEMW ti;
-		//char bf[256];
-		//strcpy_s(bf, lang.tl(it->name).c_str());
+    TCITEMW ti;
+    //char bf[256];
+    //strcpy_s(bf, lang.tl(it->name).c_str());
     ti.pszText=(LPWSTR)gdi_main->toWide(lang.tl(it->name)).c_str();
-		ti.mask=TCIF_TEXT;			
-		it->setId(id++);
+    ti.mask=TCIF_TEXT;
+    it->setId(id++);
 
-		TabCtrl_InsertItemW(hMainTab, it->id, &ti);
-	}
+    TabCtrl_InsertItemW(hMainTab, it->id, &ti);
+  }
 
   if (to && (to->id)>=0)
     TabCtrl_SetCurSel(hMainTab, to->id);
@@ -814,14 +845,14 @@ void hideTabs()
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int wmId, wmEvent;
-	PAINTSTRUCT ps;
-	HDC hdc;
+  int wmId, wmEvent;
+  PAINTSTRUCT ps;
+  HDC hdc;
 
-	switch (message) 
-	{
-		case WM_CREATE:	
-			
+  switch (message)
+  {
+    case WM_CREATE:
+
       tabList->push_back(TabObject(gdi_main->getTabs().get(TCmpTab), "Tävling"));
       tabList->push_back(TabObject(gdi_main->getTabs().get(TRunnerTab), "Deltagare"));
       tabList->push_back(TabObject(gdi_main->getTabs().get(TTeamTab), "Lag(flera)"));
@@ -838,17 +869,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       tabList->push_back(TabObject(gdi_main->getTabs().get(TClubTab), "Klubbar"));
 
       tabList->push_back(TabObject(gdi_main->getTabs().get(TSITab), "SportIdent"));
-			
-			INITCOMMONCONTROLSEX ic;
 
-			ic.dwSize=sizeof(ic);
-			ic.dwICC=ICC_TAB_CLASSES ;
-			InitCommonControlsEx(&ic);
-			hMainTab=CreateWindowEx(0, WC_TABCONTROL, "tabs", WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS, 0, 0, 300, 20, hWnd, 0, hInst, 0);
+      INITCOMMONCONTROLSEX ic;
+
+      ic.dwSize=sizeof(ic);
+      ic.dwICC=ICC_TAB_CLASSES ;
+      InitCommonControlsEx(&ic);
+      hMainTab=CreateWindowEx(0, WC_TABCONTROL, "tabs", WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS, 0, 0, 300, 20, hWnd, 0, hInst, 0);
       createTabs(true, true, false, false, false, false, false, false);
 
       SetTimer(hWnd, 4, 10000, 0); //Connection check
-			break;
+      break;
 
     case WM_MOUSEWHEEL: {
       int dz = GET_WHEEL_DELTA_WPARAM(wParam);
@@ -856,19 +887,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       }
       break;
 
-		case WM_SIZE:
-			MoveWindow(hMainTab, 0,0, LOWORD(lParam), 30, 1);
-			MoveWindow(hWndWorkspace, 0, 30, LOWORD(lParam), HIWORD(lParam)-30, 1);
+    case WM_SIZE:
+      MoveWindow(hMainTab, 0,0, LOWORD(lParam), 30, 1);
+      MoveWindow(hWndWorkspace, 0, 30, LOWORD(lParam), HIWORD(lParam)-30, 1);
 
-			RECT rc;
-			GetClientRect(hWndWorkspace, &rc);
-			PostMessage(hWndWorkspace, WM_SIZE, wParam, MAKELONG(rc.right, rc.bottom));
-			break;
+      RECT rc;
+      GetClientRect(hWndWorkspace, &rc);
+      PostMessage(hWndWorkspace, WM_SIZE, wParam, MAKELONG(rc.right, rc.bottom));
+      break;
 
     case WM_WINDOWPOSCHANGED:
       if (gEvent) {
-        LPWINDOWPOS wp = (LPWINDOWPOS) lParam; // points to size and position data 
- 
+        LPWINDOWPOS wp = (LPWINDOWPOS) lParam; // points to size and position data
+
         if (wp->x>=0 && wp->y>=0 && wp->cx>300 && wp->cy>200) {
           gEvent->setProperty("xpos", wp->x);
           gEvent->setProperty("ypos", wp->y);
@@ -880,100 +911,100 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
       }
       return DefWindowProc(hWnd, message, wParam, lParam);
-		case WM_TIMER:
+    case WM_TIMER:
 
-			if(!gdi_main) return 0;
+      if (!gdi_main) return 0;
 
-			if (wParam==1) {
+      if (wParam==1) {
         if (autoTask)
           autoTask->autoSave();
-			}
-			else if (wParam==2) {
+      }
+      else if (wParam==2) {
         // Interface timeouts (no synch)
         if (autoTask)
           autoTask->interfaceTimeout(gdi_extra);
- 			}
-			else if (wParam==3) {
-				if (autoTask)
+      }
+      else if (wParam==3) {
+        if (autoTask)
           autoTask->synchronize(gdi_extra);
-			}
+      }
       else if (wParam==4) {
         // Verify database link
-        if(gEvent)
+        if (gEvent)
           gEvent->verifyConnection();
         //OutputDebugString("Verify link\n");
         //Sleep(0);
-        if(gdi_main) {
+        if (gdi_main) {
           if (gEvent->hasClientChanged()) {
             gdi_main->makeEvent("Connections", "verify_connection", 0, 0, false);
             gEvent->validateClients();
           }
         }
       }
-			break;
+      break;
 
-    case WM_ACTIVATE: 
+    case WM_ACTIVATE:
       if (LOWORD(wParam) != WA_INACTIVE)
         currentFocusIx = 0;
       return DefWindowProc(hWnd, message, wParam, lParam);
 
     case WM_NCACTIVATE:
       if (gdi_main && gdi_main->hasToolbar())
-        gdi_main->activateToolbar(wParam != 0);        
+        gdi_main->activateToolbar(wParam != 0);
       return DefWindowProc(hWnd, message, wParam, lParam);
 
-		case WM_NOTIFY:
-		{
-			LPNMHDR pnmh = (LPNMHDR) lParam; 
+    case WM_NOTIFY:
+    {
+      LPNMHDR pnmh = (LPNMHDR) lParam;
 
-			if(pnmh->hwndFrom==hMainTab && gdi_main && gEvent)
-			{
-				if(pnmh->code==TCN_SELCHANGE)
-				{
-					int id=TabCtrl_GetCurSel(hMainTab);
+      if (pnmh->hwndFrom==hMainTab && gdi_main && gEvent)
+      {
+        if (pnmh->code==TCN_SELCHANGE)
+        {
+          int id=TabCtrl_GetCurSel(hMainTab);
 
-					for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
-						if (it->id==id) {
+          for (list<TabObject>::iterator it=tabList->begin();it!=tabList->end();++it) {
+            if (it->id==id) {
               try {
                 gdi_main->setWaitCursor(true);
-							  it->loadPage(*gdi_main);
+                it->loadPage(*gdi_main);
               }
               catch(std::exception &ex) {
                 gdi_main->alert(ex.what());
               }
               gdi_main->setWaitCursor(false);
-						}
-					}
-				}
-				else if (pnmh->code==TCN_SELCHANGING) {
-					if(gEvent->empty())	{
-						MessageBeep(-1);
-						return true;
-					}
-					else {
-						if(!gdi_main->canClear())
-							return true;
+            }
+          }
+        }
+        else if (pnmh->code==TCN_SELCHANGING) {
+          if (gdi_main == 0) {
+            MessageBeep(-1);
+            return true;
+          }
+          else {
+            if (!gdi_main->canClear())
+              return true;
 
-						return false;
-					}
-				}
-			}
-			break;
-		}
-
-		case WM_USER:
-			//The card has been read and posted to a synchronized 
-			//queue by different thread. Read and process this card.
-      {
-			  SICard sic;
-			  while (gSI && gSI->GetCard(sic)) 
-				  InsertSICard(*gdi_main, sic);
-			  break;
+            return false;
+          }
+        }
       }
-		case WM_USER+1:
-			MessageBox(hWnd, "Kommunikationen med en SI-enhet avbröts.", "SportIdent", MB_OK);
       break;
-            
+    }
+
+    case WM_USER:
+      //The card has been read and posted to a synchronized
+      //queue by different thread. Read and process this card.
+      {
+        SICard sic;
+        while (gSI && gSI->GetCard(sic))
+          InsertSICard(*gdi_main, sic);
+        break;
+      }
+    case WM_USER+1:
+      MessageBox(hWnd, "Kommunikationen med en SI-enhet avbröts.", "SportIdent", MB_OK);
+      break;
+
     case WM_USER + 3:
       //OutputDebugString("Get punch from queue\n");
       if (autoTask)
@@ -984,39 +1015,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       if (autoTask)
         autoTask->synchronize(gdi_extra);
       break;
-		case WM_COMMAND:
-			wmId    = LOWORD(wParam); 
-			wmEvent = HIWORD(wParam); 
-			// Parse the menu selections:
-			switch (wmId) {
-				case IDM_EXIT:
-				   //DestroyWindow(hWnd);
-					PostMessage(hWnd, WM_CLOSE, 0,0);
-				   break;
-				default:
-				   return DefWindowProc(hWnd, message, wParam, lParam);
-			}
-			break;
-		case WM_PAINT:
-			hdc = BeginPaint(hWnd, &ps);
-			// TODO: Add any drawing code here...
+    case WM_COMMAND:
+      wmId    = LOWORD(wParam);
+      wmEvent = HIWORD(wParam);
+      // Parse the menu selections:
+      switch (wmId) {
+        case IDM_EXIT:
+           //DestroyWindow(hWnd);
+          PostMessage(hWnd, WM_CLOSE, 0,0);
+           break;
+        default:
+           return DefWindowProc(hWnd, message, wParam, lParam);
+      }
+      break;
+    case WM_PAINT:
+      hdc = BeginPaint(hWnd, &ps);
+      // TODO: Add any drawing code here...
 
-	
-			EndPaint(hWnd, &ps);
-			break;
 
-		case WM_CLOSE:
-			if(!gEvent || gEvent->empty() || gdi_main->ask("Vill du verkligen stänga MeOS?"))
-					DestroyWindow(hWnd);
-			break;
+      EndPaint(hWnd, &ps);
+      break;
 
-		case WM_DESTROY:
-			delete gSI;
-			gSI=0;
+    case WM_CLOSE:
+      if (!gEvent || gEvent->empty() || gdi_main->ask("Vill du verkligen stänga MeOS?"))
+          DestroyWindow(hWnd);
+      break;
 
-			if (gEvent) {
+    case WM_DESTROY:
+      delete gSI;
+      gSI=0;
+
+      if (gEvent) {
         try {
-  				gEvent->save();
+          gEvent->save();
         }
         catch(std::exception &ex) {
           MessageBox(hWnd, lang.tl(ex.what()).c_str(), "Fel när tävlingen skulle sparas", MB_OK);
@@ -1032,58 +1063,58 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (gEvent)
           gEvent->saveProperties(settings);
 
-				delete gEvent;
-				gEvent=0;
-			}
+        delete gEvent;
+        gEvent=0;
+      }
 
-			PostQuitMessage(0);
-			break;
-		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
+      PostQuitMessage(0);
+      break;
+    default:
+      return DefWindowProc(hWnd, message, wParam, lParam);
    }
    return 0;
 }
 
 void scrollVertical(gdioutput *gdi, int yInc, HWND hWnd) {
-	SCROLLINFO si;
-	si.cbSize=sizeof(si);
-	si.fMask=SIF_ALL;			
-	GetScrollInfo(hWnd, SB_VERT, &si);
+  SCROLLINFO si;
+  si.cbSize=sizeof(si);
+  si.fMask=SIF_ALL;
+  GetScrollInfo(hWnd, SB_VERT, &si);
   if (si.nPage==0)
     yInc = 0;
 
   int yPos=gdi->GetOffsetY();
-	int a=si.nMax-signed(si.nPage-1) - yPos;
+  int a=si.nMax-signed(si.nPage-1) - yPos;
 
-	if ( (yInc = max( -yPos, min(yInc, a)))!=0 ) { 
-		yPos += yInc; 
-		RECT ScrollArea, ClipArea;
+  if ( (yInc = max( -yPos, min(yInc, a)))!=0 ) {
+    yPos += yInc;
+    RECT ScrollArea, ClipArea;
     GetClientRect(hWnd, &ScrollArea);
-		ClipArea=ScrollArea;
+    ClipArea=ScrollArea;
 
     ScrollArea.top=-gdi->getHeight()-100;
     ScrollArea.bottom+=gdi->getHeight();
     ScrollArea.right=gdi->getWidth()-gdi->GetOffsetX()+15;
     ScrollArea.left = -2000;
-		gdi->SetOffsetY(yPos);
-	
+    gdi->SetOffsetY(yPos);
+
     bool inv = true; //Inv = false works only for lists etc. where there are not controls in the scroll area.
 
     RECT invalidArea;
-		ScrollWindowEx (hWnd, 0,  -yInc, 
-			&ScrollArea, &ClipArea, 
-			(HRGN) NULL, &invalidArea, SW_SCROLLCHILDREN | (inv ? SW_INVALIDATE : 0)); 
-    
+    ScrollWindowEx (hWnd, 0,  -yInc,
+      &ScrollArea, &ClipArea,
+      (HRGN) NULL, &invalidArea, SW_SCROLLCHILDREN | (inv ? SW_INVALIDATE : 0));
+
    //	gdi->UpdateObjectPositions();
 
-		si.cbSize = sizeof(si); 
-		si.fMask  = SIF_POS; 
-		si.nPos   = yPos; 
-	
-		SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+    si.cbSize = sizeof(si);
+    si.fMask  = SIF_POS;
+    si.nPos   = yPos;
+
+    SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
 
     if (inv)
-	    UpdateWindow(hWnd);
+      UpdateWindow(hWnd);
     else {
       HDC hDC = GetDC(hWnd);
       IntersectClipRect(hDC, invalidArea.left, invalidArea.top, invalidArea.right, invalidArea.bottom);
@@ -1095,32 +1126,32 @@ void scrollVertical(gdioutput *gdi, int yInc, HWND hWnd) {
 
 void updateScrollInfo(HWND hWnd, gdioutput &gdi, int nHeight, int nWidth) {
   SCROLLINFO si;
-	si.cbSize = sizeof(si);
-	si.fMask = SIF_PAGE|SIF_RANGE;
-			
+  si.cbSize = sizeof(si);
+  si.fMask = SIF_PAGE|SIF_RANGE;
+
   int maxx, maxy;
   gdi.clipOffset(nWidth, nHeight, maxx, maxy);
 
   si.nMin=0;
 
-  if(maxy>0) {
+  if (maxy>0) {
     si.nMax=maxy+nHeight;
     si.nPos=gdi.GetOffsetY();
-    si.nPage=nHeight; 
+    si.nPage=nHeight;
   }
   else {
     si.nMax=0;
     si.nPos=0;
     si.nPage=0;
   }
-	SetScrollInfo(hWnd, SB_VERT, &si, true);
- 
+  SetScrollInfo(hWnd, SB_VERT, &si, true);
+
   si.nMin=0;
-  if(maxx>0) {        
+  if (maxx>0) {
     si.nMax=maxx+nWidth;
     si.nPos=gdi.GetOffsetX();
-    si.nPage=nWidth; 
-	}
+    si.nPage=nWidth;
+  }
   else {
     si.nMax=0;
     si.nPos=0;
@@ -1132,32 +1163,32 @@ void updateScrollInfo(HWND hWnd, gdioutput &gdi, int nHeight, int nWidth) {
 
 LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int wmId, wmEvent;
-	PAINTSTRUCT ps;
-	HDC hdc;
+  int wmId, wmEvent;
+  PAINTSTRUCT ps;
+  HDC hdc;
 
   LONG ix = GetWindowLong(hWnd, GWL_USERDATA);
   gdioutput *gdi = 0;
   if (ix < LONG(gdi_extra.size()))
     gdi = gdi_extra[ix];
 
-  if(gdi) {
-		LRESULT res = gdi->ProcessMsg(message, lParam, wParam);
+  if (gdi) {
+    LRESULT res = gdi->ProcessMsg(message, lParam, wParam);
     if (res)
       return res;
   }
-	switch (message) 
-	{
-		case WM_CREATE:	
-			break;
+  switch (message)
+  {
+    case WM_CREATE:
+      break;
 
-		case WM_SIZE:
-  		//SCROLLINFO si;
-			//si.cbSize=sizeof(si);
-			//si.fMask=SIF_PAGE|SIF_RANGE;
-			
-			int nHeight;
-      nHeight = HIWORD(lParam); 
+    case WM_SIZE:
+      //SCROLLINFO si;
+      //si.cbSize=sizeof(si);
+      //si.fMask=SIF_PAGE|SIF_RANGE;
+
+      int nHeight;
+      nHeight = HIWORD(lParam);
       int nWidth;
       nWidth = LOWORD(lParam);
       updateScrollInfo(hWnd, *gdi, nHeight, nWidth);
@@ -1168,24 +1199,24 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 
       si.nMin=0;
 
-      if(maxy>0) {
+      if (maxy>0) {
         si.nMax=maxy+nHeight;
         si.nPos=gdi->GetOffsetY();
-        si.nPage=nHeight; 
+        si.nPage=nHeight;
       }
       else {
         si.nMax=0;
         si.nPos=0;
         si.nPage=0;
       }
-			SetScrollInfo(hWnd, SB_VERT, &si, true);
- 
+      SetScrollInfo(hWnd, SB_VERT, &si, true);
+
       si.nMin=0;
-      if(maxx>0) {        
+      if (maxx>0) {
         si.nMax=maxx+nWidth;
         si.nPos=gdi->GetOffsetX();
-        si.nPage=nWidth; 
-			}
+        si.nPage=nWidth;
+      }
       else {
         si.nMax=0;
         si.nPos=0;
@@ -1194,45 +1225,45 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
       SetScrollInfo(hWnd, SB_HORZ, &si, true);
       */
       InvalidateRect(hWnd, NULL, true);
-			break;
+      break;
     case WM_KEYDOWN:
       //gdi->keyCommand(;
       break;
 
-		case WM_VSCROLL:
-		{
-			int	nScrollCode = (int) LOWORD(wParam); // scroll bar value 
-			//int hwndScrollBar = (HWND) lParam;      // handle to scroll bar 
+    case WM_VSCROLL:
+    {
+      int	nScrollCode = (int) LOWORD(wParam); // scroll bar value
+      //int hwndScrollBar = (HWND) lParam;      // handle to scroll bar
 
-			int yInc;
+      int yInc;
       int yPos=gdi->GetOffsetY();
       RECT rc;
       GetClientRect(hWnd, &rc);
       int pagestep = max(50, int(0.9*rc.bottom));
 
-			switch(nScrollCode)
-			{
-				// User clicked shaft left of the scroll box. 
-				case SB_PAGEUP: 
-					 yInc = -pagestep; 
-					 break; 
- 
-				// User clicked shaft right of the scroll box. 
-				case SB_PAGEDOWN: 
-					 yInc = pagestep; 
-					 break; 
- 
-				// User clicked the left arrow. 
-				case SB_LINEUP: 
-					 yInc = -10; 
-					 break; 
- 
-				// User clicked the right arrow. 
-				case SB_LINEDOWN: 
-					 yInc = 10; 
-					 break; 
- 
-				// User dragged the scroll box. 
+      switch(nScrollCode)
+      {
+        // User clicked shaft left of the scroll box.
+        case SB_PAGEUP:
+           yInc = -pagestep;
+           break;
+
+        // User clicked shaft right of the scroll box.
+        case SB_PAGEDOWN:
+           yInc = pagestep;
+           break;
+
+        // User clicked the left arrow.
+        case SB_LINEUP:
+           yInc = -10;
+           break;
+
+        // User clicked the right arrow.
+        case SB_LINEDOWN:
+           yInc = 10;
+           break;
+
+        // User dragged the scroll box.
         case SB_THUMBTRACK: {
             // Initialize SCROLLINFO structure
             SCROLLINFO si;
@@ -1243,51 +1274,51 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             if (!GetScrollInfo(hWnd, SB_VERT, &si) )
                 return 1; // GetScrollInfo failed
 
-            yInc = si.nTrackPos - yPos; 
-          break; 
+            yInc = si.nTrackPos - yPos;
+          break;
         }
-        
-				default: 
-				yInc = 0;  
-			} 
+
+        default:
+        yInc = 0;
+      }
 
       scrollVertical(gdi, yInc, hWnd);
       gdi->storeAutoPos(gdi->GetOffsetY());
- 			break;
-		}		
+      break;
+    }
 
-		case WM_HSCROLL:
-		{
-			int	nScrollCode = (int) LOWORD(wParam); // scroll bar value 
-			//int hwndScrollBar = (HWND) lParam;      // handle to scroll bar 
+    case WM_HSCROLL:
+    {
+      int	nScrollCode = (int) LOWORD(wParam); // scroll bar value
+      //int hwndScrollBar = (HWND) lParam;      // handle to scroll bar
 
-			int xInc;
+      int xInc;
       int xPos=gdi->GetOffsetX();
 
-			switch(nScrollCode)
-			{
-				// User clicked shaft left of the scroll box. 
-				case SB_PAGEUP: 
-					 xInc = -80; 
-					 break; 
- 
-				// User clicked shaft right of the scroll box. 
-				case SB_PAGEDOWN: 
-					 xInc = 80; 
-					 break; 
- 
-				// User clicked the left arrow. 
-				case SB_LINEUP: 
-					 xInc = -10; 
-					 break; 
- 
-				// User clicked the right arrow. 
-				case SB_LINEDOWN: 
-					 xInc = 10; 
-					 break; 
- 
-				// User dragged the scroll box. 
-				case SB_THUMBTRACK:  {
+      switch(nScrollCode)
+      {
+        // User clicked shaft left of the scroll box.
+        case SB_PAGEUP:
+           xInc = -80;
+           break;
+
+        // User clicked shaft right of the scroll box.
+        case SB_PAGEDOWN:
+           xInc = 80;
+           break;
+
+        // User clicked the left arrow.
+        case SB_LINEUP:
+           xInc = -10;
+           break;
+
+        // User clicked the right arrow.
+        case SB_LINEDOWN:
+           xInc = 10;
+           break;
+
+        // User dragged the scroll box.
+        case SB_THUMBTRACK:  {
             // Initialize SCROLLINFO structure
             SCROLLINFO si;
             ZeroMemory(&si, sizeof(si));
@@ -1297,46 +1328,46 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
             if (!GetScrollInfo(hWnd, SB_HORZ, &si) )
                 return 1; // GetScrollInfo failed
 
-            xInc = si.nTrackPos - xPos; 
-          break; 
+            xInc = si.nTrackPos - xPos;
+          break;
         }
-          //xInc = HIWORD(wParam) - xPos; 
-          //break;  
-				default: 
-				  xInc = 0;  
-			} 
+          //xInc = HIWORD(wParam) - xPos;
+          //break;
+        default:
+          xInc = 0;
+      }
 
-			SCROLLINFO si;
-			si.cbSize=sizeof(si);
-			si.fMask=SIF_ALL;			
-			GetScrollInfo(hWnd, SB_HORZ, &si);
-		
+      SCROLLINFO si;
+      si.cbSize=sizeof(si);
+      si.fMask=SIF_ALL;
+      GetScrollInfo(hWnd, SB_HORZ, &si);
+
       if (si.nPage==0)
         xInc = 0;
 
-			int a=si.nMax-signed(si.nPage-1) - xPos;
+      int a=si.nMax-signed(si.nPage-1) - xPos;
 
-			if ((xInc = max( -xPos, min(xInc, a)))!=0) { 
-				xPos += xInc; 
-				RECT ScrollArea, ClipArea;
+      if ((xInc = max( -xPos, min(xInc, a)))!=0) {
+        xPos += xInc;
+        RECT ScrollArea, ClipArea;
         GetClientRect(hWnd, &ScrollArea);
-				ClipArea=ScrollArea;
+        ClipArea=ScrollArea;
 
-				gdi->SetOffsetX(xPos);				
-			
-				ScrollWindowEx (hWnd, -xInc,  0, 
-					0, &ClipArea, 
-					(HRGN) NULL, (LPRECT) NULL, SW_INVALIDATE|SW_SCROLLCHILDREN); 
-        
-				si.cbSize = sizeof(si); 
-				si.fMask  = SIF_POS; 
-				si.nPos   = xPos; 
-			
-				SetScrollInfo(hWnd, SB_HORZ, &si, TRUE); 				
-			  UpdateWindow (hWnd);				 
-			} 
- 			break;
-		}		
+        gdi->SetOffsetX(xPos);
+
+        ScrollWindowEx (hWnd, -xInc,  0,
+          0, &ClipArea,
+          (HRGN) NULL, (LPRECT) NULL, SW_INVALIDATE|SW_SCROLLCHILDREN);
+
+        si.cbSize = sizeof(si);
+        si.fMask  = SIF_POS;
+        si.nPos   = xPos;
+
+        SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+        UpdateWindow (hWnd);
+      }
+      break;
+    }
 
     case WM_MOUSEWHEEL: {
       int dz = GET_WHEEL_DELTA_WPARAM(wParam);
@@ -1345,27 +1376,27 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
       }
       break;
 
-		case WM_TIMER:
+    case WM_TIMER:
       if (wParam == 1001) {
         double autoScroll, pos;
         gdi->getAutoScroll(autoScroll, pos);
 
-       	SCROLLINFO si;
-      	si.cbSize = sizeof(si);
-	      si.fMask = SIF_ALL;			
+        SCROLLINFO si;
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_ALL;
 
         GetScrollInfo(hWnd, SB_VERT, &si);
         int dir = gdi->getAutoScrollDir();
         int dy = 0;
-        if ((dir<0 && si.nPos <= si.nMin) || 
+        if ((dir<0 && si.nPos <= si.nMin) ||
             (dir>0 && (si.nPos + int(si.nPage)) >= si.nMax)) {
           autoScroll = -autoScroll;
           gdi->setAutoScroll(-1); // Mirror
-          
+
           double nextPos = pos + autoScroll;
           dy = int(nextPos - si.nPos);
           gdi->storeAutoPos(nextPos);
-          
+
           //gdi->setData("AutoScroll", -int(data));
         }
         else {
@@ -1379,10 +1410,10 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
       }
       else
         MessageBox(hWnd, "Runtime exception", 0, MB_OK);
-			break;
+      break;
 
     case WM_ACTIVATE: {
-      int fActive = LOWORD(wParam); 
+      int fActive = LOWORD(wParam);
       if (fActive != WA_INACTIVE)
         currentFocusIx = ix;
 
@@ -1394,35 +1425,35 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
        LoadPage(*gdi, TabType(wParam));
       break;
 
-		case WM_COMMAND:
-			wmId    = LOWORD(wParam); 
-			wmEvent = HIWORD(wParam); 
-			// Parse the menu selections:
-			switch (wmId)
-			{
-			case 0: break;
-				default:
-				   return DefWindowProc(hWnd, message, wParam, lParam);
-			}
-			break;
+    case WM_COMMAND:
+      wmId    = LOWORD(wParam);
+      wmEvent = HIWORD(wParam);
+      // Parse the menu selections:
+      switch (wmId)
+      {
+      case 0: break;
+        default:
+           return DefWindowProc(hWnd, message, wParam, lParam);
+      }
+      break;
 
-		case WM_PAINT:
-			hdc = BeginPaint(hWnd, &ps);
-			RECT rt;
-			GetClientRect(hWnd, &rt);
+    case WM_PAINT:
+      hdc = BeginPaint(hWnd, &ps);
+      RECT rt;
+      GetClientRect(hWnd, &rt);
 
-      if(gdi && (ps.rcPaint.right|ps.rcPaint.left|ps.rcPaint.top|ps.rcPaint.bottom) != 0 )
-				gdi->draw(hdc, rt, ps.rcPaint);
+      if (gdi && (ps.rcPaint.right|ps.rcPaint.left|ps.rcPaint.top|ps.rcPaint.bottom) != 0 )
+        gdi->draw(hdc, rt, ps.rcPaint);
       /*{
       HANDLE icon = LoadImage(hInst, (LPCTSTR)IDI_MEOS, IMAGE_ICON, 64, 64, LR_SHARED);
       DrawIconEx(hdc, 0,0, (HICON)icon, 64, 64, 0, NULL, DI_NORMAL | DI_COMPAT);
       }*/
-			EndPaint(hWnd, &ps);
-			break;
+      EndPaint(hWnd, &ps);
+      break;
 
-		case WM_ERASEBKGND:
-			return 0;
-			break;
+    case WM_ERASEBKGND:
+      return 0;
+      break;
 
     case WM_DESTROY:
       if (ix > 0) {
@@ -1435,8 +1466,8 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
       }
       break;
 
-		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
+    default:
+      return DefWindowProc(hWnd, message, wParam, lParam);
    }
    return 0;
 }
@@ -1445,52 +1476,66 @@ LRESULT CALLBACK WorkSpaceWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 // Message handler for about box.
 LRESULT CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	switch (message)
-	{
-		case WM_INITDIALOG:
-				return TRUE;
+  switch (message)
+  {
+    case WM_INITDIALOG:
+        return TRUE;
 
-		case WM_COMMAND:
-			if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) 
-			{
-				EndDialog(hDlg, LOWORD(wParam));
-				return TRUE;
-			}
-			break;
-	}
+    case WM_COMMAND:
+      if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+      {
+        EndDialog(hDlg, LOWORD(wParam));
+        return TRUE;
+      }
+      break;
+  }
     return FALSE;
 }
 
 
 namespace setup {
-const int nFiles=14;
-const string fileList[nFiles]={"baseclass.xml",
-                               "family.mwd", 
-                               "given.mwd", 
-                               "club.mwd", 
+const int nFiles=7;
+const char *fileList[nFiles]={"baseclass.xml",
+                               "family.mwd",
+                               "given.mwd",
+                               "club.mwd",
                                "class.mwd",
                                "database.clubs",
-                               "database.persons",
-                               "itest.meos",
-                               "stest.meos",
-                               "pctest.meos",
-                               "ind_finalresult.lxml",
-                               "ind_totalresult.lxml",
-                               "ind_courseresult.lxml",
-                               "classcourse.lxml"};
+                               "database.persons"};
 }
 
-void Setup(bool overwrite)
+void Setup(bool overwrite, bool overwriteAll)
 {
   static bool isSetup=false;
-  if(isSetup && overwrite==false)
+  if (isSetup && overwrite==false)
     return;
   isSetup=true; //Run at most once.
 
-  char bf[260];
+  vector<pair<string, bool> > toInstall;
   for(int k=0;k<setup::nFiles;k++) {
-    getUserFile(bf, (setup::fileList[k]).c_str());
-    CopyFile(setup::fileList[k].c_str(), bf, !overwrite);
+    toInstall.push_back(make_pair(string(setup::fileList[k]), overwriteAll));
+  }
+
+  char dir[260];
+  GetCurrentDirectory(260, dir);
+  vector<string> dyn;
+  expandDirectory(dir, "*.lxml", dyn);
+  expandDirectory(dir, "*.listdef", dyn);
+  expandDirectory(dir, "*.meos", dyn);
+  for (size_t k = 0; k < dyn.size(); k++)
+    toInstall.push_back(make_pair(dyn[k], true));
+
+  char bf[260];
+  for(size_t k=0; k<toInstall.size(); k++) {
+    const string src = toInstall[k].first.c_str();
+    char filename[128];
+    char ext[32];
+    _splitpath_s(src.c_str(), NULL, 0, NULL,0, filename, 128, ext, 32);
+    string fullFile = string(filename) + ext;
+    
+    getUserFile(bf, fullFile.c_str());
+    bool canOverwrite = overwrite && toInstall[k].second;
+    CopyFile(toInstall[k].first.c_str(), bf, !canOverwrite);
   }
 }
 
@@ -1498,67 +1543,67 @@ void exportSetup()
 {
   char bf[260];
   for(int k=0;k<setup::nFiles;k++) {
-    getUserFile(bf, (setup::fileList[k]).c_str());
-    CopyFile(bf, setup::fileList[k].c_str(), false);
+    getUserFile(bf, setup::fileList[k]);
+    CopyFile(bf, setup::fileList[k], false);
   }
 }
 
 bool getMeOSFile(char *FileNamePath, const char *FileName) {
-	char Path[MAX_PATH];
+  char Path[MAX_PATH];
 
   strcpy_s(Path, programPath);
-	int i=strlen(Path);
-	if(Path[i-1]!='\\')
-		strcat_s(Path, MAX_PATH, "\\");
-  
+  int i=strlen(Path);
+  if (Path[i-1]!='\\')
+    strcat_s(Path, MAX_PATH, "\\");
+
   strcat_s(Path, FileName);
   strcpy_s(FileNamePath, MAX_PATH, Path);
   return true;
 }
 
 
-bool getUserFile(char *FileNamePath, const char *FileName) 
+bool getUserFile(char *FileNamePath, const char *FileName)
 {
-	char Path[MAX_PATH];
-	char AppPath[MAX_PATH];
+  char Path[MAX_PATH];
+  char AppPath[MAX_PATH];
 
-	if (SHGetSpecialFolderPath(hWndMain, Path, CSIDL_APPDATA, 1)!=NOERROR) {		
-		int i=strlen(Path);
-		if(Path[i-1]!='\\')
-			strcat_s(Path, MAX_PATH, "\\");
+  if (SHGetSpecialFolderPath(hWndMain, Path, CSIDL_APPDATA, 1)!=NOERROR) {
+    int i=strlen(Path);
+    if (Path[i-1]!='\\')
+      strcat_s(Path, MAX_PATH, "\\");
 
-		strcpy_s(AppPath, MAX_PATH, Path);
-		strcat_s(AppPath, MAX_PATH, "Meos\\");
+    strcpy_s(AppPath, MAX_PATH, Path);
+    strcat_s(AppPath, MAX_PATH, "Meos\\");
 
-		CreateDirectory(AppPath, NULL);
+    CreateDirectory(AppPath, NULL);
 
-    Setup(false);
+    Setup(false, false);
 
-		strcpy_s(FileNamePath, MAX_PATH, AppPath);
-		strcat_s(FileNamePath, MAX_PATH, FileName);
+    strcpy_s(FileNamePath, MAX_PATH, AppPath);
+    strcat_s(FileNamePath, MAX_PATH, FileName);
 
-		//return true;
-	}
-	else strcpy_s(FileNamePath, MAX_PATH, FileName);
+    //return true;
+  }
+  else strcpy_s(FileNamePath, MAX_PATH, FileName);
 
-	return true;
+  return true;
 }
 
 
-bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFolder) 
+bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFolder)
 {
-	char Path[MAX_PATH];
-	char AppPath[MAX_PATH];
+  char Path[MAX_PATH];
+  char AppPath[MAX_PATH];
 
-	if(SHGetSpecialFolderPath(hWndMain, Path, CSIDL_DESKTOPDIRECTORY, 1)!=NOERROR) {		
-		int i=strlen(Path);
-		if(Path[i-1]!='\\')
-			strcat_s(Path, MAX_PATH, "\\");
+  if (SHGetSpecialFolderPath(hWndMain, Path, CSIDL_DESKTOPDIRECTORY, 1)!=NOERROR) {
+    int i=strlen(Path);
+    if (Path[i-1]!='\\')
+      strcat_s(Path, MAX_PATH, "\\");
 
-		strcpy_s(AppPath, MAX_PATH, Path);
-		strcat_s(AppPath, MAX_PATH, "Meos\\");
+    strcpy_s(AppPath, MAX_PATH, Path);
+    strcat_s(AppPath, MAX_PATH, "Meos\\");
 
-		CreateDirectory(AppPath, NULL);
+    CreateDirectory(AppPath, NULL);
 
     if (subFolder) {
       strcat_s(AppPath, MAX_PATH, subFolder);
@@ -1566,25 +1611,25 @@ bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFol
       CreateDirectory(AppPath, NULL);
     }
 
-		strcpy_s(fileNamePath, MAX_PATH, AppPath);
-		strcat_s(fileNamePath, MAX_PATH, fileName);
-	}
-	else strcpy_s(fileNamePath, MAX_PATH, fileName);
+    strcpy_s(fileNamePath, MAX_PATH, AppPath);
+    strcat_s(fileNamePath, MAX_PATH, fileName);
+  }
+  else strcpy_s(fileNamePath, MAX_PATH, fileName);
 
-	return true;
+  return true;
 }
 
 static set<string> tempFiles;
 static string tempPath;
 
 string getTempPath() {
-  char tempFile[MAX_PATH];    
+  char tempFile[MAX_PATH];
   if (tempPath.empty()) {
     char path[MAX_PATH];
     GetTempPath(MAX_PATH, path);
     GetTempFileName(path, "meos", 0, tempFile);
     DeleteFile(tempFile);
-    if (CreateDirectory(tempFile, NULL)) 
+    if (CreateDirectory(tempFile, NULL))
       tempPath = tempFile;
     else
       throw std::exception("Failed to create temporary file.");
@@ -1599,7 +1644,7 @@ void registerTempFile(const string &tempFile) {
 string getTempFile() {
   getTempPath();
 
-  char tempFile[MAX_PATH];    
+  char tempFile[MAX_PATH];
   if (GetTempFileName(tempPath.c_str(), "ix", 0, tempFile)) {
     tempFiles.insert(tempFile);
     return tempFile;
@@ -1633,7 +1678,7 @@ void removeTempFiles() {
       }
     }
   }
-  
+
   if (!tempPath.empty()) {
     RemoveDirectory(tempPath.c_str());
     tempPath.clear();

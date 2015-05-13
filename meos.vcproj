@@ -389,6 +389,14 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\generalresult.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\generalresult.h"
+				>
+			</File>
+			<File
 				RelativePath=".\HTMLWriter.cpp"
 				>
 			</File>
@@ -485,6 +493,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\MeOSFeatures.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\meosdb\MeosSQL.cpp"
 				>
 			</File>
@@ -497,7 +509,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\methodeditor.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\mysqldaemon.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\newcompetition.cpp"
 				>
 			</File>
 			<File
@@ -705,6 +725,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\oEventResult.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\oEventSpeaker.cpp"
 				>
 			</File>
@@ -822,6 +846,10 @@
 			</File>
 			<File
 				RelativePath=".\oTeamEvent.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\parser.cpp"
 				>
 			</File>
 			<File

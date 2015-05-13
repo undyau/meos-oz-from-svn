@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -63,11 +63,11 @@ public:
     return lookup(key, dummy) ? 1:0;
   }
   bool lookup(int key, T &value) const;
-  
+
   void insert(int key, const T &value);
   void remove(int key);
   void erase(int key) {remove(key);}
-  const T operator[](int key) const 
+  const T operator[](int key) const
     {if (lookup(key,tmp)) return tmp; else return T();}
 
   T &operator[](int key) {

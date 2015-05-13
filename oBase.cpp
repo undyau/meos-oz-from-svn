@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // oBase.cpp: implementation of the oBase class.
@@ -43,10 +43,10 @@ static char THIS_FILE[]=__FILE__;
 
 oBase::oBase(oEvent *poe)
 {
-	Removed = false;
-	oe = poe;
-	Id = 0;
-	changed = false;
+  Removed = false;
+  oe = poe;
+  Id = 0;
+  changed = false;
   reChanged = false;
   counter = 0;
   Modified.update();
@@ -63,9 +63,9 @@ bool oBase::synchronize(bool writeOnly)
     changedObject();
     oe->dataRevision++;
   }
-  if(oe && oe->HasDBConnection && (changed || !writeOnly)) {
+  if (oe && oe->HasDBConnection && (changed || !writeOnly)) {
     correctionNeeded = false;
-		return oe->msSynchronize(this);
+    return oe->msSynchronize(this);
   }
   else {
     if (changed) {
@@ -73,26 +73,26 @@ bool oBase::synchronize(bool writeOnly)
         changed = false;
     }
   }
-	return true;
+  return true;
 }
 
 void oBase::clearCombo(HWND hWnd)
 {
   SendMessage(hWnd, CB_RESETCONTENT, 0, 0);
 }
- 
+
 void oBase::addToCombo(HWND hWnd, const string &str, int data)
 {
   int index=SendMessage(hWnd, CB_ADDSTRING, 0, LPARAM(str.c_str()));
-	SendMessage(hWnd, CB_SETITEMDATA, index, data);
+  SendMessage(hWnd, CB_SETITEMDATA, index, data);
 }
 
-void oBase::setExtIdentifier(__int64 id) 
+void oBase::setExtIdentifier(__int64 id)
 {
   getDI().setInt64("ExtId", id);
 }
-  
-__int64 oBase::getExtIdentifier() const 
+
+__int64 oBase::getExtIdentifier() const
 {
   return getDCI().getInt64("ExtId");
 }

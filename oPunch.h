@@ -12,8 +12,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -29,7 +29,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 class oEvent;
@@ -38,27 +38,30 @@ class oPunch : public oBase
 {
 protected:
 
-	int Type;
-	int Time;
-	bool isUsed; //Is used in the course...
+  int Type;
+  int Time;
+  bool isUsed; //Is used in the course...
 
+  // Index into course (-1 if unused)
   int tRogainingIndex;
+  // Number of rogaining points given
+  int tRogainingPoints;
 
-  //Adjustment of this punch, loaded from control 
+  //Adjustment of this punch, loaded from control
   int tTimeAdjust;
 
   int tIndex; // Control match index in course
   int tMatchControlId;
-	bool hasBeenPlayed;
+  bool hasBeenPlayed;
 
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
   int getDISize() const {return -1;}
 
-  void changedObject();	
+  void changedObject();
 public:
 
-  virtual int getControlId() {return tMatchControlId;} 
+  virtual int getControlId() {return tMatchControlId;}
 
   bool isUsedInCourse() const {return isUsed;}
   void remove();
@@ -66,21 +69,21 @@ public:
 
   string getInfo() const;
 
-	bool isStart() const {return Type==PunchStart;}
+  bool isStart() const {return Type==PunchStart;}
   bool isStart(int startType) const {return Type==PunchStart || Type == startType;}
-	bool isFinish() const {return Type==PunchFinish;}
+  bool isFinish() const {return Type==PunchFinish;}
   bool isFinish(int finishType) const {return Type==PunchFinish || Type == finishType;}
   bool isCheck() const {return Type==PunchCheck;}
   int getControlNumber() const {return Type>=30 ? Type : 0;}
   const string &getType() const;
   static const string &getType(int t);
   int getTypeCode() const {return Type;}
-	string getString() const ;
-	string getSimpleString() const;
+  string getString() const ;
+  string getSimpleString() const;
 
-	string getTime() const;
+  string getTime() const;
   int getAdjustedTime() const;
-	void setTime(string t);
+  void setTime(string t);
   virtual void setTimeInt(int newTime, bool databaseUpdate);
 
   void setTimeAdjust(int t) {tTimeAdjust=t;}
@@ -88,15 +91,16 @@ public:
 
   string getRunningTime(int startTime) const;
 
-	enum SpecialPunch {PunchStart=1, PunchFinish=2, PunchCheck=3};
-	void decodeString(const string &s);
-	string codeString() const;
-	oPunch(oEvent *poe);
-	virtual ~oPunch();
+  enum SpecialPunch {PunchStart=1, PunchFinish=2, PunchCheck=3};
+  void decodeString(const string &s);
+  string codeString() const;
+  oPunch(oEvent *poe);
+  virtual ~oPunch();
 
-	friend class oCard;
-	friend class oRunner;
-	friend class oEvent;
+  friend class oCard;
+  friend class oRunner;
+  friend class oTeam;
+  friend class oEvent;
 };
 
 typedef oPunch * pPunch;

@@ -2,8 +2,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -27,7 +27,7 @@
 
 const int NoKey = -1013;
 
-template <class T> intkeymap<T>::intkeymap()  { 
+template <class T> intkeymap<T>::intkeymap()  {
   siz = 17;
   allocFactor = 1.5;
   keys = new keypair[siz];
@@ -42,8 +42,8 @@ template <class T> intkeymap<T>::intkeymap()  {
   clear();
 }
 
-template <class T> intkeymap<T>::intkeymap(int _size) 
-{ 
+template <class T> intkeymap<T>::intkeymap(int _size)
+{
   allocFactor = 1.3;
   siz = optsize(_size);
   keys = new keypair[siz];
@@ -58,8 +58,8 @@ template <class T> intkeymap<T>::intkeymap(int _size)
   clear();
 }
 
-template <class T> intkeymap<T>::intkeymap(const intkeymap &co) 
-{ 
+template <class T> intkeymap<T>::intkeymap(const intkeymap &co)
+{
   allocFactor =  co.allocFactor;
   siz = co.siz;
   keys = new keypair[siz];
@@ -82,7 +82,7 @@ template <class T> intkeymap<T>::intkeymap(const intkeymap &co)
   }
 }
 
-template <class T> intkeymap<T>::~intkeymap() 
+template <class T> intkeymap<T>::~intkeymap()
 {
   delete[] keys;
   if (next)
@@ -93,7 +93,7 @@ template <class T> void intkeymap<T>::clear()
 {
   for (unsigned k=0;k<siz;k++)
     keys[k].key = NoKey;
-  
+
   used = 0;
   delete next;
   next = 0;
@@ -122,7 +122,7 @@ template <class T> void intkeymap<T>::insert(int key, const T &value)
     keys[hk].value = value;
     return;
   }
-  
+
   hk = unsigned(key + hash1) % siz;
 
   if (keys[hk].key == NoKey)
@@ -142,7 +142,7 @@ template <class T> void intkeymap<T>::insert(int key, const T &value)
     keys[hk].value = value;
     return;
   }
-  
+
   if (next) {
     next->insert(key, value);
     return;
@@ -154,7 +154,7 @@ template <class T> void intkeymap<T>::insert(int key, const T &value)
     next->insert(key, value);
     return;
   }
-  
+
   rehash(0, key, value);
 }
 
@@ -164,9 +164,9 @@ template <class T> T &intkeymap<T>::get(int key)
   if (ptr)
     return ptr->value;
 
-  if (key == NoKey) 
+  if (key == NoKey)
     return noValue;
-  
+
   unsigned hk = unsigned(key) % siz;
 
   if (keys[hk].key == NoKey) {
@@ -177,7 +177,7 @@ template <class T> T &intkeymap<T>::get(int key)
     keys[hk].key = key;
     return keys[hk].value;
   }
-  
+
   hk = unsigned(key + hash1) % siz;
 
   if (keys[hk].key == NoKey) {
@@ -199,7 +199,7 @@ template <class T> T &intkeymap<T>::get(int key)
     keys[hk].key = key;
     return keys[hk].value;
   }
-  
+
   if (next) {
     return next->get(key);
   }
@@ -209,7 +209,7 @@ template <class T> T &intkeymap<T>::get(int key)
     next->parent = this;
     return next->get(key);
   }
-  
+
   return rehash(0, key, T());
 }
 
@@ -222,7 +222,7 @@ template <class T> void intkeymap<T>::remove(int key)
     used--;
     return;
   }
-  
+
   hk = unsigned(key + hash1) % siz;
   if (keys[hk].key == key) {
     keys[hk].key = NoKey;
@@ -236,7 +236,7 @@ template <class T> void intkeymap<T>::remove(int key)
     used--;
     return;
   }
-  
+
   if (next) {
     next->remove(key);
     return;
@@ -265,7 +265,7 @@ template <class T> T &intkeymap<T>::rehash(int _siz, int key, const T &value)
 
     // Swap
     keypair *oldkeys = keys;
-    
+
     //Take next
     delete next;
     next = nm.next;
@@ -311,13 +311,13 @@ template <class T> bool intkeymap<T>::lookup(int key, T &value) const
     value = keys[hk].value;
     return true;
   }
-  
+
   hk = unsigned(key + hash1) % siz;
   if (keys[hk].key == key) {
     value = keys[hk].value;
     return true;
   }
-   
+
   hk = unsigned(key + hash2) % siz;
   if (keys[hk].key == key) {
     value = keys[hk].value;
@@ -340,12 +340,12 @@ template <class T> void *intkeymap<T>::lookup(int key) const
   if (keys[hk].key == key) {
     return (void *)&keys[hk];
   }
-  
+
   hk = unsigned(key + hash1) % siz;
   if (keys[hk].key == key) {
     return (void *)&keys[hk];
   }
-   
+
   hk = unsigned(key + hash2) % siz;
   if (keys[hk].key == key) {
     return (void *)&keys[hk];
@@ -393,7 +393,7 @@ template <class T> bool intkeymap<T>::empty() const
   return used==0 && (next==0 || next->empty());
 }
 
-template <class T> void intkeymap<T>::resize(int size) 
+template <class T> void intkeymap<T>::resize(int size)
 {
   allocFactor = 1.0;
   rehash(size, NoKey, 0);

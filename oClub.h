@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "xmlparser.h"
@@ -61,25 +61,27 @@ protected:
     }
   };
 
-	string name;
+  string name;
   vector<string> altNames;
   string tPrettyName;
 
   static const int dataSize = 384;
   int getDISize() const {return dataSize;}
-	BYTE oData[dataSize];
+  BYTE oData[dataSize];
   BYTE oDataOld[dataSize];
 
   int tNumRunners;
   int tFee;
   int tPaid;
 
-  bool inputData(int id, const string &input, int inputId, 
+  virtual int getTableId() const;
+
+  bool inputData(int id, const string &input, int inputId,
                         string &output, bool noUpdate);
 
   void fillInput(int id, vector< pair<string, size_t> > &elements, size_t &selected);
 
-  void exportIOFClub(xmlparser &xml, bool compact) const; 
+  void exportIOFClub(xmlparser &xml, bool compact) const;
 
   void exportClubOrId(xmlparser &xml) const;
 
@@ -140,28 +142,28 @@ public:
   void generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid);
 
   string getInfo() const {return "Klubb " + name;}
-  bool sameClub(const oClub &c); 
+  bool sameClub(const oClub &c);
 
   const string &getName() const {return name;}
 
   const string &getDisplayName() const {return tPrettyName.empty() ?  name : tPrettyName;}
-  
+
   void setName(const string &n);
-	
+
   void set(const xmlobject &xo);
-	bool write(xmlparser &xml);
+  bool write(xmlparser &xml);
 
   bool isVacant() const;
-	oClub(oEvent *poe);
-	oClub(oEvent *poe, int id);
+  oClub(oEvent *poe);
+  oClub(oEvent *poe, int id);
   virtual ~oClub();
-	
+
   friend class oAbstractRunner;
-	friend class oEvent;
-	friend class oRunner;
-	friend class oTeam;
+  friend class oEvent;
+  friend class oRunner;
+  friend class oTeam;
   friend class oClass;
-	friend class MeosSQL;
+  friend class MeosSQL;
 };
 
 #endif // !defined(AFX_OCLUB_H__8B2917E2_6A48_4E7F_82AD_4F8C64167439__INCLUDED_)

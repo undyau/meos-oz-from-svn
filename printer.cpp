@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "stdafx.h"
@@ -38,25 +38,25 @@ const double inchmmk=2.54;
 
 BOOL CALLBACK AbortProc(HDC,	int  iError)
 {
-	if(iError==0)
-		return bPrint;
-	else
-	{
-		bPrint=false;
-		return false;
-	}
+  if (iError==0)
+    return bPrint;
+  else
+  {
+    bPrint=false;
+    return false;
+  }
 }
 
 #define WM_SETPAGE WM_USER+423
 
 BOOL CALLBACK  AbortPrintJob(HWND hDlg, UINT message, WPARAM wParam, LPARAM) {
-	return false;
+  return false;
 }
 
 PrinterObject::PrinterObject() {
   hDC=0;
-	hDevMode=0;
-	hDevNames=0;
+  hDevMode=0;
+  hDevNames=0;
 
   nPagesPrinted=0;
   nPagesPrintedTotal=0;
@@ -102,7 +102,7 @@ void PrinterObject::operator=(const PrinterObject &po)
 
 PrinterObject::~PrinterObject()
 {
-  if(hDC)
+  if (hDC)
     DeleteDC(hDC);
 
   freePrinter();
@@ -135,59 +135,59 @@ void gdioutput::printSetup(PrinterObject &po)
   memset(&pd, 0, sizeof(pd));
 
   pd.lStructSize = sizeof(PRINTDLG);
-	pd.hDevMode = po.hDevMode;
-	pd.hDevNames = po.hDevNames;
-  
+  pd.hDevMode = po.hDevMode;
+  pd.hDevNames = po.hDevNames;
+
   pd.Flags = PD_RETURNDC|PD_USEDEVMODECOPIESANDCOLLATE|PD_PRINTSETUP;
-	pd.hwndOwner = hWndAppMain;
-  pd.hDC = (HDC) po.hDC; 
-	pd.nFromPage = 1;
-	pd.nToPage = 1;
-	pd.nMinPage = 1;
-	pd.nMaxPage = 1;
-	pd.nCopies = 1;
-	pd.hInstance = (HINSTANCE) NULL;
-	pd.lCustData = 0L;
-	pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
-	pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
-	pd.lpPrintTemplateName = (LPSTR) NULL;
-	pd.lpSetupTemplateName = (LPSTR)  NULL;
-	pd.hPrintTemplate = (HANDLE) NULL;
-	pd.hSetupTemplate = (HANDLE) NULL;
+  pd.hwndOwner = hWndAppMain;
+  pd.hDC = (HDC) po.hDC;
+  pd.nFromPage = 1;
+  pd.nToPage = 1;
+  pd.nMinPage = 1;
+  pd.nMaxPage = 1;
+  pd.nCopies = 1;
+  pd.hInstance = (HINSTANCE) NULL;
+  pd.lCustData = 0L;
+  pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
+  pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
+  pd.lpPrintTemplateName = (LPSTR) NULL;
+  pd.lpSetupTemplateName = (LPSTR)  NULL;
+  pd.hPrintTemplate = (HANDLE) NULL;
+  pd.hSetupTemplate = (HANDLE) NULL;
 
-	int iret=PrintDlg(&pd);
+  int iret=PrintDlg(&pd);
 
-	if (iret==false) {
-		int error = CommDlgExtendedError();
-		if (error!=0) {
-			char sb[127];
-			sprintf_s(sb, "Printing Error Code=%d", error);
-			//MessageBox(hWnd, sb, NULL, MB_OK);
-			alert(sb);
+  if (iret==false) {
+    int error = CommDlgExtendedError();
+    if (error!=0) {
+      char sb[127];
+      sprintf_s(sb, "Printing Error Code=%d", error);
+      //MessageBox(hWnd, sb, NULL, MB_OK);
+      alert(sb);
       po.freePrinter();
       po.hDC = 0;
-		}
-		return;
-	}
-	else {
-		//Save settings!
-		po.hDevMode = pd.hDevMode;
-		po.hDevNames = pd.hDevNames;
+    }
+    return;
+  }
+  else {
+    //Save settings!
+    po.hDevMode = pd.hDevMode;
+    po.hDevNames = pd.hDevNames;
     po.hDC=pd.hDC;
 
     DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
-		if(dn) {
+    if (dn) {
       DEVMODE *dm=(LPDEVMODE)GlobalLock(pd.hDevMode);
       if (dm) {
         po.DevMode=*dm;
-        po.DevMode.dmSize=sizeof(po.DevMode);       
+        po.DevMode.dmSize=sizeof(po.DevMode);
       }
-			po.Driver=(char *)(dn)+dn->wDriverOffset;
-			po.Device=(char *)(dn)+dn->wDeviceOffset;      
+      po.Driver=(char *)(dn)+dn->wDriverOffset;
+      po.Device=(char *)(dn)+dn->wDeviceOffset;
       //GlobalUnlock(pd.hDevMode);
-		}
+    }
     //GlobalUnlock(pd.hDevNames);
-	}
+  }
 }
 
 void gdioutput::print(pEvent oe, Table *t, bool printMeOSHeader, bool noMargin)
@@ -197,72 +197,72 @@ void gdioutput::print(pEvent oe, Table *t, bool printMeOSHeader, bool noMargin)
   pageInfo.noPrintMargin = noMargin;
 
   setWaitCursor(true);
-	PRINTDLG pd;
-    
+  PRINTDLG pd;
+
   PrinterObject &po=*po_default;
   po.printedPages.clear();//Don't remember
 
-	pd.lStructSize = sizeof(PRINTDLG);
-	pd.hDevMode = po.hDevMode;
-	pd.hDevNames = po.hDevNames;
-	pd.Flags = PD_RETURNDC;
-	pd.hwndOwner = hWndAppMain;
-	pd.hDC = (HDC) NULL; 
-	pd.nFromPage = 1;
-	pd.nToPage = 1;
-	pd.nMinPage = 1;
-	pd.nMaxPage = 1;
-	pd.nCopies = 1;
-	pd.hInstance = (HINSTANCE) NULL;
-	pd.lCustData = 0L;
-	pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
-	pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
-	pd.lpPrintTemplateName = (LPSTR) NULL;
-	pd.lpSetupTemplateName = (LPSTR)  NULL;
-	pd.hPrintTemplate = (HANDLE) NULL;
-	pd.hSetupTemplate = (HANDLE) NULL;
+  pd.lStructSize = sizeof(PRINTDLG);
+  pd.hDevMode = po.hDevMode;
+  pd.hDevNames = po.hDevNames;
+  pd.Flags = PD_RETURNDC;
+  pd.hwndOwner = hWndAppMain;
+  pd.hDC = (HDC) NULL;
+  pd.nFromPage = 1;
+  pd.nToPage = 1;
+  pd.nMinPage = 1;
+  pd.nMaxPage = 1;
+  pd.nCopies = 1;
+  pd.hInstance = (HINSTANCE) NULL;
+  pd.lCustData = 0L;
+  pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
+  pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
+  pd.lpPrintTemplateName = (LPSTR) NULL;
+  pd.lpSetupTemplateName = (LPSTR)  NULL;
+  pd.hPrintTemplate = (HANDLE) NULL;
+  pd.hSetupTemplate = (HANDLE) NULL;
 
-	int iret=PrintDlg(&pd);
+  int iret=PrintDlg(&pd);
 
-	if(iret==false) {
-		int error=CommDlgExtendedError();
-		if(error!=0) {
-			char sb[128];
-			sprintf_s(sb, "Printing Error Code=%d", error);
-			alert(sb);
+  if (iret==false) {
+    int error=CommDlgExtendedError();
+    if (error!=0) {
+      char sb[128];
+      sprintf_s(sb, "Printing Error Code=%d", error);
+      alert(sb);
       po.freePrinter();
       po.hDC = 0;
-		}
-		return;
-	}
+    }
+    return;
+  }
   setWaitCursor(true);
-	//Save settings!
+  //Save settings!
   po.freePrinter();
 
-	po.hDevMode = pd.hDevMode;
-	po.hDevNames = pd.hDevNames;
+  po.hDevMode = pd.hDevMode;
+  po.hDevNames = pd.hDevNames;
   po.hDC = pd.hDC;
 
   if (t)
     t->print(*this, po.hDC, 20, 0);
 
-	DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
-	if(dn) {
+  DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
+  if (dn) {
     DEVMODE *dm=(LPDEVMODE)GlobalLock(pd.hDevMode);
     if (dm) {
       po.DevMode=*dm;
-      po.DevMode.dmSize=sizeof(po.DevMode);       
+      po.DevMode.dmSize=sizeof(po.DevMode);
     }
-		po.Driver=(char *)(dn)+dn->wDriverOffset;
-		po.Device=(char *)(dn)+dn->wDeviceOffset;      
+    po.Driver=(char *)(dn)+dn->wDriverOffset;
+    po.Device=(char *)(dn)+dn->wDeviceOffset;
     //GlobalUnlock(pd.hDevMode);
     //GlobalUnlock(pd.hDevNames);
-	}
+  }
 
   doPrint(po, pageInfo, oe);
 
-	// Delete the printer DC.
-	DeleteDC(pd.hDC);
+  // Delete the printer DC.
+  DeleteDC(pd.hDC);
   po.hDC=0;
 }
 
@@ -275,56 +275,56 @@ void gdioutput::print(PrinterObject &po, pEvent oe, bool printMeOSHeader, bool n
   if (po.hDevMode==0) {
   //if (po.Driver.empty()) {
     PRINTDLG pd;
- 
-	  pd.lStructSize = sizeof(PRINTDLG);
-	  pd.hDevMode = 0;
-	  pd.hDevNames = 0;
-	  pd.Flags = PD_RETURNDEFAULT;
-	  pd.hwndOwner = hWndAppMain;
-	  pd.hDC = (HDC) NULL; 
-	  pd.nFromPage = 1;
-	  pd.nToPage = 1;
-	  pd.nMinPage = 1;
-	  pd.nMaxPage = 1;
-	  pd.nCopies = 1;
-	  pd.hInstance = (HINSTANCE) NULL;
-	  pd.lCustData = 0L;
-	  pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
-	  pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
-	  pd.lpPrintTemplateName = (LPSTR) NULL;
-	  pd.lpSetupTemplateName = (LPSTR)  NULL;
-	  pd.hPrintTemplate = (HANDLE) NULL;
-	  pd.hSetupTemplate = (HANDLE) NULL;
+
+    pd.lStructSize = sizeof(PRINTDLG);
+    pd.hDevMode = 0;
+    pd.hDevNames = 0;
+    pd.Flags = PD_RETURNDEFAULT;
+    pd.hwndOwner = hWndAppMain;
+    pd.hDC = (HDC) NULL;
+    pd.nFromPage = 1;
+    pd.nToPage = 1;
+    pd.nMinPage = 1;
+    pd.nMaxPage = 1;
+    pd.nCopies = 1;
+    pd.hInstance = (HINSTANCE) NULL;
+    pd.lCustData = 0L;
+    pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
+    pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
+    pd.lpPrintTemplateName = (LPSTR) NULL;
+    pd.lpSetupTemplateName = (LPSTR)  NULL;
+    pd.hPrintTemplate = (HANDLE) NULL;
+    pd.hSetupTemplate = (HANDLE) NULL;
 
     int iret=PrintDlg(&pd);
 
-    if(iret==false) {
-	    int error=CommDlgExtendedError();
-	    if(error!=0) {
-		    char sb[128];
-		    sprintf_s(sb, "Printing Error Code=%d", error);
-		    alert(sb);
+    if (iret==false) {
+      int error=CommDlgExtendedError();
+      if (error!=0) {
+        char sb[128];
+        sprintf_s(sb, "Printing Error Code=%d", error);
+        alert(sb);
         po.hDC = 0;
-	    }
-	    return;
+      }
+      return;
     }
     po.freePrinter();
-	  po.hDevMode = pd.hDevMode;
-	  po.hDevNames = pd.hDevNames;
-  
-		DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
-		if(dn) {
+    po.hDevMode = pd.hDevMode;
+    po.hDevNames = pd.hDevNames;
+
+    DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
+    if (dn) {
       DEVMODE *dm=(LPDEVMODE)GlobalLock(pd.hDevMode);
       if (dm) {
         po.DevMode=*dm;
-        po.DevMode.dmSize=sizeof(po.DevMode);       
+        po.DevMode.dmSize=sizeof(po.DevMode);
       }
 
-			po.Driver=(char *)(dn)+dn->wDriverOffset;
-			po.Device=(char *)(dn)+dn->wDeviceOffset;      
-      po.hDC=CreateDC(po.Driver.c_str(), po.Device.c_str(), NULL, dm);      
+      po.Driver=(char *)(dn)+dn->wDriverOffset;
+      po.Device=(char *)(dn)+dn->wDeviceOffset;
+      po.hDC=CreateDC(po.Driver.c_str(), po.Device.c_str(), NULL, dm);
       GlobalUnlock(pd.hDevMode);
-		}
+    }
     GlobalUnlock(pd.hDevNames);
   }
   else if (po.hDC==0) {
@@ -336,8 +336,8 @@ void gdioutput::print(PrinterObject &po, pEvent oe, bool printMeOSHeader, bool n
 void gdioutput::destroyPrinterDC(PrinterObject &po)
 {
   if (po.hDC) {
-	  // Delete the printer DC.
-	  DeleteDC(po.hDC);
+    // Delete the printer DC.
+    DeleteDC(po.hDC);
     po.hDC=0;
   }
 }
@@ -345,28 +345,28 @@ void gdioutput::destroyPrinterDC(PrinterObject &po)
 bool gdioutput::startDoc(PrinterObject &po)
 {
   // Initialize the members of a DOCINFO structure.
-	DOCINFO di;
-	int nError;
-	di.cbSize = sizeof(DOCINFO);
+  DOCINFO di;
+  int nError;
+  di.cbSize = sizeof(DOCINFO);
 
-	char sb[256];
-	sprintf_s(sb, "MeOS");
-	
-	di.lpszDocName = sb;
-	di.lpszOutput = (LPTSTR) NULL;
-	di.lpszDatatype = (LPTSTR) NULL;
-	di.fwType = 0;      // Begin a print job by calling the StartDoc function.
+  char sb[256];
+  sprintf_s(sb, "MeOS");
 
-	nError = StartDoc(po.hDC, &di);
+  di.lpszDocName = sb;
+  di.lpszOutput = (LPTSTR) NULL;
+  di.lpszDatatype = (LPTSTR) NULL;
+  di.fwType = 0;      // Begin a print job by calling the StartDoc function.
 
-	if (nError <= 0) {
+  nError = StartDoc(po.hDC, &di);
+
+  if (nError <= 0) {
     nError=GetLastError();
-		DeleteDC(po.hDC);
+    DeleteDC(po.hDC);
     po.hDC=0;
-		//sprintf_s(sb, "Window's StartDoc API returned with error code %d,", nError);
+    //sprintf_s(sb, "Window's StartDoc API returned with error code %d,", nError);
     alert("StartDoc error: " + getErrorMessage(nError));
-		return false;
-	}
+    return false;
+  }
   return true;
 }
 
@@ -381,9 +381,9 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   po.nPagesPrinted=0;
   PrinterObject::DATASET &ds=po.ds;
 
-	//Do the printing
-	int xsize = GetDeviceCaps(po.hDC, HORZSIZE);
-	int ysize = GetDeviceCaps(po.hDC, VERTSIZE);
+  //Do the printing
+  int xsize = GetDeviceCaps(po.hDC, HORZSIZE);
+  int ysize = GetDeviceCaps(po.hDC, VERTSIZE);
 
   int physX = GetDeviceCaps(po.hDC, PHYSICALWIDTH);
   int physY = GetDeviceCaps(po.hDC, PHYSICALHEIGHT);
@@ -391,20 +391,20 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   int physOffsetX = GetDeviceCaps(po.hDC, PHYSICALOFFSETX);
   int physOffsetY = GetDeviceCaps(po.hDC, PHYSICALOFFSETY);
 
-	// Retrieve the number of pixels-per-logical-inch in the
-	// horizontal and vertical directions for the printer upon which
-	// the bitmap will be printed.
-	int xtot = GetDeviceCaps(po.hDC, HORZRES);
-	int ytot = GetDeviceCaps(po.hDC, VERTRES);
+  // Retrieve the number of pixels-per-logical-inch in the
+  // horizontal and vertical directions for the printer upon which
+  // the bitmap will be printed.
+  int xtot = GetDeviceCaps(po.hDC, HORZRES);
+  int ytot = GetDeviceCaps(po.hDC, VERTRES);
 
-	SetMapMode(po.hDC, MM_ISOTROPIC);
+  SetMapMode(po.hDC, MM_ISOTROPIC);
 
   const bool limitSize = xsize > 100;
 
   int PageXMax=limitSize ? max(512, MaxX) : MaxX;
-	int PageYMax=(ysize*PageXMax)/xsize;
-	SetWindowExtEx(po.hDC, int(PageXMax*1.05), int(PageYMax*1.05), 0);
-	SetViewportExtEx(po.hDC, xtot, ytot, NULL); 
+  int PageYMax=(ysize*PageXMax)/xsize;
+  SetWindowExtEx(po.hDC, int(PageXMax*1.05), int(PageYMax*1.05), 0);
+  SetViewportExtEx(po.hDC, xtot, ytot, NULL);
   // xPrint = ((mm / xsize) * physX - physOff) / xtot * PageXMax*1.05
   // xPrint =  mm * (physX * PageXMax * 1.05) / (xsize*xtot) - physOff * (PageXMax * 1.05/xtot)
   pageInfo.xMM2PrintC = double(physX * PageXMax * 1.05) / double(xsize*xtot);
@@ -412,18 +412,18 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   pageInfo.yMM2PrintC = double(physY * PageYMax * 1.05) / double(ysize*ytot);
   pageInfo.yMM2PrintK = double(-physOffsetY) * (PageYMax * 1.05/ytot);
 
-	ds.PageX = PageXMax;
-	ds.PageY = PageYMax;
+  ds.PageX = PageXMax;
+  ds.PageY = PageYMax;
   ds.MarginX = pageInfo.noPrintMargin ? (limitSize ? PageXMax/30: 5) : PageXMax/25;
   ds.MarginY = pageInfo.noPrintMargin ? 5 : 20;
-	ds.Scale=1;
-	ds.LastPage=false;
+  ds.Scale=1;
+  ds.LastPage=false;
 
   int sOffsetY = OffsetY;
   int sOffsetX = OffsetX;
   OffsetY = 0;
   OffsetX = 0;
-  
+
   pageInfo.topMargin = float(ds.MarginY * 2);
   pageInfo.scale = 1.0f;
   pageInfo.leftMargin = float(ds.MarginX);
@@ -432,20 +432,20 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
 
   vector<RenderedPage> pages;
   pageInfo.renderPages(TL, false, pages);
-  
+
   vector<int> toPrint;
   for (size_t k = 0; k < pages.size(); k++) {
-    if(!po.onlyChanged || po.printedPages.count(pages[k].checkSum)==0) {
-      toPrint.push_back(k);      
+    if (!po.onlyChanged || po.printedPages.count(pages[k].checkSum)==0) {
+      toPrint.push_back(k);
       po.nPagesPrinted++;
       po.nPagesPrintedTotal++;
     }
     myPages.insert(pages[k].checkSum);
-  } 
+  }
   int nPagesToPrint=toPrint.size();
 
   if (nPagesToPrint>0) {
-   
+
     if (!startDoc(po)) {
       return false;
     }
@@ -455,133 +455,116 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
       int nError = StartPage(po.hDC);
       if (nError <= 0) {
         nError=GetLastError();
-        
-	      EndDoc(po.hDC);        
-	      DeleteDC(po.hDC);
+
+        EndDoc(po.hDC);
+        DeleteDC(po.hDC);
         po.hDC=0;
         po.freePrinter();
         OffsetY = sOffsetY;
         OffsetX = sOffsetX;
         alert("StartPage error: " + getErrorMessage(nError));
-	      return false;
+        return false;
       }
-    
+
       printPage(po, pageInfo, pages[toPrint[k]]);
       EndPage(po.hDC);
     }
 
-	  int nError = EndDoc(po.hDC);
+    int nError = EndDoc(po.hDC);
     OffsetY = sOffsetY;
     OffsetX = sOffsetX;
 
     if (nError <= 0) {
-	    nError=GetLastError();
+      nError=GetLastError();
       DeleteDC(po.hDC);
       po.hDC=0;
       alert("EndDoc error: " + getErrorMessage(nError));
       return false;
-	  }
+    }
   }
 
-  po.printedPages.swap(myPages);     
+  po.printedPages.swap(myPages);
   return true;
 }
 
 UINT CALLBACK PagePaintHook(HWND, UINT uiMsg, WPARAM wParam, LPARAM lParam) {
-	return false;
+  return false;
 }
 
 void PageSetup(HWND hWnd, PrinterObject &po)
 {
   PrinterObject::DATASET &ds=po.ds;
-	PAGESETUPDLG pd;
+  PAGESETUPDLG pd;
 
-	memset(&pd, 0, sizeof(pd));
+  memset(&pd, 0, sizeof(pd));
 
-	pd.lStructSize=sizeof(pd);
-	pd.hwndOwner=hWnd;
+  pd.lStructSize=sizeof(pd);
+  pd.hwndOwner=hWnd;
 //	pd.hDevMode=po.hDevMode;
 //	pd.hDevNames=po.hDevNames;
-	pd.Flags=PSD_MARGINS|PSD_ENABLEPAGEPAINTHOOK|PSD_INHUNDREDTHSOFMILLIMETERS;
-	pd.lpfnPagePaintHook=PagePaintHook;
+  pd.Flags=PSD_MARGINS|PSD_ENABLEPAGEPAINTHOOK|PSD_INHUNDREDTHSOFMILLIMETERS;
+  pd.lpfnPagePaintHook=PagePaintHook;
 
 
-	pd.rtMargin.left=int(ds.pMgLeft*float(ds.pWidth_mm)+0.5)*100;
-	pd.rtMargin.right=int(ds.pMgRight*float(ds.pWidth_mm)+0.5)*100;
-	pd.rtMargin.top=int(ds.pMgTop*float(ds.pHeight_mm)+0.5)*100;
-	pd.rtMargin.bottom=int(ds.pMgBottom*float(ds.pHeight_mm)+0.5)*100;
+  pd.rtMargin.left=int(ds.pMgLeft*float(ds.pWidth_mm)+0.5)*100;
+  pd.rtMargin.right=int(ds.pMgRight*float(ds.pWidth_mm)+0.5)*100;
+  pd.rtMargin.top=int(ds.pMgTop*float(ds.pHeight_mm)+0.5)*100;
+  pd.rtMargin.bottom=int(ds.pMgBottom*float(ds.pHeight_mm)+0.5)*100;
 
 
-	if(PageSetupDlg(&pd))
-	{
-		RECT rtMargin=pd.rtMargin;
+  if (PageSetupDlg(&pd))
+  {
+    RECT rtMargin=pd.rtMargin;
 
-		if(pd.Flags & PSD_INHUNDREDTHSOFMILLIMETERS)
-		{
-			rtMargin.top=long(rtMargin.top/inchmmk);
-			rtMargin.bottom=long(rtMargin.bottom/inchmmk);
-			rtMargin.right=long(rtMargin.right/inchmmk);
-			rtMargin.left=long(rtMargin.left/inchmmk);
-		}
+    if (pd.Flags & PSD_INHUNDREDTHSOFMILLIMETERS)
+    {
+      rtMargin.top=long(rtMargin.top/inchmmk);
+      rtMargin.bottom=long(rtMargin.bottom/inchmmk);
+      rtMargin.right=long(rtMargin.right/inchmmk);
+      rtMargin.left=long(rtMargin.left/inchmmk);
+    }
 
-		po.hDevMode=pd.hDevMode;
-		po.hDevNames=pd.hDevNames;
+    po.hDevMode=pd.hDevMode;
+    po.hDevNames=pd.hDevNames;
 
 
-		DEVMODE *dm=(LPDEVMODE)GlobalLock(pd.hDevMode);
+    DEVMODE *dm=(LPDEVMODE)GlobalLock(pd.hDevMode);
 
-		if(dm)
-		{/*
-			if(dm->dmFields&DM_COLOR)
-			{
-				/*if(dm->dmColor==DMCOLOR_MONOCHROME)
-					ds.bPrintColour=false;
-				else
-					ds.bPrintColour=true;
-			}*/
-		}
+    if (dm)
+    {/*
+      if (dm->dmFields&DM_COLOR)
+      {
+        /*if (dm->dmColor==DMCOLOR_MONOCHROME)
+          ds.bPrintColour=false;
+        else
+          ds.bPrintColour=true;
+      }*/
+    }
 
-		DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
+    DEVNAMES *dn=(LPDEVNAMES)GlobalLock(pd.hDevNames);
 
-		if(dn)
-		{
-			char *driver=(char *)(dn)+dn->wDriverOffset;
-			char *device=(char *)(dn)+dn->wDeviceOffset;
+    if (dn)
+    {
+      char *driver=(char *)(dn)+dn->wDriverOffset;
+      char *device=(char *)(dn)+dn->wDeviceOffset;
 
-			HDC hDC=CreateDC(driver, device, NULL, dm);
+      HDC hDC=CreateDC(driver, device, NULL, dm);
 
-			if(hDC)
-			{
-				//	int xres = GetDeviceCaps(hDC, LOGPIXELSX);
-				// int yres = GetDeviceCaps(hDC, LOGPIXELSY);
+      if (hDC)
+      {
+        ds.pWidth_mm=GetDeviceCaps(hDC, HORZSIZE);
+        ds.pHeight_mm=GetDeviceCaps(hDC, VERTSIZE);
 
-				//	int xtot = GetDeviceCaps(hDC, HORZRES);
-				//	int ytot = GetDeviceCaps(hDC, VERTRES);
+        ds.pMgLeft=inchmmk*rtMargin.left/float(ds.pWidth_mm)/100.;
+        ds.pMgRight=inchmmk*rtMargin.right/float(ds.pWidth_mm)/100.;
+        ds.pMgTop=inchmmk*rtMargin.top/float(ds.pHeight_mm)/100.;
+        ds.pMgBottom=inchmmk*rtMargin.bottom/float(ds.pHeight_mm)/100.;
 
-				//rtMagrin 1/1000 inches
-				// int xmarg=(rtMargin.left*xres)/1000;
-				// int ymarg=(rtMargin.top*yres)/1000;
+        DeleteDC(hDC);
+      }
+    }
 
-				//int xsize=xtot-(rtMargin.right*xres)/1000-xmarg;
-				//int ysize=ytot-(rtMargin.bottom*yres)/1000-ymarg;
-
-				ds.pWidth_mm=GetDeviceCaps(hDC, HORZSIZE);
-				ds.pHeight_mm=GetDeviceCaps(hDC, VERTSIZE);
-
-				ds.pMgLeft=inchmmk*rtMargin.left/float(ds.pWidth_mm)/100.;
-				ds.pMgRight=inchmmk*rtMargin.right/float(ds.pWidth_mm)/100.;
-				ds.pMgTop=inchmmk*rtMargin.top/float(ds.pHeight_mm)/100.;
-				ds.pMgBottom=inchmmk*rtMargin.bottom/float(ds.pHeight_mm)/100.;
-
-				//ds.ydx=float(ysize)/float(xsize);
-
-				DeleteDC(hDC);
-			}
-		}
-
-//		GlobalUnlock(pd.hDevNames);
-//		GlobalUnlock(pd.hDevMode);
-	}
+  }
 }
 
 void PrinterObject::freePrinter() {
@@ -590,7 +573,7 @@ void PrinterObject::freePrinter() {
   hDevNames = 0;
 
   if (hDevMode)
-		GlobalUnlock(hDevMode);
+    GlobalUnlock(hDevMode);
   hDevMode = 0;
 }
 
@@ -598,16 +581,16 @@ void PrinterObject::freePrinter() {
 //Uses format, text, xp and yp
 void RenderedPage::calculateCS(const TextInfo &text)
 {
-  if(gdioutput::skipTextRender(text.format) ||
+  if (gdioutput::skipTextRender(text.format) ||
      text.text.empty())
     return;
-  DWORD localCS=0; 
-  DWORD localCS2=0; 
+  DWORD localCS=0;
+  DWORD localCS2=0;
   for(DWORD i=0; i<text.text.size(); i++){
     localCS+=(BYTE(text.text[i])<<(i%24))*(i*i+text.yp);
     localCS2+=(BYTE(text.text[i])<<(i%23))*(i+17)*(i+text.xp);
   }
-  localCS+=(text.format*10000000+text.xp+text.yp*1000);  
+  localCS+=(text.format*10000000+text.xp+text.yp*1000);
   checkSum += __int64(localCS) + (__int64(localCS2)<<32);
 }
 
@@ -631,8 +614,8 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
   currentYP = tl.front().yp;
   bool needSort = false;
   for (it=tl.begin();it!=tl.end(); ++it) {
-	  const TextInfo &text = *it;
-    if(text.format == 10)
+    const TextInfo &text = *it;
+    if (text.format == 10)
       continue;
 
     if (currentYP > text.yp) {
@@ -653,7 +636,7 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
   string infoText;
   int extraLimit = 0;
   for (size_t k = 0; k < indexedTL.size(); k++) {
-    
+
     if (indexedTL[k]->format == pagePageInfo) {
       infoText = indexedTL[k]->text;
       if (!pages.empty() && pages.back().info.empty())
@@ -680,10 +663,10 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
     PrintTextInfo &text = pages.back().text.back();
 
     text.ti.yp +=  offsetY;
-		text.ti.highlight=0;
-		text.ti.hasCapture=0;
-		text.ti.active=0;
-  	text.ti.callBack=0;
+    text.ti.highlight=0;
+    text.ti.hasCapture=0;
+    text.ti.active=0;
+    text.ti.callBack=0;
     text.ti.hasTimer=false;
 
     if (text.ti.absPrintX > 0) {
@@ -726,13 +709,13 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
       for (map<int,int>::iterator it = forwardyp.begin(); it != forwardyp.end(); ++it, ++ix) {
         float y = (max<int>(indexedTL[it->second]->textRect.bottom, indexedTL[it->second]->yp) + offsetY) * pi.scale + pi.topMargin;
         float size = GDIImplFontSet::baseSize(indexedTL[it->second]->format, 1.0);
-        
+
         bool over = y > pi.pageY - pi.bottomMargin;
         bool canBreak = indexedTL[it->second]->lineBreakPrioity >= 0;
 
         if (ix == 0 && lastSize < size)
           nextIsHead = true;
-        
+
         if (ix == 0 && !canBreak)
           firstCanBreak = false; // First can break;
 
@@ -749,7 +732,7 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
             if (!canBreak) {
               if (!wasOrphan) {
                 wasOrphan = true;
-                break; // Skip breaking here. 
+                break; // Skip breaking here.
               }
               wasOrphan = false;
             }
@@ -774,14 +757,14 @@ string PageInfo::pageInfo(const RenderedPage &page) const {
   if (printHeader) {
     char bf[256];
     if (nPagesTotal > 1) {
-      if(!page.info.empty())
+      if (!page.info.empty())
         sprintf_s(bf, "MeOS %s, %s, (%d/%d)", getLocalTime().c_str(),
                   page.info.c_str(), page.nPage, nPagesTotal);
       else
         sprintf_s(bf, "MeOS %s, (%d/%d)", getLocalTime().c_str(), page.nPage, nPagesTotal);
     }
     else {
-      if(!page.info.empty())
+      if (!page.info.empty())
         sprintf_s(bf, "MeOS %s, %s", getLocalTime().c_str(), page.info.c_str());
       else
         sprintf_s(bf, "MeOS %s", getLocalTime().c_str());

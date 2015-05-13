@@ -31,16 +31,15 @@
 #include <list>
 #include <crtdbg.h>
 
-
 using namespace std;
 bool getUserFile(char *fileNamePath, const char *fileName);
 bool getDesktopFile(char *fileNamePath, const char *fileName, const char *subFolder = 0);
 bool getMeOSFile(char *FileNamePath, const char *FileName);
 
 class gdioutput;
-gdioutput *createExtraWindow(const string &title, int max_x = 0, int max_y = 0);
-
-// Local Header Files
+gdioutput *createExtraWindow(const string &tag, const string &title, int max_x = 0, int max_y = 0);
+gdioutput *getExtraWindow(const string &tag, bool toForeGround);
+string uniqueTag(const char *base);
 
 void LoadPage(const string &name);
 
@@ -48,12 +47,6 @@ string getTempFile();
 string getTempPath();
 void removeTempFile(const string &file); // Delete a temporyary
 void registerTempFile(const string &tempFile); //Register a file/folder as temporary => autmatic removal on exit.
-
-//Sets up and resets save timer
-
-
-//{{AFX_INSERT_LOCATION}}
-// Microsoft Visual C++ will insert additional declarations immediately before the previous line.
 
 const extern string _NoClub;
 const extern string _EmptyString;

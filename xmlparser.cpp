@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 // xmlparser.cpp: implementation of the xmlparser class.
@@ -40,7 +40,7 @@ xmlparser::xmlparser(gdioutput *utfConverter_) : utfConverter(utfConverter_)
 {
   progress = 0;
   lastIndex = 0;
-	tagStackPointer=0;	
+  tagStackPointer=0;
   isUTF = false;
   cutMode = false;
   toString = false;
@@ -49,7 +49,7 @@ xmlparser::xmlparser(gdioutput *utfConverter_) : utfConverter(utfConverter_)
 xmlparser::~xmlparser()
 {
   delete progress;
-	fin.close();
+  fin.close();
   foutFile.close();
 }
 
@@ -72,14 +72,14 @@ void xmlparser::access(int index) {
 
 xmlobject::xmlobject()
 {
-	parser = 0;
+  parser = 0;
 }
 
 xmlobject::~xmlobject()
 {
-	//MessageBox(NULL, name.c_str(), "Destroying: ", MB_OK);
+  //MessageBox(NULL, name.c_str(), "Destroying: ", MB_OK);
 
-//	if(objects) delete objects;
+//	if (objects) delete objects;
 }
 
 
@@ -92,29 +92,29 @@ const string &xmlparser::encodeXML(const string &input) {
 
 void xmlparser::write(const char *tag, const string &Value)
 {
-	if(!cutMode || Value!="")	{		
-		fOut() << "<" << tag << ">"
-		       << encodeXML(Value)
-		       << "</" << tag << ">" << endl;
-	}
-	if (!fOut().good())
+  if (!cutMode || Value!="") {
+    fOut() << "<" << tag << ">"
+           << encodeXML(Value)
+           << "</" << tag << ">" << endl;
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 void xmlparser::write(const char *tag)
 {
-	fOut() << "<" << tag << "/>" << endl;
-	if (!fOut().good())
+  fOut() << "<" << tag << "/>" << endl;
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 void xmlparser::write(const char *tag, const char *Property, const string &Value)
 {
-	if(!cutMode || Value!="")	{		
-		fOut() << "<" << tag << " " << Property << "=\"" 
-		       << encodeXML(Value) << "\"/>" << endl;		
-	}
-	if (!fOut().good())
+  if (!cutMode || Value!="") {
+    fOut() << "<" << tag << " " << Property << "=\""
+           << encodeXML(Value) << "\"/>" << endl;
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
@@ -124,48 +124,48 @@ void xmlparser::write(const char *tag, const char *prop, const char *value)
 }
 
 void xmlparser::write(const char *tag, const char *prop, bool value)
-{ 
-	if(!cutMode || value)
+{
+  if (!cutMode || value)
     write(tag, prop, value ? "true" : "false");
 }
 
 
 void xmlparser::write(const char *tag, const char *Property, const string &PropValue, const string &Value)
 {
-  if(!cutMode || Value != "" || PropValue != "")	{		
-		fOut() << "<" << tag << " " << Property << "=\""
-		       << encodeXML(PropValue) << "\">" << encodeXML(Value)	
+  if (!cutMode || Value != "" || PropValue != "") {
+    fOut() << "<" << tag << " " << Property << "=\""
+           << encodeXML(PropValue) << "\">" << encodeXML(Value)
            << "</" << tag << ">" << endl;
-	}
-	if (!fOut().good())
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 void xmlparser::write(const char *tag, const vector< pair<string, string> > &propValue, const string &value) {
-  if(!cutMode || value != "" || !propValue.empty())	{		
+  if (!cutMode || value != "" || !propValue.empty()) {
     fOut() << "<" << tag;
     for (size_t k = 0; k < propValue.size(); k++) {
       fOut() << " " << propValue[k].first << "=\"" << encodeXML(propValue[k].second) << "\"";
     }
     if (!value.empty()) {
-		  fOut() << ">" << encodeXML(value)	
+      fOut() << ">" << encodeXML(value)
              << "</" << tag << ">" << endl;
     }
     else
       fOut() << "/>" << endl;
-	}
-	if (!fOut().good())
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 
 }
 
 
-void xmlparser::write(const char *tag, const char *prop, 
+void xmlparser::write(const char *tag, const char *prop,
                       bool propValue, const string &value) {
-  write(tag, prop, propValue ? "true" : "false", value);  
+  write(tag, prop, propValue ? "true" : "false", value);
 }
 
-void xmlparser::write(const char *tag, const char *prop, 
+void xmlparser::write(const char *tag, const char *prop,
                       const char *propValue, const string &value) {
   write(tag, prop, string(propValue), value);
 }
@@ -173,62 +173,62 @@ void xmlparser::write(const char *tag, const char *prop,
 
 void xmlparser::write(const char *tag, int Value)
 {
-	if(!cutMode || Value!=0) {
-		fOut() << "<" << tag << ">"
-		       << Value
-		       << "</" << tag << ">" << endl;
-	}
-	if (!fOut().good())
+  if (!cutMode || Value!=0) {
+    fOut() << "<" << tag << ">"
+           << Value
+           << "</" << tag << ">" << endl;
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 void xmlparser::writeBool(const char *tag, bool value)
 {
-	if(!cutMode || value) {
-		fOut() << "<" << tag << ">"
+  if (!cutMode || value) {
+    fOut() << "<" << tag << ">"
            << (value ? "true" : "false")
-		       << "</" << tag << ">" << endl;
-	}
-	if (!fOut().good())
+           << "</" << tag << ">" << endl;
+  }
+  if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 
 void xmlparser::write64(const char *tag, __int64 Value)
 {
-	if(!cutMode || Value!=0) {
-		fOut() << "<" << tag << ">"
-		       << Value
-		       << "</" << tag << ">" << endl;
-	}
+  if (!cutMode || Value!=0) {
+    fOut() << "<" << tag << ">"
+           << Value
+           << "</" << tag << ">" << endl;
+  }
   if (!fOut().good())
     throw meosException("Writing to XML file failed.");
 }
 
 void xmlparser::startTag(const char *tag, const char *prop, const string &Value)
 {
-	if(tagStackPointer<32) {
-		fOut() << "<" << tag << " " << prop << "=\"" << encodeXML(Value) << "\">" << endl;
-		tagStack[tagStackPointer++]=tag;
-		if (!fOut().good())
+  if (tagStackPointer<32) {
+    fOut() << "<" << tag << " " << prop << "=\"" << encodeXML(Value) << "\">" << endl;
+    tagStack[tagStackPointer++]=tag;
+    if (!fOut().good())
       throw meosException("Writing to XML file failed.");
-	}
+  }
   else
     throw meosException("Tag depth too large.");
 }
 
 void xmlparser::startTag(const char *tag, const vector<string> &propvalue)
 {
-	if(tagStackPointer<32) {
-		fOut() << "<" << tag << " ";
+  if (tagStackPointer<32) {
+    fOut() << "<" << tag << " ";
     for (size_t k=0;k<propvalue.size(); k+=2) {
       fOut() << propvalue[k] << "=\"" << encodeXML(propvalue[k+1]) << "\" ";
     }
     fOut() << ">" << endl;
     tagStack[tagStackPointer++]=tag;
-		if (!fOut().good())
+    if (!fOut().good())
       throw meosException("Writing to XML file failed.");
-	}
+  }
   else
     throw meosException("Tag depth too large.");
 }
@@ -236,23 +236,23 @@ void xmlparser::startTag(const char *tag, const vector<string> &propvalue)
 
 void xmlparser::startTag(const char *tag)
 {
-	if(tagStackPointer<32) {
-		fOut() << "<" << tag << ">" << endl;
-		tagStack[tagStackPointer++]=tag;
-		if (!fOut().good())
+  if (tagStackPointer<32) {
+    fOut() << "<" << tag << ">" << endl;
+    tagStack[tagStackPointer++]=tag;
+    if (!fOut().good())
       throw meosException("Writing to XML file failed.");
-	}
+  }
   else
     throw meosException("Tag depth too large.");
 }
 
 void xmlparser::endTag()
 {
-	if(tagStackPointer>0)	{
-		fOut() << "</" << tagStack[--tagStackPointer] << ">" << endl;
-		if (!fOut().good())
+  if (tagStackPointer>0) {
+    fOut() << "</" << tagStack[--tagStackPointer] << ">" << endl;
+    if (!fOut().good())
       throw meosException("Writing to XML file failed.");
-	}
+  }
   else throw std::exception("BAD XML CODE");
 
 }
@@ -262,9 +262,9 @@ void xmlparser::openMemoryOutput(bool useCutMode) {
   toString = true;
   foutString.clear();
   if (utfConverter)
-    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";  
+    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";
   else
-    fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";  
+    fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
 
   string out = foutString.str();
 }
@@ -283,31 +283,31 @@ void xmlparser::openOutputT(const char *file, bool useCutMode, const string &typ
 {
   toString = false;
   cutMode = useCutMode;
-	foutFile.open(file);
+  foutFile.open(file);
 
-	tagStackPointer=0;
+  tagStackPointer=0;
 
-	if(foutFile.bad())
+  if (foutFile.bad())
     throw meosException(string("Writing to XML file failed: ") + string(file));
 
   if (utfConverter)
-    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";  
+    fOut() << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n\n";
   else
     fOut() << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\n\n";
 
   if (!type.empty()) {
     startTag(type.c_str());
     }
-	return;
+  return;
 }
 
 int xmlparser::closeOut()
 {
-	while(tagStackPointer>0)
-		endTag();
+  while(tagStackPointer>0)
+    endTag();
 
   int len = foutFile.tellp();
-	foutFile.close();
+  foutFile.close();
 
   return len;
 }
@@ -324,19 +324,19 @@ void xmlparser::read(const string &file, int maxobj)
 {
   fin.open(file.c_str(), ios::binary);
 
-	if(!fin.good())
+  if (!fin.good())
     throw meosException("Failed to open 'X' for reading.#" + string(file));
 
-	char bf[1024];
-	bf[0]=0;
+  char bf[1024];
+  bf[0]=0;
 
-	do {
-		fin.getline(bf, 1024, '>');	
-		lineNumber++;
-	}
-	while(fin.good() && bf[0]==0);
+  do {
+    fin.getline(bf, 1024, '>');
+    lineNumber++;
+  }
+  while(fin.good() && bf[0]==0);
 
-	char *ptr=ltrim(bf);
+  char *ptr=ltrim(bf);
   isUTF = checkUTF(ptr);
   int p1 = fin.tellg();
 
@@ -370,21 +370,21 @@ void xmlparser::readMemory(const string &mem, int maxobj)
   if (mem.empty())
     return;
 
-	char bf[1024];
-	bf[0] = mem[0];
+  char bf[1024];
+  bf[0] = mem[0];
   int i = 1;
   int stop = min<int>(1020, mem.length());
   while (i < stop && mem[i-1] != '>'){
-		bf[i] = mem[i];	
-		i++;
-	}
+    bf[i] = mem[i];
+    i++;
+  }
   bf[i] = 0;
-	
-	char *ptr=ltrim(bf);
+
+  char *ptr=ltrim(bf);
   isUTF = checkUTF(ptr);
   int p1 = i;
   int p2 = mem.size();
- 
+
   int asize = p2-p1;
   if (maxobj>0)
     asize = min(asize, maxobj*256);
@@ -398,21 +398,21 @@ void xmlparser::readMemory(const string &mem, int maxobj)
 
   parseStack.clear();
 
-  memcpy(&xbf[0], mem.c_str() + p1, xbf.size()); 
+  memcpy(&xbf[0], mem.c_str() + p1, xbf.size());
   xbf[asize] = 0;
 
   parse(maxobj);
 }
 
 bool xmlparser::checkUTF(const char *ptr) const {
-	bool utf = false;
+  bool utf = false;
 
   if (ptr[0] == -17 && ptr[1]==-69 && ptr[2]==-65) {
     utf = true;
     ptr+=3; //Windows UTF attribute
   }
 
-  if(memcmp(ptr, "<?xml", 5) == 0) {
+  if (memcmp(ptr, "<?xml", 5) == 0) {
     int i = 5;
     bool hasEncode = false;
     while (ptr[i]) {
@@ -425,7 +425,7 @@ bool xmlparser::checkUTF(const char *ptr) const {
       }
       i++;
     }
-    if (!hasEncode) 
+    if (!hasEncode)
       utf = true; // Assume UTF
   }
   else if (ptr[0] == '<' && ptr[1] == '?') {
@@ -439,7 +439,7 @@ bool xmlparser::checkUTF(const char *ptr) const {
 }
 
 bool xmlparser::parse(int maxobj) {
-	lineNumber=0;
+  lineNumber=0;
   int oldPrg = -50001;
   int pp = 0;
   const int size = xbf.size()-2;
@@ -484,13 +484,13 @@ bool xmlparser::processTag(char *start, char *end) {
   static char err[64];
   bool onlyAttrib = *end == '/';
   bool endTag = *start == '/';
-  
+
   char *tag = start;
 
   if (endTag)
     tag++;
-  
-  while (start<=end && /**start!=' ' && *start!='\t'*/ !isBlankSpace(*start)) 
+
+  while (start<=end && /**start!=' ' && *start!='\t'*/ !isBlankSpace(*start))
     start++;
 
   *start = 0;
@@ -532,24 +532,24 @@ bool xmlparser::processTag(char *start, char *end) {
 
 char * xmlparser::ltrim(char *s)
 {
-	while(*s && isspace(BYTE(*s)))
-		s++;
+  while(*s && isspace(BYTE(*s)))
+    s++;
 
-	return s;
+  return s;
 }
 
 const char * xmlparser::ltrim(const char *s)
 {
-	while(*s && isspace(BYTE(*s)))
-		s++;
+  while(*s && isspace(BYTE(*s)))
+    s++;
 
-	return s;
+  return s;
 }
 /*
 
 const char * xmlparser::getError()
 {
-	return errorMessage.c_str();
+  return errorMessage.c_str();
 }*/
 
 xmlobject xmlobject::getObject(const char *pname) const
@@ -558,9 +558,9 @@ xmlobject xmlobject::getObject(const char *pname) const
     return *this;
   if (isnull())
     throw std::exception("Null pointer exception");
-  
+
   vector<xmldata> &xmlinfo = parser->xmlinfo;
-  
+
   parser->access(index);
 
   unsigned child = index+1;
@@ -580,7 +580,7 @@ void xmlobject::getObjects(xmlList &obj) const
 
   if (isnull())
     throw std::exception("Null pointer exception");
-  
+
   vector<xmldata> &xmlinfo = parser->xmlinfo;
   unsigned child = index+1;
   parser->access(index);
@@ -597,7 +597,7 @@ void xmlobject::getObjects(const char *tag, xmlList &obj) const
 
   if (isnull())
     throw std::exception("Null pointer exception");
-  
+
   vector<xmldata> &xmlinfo = parser->xmlinfo;
   unsigned child = index+1;
   parser->access(index);
@@ -612,21 +612,21 @@ void xmlobject::getObjects(const char *tag, xmlList &obj) const
 
 const xmlobject xmlparser::getObject(const char *pname) const
 {
-  if(xmlinfo.size()>0){
-		if(pname == 0 || strcmp(xmlinfo[0].tag, pname) == 0) 
+  if (xmlinfo.size()>0){
+    if (pname == 0 || strcmp(xmlinfo[0].tag, pname) == 0)
       return xmlobject(const_cast<xmlparser *>(this), 0);
-		else return xmlobject(const_cast<xmlparser *>(this), 0).getObject(pname);
-	}
-	else return xmlobject(0);	
+    else return xmlobject(const_cast<xmlparser *>(this), 0).getObject(pname);
+  }
+  else return xmlobject(0);
 }
 
-xmlattrib xmlobject::getAttrib(const char *pname) const 
+xmlattrib xmlobject::getAttrib(const char *pname) const
 {
-  if (pname != 0) {    
+  if (pname != 0) {
     char *start = const_cast<char *>(parser->xmlinfo[index].tag);
     const char *end = parser->xmlinfo[index].data;
 
-    if (end) 
+    if (end)
       end-=2;
     else {
       if (size_t(index + 1) < parser->xmlinfo.size())
@@ -646,7 +646,7 @@ xmlattrib xmlobject::getAttrib(const char *pname) const
         start++;
 
       char *tag = start;
-    
+
       while(start<end && *start!='=' && *start!=0)
         start++;
 
@@ -654,7 +654,7 @@ xmlattrib xmlobject::getAttrib(const char *pname) const
         *start = 0;
         ++start;
         char *value = ++start;
-    
+
         while(start<end && (*start!='"' && *start != 0))
           start++;
 
@@ -710,15 +710,15 @@ bool xmlobject::getObjectBool(const char *pname) const
   string tmp;
   getObjectString(pname, tmp);
 
-  return tmp=="true" || 
-         atoi(tmp.c_str()) > 0 || 
+  return tmp=="true" ||
+         atoi(tmp.c_str()) > 0 ||
          _strcmpi(trim(tmp).c_str(), "true") == 0;
 }
 
 string &xmlobject::getObjectString(const char *pname, string &out) const
-{ 
+{
   xmlobject x=getObject(pname);
-  if(x) {
+  if (x) {
     const char *bf = x.get();
     if (bf) {
       parser->convertString(x.get(), parser->strbuff, buff_pre_alloc);
@@ -732,16 +732,16 @@ string &xmlobject::getObjectString(const char *pname, string &out) const
     parser->convertString(xa.get(), parser->strbuff, buff_pre_alloc);
     out = parser->strbuff;
   }
-  else 
+  else
     out = "";
 
   return out;
 }
 
 char *xmlobject::getObjectString(const char *pname, char *out, int maxlen) const
-{ 
+{
   xmlobject x=getObject(pname);
-  if(x) {
+  if (x) {
     const char *bf = x.get();
     if (bf) {
       parser->convertString(bf, out, maxlen);
@@ -753,7 +753,7 @@ char *xmlobject::getObjectString(const char *pname, char *out, int maxlen) const
     if (xa && xa.data) {
       parser->convertString(xa.data, out, maxlen);
       inplaceDecodeXML(out);
-    } else 
+    } else
        out[0] = 0;
   }
   return out;

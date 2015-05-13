@@ -11,8 +11,8 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -28,7 +28,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "oBase.h"
@@ -51,17 +51,17 @@ class Table;
 
 class oCard : public oBase {
 protected:
-	oPunchList Punches;
-	int CardNo;
-	DWORD ReadId; //Identify a specific read-out
+  oPunchList punches;
+  int cardNo;
+  DWORD readId; //Identify a specific read-out
 
   const static DWORD ConstructedFromPunches = 1;
 
   pRunner tOwner;
-	oPunch *getPunch(const pPunch punch);
+  oPunch *getPunch(const pPunch punch);
 
   int getDISize() const {return -1;}
-	
+
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
@@ -72,7 +72,7 @@ protected:
 public:
 
   // Returns true if the card was constructed from punches.
-  bool isConstructedFromPunches() {return ConstructedFromPunches == ReadId;}
+  bool isConstructedFromPunches() {return ConstructedFromPunches == readId;}
 
   // Setup a card from the runner's punches
   void setupFromRadioPunches(oRunner &r);
@@ -81,34 +81,34 @@ public:
   bool canRemove() const;
 
   pair<int, int> getTimeRange() const;
-  
+
   string getInfo() const;
 
   void addTableRow(Table &table) const;
-  
+
   /// Returns the split time from the last used punch
   /// to the current punch, as indicated by evaluateCard
   int getSplitTime(int startTime, const pPunch punch) const;
 
   pRunner getOwner() const;
-  int getNumPunches() const {return Punches.size();}
+  int getNumPunches() const {return punches.size();}
 
   bool setPunchTime(const pPunch punch, string time);
-	bool isCardRead(const SICard &card) const;
-	void setReadId(const SICard &card);
+  bool isCardRead(const SICard &card) const;
+  void setReadId(const SICard &card);
   // Get SI-Card from oCard (just punches)
   void getSICard(SICard &card) const;
 
-	void deletePunch(pPunch pp);
-	void insertPunchAfter(int pos, int type, int time);
+  void deletePunch(pPunch pp);
+  void insertPunchAfter(int pos, int type, int time);
 
   bool fillPunches(gdioutput &gdi, string name, oCourse *crs);
 
-	void addPunch(int type, int time, int matchControlId);
-	oPunch *getPunchByType(int type) const;
+  void addPunch(int type, int time, int matchControlId);
+  oPunch *getPunchByType(int type) const;
 
   //Get punch by (matched) control punch id.
-  oPunch *getPunchById(int id) const;
+  oPunch *getPunchById(int courseControlId) const;
   oPunch *getPunchByIndex(int ix) const;
 
   // Get all punches
@@ -116,23 +116,24 @@ public:
   // Return split time to previous matched control
   string getRogainingSplit(int ix, int startTime) const;
 
-  int cardNo() const {return CardNo;}
-  string getCardNo() const;
-	void setCardNo(int c);
-	void importPunches(string s);
-	string getPunchString();
+  int getCardNo() const {return cardNo;}
+  const string &getCardNoString() const;
+  void setCardNo(int c);
+  void importPunches(string s);
+  string getPunchString();
 
-	void Set(const xmlobject &xo);
-	bool Write(xmlparser &xml);
+  void Set(const xmlobject &xo);
+  bool Write(xmlparser &xml);
 
-	oCard(oEvent *poe);
+  oCard(oEvent *poe);
   oCard(oEvent *poe, int id);
-	
-	virtual ~oCard();
 
-	friend class oEvent;
-	friend class oRunner;
-	friend class MeosSQL;
+  virtual ~oCard();
+
+  friend class oEvent;
+  friend class oRunner;
+  friend class oTeam;
+  friend class MeosSQL;
 };
 
 #endif // !defined(AFX_OCARD_H__674EAB76_A232_4E44_A9B4_C52F6A04D7CF__INCLUDED_)

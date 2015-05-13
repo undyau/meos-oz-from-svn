@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,14 +18,14 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "tabbase.h"
 #include "oEventDraw.h"
 
 class TabClass :
-	public TabBase
+  public TabBase
 {
   struct PursuitSettings {
     bool use;
@@ -60,10 +60,11 @@ class TabClass :
   string storedNStage;
   string storedStart;
   oEvent::PredefinedTypes storedPredefined;
+  bool showForkingGuide;
 
   bool checkClassSelected(const gdioutput &gdi) const;
   void save(gdioutput &gdi, bool skipReload);
-  void legSetup(gdioutput &gdi); 
+  void legSetup(gdioutput &gdi);
   vector<ClassInfo> cInfo;
 
   map<int, ClassInfo> cInfoCache;
@@ -74,6 +75,7 @@ class TabClass :
 
   void pursuitDialog(gdioutput &gdi);
 
+  bool hasWarnedDirect;
   bool tableMode;
   DrawMethod lastDrawMethod;
   // Generate a table with class settings
@@ -87,25 +89,30 @@ class TabClass :
   // Prepare for drawing by declaring starts and blocks
   void prepareForDrawing(gdioutput &gdi);
 
-
-  gdioutput *gdiVisualize;
-
-  void showClassSelection(gdioutput &gdi, int &bx, int &by) const; 
+  void showClassSelection(gdioutput &gdi, int &bx, int &by) const;
 
   // Set simultaneous start in a class
   void simultaneous(int classId, string time);
+
+  void updateFairForking(gdioutput &gdi, pClass pc) const;
+  void selectCourses(gdioutput &gdi, int legNo);
+  bool showMulti(bool singleOnly) const;
+
+  void defineForking(gdioutput &gdi, bool clearSettings);
+  vector< vector<int> > forkingSetup;
+  static const char *getCourseLabel(bool pool);
 public:
   void clear();
 
   void closeWindow(gdioutput &gdi);
 
   void multiCourse(gdioutput &gdi, int nLeg);
-	bool loadPage(gdioutput &gdi);
+  bool loadPage(gdioutput &gdi);
   void selectClass(gdioutput &gdi, int cid);
 
   int classCB(gdioutput &gdi, int type, void *data);
   int multiCB(gdioutput &gdi, int type, void *data);
 
-	TabClass(oEvent *oe);
-	~TabClass(void);
+  TabClass(oEvent *oe);
+  ~TabClass(void);
 };

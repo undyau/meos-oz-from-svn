@@ -1,7 +1,7 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -17,7 +17,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 
@@ -118,17 +118,21 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
     needCommit(*this);
 
   vector<pControl> ctrl;
-  oe.getControls(ctrl);
+  oe.getControls(ctrl, true);
   set<int> knownId;
   for (size_t k = 0; k < ctrl.size(); k++) {
     if (ctrl[k]->isValidRadio()) {
-      int id = ctrl[k]->getId();
-      knownId.insert(id);
-      map<int, InfoRadioControl>::iterator res = controls.find(id);
-      if (res == controls.end())
-        res = controls.insert(make_pair(id, InfoRadioControl(id))).first;
-      if (res->second.synchronize(*ctrl[k]))
-        needCommit(res->second);
+      vector<int> ids;
+      ctrl[k]->getCourseControls(ids);
+      for (size_t j = 0; j < ids.size(); j++) {
+        int id = ids[j];
+        knownId.insert(id);
+        map<int, InfoRadioControl>::iterator res = controls.find(id);
+        if (res == controls.end())
+          res = controls.insert(make_pair(id, InfoRadioControl(id))).first;
+        if (res->second.synchronize(*ctrl[k]))
+          needCommit(res->second);
+      }
     }
   }
 
@@ -259,7 +263,7 @@ bool InfoRadioControl::synchronize(oControl &c) {
   return true;
 }
 
-void InfoRadioControl::serialize(xmlparser &xml, bool diffOnly) const {
+void InfoRadioControl::serialize(xmlbuffer &xml, bool diffOnly) const {
   vector< pair<string, string> > prop;
   prop.push_back(make_pair("id", itos(getId())));
   xml.write("ctrl", prop, name);
@@ -276,7 +280,7 @@ bool InfoClass::synchronize(oClass &c) {
     linearLegNumberToActual.clear();
 
     for (size_t k = 0; k < s; k++) {
-      if (!c.isParallel(k) && !c.isOptional(k)) {      
+      if (!c.isParallel(k) && !c.isOptional(k)) {
         pCourse pc = c.getCourse(k, 0, true); // Get a course representative for the leg.
 
         rc.push_back(vector<int>());
@@ -288,7 +292,7 @@ bool InfoClass::synchronize(oClass &c) {
               rc.back().push_back(ctrl[j]->getId());
             }
           }
-        }      
+        }
       }
       // Setup transformation map (flat to 2D)
       linearLegNumberToActual.push_back(max<int>(0, rc.size()-1));
@@ -298,17 +302,18 @@ bool InfoClass::synchronize(oClass &c) {
   else {
     // Single stage
     linearLegNumberToActual.resize(1, 0);
-    pCourse pc = c.getCourse(true); // Get a course representative for the leg. 
+    pCourse pc = c.getCourse(true); // Get a course representative for the leg.
     rc.push_back(vector<int>());
     if (pc) {
       vector<pControl> ctrl;
       pc->getControls(ctrl);
       for (size_t j = 0; j < ctrl.size(); j++) {
         if (ctrl[j]->isValidRadio()) {
-          rc.back().push_back(ctrl[j]->getId());
+          //rc.back().push_back(pc->getCourseControlId(ctrl[j]->getId());
+          rc.back().push_back(pc->getCourseControlId(j));
         }
       }
-    }      
+    }
   }
 
   if (radioControls != rc) {
@@ -327,7 +332,7 @@ bool InfoClass::synchronize(oClass &c) {
   return mod;
 }
 
-void InfoClass::serialize(xmlparser &xml, bool diffOnly) const {
+void InfoClass::serialize(xmlbuffer &xml, bool diffOnly) const {
   vector< pair<string, string> > prop;
   prop.push_back(make_pair("id", itos(getId())));
   prop.push_back(make_pair("ord", itos(sortOrder)));
@@ -348,11 +353,13 @@ bool InfoOrganization::synchronize(oClub &c) {
   return true;
 }
 
-void InfoOrganization::serialize(xmlparser &xml, bool diffOnly) const {
-  xml.write("org", "id", itos(getId()), name);
+void InfoOrganization::serialize(xmlbuffer &xml, bool diffOnly) const {
+  vector< pair<string, string> > prop;
+  prop.push_back(make_pair("id", itos(getId())));
+  xml.write("org", prop, name);
 }
 
-void InfoCompetition::serialize(xmlparser &xml, bool diffOnly) const {
+void InfoCompetition::serialize(xmlbuffer &xml, bool diffOnly) const {
   vector< pair<string, string> > prop;
   prop.push_back(make_pair("date", date));
   prop.push_back(make_pair("organizer", organizer));
@@ -360,7 +367,7 @@ void InfoCompetition::serialize(xmlparser &xml, bool diffOnly) const {
   xml.write("competition", prop, name);
 }
 
-void InfoBaseCompetitor::serialize(xmlparser &xml, bool diffOnly) const {
+void InfoBaseCompetitor::serialize(xmlbuffer &xml, bool diffOnly) const {
   vector< pair<string, string> > prop;
   prop.push_back(make_pair("org", itos(organizationId)));
   prop.push_back(make_pair("cls", itos(classId)));
@@ -450,16 +457,18 @@ bool InfoCompetitor::synchronize(const InfoCompetition &cmp, oRunner &r) {
     radioTimes.swap(newRT);
   }
 
-  if (ch) 
+  if (ch)
     modified();
   return ch;
 }
 
-void InfoCompetitor::serialize(xmlparser &xml, bool diffOnly) const {
-  xml.startTag("cmp", "id", itos(getId()));
-  InfoBaseCompetitor::serialize(xml, diffOnly);
+void InfoCompetitor::serialize(xmlbuffer &xml, bool diffOnly) const {
+  vector< pair<string, string> > sprop;
+  sprop.push_back(make_pair("id", itos(getId())));
+  xmlbuffer &subTag = xml.startTag("cmp", sprop);
+  InfoBaseCompetitor::serialize(subTag, diffOnly);
   if (radioTimes.size() > 0 && (!diffOnly || changeRadio)) {
-    string radio;    
+    string radio;
     radio.reserve(radioTimes.size() * 12);
     for (size_t k = 0; k < radioTimes.size(); k++) {
       if (k>0)
@@ -468,13 +477,14 @@ void InfoCompetitor::serialize(xmlparser &xml, bool diffOnly) const {
       radio+=",";
       radio+=itos(radioTimes[k].runningTime);
     }
-    xml.write("radio", radio);
+     vector< pair<string, string> > eprop;
+    subTag.write("radio", eprop, radio);
   }
   if (!diffOnly || changeTotalSt) {
     vector< pair<string, string> > prop;
     prop.push_back(make_pair("it", itos(inputTime)));
     prop.push_back(make_pair("tstat", itos(totalStatus)));
-    xml.write("input", prop, "");
+    subTag.write("input", prop, "");
   }
   xml.endTag();
 }
@@ -482,7 +492,7 @@ void InfoCompetitor::serialize(xmlparser &xml, bool diffOnly) const {
 
 bool InfoTeam::synchronize(oTeam &t) {
   bool ch = synchronizeBase(t);
-  
+
   const pClass cls = t.getClassRef();
   if (cls) {
     vector< vector<int> > r;
@@ -507,25 +517,31 @@ bool InfoTeam::synchronize(oTeam &t) {
     }
 
   }
-  if (ch) 
+  if (ch)
     modified();
   return ch;
 }
 
-void InfoTeam::serialize(xmlparser &xml, bool diffOnly) const {
-  xml.startTag("tm", "id", itos(getId()));
-  InfoBaseCompetitor::serialize(xml, diffOnly);
+void InfoTeam::serialize(xmlbuffer &xml, bool diffOnly) const {
+  vector< pair<string, string> > prop;
+  prop.push_back(make_pair("id", itos(getId())));
+  xmlbuffer &sub = xml.startTag("tm", prop);
+  InfoBaseCompetitor::serialize(sub, diffOnly);
   string def;
   packIntInt(competitors, def);
-  xml.write("r", def);
-  xml.endTag();
+  prop.clear();
+  sub.write("r", prop, def);
+  sub.endTag();
 }
 
 const vector<int> &InfoCompetition::getControls(int classId, int legNumber) const {
   map<int, InfoClass>::const_iterator res = classes.find(classId);
-  
+
   if (res != classes.end()) {
-    legNumber = res->second.linearLegNumberToActual[legNumber];
+    if (size_t(legNumber) < res->second.linearLegNumberToActual.size())
+      legNumber = res->second.linearLegNumberToActual[legNumber];
+    else
+      legNumber = 0;
     const vector< vector<int> > &c = res->second.radioControls;
     if (size_t(legNumber) < c.size())
       return c[legNumber];
@@ -533,11 +549,8 @@ const vector<int> &InfoCompetition::getControls(int classId, int legNumber) cons
   throw meosException("Internal class definition error");
 }
 
-int InfoCompetition::getCompleteXML(const string &destination, bool zip, gdioutput &utfConverter) {
-  xmlparser xml(utfConverter.getEncoding() == ANSI ? 0 : &utfConverter);
-  xml.openOutput(destination.c_str(), false);
-  xml.startTag("MOPComplete", "xmlns", "http://www.melin.nu/mop");
-  
+void InfoCompetition::getCompleteXML(xmlbuffer &xml) {
+  xml.setComplete(true);
   serialize(xml, false);
 
   for(map<int, InfoRadioControl>::iterator it = controls.begin(); it != controls.end(); ++it) {
@@ -551,62 +564,25 @@ int InfoCompetition::getCompleteXML(const string &destination, bool zip, gdioutp
   for(map<int, InfoOrganization>::iterator it = organizations.begin(); it != organizations.end(); ++it) {
     it->second.serialize(xml, false);
   }
-  
+
   for(map<int, InfoCompetitor>::iterator it = competitors.begin(); it != competitors.end(); ++it) {
-    it->second.serialize(xml, false);
+      it->second.serialize(xml, false);
   }
 
   for(map<int, InfoTeam>::iterator it = teams.begin(); it != teams.end(); ++it) {
-    it->second.serialize(xml, false);
+      it->second.serialize(xml, false);
   }
-  xml.endTag();
-  return xml.closeOut();
 }
 
-int InfoCompetition::getDiffXML(const string &destination, bool zip, gdioutput &utfConverter) {
+void InfoCompetition::getDiffXML(xmlbuffer &xml) {
   if (forceComplete) {
-    int res = getCompleteXML(destination, zip, utfConverter);    
-    return res;
+    getCompleteXML(xml);
+    return;
   }
-
-  xmlparser xml(utfConverter.getEncoding() == ANSI ? 0 : &utfConverter);
-  //string t = getTempFile();
-  //xml.openMemoryOutput(false);
-  xml.openOutput(destination.c_str(), false);
-  xml.startTag("MOPDiff", "xmlns", "http://www.melin.nu/mop");
+  xml.setComplete(false);
   for (list<InfoBase *>::iterator it = toCommit.begin(); it != toCommit.end(); ++it) {
     (*it)->serialize(xml, true);
   }
-  xml.endTag();
-  return xml.closeOut();
-
-/*
-  string tzip = getTempFile();
-  zip(tzip.c_str(), 0, vector<string>(1, t));
-
-  ifstream f(tzip.c_str(), ifstream::binary|ifstream::in);
-  f.seekg(0, std::ifstream::end);
-  size_t len = f.tellg();
-  f.seekg(0, std::ifstream::beg);
-  vector<BYTE> buff(len);
-  f.read((char *)&buff[0], len);
-  f.close();
-
-  string output;
-  base64_encode(buff, output);*/
-  /*Download dwl;
-  dwl.initInternet();
-  ProgressWindow pw(0);
-  vector<pair<string,string> > key;
-  key.push_back(make_pair<string, string>("foo", "bar"));
-  string result = getTempFile();
-  dwl.postFile("http://www.melin.nu/online/test.php?id=1", t, result, key, pw);
-
-
-  removeTempFile(result);
-  removeTempFile(t);*/
-  //removeTempFile(tzip);
-  //xml.getMemoryOutput(res);  
 }
 
 void InfoCompetition::commitComplete() {
@@ -646,4 +622,62 @@ void base64_encode(const vector<BYTE> &input, string &encoded_data) {
 
   for (int i = 0; i < mod_table[input_length % 3]; i++)
     encoded_data[output_length - 1 - i] = '=';
+}
+
+xmlbuffer &xmlbuffer::startTag(const char *tag, const vector< pair<string, string> > &prop) {
+  blocks.push_back(block());
+  blocks.back().tag = tag;
+  blocks.back().prop = prop;
+  blocks.back().subValues.push_back(xmlbuffer());
+  return blocks.back().subValues.back();
+}
+
+void xmlbuffer::endTag() {
+}
+
+void xmlbuffer::write(const char *tag,
+                      const vector< pair<string, string> > &prop,
+                      const string &value) {
+  blocks.push_back(block());
+  blocks.back().tag = tag;
+  blocks.back().prop = prop;
+  blocks.back().value = value;
+}
+
+void xmlbuffer::startXML(xmlparser &xml, const string &dest) {
+  xml.openOutput(dest.c_str(), false);
+  if (complete) {
+    xml.startTag("MOPComplete", "xmlns", "http://www.melin.nu/mop");
+    complete = false;
+  }
+  else
+  xml.startTag("MOPDiff", "xmlns", "http://www.melin.nu/mop");
+}
+
+bool xmlbuffer::commit(xmlparser &xml, int count) {
+  while (count>0 && !blocks.empty()) {
+    block &block = blocks.front();
+
+    if (block.subValues.empty()) {
+      xml.write(block.tag.c_str(), block.prop, block.value);
+    }
+    else {
+      vector<string> p2;
+      for (size_t k = 0; k< block.prop.size(); k++) {
+        p2.push_back(block.prop[k].first);
+        p2.push_back(block.prop[k].second);
+      }
+      xml.startTag(block.tag.c_str(), p2);
+
+      for (size_t k = 0; k < block.subValues.size(); k++)
+        block.subValues[k].commit(xml, numeric_limits<int>::max());
+
+      xml.endTag();
+    }
+
+    count--;
+    blocks.pop_front();
+  }
+
+  return !blocks.empty();
 }

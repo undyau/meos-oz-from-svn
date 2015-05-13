@@ -1,8 +1,8 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2014 Melin Software HB
-    
+    Copyright (C) 2009-2015 Melin Software HB
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include "Localizer.h"
@@ -37,17 +37,17 @@ class gdioutput;
 class oEvent;
 
 class TabBase
-{	
+{
 protected:
-	oEvent *oe;
+  oEvent *oe;
   int tabId;
 public:
   oEvent *getEvent() const {return oe;}
   int getTabId() const {return tabId;}
-	virtual bool loadPage(gdioutput &gdi) = 0;
+  virtual bool loadPage(gdioutput &gdi) = 0;
 
-	TabBase(oEvent *poe) : oe(poe), tabId(0) {}
-	virtual ~TabBase()=0  {}
+  TabBase(oEvent *poe) : oe(poe), tabId(0) {}
+  virtual ~TabBase()=0  {}
   friend class TabObject;
 };
 
@@ -55,44 +55,44 @@ public:
 class TabObject
 {
 protected:
-	mutable TabBase *tab;
+  mutable TabBase *tab;
 
 public:
-	string name;
-	int id;
+  string name;
+  int id;
 
-	TabObject(TabBase *t, string n):name(n),tab(t) {}
-	
-  void setId(int i){id=i; if(tab) tab->tabId=id;}
-	void setPage(TabBase *tb){delete tab; tab=tb;}
+  TabObject(TabBase *t, string n):name(n),tab(t) {}
+
+  void setId(int i){id=i; if (tab) tab->tabId=id;}
+  void setPage(TabBase *tb){delete tab; tab=tb;}
 
   const type_info &getType() const {return typeid(*tab);}
 
-	TabObject(const TabObject &t)
-	{
-		if (&t!=this) {
-			name=t.name;
-			id=t.id;
-			tab=t.tab;
-			//t.tab=0;
-		}
-	}
+  TabObject(const TabObject &t)
+  {
+    if (&t!=this) {
+      name=t.name;
+      id=t.id;
+      tab=t.tab;
+      //t.tab=0;
+    }
+  }
 
-	TabObject &operator=(TabObject &t)
-	{
-		if (&t!=this) {
-			delete tab;
-			name=t.name;
-			id=t.id;
-			tab=t.tab;
-			//t.tab=0;
-		}
-	}
+  TabObject &operator=(TabObject &t)
+  {
+    if (&t!=this) {
+      delete tab;
+      name=t.name;
+      id=t.id;
+      tab=t.tab;
+      //t.tab=0;
+    }
+  }
 
-	TabObject(TabBase *t);
-	~TabObject();
+  TabObject(TabBase *t);
+  ~TabObject();
 
-	bool loadPage(gdioutput &gdi);
+  bool loadPage(gdioutput &gdi);
 };
 
 class TabRunner;
@@ -135,10 +135,10 @@ class FixedTabs {
   TabClub *clubTab;
   TabAuto *autoTab;
 public:
-  
+
   bool hasSpeaker() const {return speakerTab != 0;}
   bool hasClass() const {return classTab != 0;}
-  
+
   TabBase *get(TabType tag);
 
   FixedTabs();
@@ -152,9 +152,9 @@ namespace FixedTabs {
 
   extern TabClass *classTab;
   extern TabCourse *courseTab;
-  extern TabControl *controlTab;  
+  extern TabControl *controlTab;
 
-  extern TabClub *clubTab;  
+  extern TabClub *clubTab;
 
   extern TabSI *siTab;
   extern TabList *listTab;
