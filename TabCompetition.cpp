@@ -1785,16 +1785,18 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       int FilterIndex = lbi.data;
       vector< pair<string, string> > ext;
       if (bi.id=="BrowseExport") {
-        ext.push_back(make_pair("IOF Startlista, version 3.0 (xml)", "*.xml"));
-        ext.push_back(make_pair("IOF Startlista, version 2.0.3 (xml)", "*.xml"));
-        ext.push_back(make_pair("OE Semikolonseparerad (csv)", "*.csv"));
-        ext.push_back(make_pair("Webbdokument (html)", "*.html;*.htm"));
+        ext.push_back(make_pair(lang.tl("IOF Startlista, version 3.0 (xml)"), "*.xml"));
+        ext.push_back(make_pair(lang.tl("IOF Startlista, version 2.0.3 (xml)"), "*.xml"));
+        ext.push_back(make_pair(lang.tl("OE Semikolonseparerad (csv)"), "*.csv"));
+        ext.push_back(make_pair(lang.tl("Webbdokument (html)"), "*.html;*.htm"));
       }
       else {
-        ext.push_back(make_pair("IOF Resultat, version 3.0 (xml)", "*.xml"));
-        ext.push_back(make_pair("IOF Resultat, version 2.0.3 (xml)", "*.xml"));
-        ext.push_back(make_pair("OE Semikolonseparerad (csv)", "*.csv"));
-        ext.push_back(make_pair("Webbdokument (html)", "*.html"));
+        ext.push_back(make_pair(lang.tl("IOF Resultat, version 3.0 (xml)"), "*.xml"));
+        ext.push_back(make_pair(lang.tl("IOF Resultat, version 2.0.3 (xml)"), "*.xml"));
+        ext.push_back(make_pair(lang.tl("OE Semikolonseparerad (csv)"), "*.csv"));
+        ext.push_back(make_pair(lang.tl("Webbdokument (html)"), "*.html"));
+        ext.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 3.0 (xml)"), "*.xml"));
+        ext.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 2.0.3 (xml)"), "*.xml"));
       }
       string save = gdi.browseForSave(ext, "xml", FilterIndex);
 
@@ -1869,14 +1871,6 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
         if (!cnf.hasTeamClass()) {
           oe->exportIOFSplits(ver, save.c_str(), true, useUTC, allTransfer, -1, false, unroll);
         }
-				else if (FilterIndex == 4 || FilterIndex == 5) {
-					ClassConfigInfo cnf;
-          oe->getClassConfigurationInfo(cnf);
-          if (!cnf.hasTeamClass()) {
-						oEvent::IOFVersion ver = FilterIndex == 5 ? oEvent::IOF30 : oEvent::IOF20;
-						static_cast<oExtendedEvent*>(oe)->exportCourseOrderedIOFSplits(ver, save.c_str(), true, set<int>(), -1);				
-					}
-				}
         else {
           ListBoxInfo leglbi;
           gdi.getSelectedItem("LegType", &leglbi);
@@ -1910,6 +1904,14 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       else if (FilterIndex == 3) {
         oe->exportOECSV(save.c_str());
       }
+			else if (FilterIndex == 5 || FilterIndex == 6) {
+					ClassConfigInfo cnf;
+          oe->getClassConfigurationInfo(cnf);
+          if (!cnf.hasTeamClass()) {
+						oEvent::IOFVersion ver = FilterIndex == 5 ? oEvent::IOF30 : oEvent::IOF20;
+						static_cast<oExtendedEvent*>(oe)->exportCourseOrderedIOFSplits(ver, save.c_str(), true, set<int>(), -1);				
+					}
+				}
       else {
         oListParam par;
         par.listCode = EStdResultList;
@@ -3554,10 +3556,12 @@ void TabCompetition::selectExportSplitOptions(gdioutput &gdi) {
   gdi.addSelection("Type", 250, 200, CompetitionCB, "Exporttyp");
 
   vector< pair<string, size_t> > types;
-  types.push_back(make_pair("IOF Resultat, version 3.0 (xml)", 1));
-  types.push_back(make_pair("IOF Resultat, version 2.0.3 (xml)", 2));
-  types.push_back(make_pair("OE Semikolonseparerad (csv)", 3));
-  types.push_back(make_pair("Webbdokument (html)", 4));
+  types.push_back(make_pair(lang.tl("IOF Resultat, version 3.0 (xml)"), 1));
+  types.push_back(make_pair(lang.tl("IOF Resultat, version 2.0.3 (xml)"), 2));
+  types.push_back(make_pair(lang.tl("OE Semikolonseparerad (csv)"), 3));
+  types.push_back(make_pair(lang.tl("Webbdokument (html)"), 4));
+  types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 3.0 (xml)"), 5));
+  types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 2.0.3 (xml)"), 6));
 
   gdi.addItem("Type", types);
   gdi.selectFirstItem("Type");
