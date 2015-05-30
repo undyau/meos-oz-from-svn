@@ -1,4 +1,8 @@
-25 February 2014 3.1.406.1
+30 May 2015 3.2.451.1
+- Merge with standard MEOS 3.2.481 (MeOS 3.2)
+  For changes see http://www.melin.nu/meos/en/whatsnew25.php
+
+25 February 2015 3.1.406.1
 - Merge with standard MEOS 3.1.401 (MeOS 3.1 Update 3)
   For changes see http://www.melin.nu/meos/en/whatsnew25.php
 - Correct bug that prevented MEOS-OZ working in server mode.
