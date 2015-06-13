@@ -1,3 +1,7 @@
+13 June 2015 3.2.451.2
+- Persist name of entry list import file
+- Add custom reports to SSS competition file
+
 30 May 2015 3.2.451.1
 - Merge with standard MEOS 3.2.481 (MeOS 3.2)
   For changes see http://www.melin.nu/meos/en/whatsnew25.php
