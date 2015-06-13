@@ -2083,7 +2083,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       gdi.disableInput("DoImport");
       gdi.disableInput("Cancel");
       gdi.disableInput("BrowseEntries");
-			oe->setProperty("EntryImportFile", gdi.getText("FileName"));
+	  oe->setProperty("EntryImportFile", gdi.getText("FileName"));
       bool updateClass = gdi.isChecked("UpdateClass");
 
       try {
@@ -3411,7 +3411,7 @@ void TabCompetition::entryForm(gdioutput &gdi, bool isGuide) {
   gdi.popX();
 
   gdi.dropLine(2.5);
-  gdi.addInput("FileName", "", 48, 0, "Anmälningar (IOF (xml) eller OE-CSV)");
+  gdi.addInput("FileName", oe->getPropertyString("EntryImportFile",""), 48, 0, "Anmälningar (IOF (xml) eller OE-CSV)");
   gdi.dropLine();
   gdi.addButton("BrowseEntries", "Bläddra...", CompetitionCB).setExtra("FileName");
   gdi.popX();

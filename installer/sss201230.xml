@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 
 
-<meosdata>
+<meosdata version="3.2">
 <Name>Sydney Summer Series</Name>
 <Date>2012-11-08</Date>
 <ZeroTime>54000</ZeroTime>
 <NameId>meos_20121108_124210_3DB</NameId>
 <IsSydneySummerSeries>1</IsSydneySummerSeries>
-<Updated>20131017215625</Updated>
+<Updated>20150613123955</Updated>
 <oData>
 <CardFee>400</CardFee>
-<CurrencyFactor>100</CurrencyFactor>
-<CurrencyPreSymbol>1</CurrencyPreSymbol>
-<CurrencySeparator>.</CurrencySeparator>
-<CurrencySymbol>$</CurrencySymbol>
 <EliteFee>2000</EliteFee>
 <EntryFee>2000</EntryFee>
-<LateEntryFactor>50 %</LateEntryFactor>
-<SeniorAge>20</SeniorAge>
-<YouthAge>16</YouthAge>
 <YouthFee>1500</YouthFee>
+<YouthAge>16</YouthAge>
+<SeniorAge>20</SeniorAge>
+<LateEntryFactor>50 %</LateEntryFactor>
+<CurrencyFactor>100</CurrencyFactor>
+<CurrencySymbol>$</CurrencySymbol>
+<CurrencySeparator>.</CurrencySeparator>
+<CurrencyPreSymbol>1</CurrencyPreSymbol>
 </oData>
 <ControlList>
 <Control>
@@ -326,55 +326,27 @@
 <CourseList>
 <Course>
 <Id>1</Id>
-<Updated>20131017215625</Updated>
+<Updated>20150613123814</Updated>
 <Name>Score</Name>
 <Controls>201;202;203;204;205;206;207;208;209;210;211;212;213;214;215;216;217;218;219;220;221;222;223;224;225;226;227;228;229;230;</Controls>
 <oData>
+<RTimeLimit>2700</RTimeLimit>
 <RReduction>10</RReduction>
 <RReductionMethod>1</RReductionMethod>
-<RTimeLimit>2700</RTimeLimit>
 </oData>
 </Course>
 </CourseList>
 <ClassList>
-<Class>
-<Id>2</Id>
-<Updated>20121108125822</Updated>
-<Name>SJW</Name>
-<Course>1</Course>
-<oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
-<ClassType>Öppen</ClassType>
-<HighClassFee>3000</HighClassFee>
-<HighClassFeeRed>2250</HighClassFeeRed>
-<SortIndex>20</SortIndex>
-</oData>
-</Class>
-<Class>
-<Id>3</Id>
-<Updated>20121108125915</Updated>
-<Name>SJM</Name>
-<Course>1</Course>
-<oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
-<ClassType>Öppen</ClassType>
-<HighClassFee>3000</HighClassFee>
-<HighClassFeeRed>2250</HighClassFeeRed>
-<SortIndex>30</SortIndex>
-</oData>
-</Class>
 <Class>
 <Id>4</Id>
 <Updated>20121108125923</Updated>
 <Name>JW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>40</SortIndex>
 </oData>
@@ -385,10 +357,10 @@
 <Name>JM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>50</SortIndex>
 </oData>
@@ -399,10 +371,10 @@
 <Name>OW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>60</SortIndex>
 </oData>
@@ -413,10 +385,10 @@
 <Name>OM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>70</SortIndex>
 </oData>
@@ -427,10 +399,10 @@
 <Name>MW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>80</SortIndex>
 </oData>
@@ -441,10 +413,10 @@
 <Name>MM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>90</SortIndex>
 </oData>
@@ -455,10 +427,10 @@
 <Name>VW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>100</SortIndex>
 </oData>
@@ -469,10 +441,10 @@
 <Name>VM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>110</SortIndex>
 </oData>
@@ -483,10 +455,10 @@
 <Name>SVW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>120</SortIndex>
 </oData>
@@ -497,10 +469,10 @@
 <Name>SVM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>130</SortIndex>
 </oData>
@@ -511,10 +483,10 @@
 <Name>LW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>140</SortIndex>
 </oData>
@@ -525,10 +497,10 @@
 <Name>LM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>150</SortIndex>
 </oData>
@@ -539,10 +511,10 @@
 <Name>IW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>160</SortIndex>
 </oData>
@@ -553,10 +525,10 @@
 <Name>IM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>170</SortIndex>
 </oData>
@@ -567,10 +539,10 @@
 <Name>WaW</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>180</SortIndex>
 </oData>
@@ -581,10 +553,10 @@
 <Name>WaM</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>190</SortIndex>
 </oData>
@@ -595,10 +567,10 @@
 <Name>Group</Name>
 <Course>1</Course>
 <oData>
-<ClassFee>2000</ClassFee>
-<ClassFeeRed>1500</ClassFeeRed>
 <ClassType>Öppen</ClassType>
+<ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
+<ClassFeeRed>1500</ClassFeeRed>
 <HighClassFeeRed>2250</HighClassFeeRed>
 <SortIndex>200</SortIndex>
 </oData>
@@ -622,5 +594,128 @@
 <CardList>
 </CardList>
 <Lists>
+<MeOSListDefinition version="3.2">
+<ListName>SSS Results</ListName>
+<ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
+<UID>A-8151303428791508141B2494685629</UID>
+<SortOrder>CoursePoints</SortOrder>
+<ListType>Runner</ListType>
+<SubListType>None</SubListType>
+<Filter name="FilterResult"/>
+<HeadFont scale="100"></HeadFont>
+<SubHeadFont scale="100"></SubHeadFont>
+<ListFont scale="100"></ListFont>
+<SubListFont scale="100"></SubListFont>
+<Head>
+<Line>
+<Block Type="CmpName">
+<Align BlockAlign="true">None</Align>
+</Block>
+</Line>
+</Head>
+<SubHead>
+<Line>
+<Block Type="String">
+<Text>Place in Class</Text>
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="String">
+<Text>Name</Text>
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="String">
+<Text>Club</Text>
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="String">
+<Text>Time</Text>
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="String">
+<Text>Score</Text>
+<Align BlockAlign="true">None</Align>
+</Block>
+</Line>
+</SubHead>
+<List>
+<Line>
+<Block Type="RunnerPlace">
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="ClassName">
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="RunnerName">
+<Align BlockAlign="true">Name</Align>
+</Block>
+<Block Type="RunnerClub">
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="RunnerTime">
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="RunnerRogainingReduction">
+<Align BlockAlign="true">None</Align>
+</Block>
+<Block Type="RunnerRogainingPointTotal">
+<Align BlockAlign="true">Score</Align>
+</Block>
+<Block Type="String">
+<Align BlockAlign="true">None</Align>
+</Block>
+</Line>
+</List>
+<SubList>
+</SubList>
+</MeOSListDefinition>
+<MeOSListDefinition version="3.2">
+<ListName>SSS Results Receipt</ListName>
+<ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
+<UID>A8117745476920118535B3535213210</UID>
+<SortOrder>ClassPoints</SortOrder>
+<ListType>Runner</ListType>
+<SubListType>None</SubListType>
+<Filter name="FilterResult"/>
+<HeadFont scale="100"></HeadFont>
+<SubHeadFont scale="100"></SubHeadFont>
+<ListFont scale="120"></ListFont>
+<SubListFont scale="100"></SubListFont>
+<Head>
+<Line>
+<Block Type="CmpName">
+<Align BlockAlign="true">None</Align>
+</Block>
+</Line>
+</Head>
+<SubHead>
+<Line>
+</Line>
+<Line>
+<Block Type="ClassName">
+<Align BlockAlign="true">None</Align>
+<Font>BoldHuge</Font>
+</Block>
+</Line>
+</SubHead>
+<List>
+<Line>
+<Block Type="RunnerPlace">
+<Align BlockAlign="true">None</Align>
+<Font>BoldLarge</Font>
+</Block>
+<Block Type="RunnerName">
+<Align BlockAlign="true">None</Align>
+<Font>BoldLarge</Font>
+</Block>
+<Block Type="RunnerRogainingPointTotal">
+<Align BlockAlign="false">None</Align>
+<Font>BoldLarge</Font>
+<TextAdjust>Right</TextAdjust>
+</Block>
+</Line>
+</List>
+<SubList>
+</SubList>
+</MeOSListDefinition>
 </Lists>
 </meosdata>
