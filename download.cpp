@@ -122,6 +122,10 @@ void Download::initInternet() {
     string error = lang.tl("Error: X#" + getErrorMessage(ec));
     throw std::exception(error.c_str());
   }
+
+  DWORD dwTimeOut = 120 * 1000;
+  InternetSetOption(hInternet, INTERNET_OPTION_RECEIVE_TIMEOUT, &dwTimeOut, sizeof(DWORD));
+  InternetSetOption(hInternet, INTERNET_OPTION_SEND_TIMEOUT, &dwTimeOut, sizeof(DWORD));
 }
 
 void Download::downloadFile(const string &url, const string &file, const vector< pair<string, string> > &headers)

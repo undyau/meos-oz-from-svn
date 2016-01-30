@@ -55,6 +55,15 @@ private:
   void showTeamImport(gdioutput &gdi);
   void doTeamImport(gdioutput &gdi);
   void saveTeamImport(gdioutput &gdi, bool useExisting);
+  void showAddTeamMembers(gdioutput &gdi);
+  void doAddTeamMembers(gdioutput &gdi);
+
+  void showRunners(gdioutput &gdi, const char *title,
+                   const set< pair<string, int> > &rToList, 
+                   int limitX, set<int> &usedR);
+
+  
+  void processChangeRunner(gdioutput &gdi, pTeam t, int leg, pRunner r);
 
   pRunner findRunner(const string &name, int cardNo) const;
   vector<TeamLineup> teamLineup;

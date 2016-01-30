@@ -77,13 +77,17 @@ void TabControl::selectControl(gdioutput &gdi,  pControl pc)
     else {
       gdi.selectItemByData("Controls", pc->getId());
       gdi.selectItemByData("Status", pc->getStatus());
-      oe->setupMissedControlTime();
-      const int numVisit = pc->getNumVisitors();
+      const int numVisit = pc->getNumVisitors(true);
+      const int numVisitExp = pc->getNumVisitors(false);
+      
       string info;
       if (numVisit > 0) {
          info = "Antal besökare X, genomsnittlig bomtid Y, största bomtid Z#" +
-          itos(pc->getNumVisitors()) + "#" + getTimeMS(pc->getMissedTimeTotal() / numVisit) +
+           itos(numVisit) + " (" + itos(numVisitExp) + ")#" + getTimeMS(pc->getMissedTimeTotal() / numVisit) +
           "#" + getTimeMS(pc->getMissedTimeMax());
+      }
+      else if (numVisitExp > 0) {
+        info = "Förväntat antal besökare: X#" + itos(numVisitExp);
       }
       gdi.setText("ControlID", itos(pc->getId()), true);
 
@@ -517,8 +521,6 @@ bool TabControl::loadPage(gdioutput &gdi)
   selectControl(gdi, oe->getControl(controlId, false));
 
   gdi.setOnClearCb(ControlsCB);
-
-  oe->setupMissedControlTime();
 
   gdi.refresh();
   return true;

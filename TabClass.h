@@ -48,10 +48,10 @@ class TabClass :
     DMSOFT = 2,
     DMClumped = 3,
     DMSimultaneous = 4,
+    DMSeeded = 5,
 
     DMPursuit = 11,
-    DMReversePursuit = 12,
-    DMSeeded = 13
+    DMReversePursuit = 12
   };
 
   bool EditChanged;
@@ -101,11 +101,25 @@ class TabClass :
   void defineForking(gdioutput &gdi, bool clearSettings);
   vector< vector<int> > forkingSetup;
   static const char *getCourseLabel(bool pool);
+
+  void getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb);
+  void saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee, bool &modifiedBib);
+
+  static string getBibCode(AutoBibType bt, const string &key);
+
+  void setParallelOptions(const string &sdKey, gdioutput &gdi, pClass pc, int  legno);
+  
+  void updateStartData(gdioutput &gdi, pClass pc, int leg, bool updateDependent, bool forceWrite);
+
+  void updateSplitDistribution(gdioutput &gdi, int numInClass, int tot) const;
+
+  DrawMethod getDefaultMethod(bool allowPursuit) const;
 public:
   void clear();
 
   void closeWindow(gdioutput &gdi);
 
+  void saveClassSettingsTable(gdioutput &gdi);
   void multiCourse(gdioutput &gdi, int nLeg);
   bool loadPage(gdioutput &gdi);
   void selectClass(gdioutput &gdi, int cid);

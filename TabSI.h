@@ -49,6 +49,7 @@ class TabSI :
   bool interactiveReadout;
   bool useDatabase;
   bool printSplits;
+  bool printStartInfo;
   bool manualInput;
   PrinterObject splitPrinter;
   PrinterObject labelPrinter;
@@ -77,8 +78,7 @@ class TabSI :
   void generateEntryLine(gdioutput &gdi, pRunner r);
   int lastClassId;
   int lastClubId;
-  int lastFee;
-
+  string lastFee;
   int inputId;
 
   void showReadPunches(gdioutput &gdi, vector<PunchInfo> &punches, set<string> &dates);
@@ -119,11 +119,37 @@ class TabSI :
 
   void createCompetitionFromCards(gdioutput &gdi);
 
+  int NC;
+
 public:
+
+  struct StoredStartInfo {
+    string storedName;
+    string storedCardNo;
+    string storedClub;
+    string storedFee;
+    string storedPhone;
+    string storedStartTime;
+    bool allStages;
+    bool rentState;
+    bool hasPaid;
+    DWORD age;
+    int storedClassId;
+
+    void clear();
+    void checkAge();
+    StoredStartInfo() : rentState(false), age(0), storedClassId(0), hasPaid(0), allStages(false) {}
+  };
+
+  StoredStartInfo storedInfo;
 
   static SportIdent &getSI(gdioutput &gdi);
   void printerSetup(gdioutput &gdi);
 	void labelPrinterSetup(gdioutput &gdi);
+
+  void generateStartInfo(gdioutput &gdi, const oRunner &r);
+  bool hasPrintStartInfo() const {return printStartInfo;}
+  void setPrintStartInfo(bool info) {printStartInfo = info;}
 
   int siCB(gdioutput &gdi, int type, void *data);
 

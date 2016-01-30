@@ -42,7 +42,8 @@ struct PageInfo {
   float bottomMargin;
   float pageY;
   float leftMargin;
-  float scale;
+  float scaleX;
+  float scaleY;
 
   bool printHeader;
   bool noPrintMargin;

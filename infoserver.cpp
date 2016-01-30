@@ -148,7 +148,7 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
   knownId.clear();
 
   vector<pClass> cls;
-  oe.getClasses(cls);
+  oe.getClasses(cls, false);
   for (size_t k = 0; k < cls.size(); k++) {
     int id = cls[k]->getId();
     if (!includeCls.count(id))
@@ -195,31 +195,6 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
   }
   knownId.clear();
 
-  vector<pRunner> r;
-  oe.getRunners(0, 0, r, false);
-  for (size_t k = 0; k < r.size(); k++) {
-    if (!includeCls.count(r[k]->getClassId()))
-      continue;
-    int id = r[k]->getId();
-    knownId.insert(id);
-    map<int, InfoCompetitor>::iterator res = competitors.find(id);
-    if (res == competitors.end())
-      res = competitors.insert(make_pair(id, InfoCompetitor(id))).first;
-    if (res->second.synchronize(*this, *r[k]))
-      needCommit(res->second);
-  }
-
-  // Check if something was deleted
-  for (map<int, InfoCompetitor>::iterator it = competitors.begin(); it != competitors.end();) {
-    if (!knownId.count(it->first)) {
-      competitors.erase(it++);
-      forceComplete = true;
-    }
-    else
-      ++it;
-  }
-  knownId.clear();
-
   vector<pTeam> t;
   oe.getTeams(0, t, false);
   for (size_t k = 0; k < t.size(); k++) {
@@ -238,6 +213,31 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
   for (map<int, InfoTeam>::iterator it = teams.begin(); it != teams.end();) {
     if (!knownId.count(it->first)) {
       teams.erase(it++);
+      forceComplete = true;
+    }
+    else
+      ++it;
+  }
+  knownId.clear();
+
+  vector<pRunner> r;
+  oe.getRunners(0, 0, r, false);
+  for (size_t k = 0; k < r.size(); k++) {
+    if (!includeCls.count(r[k]->getClassId()))
+      continue;
+    int id = r[k]->getId();
+    knownId.insert(id);
+    map<int, InfoCompetitor>::iterator res = competitors.find(id);
+    if (res == competitors.end())
+      res = competitors.insert(make_pair(id, InfoCompetitor(id))).first;
+    if (res->second.synchronize(*this, *r[k]))
+      needCommit(res->second);
+  }
+
+  // Check if something was deleted
+  for (map<int, InfoCompetitor>::iterator it = competitors.begin(); it != competitors.end();) {
+    if (!knownId.count(it->first)) {
+      competitors.erase(it++);
       forceComplete = true;
     }
     else
@@ -403,7 +403,10 @@ bool InfoBaseCompetitor::synchronizeBase(oAbstractRunner &bc) {
     ch = true;
   }
 
-  int st = convertRelativeTime(bc, bc.getStartTime()) * 10;
+  int st = -1;
+  if (bc.startTimeAvailable())
+    st = convertRelativeTime(bc, bc.getStartTime()) * 10;
+  
   if (st != startTime) {
     startTime = st;
     ch = true;
@@ -420,15 +423,15 @@ bool InfoBaseCompetitor::synchronizeBase(oAbstractRunner &bc) {
 bool InfoCompetitor::synchronize(const InfoCompetition &cmp, oRunner &r) {
   bool ch = synchronizeBase(r);
 
-  changeTotalSt = false;
-  int s = r.getTotalStatus();
+  changeTotalSt = r.getEvent()->hasPrevStage() || r.getLegNumber()>0; // Always write full attributes
+  int s = r.getTotalStatusInput();
   if (totalStatus != s) {
     totalStatus = s;
     ch = true;
     changeTotalSt = true;
   }
 
-  int legInput = r.getTotalRunningTime() * 10 - runningTime;
+  int legInput = r.getTotalTimeInput() * 10;
   if (legInput != inputTime) {
     inputTime = legInput;
     ch = true;
@@ -450,7 +453,7 @@ bool InfoCompetitor::synchronize(const InfoCompetition &cmp, oRunner &r) {
       }
     }
   }
-  changeRadio = false;
+  changeRadio = radioTimes.size() > 0;//false; // Always write full attributes
   if (newRT != radioTimes) {
     ch = true;
     changeRadio = true;
@@ -565,12 +568,12 @@ void InfoCompetition::getCompleteXML(xmlbuffer &xml) {
     it->second.serialize(xml, false);
   }
 
-  for(map<int, InfoCompetitor>::iterator it = competitors.begin(); it != competitors.end(); ++it) {
-      it->second.serialize(xml, false);
+  for(map<int, InfoTeam>::iterator it = teams.begin(); it != teams.end(); ++it) {
+    it->second.serialize(xml, false);
   }
 
-  for(map<int, InfoTeam>::iterator it = teams.begin(); it != teams.end(); ++it) {
-      it->second.serialize(xml, false);
+  for(map<int, InfoCompetitor>::iterator it = competitors.begin(); it != competitors.end(); ++it) {
+    it->second.serialize(xml, false);
   }
 }
 

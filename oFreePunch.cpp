@@ -691,6 +691,21 @@ bool oEvent::advancePunchInformation(const vector<gdioutput *> &gdi, vector<Sock
   return m;
 }
 
+void oEvent::getLatestPunches(int firstTime, vector<const oFreePunch *> &punchesOut) const {
+  for (map< pair<int, int>, oFreePunch>::const_iterator it = advanceInformationPunches.begin();
+       it != advanceInformationPunches.end(); ++it) {
+    int time = it->second.getModificationTime();
+    if (time >= firstTime)
+      punchesOut.push_back(&it->second);
+  }
+
+  for (oFreePunchList::const_iterator it = punches.begin(); it != punches.end(); ++it) {
+    int time = it->getModificationTime();
+    if (time >= firstTime)
+      punchesOut.push_back(&*it);
+  }
+}
+
 pRunner oFreePunch::getTiedRunner() const {
   return oe->getRunner(tRunnerId, 0);
 }

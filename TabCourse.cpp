@@ -110,7 +110,7 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
     gdi.setText("CourseProblem", lang.tl(pc->getCourseProblems()), true);
     vector<pClass> cls;
     vector<pCourse> crs;
-    oe->getClasses(cls);
+    oe->getClasses(cls, true);
     string usedInClasses;
     for (size_t k = 0; k < cls.size(); k++) {
       int nleg = max<int>(cls[k]->getNumStages(), 1);
@@ -125,13 +125,20 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
         }
       }
       string add;
-      if (usage.size() == 1) {
+      if (usage.size() == nleg) {
         add = cls[k]->getName();
       }
       else if (usage.size() > 1) {
         add = cls[k]->getName();
+        add += " (";
+        for (size_t i = 0; i < usage.size(); i++) {
+          if (i > 0)
+            add += ", ";
+          add += itos(usage[i]);
+        }
+        add += ")";
       }
-
+      
       if (!add.empty()) {
         if (!usedInClasses.empty())
           usedInClasses += ", ";
@@ -139,15 +146,28 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
       }
     }
     gdi.setText("CourseUse", usedInClasses, true);
+    pCourse shortens = pc->getLongerVersion();
+    if (shortens)
+      gdi.setTextTranslate("Shortens", "Avkortar: X#" + shortens->getName(), true);
+    else
+      gdi.setText("Shortens", "", true);
 
     gdi.enableEditControls(true);
 
-    fillCourseControls(gdi, *oe, pc->getControlsUI());
+    fillCourseControls(gdi, pc->getControlsUI());
     int cc = pc->getCommonControl();
     gdi.check("WithLoops", cc != 0);
     gdi.setInputStatus("CommonControl", cc != 0);
     if (cc) {
       gdi.selectItemByData("CommonControl", cc);
+    }
+
+    fillOtherCourses(gdi, *pc);
+    pCourse sh = pc->getShorterVersion();
+    gdi.check("Shorten", sh != 0);
+    gdi.setInputStatus("ShortCourse", sh != 0);
+    if (sh) {
+      gdi.selectItemByData("ShortCourse", sh->getId());
     }
   }
   else {
@@ -163,9 +183,13 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
     gdi.selectItemByData("Courses", -1);
     gdi.setText("CourseProblem", "", true);
     gdi.setText("CourseUse", "", true);
+    gdi.setText("Shortens", "", true);
     gdi.check("WithLoops", false);
     gdi.clearList("CommonControl");
     gdi.setInputStatus("CommonControl", false);
+    gdi.check("Shorten", false);
+    gdi.clearList("ShortCourse");
+    gdi.setInputStatus("ShortCourse", false);
 
     gdi.enableEditControls(false);
   }
@@ -178,7 +202,7 @@ int CourseCB(gdioutput *gdi, int type, void *data)
   return tc.courseCB(*gdi, type, data);
 }
 
-void TabCourse::save(gdioutput &gdi)
+void TabCourse::save(gdioutput &gdi, int canSwitchViewMode)
 {
   DWORD cid = courseId;
 
@@ -218,7 +242,7 @@ void TabCourse::save(gdioutput &gdi)
 
 
   pc->setName(name);
-  pc->importControls(gdi.getText("Controls"));
+  bool changedCourse = pc->importControls(gdi.getText("Controls"), true);
   pc->setLength(gdi.getTextNo("Length"));
   pc->setNumberMaps(gdi.getTextNo("NumberMaps"));
   pc->firstAsStart(firstAsStart);
@@ -232,6 +256,17 @@ void TabCourse::save(gdioutput &gdi)
   }
   else
     pc->setCommonControl(0);
+
+  if (gdi.isChecked("Shorten")) {
+    ListBoxInfo ci;
+    if (gdi.getSelectedItem("ShortCourse", &ci) && oe->getCourse(ci.data)) {
+      pc->setShorterVersion(oe->getCourse(ci.data));
+    }
+    else
+      throw meosException("Ange en avkortad banvariant");
+  }
+  else
+    pc->setShorterVersion(0);
 
   if (gdi.hasField("Rogaining")) {
     string t;
@@ -250,6 +285,18 @@ void TabCourse::save(gdioutput &gdi)
   oe->fillCourses(gdi, "Courses");
   oe->reEvaluateCourse(pc->getId(), true);
 
+  if (canSwitchViewMode != 2 && changedCourse && pc->getLegLengths().size() > 2) {
+    if (canSwitchViewMode == 1) {
+      if(gdi.ask("ask:updatelegs")) {
+        gdi.sendCtrlMessage("LegLengths");
+        return;
+      }
+    }
+    else {
+      gdi.alert("warn:updatelegs");
+    }
+  }
+
   if (gdi.getData("FromClassPage", cid)) {
     assert(false);
   }
@@ -257,7 +304,6 @@ void TabCourse::save(gdioutput &gdi)
     selectCourse(gdi, 0);
   else
     selectCourse(gdi, pc);
-
 }
 
 int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
@@ -266,7 +312,58 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
     ButtonInfo bi=*(ButtonInfo *)data;
 
     if (bi.id=="Save") {
-      save(gdi);
+      save(gdi, 1);
+    }
+    else if (bi.id == "LegLengths") {
+      save(gdi, 2);
+      
+      pCourse pc = oe->getCourse(courseId);
+      if (!pc || pc->getNumControls() == 0) {
+        return 0;
+      }
+      gdi.clearPage(false);
+      gdi.addString("", boldLarge, "Redigera sträcklängder för X#" + pc->getName());
+      gdi.dropLine();
+      int w = gdi.scaleLength(120);
+      int xp = gdi.getCX() + w;
+      int yp = gdi.getCY();
+      gdi.addString("", 1, "Sträcka:");
+      gdi.addString("", yp, xp, 1, "Längd:");
+
+      for (int i = 0; i <= pc->getNumControls(); i++) {
+        int len = pc->getLegLength(i);
+        pControl cbegin = pc->getControl(i-1);
+        string begin = i == 0 ? lang.tl("Start") : (cbegin ? cbegin->getName() : "");
+        pControl cend = pc->getControl(i);
+        string end = i == pc->getNumControls() ? lang.tl("Mål") : (cend ? cend->getName() : "");
+        gdi.pushX();
+        gdi.fillRight();
+        gdi.addStringUT(0, begin + MakeDash(" - ") + end + ":").xlimit = w-10;
+        gdi.setCX(xp);
+        gdi.fillDown();
+        gdi.addInput("c" + itos(i), len > 0 ? itos(len) : "", 8);
+        gdi.popX();
+        if (i < pc->getNumControls()) {
+          RECT rc;
+          rc.left = gdi.getCX() + gdi.getLineHeight();
+          rc.right = rc.left + (3*w)/2;
+          rc.top = gdi.getCY() + 2;
+          rc.bottom = gdi.getCY() + 4;
+          gdi.addRectangle(rc, colorDarkBlue, false);
+        }
+      }
+
+      gdi.dropLine();
+      gdi.fillRight();
+      gdi.addButton("Cancel", "Avbryt", CourseCB).setCancel();
+      gdi.addButton("SaveLegLen", "Spara", CourseCB).setDefault();
+      gdi.setOnClearCb(CourseCB);
+      gdi.setData("EditLengths", 1);
+      gdi.refresh();
+    }
+    else if (bi.id == "SaveLegLen") {
+      saveLegLengths(gdi);
+      loadPage(gdi);
     }
     else if (bi.id=="BrowseCourse") {
       vector< pair<string, string> > ext;
@@ -300,6 +397,15 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       gdi.setInputStatus("CommonControl", w);
       if (w && gdi.getTextNo("CommonControl") == 0)
         gdi.selectFirstItem("CommonControl");
+    }
+    else if (bi.id == "Shorten") {
+      bool w = gdi.isChecked(bi.id);
+      gdi.setInputStatus("ShortCourse", w);
+      if (w) {
+        ListBoxInfo clb;
+        if (!gdi.getSelectedItem("ShortCoursse", &clb) || clb.data <= 0)
+          gdi.selectFirstItem("CommonControl");
+      }
     }
     else if (bi.id == "ExportCourses") {
       int FilterIndex=0;
@@ -359,11 +465,11 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
             pc = oe->addCourse(name);
             courseId = pc->getId();
             gdi.setText("Name", name);
-            save(gdi);
+            save(gdi, 1);
             return true;
           }
         }
-        save(gdi);
+        save(gdi, 1);
       }
       pCourse pc = oe->addCourse(oe->getAutoCourseName());
       pc->synchronize();
@@ -397,7 +503,7 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
 
     if (bi.id=="Courses") {
       if (gdi.isInputChanged(""))
-        save(gdi);
+        save(gdi, 0);
 
       pCourse pc=oe->getCourse(bi.data);
       selectCourse(gdi, pc);
@@ -440,14 +546,18 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
     InputInfo ii=*(InputInfo *)data;
     if (ii.id == "Controls") {
       int current = gdi.getTextNo("CommonControl");
-      fillCourseControls(gdi, *oe, ii.text);
+      fillCourseControls(gdi, ii.text);
       if (gdi.isChecked("WithLoops") && current != 0)
         gdi.selectItemByData("CommonControl", current);
     }
   }
   else if (type==GUI_CLEAR) {
+    if (gdi.hasData("EditLengths")) {
+      saveLegLengths(gdi);
+      return true;
+    }
     if (courseId>0)
-      save(gdi);
+      save(gdi, 0);
 
     return true;
   }
@@ -476,8 +586,8 @@ bool TabCourse::loadPage(gdioutput &gdi)
   gdi.pushY();
 
   gdi.fillDown();
-  gdi.addListBox("Courses", 200, 360, CourseCB, "Banor (antal kontroller)").isEdit(false).ignore(true);
-  gdi.setTabStops("Courses", 160);
+  gdi.addListBox("Courses", 250, 360, CourseCB, "Banor (antal kontroller)").isEdit(false).ignore(true);
+  gdi.setTabStops("Courses", 240);
 
   oe->fillCourses(gdi, "Courses");
 
@@ -496,13 +606,24 @@ bool TabCourse::loadPage(gdioutput &gdi)
   gdi.pushX();
   gdi.fillRight();
   gdi.addInput("Name", "", 16, 0, "Namn:");
-  gdi.addInput("Length", "", 8, 0, "Längd (m):");
-  gdi.fillDown();
   gdi.addInput("NumberMaps", "", 6, 0, "Antal kartor:");
+  gdi.addInput("Length", "", 8, 0, "Längd (m):");
+  gdi.dropLine(0.9);
+  gdi.fillDown();
+  gdi.addButton("LegLengths", "Redigera sträcklängder...", CourseCB).isEdit(true);
+
   gdi.popX();
 
-  gdi.addInput("Controls", "", 54, CourseCB, "Kontroller:");
+  vector<pCourse> allCrs;
+  oe->getCourses(allCrs);
+  size_t mlen = 0;
+  for (size_t k = 0; k < allCrs.size(); k++) {
+    mlen = max(allCrs[k]->getControlsUI().length()/2+5, mlen);
+  }
+
+  gdi.addInput("Controls", "", max(48u, mlen), CourseCB, "Kontroller:");
   gdi.dropLine(0.5);
+ 
   gdi.addString("", 10, "help:12662");
   gdi.dropLine(1.5);
 
@@ -514,12 +635,26 @@ bool TabCourse::loadPage(gdioutput &gdi)
 
   gdi.fillRight();
   gdi.addCheckbox("WithLoops", "Bana med slingor", CourseCB);
+  gdi.setCX(gdi.getCX()+ gdi.scaleLength(20));
   gdi.addString("", 0, "Varvningskontroll:");
   gdi.fillDown();
   gdi.dropLine(-0.2);
   gdi.addSelection("CommonControl", 50, 200, 0, "", "En bana med slingor tillåter deltagaren att ta slingorna i valfri ordning");
 
-  gdi.dropLine(1);
+  gdi.dropLine(0.2);
+  gdi.popX();
+
+  gdi.fillRight();
+  gdi.addCheckbox("Shorten", "Med avkortning", CourseCB);
+  gdi.setCX(gdi.getCX()+ gdi.scaleLength(20));
+  gdi.addString("", 0, "Avkortad banvariant:");
+  gdi.dropLine(-0.2);
+  gdi.addSelection("ShortCourse", 150, 200, 0, "", "info_shortening");
+  gdi.addString("Shortens", 0, "");
+
+  gdi.fillDown();
+  
+  gdi.dropLine(2.5);
   gdi.popX();
 
   if (oe->getMeOSFeatures().hasFeature(MeOSFeatures::Rogaining)) {
@@ -554,7 +689,7 @@ bool TabCourse::loadPage(gdioutput &gdi)
 
   gdi.popX();
   gdi.fillDown();
-  gdi.dropLine(2);
+  gdi.dropLine(1);
   gdi.addString("CourseUse", 0, "").setColor(colorDarkBlue);
   gdi.dropLine();
   gdi.addString("CourseProblem", 1, "").setColor(colorRed);
@@ -592,14 +727,14 @@ void TabCourse::runCourseImport(gdioutput& gdi, const string &filename,
     gdi.fillDown();
   }
   else {
-    oe->importXML_EntryData(gdi, filename.c_str(), addClasses);
+    oe->importXML_EntryData(gdi, filename.c_str(), addClasses, false);
   }
   if (addClasses) {
     // There is specific course-class matching inside the import of each format,
     // that uses additional information. Here we try to match based on a generic approach.
     vector<pClass> cls;
     vector<pCourse> crs;
-    oe->getClasses(cls);
+    oe->getClasses(cls, false);
     oe->getCourses(crs);
 
     map<string, pCourse> name2Course;
@@ -736,14 +871,14 @@ void TabCourse::setupCourseImport(gdioutput& gdi, GUICALLBACK cb) {
   gdi.popX();
 }
 
-void TabCourse::fillCourseControls(gdioutput &gdi, oEvent &oe, const string &ctrl) {
+void TabCourse::fillCourseControls(gdioutput &gdi, const string &ctrl) {
   vector<int> nr;
   oCourse::splitControls(ctrl, nr);
 
   vector< pair<string, size_t> > item;
   map<int, int> used;
   for (size_t k = 0; k < nr.size(); k++) {
-    pControl pc = oe.getControl(nr[k], false);
+    pControl pc = oe->getControl(nr[k], false);
     if (pc) {
       if (pc->getStatus() == oControl::StatusOK)
         ++used[pc->getFirstNumber()];
@@ -764,4 +899,53 @@ void TabCourse::fillCourseControls(gdioutput &gdi, oEvent &oe, const string &ctr
 
   gdi.clearList("CommonControl");
   gdi.addItem("CommonControl", item);
+}
+
+void TabCourse::fillOtherCourses(gdioutput &gdi, oCourse &crs) {
+  vector< pair<string, size_t> > ac;
+  oe->fillCourses(ac, true);
+  set<int> skipped;
+  skipped.insert(crs.getId());
+  pCourse longer = crs.getLongerVersion();
+  int iter = 20;
+  while (longer && --iter>0) {
+    skipped.insert(longer->getId());
+    longer = longer->getLongerVersion();
+  }
+  
+  vector< pair<string, size_t> > out;
+  for (size_t k = 0; k < ac.size(); k++) {
+    if (!skipped.count(ac[k].second))
+      out.push_back(ac[k]);
+  }
+
+  gdi.clearList("ShortCourse");
+  gdi.addItem("ShortCourse", out);
+}
+
+void TabCourse::saveLegLengths(gdioutput &gdi) {
+  pCourse pc = oe->getCourse(courseId);
+  if (!pc) 
+    return;
+      
+  pc->synchronize(false);
+  string lstr;
+  bool gotAny = false;
+  for (int i = 0; i <= pc->getNumControls(); i++) {
+    string t = trim(gdi.getText("c" + itos(i)));
+    if (t.empty())
+      t = "0";
+    else
+      gotAny = true;
+
+    if (i == 0)
+      lstr = t;
+    else
+      lstr += ";" + t;
+  }
+  if (!gotAny)
+    lstr = "";
+        
+  pc->importLegLengths(lstr, true);
+  pc->synchronize(true);
 }

@@ -38,6 +38,7 @@
 #include "localizer.h"
 #include "gdifonts.h"
 #include "oEventDraw.h"
+#include "meosexception.h"
 
 int ClassInfo::sSortOrder=0;
 
@@ -197,7 +198,8 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
   StartParam opt;
   bool found = false;
   int nCtrl = 1;//max(1, di.maxCommonControl-2);
-  const int maxControlDiff = di.maxCommonControl;
+  const int maxControlDiff = di.maxCommonControl < 1000 ? di.maxCommonControl : 10;
+  bool checkOnlyClass = di.maxCommonControl == 1000;
   while (!found) {
 
     StartParam optInner;
@@ -238,13 +240,16 @@ void oEvent::optimizeStartOrder(gdioutput &gdi, DrawInfo &di, vector<ClassInfo> 
     if (optInner.last < opt.last)
       opt = optInner;
 
-    if (opt.badness < 2.0) {
+    if (opt.badness < 2.0 && !checkOnlyClass) {
       found = true;
     }
 
     if (!found) {
       nCtrl++;
     }
+
+    if (nCtrl == 4 && checkOnlyClass)
+      nCtrl = 1000;
 
     if (nCtrl>maxControlDiff) //We need some limit
       found = true;
@@ -336,6 +341,10 @@ void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, D
   if (di.firstStart<=0)
     di.firstStart = 0;
 
+  if (di.minClassInterval < di.baseInterval) {
+    throw meosException("Startintervallet får inte vara kortare än basintervallet.");
+  }
+
   map<int, ClassInfo> otherClasses;
   cInfo.clear();
   oClassList::iterator c_it;
@@ -356,7 +365,7 @@ void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, D
     ClassInfo &ci =  *cPtr;
     pCourse pc = c_it->getCourse();
 
-    if (pc) {
+    if (pc && useNControls < 1000) {
       if (useNControls>0 && pc->nControls>0)
         ci.unique = 1000000 + pc->getIdSum(useNControls);
       else
@@ -989,7 +998,7 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
 {
   gdi.refresh();
   const int leg = 0;
-  const double extraFactor = 0.15;
+  const double extraFactor = 0.0;
   int drawn = 0;
 
   //int baseInterval = convertAbsoluteTimeMS(minIntervall)/2;
@@ -1105,12 +1114,11 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     int optimalParallel = runnersStart / (maxRunners*2); // Min is every second interval
 
     di.nFields = max(3, min (optimalParallel + 2, 15));
-
     di.baseInterval = baseInterval;
     di.extraFactor = extraFactor;
     di.firstStart = iFirstStart;
     di.minClassInterval = baseInterval * 2;
-    di.maxClassInterval = di.minClassInterval * 2;
+    di.maxClassInterval = di.minClassInterval;
 
     di.minVacancy = 1;
     di.maxVacancy = 100;

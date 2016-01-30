@@ -35,7 +35,9 @@
 #include <map>
 class oEvent;
 class oCourse;
+class oClass;
 typedef oCourse * pCourse;
+typedef oClass * pClass;
 class oCard;
 
 class gdioutput;
@@ -55,7 +57,7 @@ protected:
   int nControls;
   string Name;
   int Length;
-  static const int dataSize = 64;
+  static const int dataSize = 128;
   int getDISize() const {return dataSize;}
 
   BYTE oData[dataSize];
@@ -65,6 +67,8 @@ protected:
   vector<int> legLengths;
 
   int tMapsRemaining;
+  mutable int tMapsUsed;
+  mutable int tMapsUsedNoVacant;
 
   // Get an identity sum based on controls
   int getIdSum(int nControls);
@@ -89,10 +93,15 @@ protected:
   void changedObject();
 
 public:
+
+  void getClasses(vector<pClass> &usageClass) const;
+  
   void remove();
   bool canRemove() const;
 
   string getRadioName(int courseControlId) const;
+
+  bool hasControl(const oControl *ctrl) const;
 
   /// Returns course specific id for specified control (taking duplicats of the control into account)
   int getCourseControlId(int controlIx) const;
@@ -114,11 +123,22 @@ public:
   void setNumberMaps(int nm);
   int getNumberMaps() const;
 
+  int getNumUsedMaps(bool noVacant) const;
+
   //Get a loop course adapted to a card.
   pCourse getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const;
 
   // Returns true if this course is adapted to specific punches
   bool isAdapted() const;
+
+  // Returns the next shorter course, if any, null otherwise
+  pCourse getShorterVersion() const;
+
+  // Returns the next longer course, if any, null otherwise. Note that this method is slow.
+  pCourse getLongerVersion() const;
+
+  // Set a shorter version of the course.
+  void setShorterVersion(pCourse shorter);
 
   // Returns a map for an adapted course to the original control order
   const vector<int> &getMapToOriginalOrder() const {return tMapToOriginalOrder;}
@@ -174,8 +194,12 @@ public:
 
   bool fillCourse(gdioutput &gdi, const string &name);
 
-  void importControls(const string &cstring);
-  void importLegLengths(const string &legs);
+  /** Returns true if changed. */
+  bool importControls(const string &cstring, bool updateLegLengths);
+  void importLegLengths(const string &legs, bool setChanged);
+
+  /** Returns the length of the i:th leg (or 0 if unknown)*/
+  int getLegLength(int i) const;
 
   static void splitControls(const string &ctrls, vector<int> &nr);
 

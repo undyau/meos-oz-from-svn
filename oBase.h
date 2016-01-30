@@ -47,6 +47,8 @@ enum RunnerStatus {StatusOK=1, StatusDNS=20, StatusMP=3,
                    StatusDNF=4, StatusDQ=5, StatusMAX=6,
                    StatusUnknown=0, StatusNotCompetiting=99};
 
+extern char RunnerStatusOrderMap[100];
+
 enum SortOrder {ClassStartTime,
                 ClassTeamLeg,
                 ClassResult,
@@ -123,6 +125,8 @@ public:
   bool isChanged() const {return changed;}
   bool isRemoved() const {return Removed;}
   int getAge() const {return Modified.getAge();}
+  unsigned int getModificationTime() const {return Modified.getModificationTime();}
+  
   bool synchronize(bool writeOnly=false);
   string getTimeStamp() const;
 

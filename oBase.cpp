@@ -41,6 +41,8 @@ static char THIS_FILE[]=__FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
+char RunnerStatusOrderMap[100];
+
 oBase::oBase(oEvent *poe)
 {
   Removed = false;

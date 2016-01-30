@@ -51,6 +51,7 @@
 
 #define cVacantId 888888888
 
+class MeOSFileLock;
 class RunnerDB;
 class gdioutput;
 class oDataContainer;
@@ -205,6 +206,7 @@ struct PlaceRunner;
 typedef multimap<int, PlaceRunner> TempResultMap;
 struct TimeRunner;
 
+struct PrintPostInfo;
 
 class oEvent : public oBase
 {
@@ -359,6 +361,8 @@ protected:
 
   string serverName;//Verified (connected) server name.
 
+  MeOSFileLock *openFileLock;
+
   bool HasDBConnection;
   bool HasPendingDBConnection;
   bool msSynchronize(oBase *ob);
@@ -444,6 +448,11 @@ protected:
                                     const pTeam t, const pRunner r, const pClub c,
                                     const pClass pc, oCounter &counter) const;
 
+  /** Format a string that does not depend on team or runner*/
+  const string &formatSpecialStringAux(const oPrintPost &pp, const oListParam &par,
+                                       const pTeam t, int legIndex,                                   
+                                       const pCourse pc, const pControl ctrl,  
+                                       oCounter &counter) const;
   void changedObject();
 
   mutable vector<GeneralResultCtr> generalResults;
@@ -451,6 +460,8 @@ protected:
   // Temporarily disable recaluclate leader times
   bool disableRecalculate;
 public:
+  /// Get new punches since firstTime
+  void getLatestPunches(int firstTime, vector<const oFreePunch *> &punches) const;
 
   void resetSQLChanged(bool resetAllTeamsRunners, bool cleanClasses);
 
@@ -508,9 +519,6 @@ public:
 
   // Get window handle
   HWND hWnd() const;
-  /** Setup and store a class settings table */
-  void getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb);
-  void saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee);
 
   /** Get number of classes*/
   int getNumClasses() const {return Classes.size();}
@@ -575,8 +583,9 @@ public:
   void setupRelayInfo(PredefinedTypes type,
                       bool &useNLeg, bool &useNStart);
 
+  void fillLegNumbers(const set<int> &cls, bool isTeamList, 
+                      bool includeSubLegs, vector< pair<string, size_t> > &out);
 
-  void fillLegNumbers(gdioutput &gdi, const string &name);
   void reCalculateLeaderTimes(int classId);
 
   void testFreeImport(gdioutput &gdi);
@@ -641,20 +650,29 @@ public:
   void generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li, bool updateScrollBars);
   void generateListInfo(oListParam &par, int lineHeight, oListInfo &li);
   void generateListInfo(EStdListType lt, const gdioutput &gdi, int classId, oListInfo &li);
+  void generateListInfoAux(oListParam &par, int lineHeight, oListInfo &li);
 
   /** Format a string for a list. Returns true of output is not empty*/
   const string &formatListString(const oPrintPost &pp, const oListParam &par,
                                  const pTeam t, const pRunner r, const pClub c,
                         const pClass pc, oCounter &counter) const;
+
+  const string &formatSpecialString(const oPrintPost &pp, const oListParam &par,
+                                    const pTeam t, int legIndex,
+                                    const pCourse crs, const pControl ctrl, oCounter &counter) const;
+
   void calculatePrintPostKey(const list<oPrintPost> &ppli, gdioutput &gdi, const oListParam &par,
                              const pTeam t, const pRunner r, const pClub c,
                              const pClass pc, oCounter &counter, string &key);
   const string &formatListString(EPostType type, const pRunner r) const;
+  const string &formatListString(EPostType type, const pRunner r, const string &format) const;
+
+  
 
  /** Format a print post. Returns true of output is not empty*/
-  bool formatPrintPost(const list<oPrintPost> &pp, gdioutput &gdi, const oListParam &par,
+  bool formatPrintPost(const list<oPrintPost> &ppli, PrintPostInfo &ppi, 
                        const pTeam t, const pRunner r, const pClub c,
-                       const pClass pc, oCounter &counter, bool avoidBreakBefore);
+                       const pClass pc, const pCourse crs, const pControl ctrl, int legIndex);
   void listGeneratePunches(const list<oPrintPost> &ppli, gdioutput &gdi, const oListParam &par,
                            pTeam t, pRunner r, pClub club, pClass cls);
   void getListTypes(map<EStdListType, oListInfo> &listMap, int filter);
@@ -665,7 +683,8 @@ public:
 
   void checkOrderIdMultipleCourses(int ClassId);
 
-  void addBib(int ClassId, int leg, int FirstNumber);
+  void addBib(int ClassId, int leg, const string &firstNumber);
+  void addAutoBib();
 
   //Speaker functions.
   void speakerList(gdioutput &gdi, int classId, int leg, int controlId,
@@ -725,8 +744,8 @@ public:
   /// Return revision number for current data
   long getRevision() const {return dataRevision;}
 
-  /// Calculate total missed time for each control
-  void setupMissedControlTime();
+  /// Calculate total missed time and other statistics for each control
+  void setupControlStatistics() const;
 
   // Get information on classes
   void getClassConfigurationInfo(ClassConfigInfo &cnf) const;
@@ -865,6 +884,12 @@ public:
   string getZeroTime() const;
   void setZeroTime(string m);
 
+  /** Get the automatic bib gap between classes. */
+  int getBibClassGap() const;
+  
+  /** Set the automatic bib gap between classes. */
+  void setBibClassGap(int numStages);
+
   bool openRunnerDatabase(char *file);
   bool saveRunnerDatabase(char *file, bool onlyLocal);
 
@@ -877,7 +902,8 @@ public:
   bool calculateTeamResults(int leg, bool totalMultiday);
 
   bool sortRunners(SortOrder so);
-  bool sortTeams(SortOrder so, int leg);
+  /** If linear leg is true, leg is interpreted as actual leg numer, otherwise w.r.t to parallel legs. */
+  bool sortTeams(SortOrder so, int leg, bool linearLeg);
 
   pCard allocateCard(pRunner owner);
 
@@ -993,20 +1019,17 @@ public:
   void updateClubsFromDB();
   void updateRunnersFromDB();
 
-  void fillFees(gdioutput &gdi, const string &name) const;
+  void fillFees(gdioutput &gdi, const string &name, bool withAuto) const;
   string getAutoClassName() const;
   pClass addClass(const string &pname, int CourseId = 0, int classId = 0);
   pClass addClass(oClass &c);
   pClass getClassCreate(int Id, const string &CreateName);
   pClass getClass(const string &Name) const;
-  void getClasses(vector<pClass> &classes) const;
+  void getClasses(vector<pClass> &classes, bool sync) const;
   pClass getBestClassMatch(const string &Name) const;
   bool getClassesFromBirthYear(int year, PersonSex sex, vector<int> &classes) const;
   pClass getClass(int Id) const;
-  void mergeClass(int classIdPri, int classIdSec);
-  void splitClass(int classId, int parts, vector<int> &outClassId);
-  void splitClassRank(int classId, int runnersPerClass, vector<int> &outClassId);
-
+  
   void getStartBlocks(vector<int> &blocks, vector<string> &starts) const;
 
   enum ClassFilter {
@@ -1062,7 +1085,7 @@ public:
   bool open(const string &file, bool import=false);
   bool open(const xmlparser &xml);
 
-  bool save(const char *file);
+  bool save(const string &file);
   pControl addControl(int Id, int Number, const string &Name);
   pControl addControl(const oControl &oc);
   int getNextControlNumber() const;
@@ -1070,7 +1093,7 @@ public:
   pCard addCard(const oCard &oc);
 
   /** Import entry data */
-  void importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass);
+  void importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass, bool removeNonexisting);
 
 protected:
   pClass getXMLClass(const xmlobject &xentry);
@@ -1079,7 +1102,7 @@ protected:
   bool addXMLCompetitorDB(const xmlobject &xentry, int ClubId);
   pRunner addXMLPerson(const xmlobject &person);
   pRunner addXMLStart(const xmlobject &xstart, pClass cls);
-  pRunner addXMLEntry(const xmlobject &xentry, int ClubId, bool updateClass);
+  pRunner addXMLEntry(const xmlobject &xentry, int ClubId, bool setClass);
   bool addXMLTeamEntry(const xmlobject &xentry, int ClubId);
   bool addXMLClass(const xmlobject &xclub);
   bool addXMLClub(const xmlobject &xclub, bool importToDB);
@@ -1138,6 +1161,11 @@ public:
   bool hasNextStage() const;
   bool hasPrevStage() const;
 
+  int getNumStages() const;
+  void setNumStages(int numStages);
+
+  int getStageNumber() const;
+  void setStageNumber(int num);
 
   /**Return false if card is not used*/
   bool checkCardUsed(gdioutput &gdi, int CardNo);

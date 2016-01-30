@@ -558,9 +558,10 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
       gdi.addSelection(cx, cy+2, "Leg", int(bw/gdi.getScale())-5, 100, tabSpeakerCB);
 
       if (stages.size() > 1) {
-        if (leg == 0 && stages[0].first != 0)
+        if (leg == 0 && stages[0].first != 0) {
            leg = stages[0].first;
-
+           selectedControl[pc->getId()].setLeg(selectedControl[pc->getId()].isTotal(), leg);
+        }
         for (size_t k=0; k<stages.size(); k++) {
           gdi.addItem("Leg", lang.tl("Sträcka X#" + itos(stages[k].second)), stages[k].first);
         }
@@ -668,6 +669,9 @@ int TabSpeaker::processListBox(gdioutput &gdi, const ListBoxInfo &bu)
     if (classId>0) {
       selectedControl[classId].setLeg(bu.data>=1000, bu.data%1000);
       generateControlList(gdi, classId);
+      gdi.setRestorePoint("speaker");
+      gdi.setRestorePoint("SpeakerList");
+
       bool shortNames =  oe->getPropertyInt("SpeakerShortNames", false) != 0;
       oe->speakerList(gdi, classId, selectedControl[classId].getLeg(),
                       selectedControl[classId].getControl(),

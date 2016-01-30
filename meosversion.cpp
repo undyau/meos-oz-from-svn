@@ -26,8 +26,9 @@
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJKMN
 //V31: a
+//V33: abc
 int getMeosBuild() {
-  string revision("$Rev: 307 $");
+  string revision("$Rev: 352 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
@@ -36,17 +37,18 @@ int getMeosBuild() {
 //V3: abcdefghijklmnopqrstuvxyz
 //V31: abcde
 //V32: abcdefgh
+//V33: abcdefg
 string getMeosDate() {
-  string date("$Date: 2015-04-26 21:12:58 +0200 (sÃ¶, 26 apr 2015) $");
+  string date("$Date: 2015-11-29 21:49:42 +0100 (sÃ¶, 29 nov 2015) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return ""; // No parantheses (...)
+  return "Beta 1"; // No parantheses (...)
 }
 
 string getMajorVersion() {
-  return "3.2";
+  return "3.3";
 }
 
 string getMeosFullVersion() {
@@ -63,7 +65,7 @@ string getMeosCompectVersion() {
   if (getBuildType().empty())
     return getMajorVersion() + "." + itos(getMeosBuild());
   else
-    return getMajorVersion() + "." + itos(getMeosBuild()) + "(" + getBuildType() + ")";
+    return getMajorVersion() + "." + itos(getMeosBuild()) + " (" + getBuildType() + ")";
 }
 
 void getSupporters(vector<string> &supp)
@@ -130,4 +132,17 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Jan Ernberg, Täby OK");
   supp.push_back("Stjärnorps SK");
   supp.push_back("Mölndal Outdoor IF");
+  supp.push_back("Roland Elg, Fjärås AIK");
+  supp.push_back("Tenhults SOK");
+  supp.push_back("Järfälla OK");
+  supp.push_back("Lars Jonasson");
+  supp.push_back("Anders Larsson, OK Nackhe");
+  supp.push_back("Hans Wilhelmsson");
+  supp.push_back("Patrice Lavallee, Noyon Course d'Orientation");
+  supp.push_back("IFK Linköpings OS");
+  supp.push_back("Lars Ove Karlsson, Västerås SOK");
+  supp.push_back("OK Djerf");
+  supp.push_back("OK Vivill");
+  supp.push_back("IFK Mora OK");
+  supp.push_back("Sonny Andersson, Huskvarna");
 }

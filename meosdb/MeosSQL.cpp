@@ -491,7 +491,7 @@ bool MeosSQL::openDB(oEvent *oe)
     query << C_START("oClass")
       << C_STRING("Name", 128)
       << C_INT("Course")
-      << C_STRING("MultiCourse", 2048)
+      << C_MTEXT("MultiCourse")
       << C_STRING("LegMethod", 1024)
       << oe->oClassData->generateSQLDefinition() << C_END();
     query.execute();
@@ -1499,9 +1499,9 @@ OpFailStatus MeosSQL::storeCourse(const Row &row, oCourse &c,
   OpFailStatus success = opStatusOK;
 
   c.Name = row["Name"];
-  c.importControls(string(row["Controls"]));
+  c.importControls(string(row["Controls"]), false);
   c.Length = row["Length"];
-  c.importLegLengths(string(row["Legs"]));
+  c.importLegLengths(string(row["Legs"]), false);
 
   for (int i=0;i<c.nControls; i++) {
     if (c.Controls[i]) {

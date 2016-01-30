@@ -46,7 +46,8 @@ private:
   int getLegRunningTimeUnadjusted(int leg, bool multidayTotal) const;
 
   void speakerLegInfo(int leg, int specifiedLeg, int courseControlId,
-                      int &missingLeg, RunnerStatus &status, int &runningTime) const;
+                      int &missingLeg, int &totalLeg,
+                      RunnerStatus &status, int &runningTime) const;
 
 protected:
   //pRunner Runners[maxRunnersTeam];
@@ -70,9 +71,10 @@ protected:
   };
 
   TeamPlace _places[maxRunnersTeam];
-  //unsigned _nrunners;
-  int _sorttime;
-  int _sortstatus;
+  
+  int _sortTime;
+  int _sortStatus;
+  RunnerStatus _cachedStatus;
 
   mutable vector< vector< vector<int> > > resultCalculationCache;
 
@@ -95,6 +97,10 @@ protected:
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
 
 public:
+  /** Check the the main leg is set if any parallel is set. Returns true if corrections where made.*/
+  bool checkValdParSetup();
+
+  int getRanking() const;
 
   void resetResultCalcCache() const;
   vector< vector<int> > &getResultCache(ResultCalcCacheSymbol symb) const;
@@ -160,10 +166,14 @@ public:
   int getPlace() const {return getLegPlace(-1, false);}
   int getTotalPlace() const  {return getLegPlace(-1, true);}
 
+  int getNumShortening() const;
+  // Number of shortenings up to and including a leg
+  int getNumShortening(int leg) const;
+  
   string getDisplayName() const;
   string getDisplayClub() const;
 
-  void setBib(const string &bib, bool updateStartNo, bool setTmpOnly);
+  void setBib(const string &bib, int numericalBib, bool updateStartNo, bool setTmpOnly);
 
   int getLegStartTime(int leg) const;
   string getLegStartTimeS(int leg) const;

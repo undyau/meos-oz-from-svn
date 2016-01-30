@@ -43,6 +43,11 @@ class oDataInterface;
 class oDataConstInterface;
 class Table;
 
+class oCourse;
+class oClass;
+typedef oCourse* pCourse;
+typedef oClass* pClass;
+
 class oControl : public oBase
 {
 public:
@@ -73,11 +78,6 @@ protected:
   BYTE oData[dataSize];
   BYTE oDataOld[dataSize];
 
-  int tMissedTimeTotal;
-  int tMissedTimeMax;
-  int tNumVisitors;
-  int tMissedTimeMedian;
-
   /// Table methods
   void addTableRow(Table &table) const;
   bool inputData(int id, const string &input,
@@ -102,6 +102,17 @@ protected:
   mutable TCache tCache;
   void setupCache() const;
 
+  mutable int tStatDataRevision;
+  
+  mutable int tMissedTimeTotal;
+  mutable int tMissedTimeMax;
+  mutable int tMistakeQuotient;
+  mutable int tNumVisitorsActual; // Count actual punches
+  mutable int tNumVisitorsExpected; // Count expected visitors
+  mutable int tNumRunnersRemaining; // Number of remaining runners expected
+
+  mutable int tMissedTimeMedian;
+
   void changedObject();
 
 public:
@@ -118,10 +129,15 @@ public:
 
   bool isSingleStatusOK() const {return Status == StatusOK || Status == StatusNoTiming;}
 
-  int getMissedTimeTotal() const {return tMissedTimeTotal;}
-  int getMissedTimeMax() const {return tMissedTimeMax;}
-  int getMissedTimeMedian() const {return tMissedTimeMedian;}
-  int getNumVisitors() const {return tNumVisitors;}
+  int getMissedTimeTotal() const;
+  int getMissedTimeMax() const;
+  int getMistakeQuotient() const;
+  int getMissedTimeMedian() const;
+  int getNumVisitors(bool actulaVisits) const;
+  int getNumRunnersRemaining() const;
+
+  void getCourses(vector<pCourse> &crs) const;
+  void getClasses(vector<pClass> &cls) const;
 
   inline int minNumber() const {
     int m = numeric_limits<int>::max();

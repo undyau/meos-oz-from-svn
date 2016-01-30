@@ -87,8 +87,21 @@ int OnlineInput::processButton(gdioutput &gdi, ButtonInfo &bi) {
   else if (bi.id == "UseROC") {
     useROCProtocol = gdi.isChecked(bi.id);
     if (useROCProtocol) {
-      gdi.setText("URL", "http://roc.olresultat.se/getpunches.asp");
+      gdi.setText("URL", "http://roc.olresultat.se/getpunches.asp");      
     }
+    else {
+      gdi.check("UseUnitId", false);
+      gdi.setTextTranslate("CmpID_label", "Tävlingens ID-nummer:", true);
+      useUnitId = false;
+    }
+    gdi.setInputStatus("UseUnitId", useROCProtocol);
+  }
+  else if (bi.id == "UseUnitId") {
+    useUnitId = gdi.isChecked(bi.id);
+    if (useUnitId)
+      gdi.setTextTranslate("CmpID_label", "Enhetens ID-nummer (MAC):", true);
+    else
+      gdi.setTextTranslate("CmpID_label", "Tävlingens ID-nummer:", true);
   }
 
   return 0;
@@ -118,6 +131,8 @@ void OnlineInput::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
   gdi.addInput("URL", url, 40, 0, "URL:", "Till exempel X#http://www.input.org/online.php");
   gdi.addCheckbox("UseROC", "Använd ROC-protokoll", OnlineCB, useROCProtocol).setExtra(this);
+  gdi.addCheckbox("UseUnitId", "Använd enhets-id istället för tävlings-id", OnlineCB, useROCProtocol & useUnitId).setExtra(this);
+  gdi.setInputStatus("UseUnitId", useROCProtocol);
   gdi.addInput("CmpID", itos(cmpId), 10, 0, "Tävlingens ID-nummer:");
 
   gdi.dropLine(1);
@@ -152,7 +167,7 @@ void OnlineInput::save(oEvent &oe, gdioutput &gdi) {
     oe.setProperty("MIPURL", xurl);
 
   cmpId = gdi.getTextNo("CmpID");
-
+  unitId = gdi.getText("CmpID");
 
   if (xurl.empty()) {
     throw meosException("URL måste anges.");
@@ -202,7 +217,10 @@ void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
     vector<pair<string,string> > key;
     string q;
     if (useROCProtocol) {
-      q = "?unitId=" + itos(cmpId) + "&lastId=" + itos(lastImportedId) + "&date=" + oe->getDate() +"&time=" + oe->getZeroTime();
+      if (!useUnitId)
+        q = "?unitId=" + itos(cmpId) + "&lastId=" + itos(lastImportedId) + "&date=" + oe->getDate() +"&time=" + oe->getZeroTime();
+      else
+        q = "?unitId=" + unitId + "&lastId=" + itos(lastImportedId) + "&date=" + oe->getDate() +"&time=" + oe->getZeroTime();
     }
     else {
       key.push_back(make_pair<string, string>("competition", itos(cmpId)));

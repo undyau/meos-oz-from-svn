@@ -23,10 +23,14 @@
 
 #include <set>
 #include <vector>
+#include <map>
 #include "oBase.h"
 #include "gdifonts.h"
 
+class oClass;
+
 typedef oEvent *pEvent;
+typedef oClass *pClass;
 
 enum EPostType
 {
@@ -48,6 +52,10 @@ enum EPostType
   lCourseLength,
   lCourseName,
   lCourseClimb,
+  lCourseShortening,
+  lCourseUsage,
+  lCourseUsageNoVacant,
+  lCourseClasses,
   lRunnerName,
   lRunnerGivenName,
   lRunnerFamilyName,
@@ -68,6 +76,9 @@ enum EPostType
   lRunnerTimeAfterDiff,
   lRunnerTempTimeStatus,
   lRunnerTempTimeAfter,
+  lRunnerGeneralTimeStatus,
+  lRunnerGeneralPlace,
+  lRunnerGeneralTimeAfter,
   lRunnerTimeAfter,
   lRunnerMissedTime,
   lRunnerPlace,
@@ -139,6 +150,20 @@ enum EPostType
   lResultModuleTimeTeam,
   lResultModuleNumberTeam,
   
+  lCountry,
+  lNationality,
+
+  lControlName,
+  lControlCourses,
+  lControlClasses,
+  lControlVisitors,
+  lControlPunches,
+  lControlMedianLostTime,
+  lControlMaxLostTime,
+  lControlMistakeQuotient,
+  lControlRunnersLeft,
+  lControlCodes,
+
   lRogainingPunch,
   lTotalCounter,
   lSubCounter,
@@ -154,7 +179,7 @@ enum EStdListType
   EGeneralResultList,
   ERogainingInd,
   EStdTeamResultListAll,
-  EStdTeamResultListLeg,
+  unused_EStdTeamResultListLeg,//EStdTeamResultListLeg,
   EStdTeamResultList,
   EStdTeamStartList,
   EStdTeamStartListLeg,
@@ -165,10 +190,10 @@ enum EStdListType
   EStdPatrolResultList,
   EStdRentedCard,
   EStdResultListLARGE,
-  EStdTeamResultListLegLARGE,
+  unused_EStdTeamResultListLegLARGE,//EStdTeamResultListLegLARGE,
   EStdPatrolResultListLARGE,
   EStdIndMultiResultListLegLARGE,
-  EStdRaidResultListLARGE, //Obsolete
+  unused_EStdRaidResultListLARGE,//EStdRaidResultListLARGE, //Obsolete
   ETeamCourseList,
   EIndCourseList,
   EStdClubStartList,
@@ -186,6 +211,10 @@ enum EStdListType
   EFixedResultFinish,
   EFixedMinuteStartlist,
   EFixedTimeLine,
+  EFixedLiveResult,
+
+  EStdTeamAllLegLARGE,
+  
   EFirstLoadedList = 1000
 };
 
@@ -208,6 +237,8 @@ enum ESubFilterList
   ESubFilterHasPrelResult,
   ESubFilterExcludeDNS,
   ESubFilterVacant,
+  ESubFilterSameParallel,
+  ESubFilterSameParallelNotFirst,
   _ESubFilterMax
 };
 
@@ -216,7 +247,8 @@ enum gdiFonts;
 struct oPrintPost {
   oPrintPost();
   oPrintPost(EPostType type_, const string &format_,
-                       int style_, int dx_, int dy_, int index_=0);
+             int style_, int dx_, int dy_, 
+             pair<int, bool> legIndex_=make_pair(0, true));
 
   static string encodeFont(const string &face, int factor);
 
@@ -228,7 +260,8 @@ struct oPrintPost {
   GDICOLOR color;
   int dx;
   int dy;
-  int index;
+  int legIndex;
+  bool linearLegIndex;
   gdiFonts getFont() const {return gdiFonts(format & 0xFF);}
   oPrintPost &setFontFace(const string &font, int factor) {
     fontFace = encodeFont(font, factor);
@@ -251,7 +284,7 @@ struct oListParam {
   EStdListType listCode;
   GUICALLBACK cb;
   set<int> selection;
-  int legNumber;
+  
   int useControlIdResultTo;
   int useControlIdResultFrom;
   int filterMaxPer;
@@ -259,10 +292,14 @@ struct oListParam {
   bool showInterTimes;
   bool showSplitTimes;
   bool splitAnalysis;
+  bool showInterTitle;
   string title;
   string name;
   int inputNumber;
+  int nextList; // 1-based index of next list (in the container, MetaListParam::listParam) for linked lists
+  int previousList; // 1-based index of previous list (in the container, MetaListParam::listParam) for linked lists. Not serialized
 
+  mutable int relayLegIndex; // Current index of leg (or -1 for entire team)
   mutable string defaultName; // Initialized when generating list
   // Generate a large-size list (supported as input when supportLarge is true)
   bool useLargeSize;
@@ -279,8 +316,32 @@ struct oListParam {
   int getInputNumber() const {return inputNumber;}
   void setInputNumber(int n) {inputNumber = n;}
 
-  void serialize(xmlparser &xml, const MetaListContainer &container) const;
+  void serialize(xmlparser &xml, 
+                 const MetaListContainer &container, 
+                 const map<int, int> &idToIndex) const;
   void deserialize(const xmlobject &xml, const MetaListContainer &container);
+
+  void setLegNumberCoded(int code) {
+    if (code == 1000)
+      legNumber = -1;
+    else
+      legNumber = code;
+  }
+
+  bool matchLegNumber(const pClass cls, int leg) const;
+  int getLegNumber(const pClass cls) const;
+  pair<int, bool> getLegInfo(const pClass cls) const;
+
+  string getLegName() const;
+
+  const int getLegNumberCoded() const {
+    return legNumber >= 0 ? legNumber : 1000;
+  }
+
+
+
+private:
+   int legNumber;
 };
 
 class oListInfo {
@@ -291,13 +352,18 @@ public:
                   EBaseTypePunches,
                   EBaseTypeNone,
                   EBaseTypeRunnerGlobal,  // Used only in metalist (meaning global, not classwise)
+                  EBaseTypeRunnerLeg,  // Used only in metalist, meaning legwise
                   EBaseTypeTeamGlobal, // Used only in metalist (meaning global, not classwise)
+                  EBaseTypeCourse,
+                  EBaseTypeControl,
                   EBasedTypeLast_};
 
+  bool isTeamList() const {return listType == EBaseTypeTeam;}
   
   enum ResultType {
     Global,
     Classwise,
+    Legwise,
   };
 
   static bool addRunners(EBaseType t) {return t == EBaseTypeRunner || t == EBaseTypeClub;}
@@ -332,11 +398,9 @@ protected:
   void setupLinks(const list<oPrintPost> &lst) const;
   void setupLinks() const;
 
-  oListInfo *next;
+  list<oListInfo> next;
 public:
   ResultType getResultType() const;
-
-  void addList(const oListInfo &lst);
 
   bool supportClasses;
   bool supportLegs;
@@ -345,6 +409,12 @@ public:
   bool supportLarge;
   // True if a large-size list only
   bool largeSize;
+
+  bool supportSplitAnalysis;
+  bool supportInterResults;
+  bool supportPageBreak;
+  bool supportClassLimit;
+  bool supportCustomTitle;
 
   // True if supports timing from control
   bool supportTo;
@@ -356,7 +426,9 @@ public:
 
   bool needPunchCheck() const {return needPunches;}
   void setCallback(GUICALLBACK cb) {lp.cb=cb;}
-  int getLegNumber() const {return lp.legNumber;}
+  int getLegNumberCoded() const {return lp.getLegNumberCoded();}
+
+
   EStdListType getListCode() const {return lp.listCode;}
   oPrintPost &addHead(const oPrintPost &pp) {
     Head.push_back(pp);
@@ -390,10 +462,24 @@ public:
   friend class MetaList;
   friend class MetaListContainer;
 
-  int getMaxCharWidth(const oEvent *oe, EPostType type,
-                      const string &format, gdiFonts font,
+  int getMaxCharWidth(const oEvent *oe, 
+                      const vector< pair<EPostType, string> > &typeFormats,
+                      gdiFonts font,
                       const char *fontFace = 0,
-                      bool large = false, int minSize = 0);
+                      bool large = false, 
+                      int minSize = 0);
+
+
+  int getMaxCharWidth(const oEvent *oe, 
+                      EPostType type, 
+                      string formats,
+                      gdiFonts font,
+                      const char *fontFace = 0,
+                      bool large = false, 
+                      int minSize = 0) {
+    vector< pair<EPostType, string> > typeFormats(1, make_pair(type, formats));
+    return getMaxCharWidth(oe, typeFormats, font, fontFace, largeSize, minSize);
+  }
 
 
   const oListParam &getParam() const {return lp;}

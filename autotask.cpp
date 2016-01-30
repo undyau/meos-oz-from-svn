@@ -89,7 +89,7 @@ void AutoTask::resetSaveTimer() {
 }
 
 void AutoTask::setTimers() {
-  SetTimer(hWndMain, 2, 1000, 0); //Interface timeout
+  SetTimer(hWndMain, 2, 100, 0); //Interface timeout
   SetTimer(hWndMain, 3, synchBaseTime, 0); //DataSync
 }
 

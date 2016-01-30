@@ -26,6 +26,7 @@
 #include "meos_util.h"
 #include "localizer.h"
 #include "oFreeImport.h"
+#include "meosexception.h"
 
 StringCache globalStringCache;
 
@@ -1537,4 +1538,30 @@ string getFamilyName(const string &name) {
     return _EmptyString;
   else
     return trim(name.substr(sp));
+}
+
+
+
+void MeOSFileLock::unlockFile() {
+  if (lockedFile != INVALID_HANDLE_VALUE)
+    CloseHandle(lockedFile);
+
+  lockedFile = INVALID_HANDLE_VALUE;
+}
+
+void MeOSFileLock::lockFile(const string &file) {
+  unlockFile();
+  lockedFile = CreateFile(file.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, 
+                          NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  //lockedFile = _open(file.c_str(), _O_RDWR);
+  if (lockedFile == INVALID_HANDLE_VALUE) {
+    int err = GetLastError();
+    if (err == ERROR_SHARING_VIOLATION)
+      throw meosException("open_error_locked");
+    else {
+      TCHAR buff[256];
+      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, err, 0, buff, sizeof(buff), 0);
+      throw meosException("open_error#" + file + "#" + buff);
+    }
+  }
 }

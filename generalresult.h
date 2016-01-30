@@ -49,7 +49,7 @@ protected:
   virtual int deduceTime(oTeam &team) const;
   virtual int deducePoints(oTeam &team) const;
 
-  virtual int score(oRunner &runner, RunnerStatus st, int time, int points) const;
+  virtual int score(oRunner &runner, RunnerStatus st, int time, int points, bool asTeamMember) const;
   virtual RunnerStatus deduceStatus(oRunner &runner) const;
   virtual int deduceTime(oRunner &runner, int startTime) const;
   virtual int deducePoints(oRunner &runner) const;
@@ -84,10 +84,15 @@ protected:
   int deduceTime(oTeam &team) const;
   int deducePoints(oTeam &team) const;
 
-  int score(oRunner &runner, RunnerStatus st, int time, int points) const;
+  int score(oRunner &runner, RunnerStatus st, int time, int points, bool asTeamMember) const;
   RunnerStatus deduceStatus(oRunner &runner) const;
   int deduceTime(oRunner &runner, int startTime) const;
   int deducePoints(oRunner &runner) const;
+};
+
+class TotalResultAtControl : public ResultAtControl {
+protected:
+  int score(oRunner &runner, RunnerStatus st, int time, int points, bool asTeamMember) const;
 };
 
 class DynamicResult : public GeneralResult {
@@ -169,7 +174,7 @@ public:
   int deduceTime(oTeam &team) const;
   int deducePoints(oTeam &team) const;
 
-  int score(oRunner &runner, RunnerStatus st, int time, int points) const;
+  int score(oRunner &runner, RunnerStatus st, int time, int points, bool asTeamMember) const;
   RunnerStatus deduceStatus(oRunner &runner) const;
   int deduceTime(oRunner &runner, int startTime) const;
   int deducePoints(oRunner &runner) const;

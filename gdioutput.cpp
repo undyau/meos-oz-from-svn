@@ -95,12 +95,14 @@ gdioutput::gdioutput(const string &_tag, double _scale, FontEncoding encoding)
   fontEncoding = encoding;
   po_default = new PrinterObject();
   tabs = 0;
+  hasAnyTimer = false;
   constructor(_scale);
 }
 
 gdioutput::gdioutput(double _scale, FontEncoding encoding,  HWND hWnd, const PrinterObject &prndef)
 {
   fontEncoding = encoding;
+  hasAnyTimer = false;
   po_default = new PrinterObject(prndef);
   tabs = 0;
   setWindow(hWnd);
@@ -466,8 +468,8 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
   }
 
   DWORD c=GetSysColor(COLOR_3DFACE);
-  double red = double(GetRValue(c)) *0.95;
-  double green = double(GetGValue(c)) * 0.9;
+  double red = double(GetRValue(c)) *0.9;
+  double green = double(GetGValue(c)) * 0.85;
   double blue = double(GetBValue(c));
 
 
@@ -478,9 +480,9 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
     blue = 255-blue;
   }
 
-  double blue1=min(255., blue*1.2);
-  double green1=min(255., green*1.2);
-  double red1=min(255., red*1.2);
+  double blue1=min(255., blue*1.3);
+  double green1=min(255., green*1.3);
+  double red1=min(255., red*1.3);
 
 
   TRIVERTEX vert[2];
@@ -664,28 +666,31 @@ void gdioutput::updateStringPosCache() {
   }
 }
 
-void gdioutput::addTimer(int yp, int xp, int format, DWORD ZeroTime, int xlimit, GUICALLBACK cb, int TimeOut)
-{
-  DWORD zt=GetTickCount()-1000*ZeroTime;
-  string text=getTimerText(ZeroTime, format);
-
-  addStringUT(yp, xp, format, text, xlimit, cb);
+TextInfo &gdioutput::addTimer(int yp, int xp, int format, DWORD zeroTime, int xlimit, 
+                              GUICALLBACK cb, int timeOut, const char *fontFace) {
+  hasAnyTimer = true;
+  DWORD zt=GetTickCount()-1000*zeroTime;
+  string text=getTimerText(zeroTime, format);
+  
+  addStringUT(yp, xp, format, text, xlimit, cb, fontFace);
   TextInfo &ti=TL.back();
   ti.hasTimer=true;
   ti.zeroTime=zt;
 
-  if (TimeOut!=NOTIMEOUT)
-    ti.timeOut=ti.zeroTime+(TimeOut)*1000;
+  if (timeOut != NOTIMEOUT)
+    ti.timeOut = ti.zeroTime + timeOut*1000;
+
+  return ti;
 }
 
-void gdioutput::addTimeout(int TimeOut, GUICALLBACK cb)
-{
+TextInfo &gdioutput::addTimeout(int TimeOut, GUICALLBACK cb) {
   addStringUT(0, 0, 0, "", 0, cb);
   TextInfo &ti=TL.back();
   ti.hasTimer=true;
   ti.zeroTime=GetTickCount();
   if (TimeOut!=NOTIMEOUT)
     ti.timeOut=ti.zeroTime+(TimeOut)*1000;
+  return ti;
 }
 
 void CALLBACK gdiTimerProc(HWND hWnd, UINT a, UINT_PTR ptr, DWORD b) {
@@ -879,7 +884,9 @@ ButtonInfo &gdioutput::addButton(int x, int y, const string &id, const string &t
   string ttext = lang.tl(text);
   GetTextExtentPoint32(hDC, ttext.c_str(), ttext.length(), &size);
   ReleaseDC(hWndTarget, hDC);
-  int width = max<int>(size.cx+scaleLength(30), scaleLength(75));
+  int width = size.cx+scaleLength(30);
+  if (text != "...")
+    width = max<int>(width, scaleLength(75));
   ButtonInfo &bi=addButton(x, y, width, id, text, cb, tooltip, false, false);
 
   return bi;
@@ -1114,7 +1121,7 @@ HFONT gdioutput::getGUIFont() const
 InputInfo &gdioutput::addInput(int x, int y, const string &id, const string &text, int length, GUICALLBACK cb, const string &Explanation, const string &Help)
 {
   if (Explanation.length()>0) {
-    addString("", y, x, 0, Explanation);
+    addString(id + "_label", y, x, 0, Explanation);
     y+=lineHeight;
   }
 
@@ -2519,6 +2526,7 @@ void gdioutput::doEscape()
 void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
 {
   lockUpDown = false;
+  hasAnyTimer = false;
   enableTables();
   #ifndef MEOSDB
     if (toolbar && !keepToolbar)
@@ -4081,16 +4089,21 @@ string gdioutput::getTimerText(int zeroTime, int format)
 string gdioutput::getTimerText(TextInfo *tit, DWORD T)
 {
   int rt=(int(T)-int(tit->zeroTime))/1000;
+  int tenth = ((int(T)-int(tit->zeroTime))/100)%10;
   string text;
 
   int t=abs(rt);
   char bf[16];
-  if (rt>=3600)
-    sprintf_s(bf, 16, "%d:%02d:%02d", t/3600, (t/60)%60, t%60);
+
+  if ((tit->format & timeWithTenth) && rt < 3600) {
+    sprintf_s(bf, 16, "%02d:%02d:%d", t/60, t%60, tenth);
+  }
+  else if (rt>=3600  || (tit->format&fullTimeHMS))
+    sprintf_s(bf, 16, "%02d:%02d:%02d", t/3600, (t/60)%60, t%60);
   else
     sprintf_s(bf, 16, "%d:%02d", (t/60), t%60);
 
-  if (rt>0)
+  if (rt>0 || ((tit->format&fullTimeHMS) && rt>=0) )
     if (tit->format&timerCanBeNegative) text=string("+")+bf;
     else				text=bf;
   else if (rt<0)
@@ -4118,26 +4131,52 @@ void gdioutput::CheckInterfaceTimeouts(DWORD T)
 
   list<TextInfo>::iterator tit = TL.begin();
   vector<TextInfo> timeout;
-  while(tit!=TL.end()){
-    if (tit->hasTimer){
-      string text = tit->xp > 0 ? getTimerText(&*tit, T) : "";
-      if (tit->timeOut && T>DWORD(tit->timeOut)){
-        tit->timeOut=0;
-        if (tit->callBack)
-          timeout.push_back(*tit);
-      }
-      if (text != tit->text) {
-        RECT rc=tit->textRect;
-        tit->text=text;
-        calcStringSize(*tit);
+  if (hasAnyTimer) {
+    bool anyChange = false;
+    while(tit!=TL.end()){
+      if (tit->hasTimer){
+        string text = tit->xp > 0 ? getTimerText(&*tit, T) : "";
+        if (tit->timeOut && T>DWORD(tit->timeOut)){
+          tit->timeOut=0;
+          if (tit->callBack)
+            timeout.push_back(*tit);
+        }
+        if (text != tit->text) {
+          RECT rc=tit->textRect;
+          tit->text=text;
+          calcStringSize(*tit);
 
-        rc.right=max(tit->textRect.right, rc.right);
-        rc.bottom=max(tit->textRect.bottom, rc.bottom);
+          rc.right=max(tit->textRect.right, rc.right);
+          rc.bottom=max(tit->textRect.bottom, rc.bottom);
 
-        InvalidateRect(hWndTarget, &rc, true);
+          anyChange = true;
+          //InvalidateRecthWndTarget, &rc, true);
+        }
       }
+      ++tit;
     }
-    ++tit;
+
+    if (anyChange) {
+      int w, h;
+      getTargetDimension(w, h);
+      HDC hDC = GetDC(hWndTarget);
+      HBITMAP btm = CreateCompatibleBitmap(hDC, w, h);
+      HDC memDC = CreateCompatibleDC (hDC);
+      HGDIOBJ hOld = SelectObject(memDC, btm);
+      RECT rc;
+      rc.top = 0;
+      rc.left = 0;
+      rc.bottom = h;
+      rc.right = w;
+      RECT area = rc;
+      drawBackground(memDC, rc);
+      draw(memDC, rc, area);
+      BitBlt(hDC, 0, 0, w, h, memDC, 0,0, SRCCOPY);
+      SelectObject(memDC, hOld);
+      DeleteObject(btm);
+      DeleteDC(memDC);
+      ReleaseDC(hWndTarget, hDC);
+    }
   }
 
   for (size_t k = 0; k < timeout.size(); k++)
@@ -5803,6 +5842,8 @@ FontEncoding interpetEncoding(const string &enc) {
     return Russian;
   else if (enc == "EASTEUROPE")
     return EastEurope;
+  else if (enc == "HEBREW")
+    return Hebrew;
   else
     return ANSI;
 }
@@ -5816,6 +5857,9 @@ const wstring &gdioutput::toWide(const string &input) const {
       break;
     case EastEurope:
       cp = 1250;
+      break;
+    case Hebrew:
+      cp = 1255;
       break;
   }
 

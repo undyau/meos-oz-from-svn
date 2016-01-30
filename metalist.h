@@ -32,6 +32,8 @@ class xmlobject;
 enum gdiFonts;
 class oEvent;
 
+const string &itos(int);
+
 class Position
 {
   struct PosInfo {
@@ -47,6 +49,9 @@ class Position
   void update(int ix, const string &newname, int width, bool alignBlock, bool alignLock);
 
 public:
+
+  int getWidth() const;
+
   bool postAdjust();
 
   void add(const string &name, const int width, int blockWidth);
@@ -145,8 +150,25 @@ struct DynamicResultRef {
 
 class MetaList {
 private:
+
+  struct FontInfo {
+    string font;
+    int scale;
+    int extraSpaceAbove;
+
+    FontInfo() : scale(0), extraSpaceAbove(0) {}
+
+    const vector< pair<string, string> > &serialize(vector< pair<string, string> > &props) const {
+      props[0].first = "scale";
+      props[0].second = itos(scale);
+      props[1].first = "above";
+      props[1].second = itos(extraSpaceAbove);
+      return props;
+    }
+  };
+
   vector< vector< vector<MetaListPost> > > data;
-  vector< pair<string, int> > fontFaces;
+  vector<FontInfo> fontFaces;
 
   string listName;
   mutable string listOrigin;
@@ -233,11 +255,18 @@ public:
   void getBaseType(vector< pair<string, size_t> > &types, int &currentType) const;
   void getSubType(vector< pair<string, size_t> > &types, int &currentType) const;
 
-  const string &getFontFace(int type) const {return fontFaces[type].first;}
-  int getFontFaceFactor(int type) const {return fontFaces[type].second;}
+  const string &getFontFace(int type) const {return fontFaces[type].font;}
+  int getFontFaceFactor(int type) const {return fontFaces[type].scale;}
+  int getExtraSpace(int type) const {return fontFaces[type].extraSpaceAbove;}
 
   MetaList &setFontFace(int type, const string &face, int factor) {
-    fontFaces[type] = make_pair(face, factor);
+    fontFaces[type].font = face;
+    fontFaces[type].scale = factor;
+    return *this;
+  }
+
+  MetaList &setExtraSpace(int type, int space) {
+    fontFaces[type].extraSpaceAbove = space;
     return *this;
   }
 
@@ -344,7 +373,13 @@ public:
   MetaList &addExternal(const MetaList &ml);
   void clearExternal();
 
-  void getLists(vector< pair<string, size_t> > &lists, bool markBuiltIn, bool resultListOnly) const;
+  void getLists(vector< pair<string, size_t> > &lists, 
+                bool markBuiltIn, 
+                bool resultListOnly, 
+                bool noTeamList) const;
+
+  const string &getTag(int index) const;
+
   void removeList(int index);
   void saveList(int index, const MetaList &ml);
   bool isInternal(int index) const {return data[index].first == InternalList;}
@@ -361,6 +396,11 @@ public:
   void getListParam( vector< pair<string, size_t> > &param) const;
   void removeParam(int index);
   void addListParam(oListParam &listParam);
+
+  void mergeParam(int toInsertAfter, int toMerge, bool showTitleBetween);
+  void getMergeCandidates(int toMerge, vector< pair<string, size_t> > &param) const;
+  bool canSplit(int index) const;
+  void split(int index);
 
   bool interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par,
                  int lineHeight, oListInfo &li) const;

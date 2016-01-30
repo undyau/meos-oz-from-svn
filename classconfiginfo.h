@@ -29,6 +29,7 @@ class ClassConfigInfo {
 private:
   bool results;
   bool starttimes;
+  int maximumLegNumber;
 public:
   vector < vector<int> > timeStart;
   vector<int> individual;
@@ -38,7 +39,7 @@ public:
   vector< vector<int> > legNStart;
   vector< vector<int> > raceNStart;
 
-  vector< vector<int> > legNRes;
+  map<int, vector<int> > legResult; // main leg number -> class selection
   vector< vector<int> > raceNRes;
 
   vector<int> rogainingClasses;
@@ -85,5 +86,5 @@ public:
   // Return true if the competition defines any start times;
   bool hasStartTimes() const {return starttimes;}
 
-  int getNumLegsTotal() const {return max(legNRes.size(), raceNRes.size());}
+  int getNumLegsTotal() const {return maximumLegNumber;}
 };

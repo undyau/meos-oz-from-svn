@@ -23,6 +23,7 @@
 
 #include "oEvent.h"
 #include "classconfiginfo.h"
+#include "meos_util.h"
 
 void ClassConfigInfo::clear() {
   individual.clear();
@@ -32,7 +33,7 @@ void ClassConfigInfo::clear() {
   legNStart.clear();
   raceNStart.clear();
 
-  legNRes.clear();
+  legResult.clear();
   raceNRes.clear();
 
   rogainingClasses.clear();
@@ -41,7 +42,7 @@ void ClassConfigInfo::clear() {
   hasMultiEvent = false;
   hasRentedCard = false;
   classWithoutCourse.clear();
-
+  maximumLegNumber = 0;
   results = false;
   starttimes = false;
 }
@@ -101,8 +102,9 @@ void ClassConfigInfo::getRaceNRes(int race, set<int> &sel) const {
 }
 
 void ClassConfigInfo::getLegNRes(int leg, set<int> &sel) const {
-  if (size_t(leg) < legNRes.size() && !legNRes[leg].empty())
-    sel.insert(legNRes[leg].begin(), legNRes[leg].end());
+  map<int, vector<int> >::const_iterator res = legResult.find(leg);
+  if (res != legResult.end())
+    sel.insert(res->second.begin(), res->second.end());
   else
     sel.clear();
 }
@@ -117,6 +119,8 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
   for (it = Classes.begin(); it != Classes.end(); ++it) {
     if (it->isRemoved())
       continue;
+
+    cnf.maximumLegNumber = max<int>(cnf.maximumLegNumber, it->getNumStages());
     ClassType ct = it->getClassType();
 
     if (it->isRogaining())
@@ -144,9 +148,7 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
 
       if (cnf.legNStart.size() < it->getNumStages())
         cnf.legNStart.resize(it->getNumStages());
-      if (cnf.legNRes.size() < it->getNumStages())
-        cnf.legNRes.resize(it->getNumStages());
-
+      
       for (size_t k = 0; k < it->getNumStages(); k++) {
         StartTypes st = it->getStartType(k);
         if (st == STDrawn || st == STHunting) {
@@ -155,9 +157,13 @@ void oEvent::getClassConfigurationInfo(ClassConfigInfo &cnf) const
             cnf.timeStart.resize(k+1);
           cnf.timeStart[k].push_back(it->getId());
         }
+
         LegTypes lt = it->getLegType(k);
-        if (lt != LTIgnore && lt != LTExtra && lt != LTGroup)
-          cnf.legNRes[k].push_back(it->getId());
+        if (!it->isOptional(k) && !it->isParallel(k) && lt != LTGroup) {
+          int trueN, order;
+          it->splitLegNumberParallel(k, trueN, order);
+          cnf.legResult[trueN].push_back(it->getId());
+        }
       }
     }
     else if (ct == oClassIndividRelay) {

@@ -209,52 +209,58 @@ bool gdioutput::writeHTML(const wstring &file, const string &title, int refreshT
   map< pair<gdiFonts, string>, pair<string, string> > styles;
   generateStyles(fout, false, TL, styles);
 
-/*
-  fout << "<style type=\"text/css\">\n";
-  fout << "body {background-color: rgb(250, 250,255)}\n";
-  fout << "h1 {font-family:arial,sans-serif;font-size:24px;font-weight:normal;white-space:nowrap}\n";
-  fout << "h2 {font-family:arial,sans-serif;font-size:20px;font-weight:normal;white-space:nowrap}\n";
-  fout << "h3 {font-family:arial,sans-serif;font-size:16px;font-weight:normal;white-space:nowrap}\n";
-  fout << "p {font-family:arial,sans-serif;font-size:12px;font-weight:normal;white-space:nowrap}\n";
-  fout << "</style>\n";
-  */
   fout << "</head>\n";
 
   fout << "<body>\n";
 
   list<TextInfo>::const_iterator it = TL.begin();
 
-  double yscale = 1.2;
-  double xscale = 1.1;
+  double yscale = 1.3;
+  double xscale = 1.2;
+  int offsetY = 0;
   while (it!=TL.end()) {
+    if (skipTextRender(it->format)) {
+      ++it;
+      continue;
+    }
+
+    string yp = itos(int(yscale*it->yp) + offsetY); 
+    string xp = itos(int(xscale *it->xp));
+
     string estyle;
     if (it->format!=1 && it->format!=boldSmall) {
       if (it->format & textRight)
         estyle = " style=\"position:absolute;left:" +
-            itos(int(xscale *it->xp)) + "px;top:"  + itos(int(yscale*it->yp)) + "px\"";
+            xp + "px;top:"  + yp + "px\"";
       else
         estyle = " style=\"position:absolute;left:" +
-            itos(int(xscale *it->xp)) + "px;top:" + itos(int(yscale*it->yp)) + "px\"";
+            xp + "px;top:" + yp + "px\"";
 
     }
     else {
       if (it->format & textRight)
          estyle = " style=\"font-weight:bold;position:absolute;left:" +
-              itos(int(xscale *it->xp)) + "px;top:" + itos(int(yscale*it->yp)) +  "px\"";
+              xp + "px;top:" + yp +  "px\"";
       else
          estyle = " style=\"font-weight:bold;position:absolute;left:" +
-              itos(int(xscale *it->xp)) + "px;top:" + itos(int(yscale*it->yp)) + "px\"";
+              xp + "px;top:" + yp + "px\"";
     }
     string starttag, endtag;
     getStyle(styles, it->getGdiFont(), it->font, estyle, starttag, endtag);
 
     if (!it->text.empty())
       fout << starttag << toUTF8(encodeXML(it->text)) << endtag << endl;
-    //fout << "</" << element << ">\n";
+
+    if (it->format == boldLarge) {
+      list<TextInfo>::const_iterator next = it;
+      ++next;
+      if (next == TL.end() || next->yp != it->yp)
+        offsetY += 7;
+    }
     ++it;
   }
 
-  fout << "<p style=\"position:absolute;left:10px;top:" <<  int(yscale*MaxY)+15 << "px\">";
+  fout << "<p style=\"position:absolute;left:10px;top:" <<  int(yscale*MaxY)+15 + offsetY << "px\">";
 
   char bf1[256];
   char bf2[256];

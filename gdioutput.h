@@ -69,7 +69,7 @@ enum gdiFonts;
 typedef list<ToolInfo> ToolList;
 
 enum FontEncoding {
-  ANSI, Russian, EastEurope
+  ANSI, Russian, EastEurope, Hebrew
 };
 
 FontEncoding interpetEncoding(const string &enc);
@@ -255,11 +255,12 @@ protected:
   mutable map<pair<int, int>, ScreenStringInfo> screenXYToString;
   mutable map<string, pair<int, int> > stringToScreenXY;
   mutable pair<int, int> snapshotMaxXY;
+  bool hasAnyTimer;
 
   friend class InputInfo;
 public:
   bool hasTag(const string &t) const {return tag == t;}
-
+  
   const wstring &toWide(const string &input) const;
 
   const string &toUTF8(const string &input) const;
@@ -280,6 +281,7 @@ public:
   const string &getFontName(int id);
   double getRelativeFontScale(gdiFonts font, const char *fontFace) const;
 
+  bool isFullScreen() const {return fullScreen;}
   void setFullScreen(bool useFullScreen);
   void setAutoScroll(double speed);
   void getAutoScroll(double &speed, double &pos) const;
@@ -455,8 +457,14 @@ public:
   bool getData(const string &id, DWORD &data) const;
   bool hasData(const char *id) const;
 
+  
   bool selectItemByData(const char *id, int data);
   void removeSelected(const char *id);
+
+  bool selectItemByData(const string &id, int data) {
+    return selectItemByData(id.c_str(), data);
+  }
+
 
   enum AskAnswer {AnswerNo = 0, AnswerYes = 1, AnswerCancel = 2};
   bool ask(const string &s);
@@ -573,8 +581,9 @@ public:
                         int xlimit=0, GUICALLBACK cb=0, const char *fontFace = 0);
   TextInfo &addStringUT(int format, const string &text, GUICALLBACK cb=0);
 
-  void addTimer(int yp, int xp, int format, DWORD ZeroTime, int xlimit=0, GUICALLBACK cb=0, int TimeOut=NOTIMEOUT);
-  void addTimeout(int TimeOut, GUICALLBACK cb);
+  TextInfo &addTimer(int yp, int xp, int format, DWORD ZeroTime, 
+                     int xlimit=0, GUICALLBACK cb=0, int TimeOut=NOTIMEOUT, const char *fontFace = 0);
+  TextInfo &addTimeout(int TimeOut, GUICALLBACK cb);
 
   void removeTimeoutMilli(const string &id);
   TimerInfo &addTimeoutMilli(int timeOut, const string &id, GUICALLBACK cb);

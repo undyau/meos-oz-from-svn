@@ -182,17 +182,19 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
 
     maxX = max(maxX, (float)it->textRect.right);
   }
-
+  const float scaleXFactor = 1.2f;
+  maxX *= scaleXFactor;
   float w = HPDF_Page_GetWidth(page);
   float h = HPDF_Page_GetHeight(page);
   float scale = (w / maxX) * 0.85f;
 
   vector<RenderedPage> pages;
   PageInfo pageInfo;
-  pageInfo.topMargin = h * 0.04f;
-  pageInfo.scale = scale;
+  pageInfo.topMargin = h * 0.05f;
+  pageInfo.scaleX = scale * scaleXFactor;
+  pageInfo.scaleY = scale;
   pageInfo.leftMargin = w * 0.07f;
-  pageInfo.bottomMargin = pageInfo.topMargin * 0.8f;
+  pageInfo.bottomMargin = pageInfo.topMargin * 1.0f;
   pageInfo.pageY = h;
   pageInfo.printHeader = true;
   pageInfo.yMM2PrintC = pageInfo.xMM2PrintC = 1199.551f / 420.f;
@@ -207,7 +209,7 @@ void pdfwriter::generatePDF(const gdioutput &gdi,
       HPDF_Page_BeginText (page);
       float df = min(w, h) * 0.02f;
       float sw = HPDF_Page_TextWidth(page, pinfo.c_str());
-      HPDF_Page_TextOut (page, w - sw - df , h - df * 1.5f, pinfo.c_str());
+      HPDF_Page_TextOut (page, w - sw - df , h - df * 2.5f, pinfo.c_str());
       HPDF_Page_EndText(page);
     }
 

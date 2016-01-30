@@ -50,6 +50,8 @@ const int textRight=256;
 const int textCenter=512;
 const int timerCanBeNegative=1024;
 const int breakLines=2048;
+const int fullTimeHMS = 4096;
+const int timeWithTenth = 8192;
 
 enum GDICOLOR {colorRed = RGB(128,0,0),
               colorGreen = RGB(0,128,0),

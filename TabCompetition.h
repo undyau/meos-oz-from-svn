@@ -29,6 +29,7 @@ class TabCompetition :
   public TabBase
 {
   string eventorBase;
+  string iofExportVersion;
   void textSizeControl(gdioutput &gdi) const;
 
   bool showConnectionPage;
@@ -110,7 +111,7 @@ class TabCompetition :
   void newCompetitionGuide(gdioutput &gdi, int step);
 
   void entryForm(gdioutput &gdi, bool isGuide);
-  void saveEntries(gdioutput &gdi, bool updateClass, bool isGuide);
+  void saveEntries(gdioutput &gdi, bool removeRemoved, bool isGuide);
 
   void selectStartlistOptions(gdioutput &gdi);
   void selectExportSplitOptions(gdioutput &gdi);

@@ -67,7 +67,33 @@ enum { nLegTypes = LT_max };
 enum BibMode {
   BibSame,
   BibAdd,
-  BibFree
+  BibFree,
+  BibLeg,
+};
+
+enum AutoBibType {
+  AutoBibManual = 0,
+  AutoBibConsecutive = 1,
+  AutoBibNone = 2,
+  AutoBibExplicit = 3
+};
+
+enum ClassSplitMethod {
+  SplitRandom,
+  SplitClub,
+  SplitRank,
+  SplitRankEven,
+  SplitResult,
+  SplitTime,
+  SplitResultEven,
+  SplitTimeEven,
+};
+
+enum ClassSeedMethod {
+  SeedRank,
+  SeedResult,
+  SeedTime,
+  SeedPoints
 };
 
 #ifdef DODECLARETYPESYMBOLS
@@ -118,6 +144,9 @@ class oClass : public oBase
 {
 public:
   enum ClassStatus {Normal, Invalid, InvalidRefund};
+
+  static void getSplitMethods(vector< pair<string, size_t> > &methods);
+  static void getSeedingMethods(vector< pair<string, size_t> > &methods);
 
 protected:
   string Name;
@@ -226,18 +255,42 @@ protected:
 
   void changedObject();
 
-  static long long setupForkKey(const vector<int> indices, const vector< vector< vector<int> > > &courseKeys);
+  static long long setupForkKey(const vector<int> indices, const vector< vector< vector<int> > > &courseKeys, vector<int> &ws);
 
 public:
+  /** Return an actual linear index for this class. */
+  int getLinearIndex(int index, bool isLinear) const;
 
-  bool isParallel(size_t leg) {
+  /** Split class into subclasses. */
+  void splitClass(ClassSplitMethod method, const vector<int> &parts, vector<int> &outClassId);
+  void mergeClass(int classIdSec);
+  
+  void drawSeeded(ClassSeedMethod seed, int leg, int firstStart, int interval, const vector<int> &groups,
+                  bool noClubNb, bool reverse, bool pairwise);
+
+  // Autoassign new bibs
+  static void extractBibPatterns(oEvent &oe, map<int, pair<string, int> > &patterns);
+  pair<int, string> getNextBib(map<int, pair<string, int> > &patterns); // Version that calculates next free bib from cached data (fast, no gap usage)
+  pair<int, string> oClass::getNextBib(); // Version that calculates next free bib (slow, but reuses gaps)
+
+  bool usesCourse(const oCourse &crs) const;
+  pCourse getCourse(int leg, int startNo) const;
+
+  /** Returns an (overestimate) of the actual number of forks.*/
+  int getNumForks() const;
+
+  bool checkStartMethod();
+
+  static int extractBibPattern(const string &bibInfo, char pattern[32]);
+
+  bool isParallel(size_t leg) const {
     if (leg < legInfo.size())
       return legInfo[leg].isParallel();
     else
       return false;
   }
 
-  bool isOptional(size_t leg) {
+  bool isOptional(size_t leg) const {
     if (leg < legInfo.size())
       return legInfo[leg].isOptional();
     else
@@ -345,7 +398,10 @@ public:
   int getNumDistinctRunnersMinimal() const;
   void setStartType(int leg, StartTypes st);
   void setLegType(int leg, LegTypes lt);
-  void setStartData(int leg, const string &s);
+
+  bool setStartData(int leg, const string &s);
+  bool setStartData(int leg, int value);
+  
   void setRestartTime(int leg, const string &t);
   void setRopeTime(int leg, const string &t);
 
@@ -404,7 +460,6 @@ public:
   void Set(const xmlobject *xo);
   bool Write(xmlparser &xml);
 
-  bool fillStages(gdioutput &gdi, const string &name) const;
   bool fillStageCourses(gdioutput &gdi, int stage,
                         const string &name) const;
 
@@ -442,6 +497,7 @@ public:
   bool getAllowQuickEntry() const;
   void setAllowQuickEntry(bool quick);
 
+  AutoBibType getAutoBibType() const;
   BibMode getBibMode() const;
   void setBibMode(BibMode bibMode);
 
@@ -466,6 +522,16 @@ public:
   // Automatically setup forkings using the specified courses.
   // Returns <number of forkings created, number of courses used>
   pair<int, int> autoForking(const vector< vector<int> > &inputCourses);
+
+  bool hasUnorderedLegs() const;
+  void setUnorderedLegs(bool order);
+  void getParallelCourseGroup(int leg, int startNo, vector< pair<int, pCourse> > &group) const;
+  // Returns 0 for no parallel selection (= normal mode)
+  pCourse selectParallelCourse(const oRunner &r, const SICard &sic);
+
+  void getParallelRange(int leg, int &parLegRangeMin, int &parLegRangeMax) const;
+
+  bool hasAnyCourse(const set<int> &crsId) const;
 
   oClass(oEvent *poe);
   oClass(oEvent *poe, int id);

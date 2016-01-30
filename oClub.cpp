@@ -435,7 +435,7 @@ void oEvent::getClubs(vector<pClub> &c, bool sort) {
 void oEvent::viewClubMembers(gdioutput &gdi, int clubId)
 {
   sortRunners(ClassStartTime);
-  sortTeams(ClassStartTime, 0);
+  sortTeams(ClassStartTime, 0, true);
 
   gdi.fillDown();
   gdi.dropLine();
@@ -487,7 +487,11 @@ void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData
   lines.push_back(InvoiceLine());
   InvoiceLine &line = lines.back();
 
-  line.addString(xs + (inTeam ? 10 : 0), r->getName());
+  if (r->getTeam() && !inTeam && !r->isPatrolMember())
+    line.addString(xs, r->getName() + " ("  + r->getTeam()->getName() + ")");
+  else
+    line.addString(xs + (inTeam ? 10 : 0), r->getName());
+  
   string ts;
   if (!inTeam)
     line.addString(xs+data.clsPos, r->getClass());
@@ -711,7 +715,6 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
     if (team && team->getDCI().getInt("Fee") > 0
       && team->getClubId() == runners[k]->getClubId())
       continue; // Show this line under the team.
-    //addRunnerInvoiceLine(gdi, runners[k], data, false);
     addRunnerInvoiceLine(runners[k], false, data, lines);
   }
 
@@ -782,7 +785,7 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
   oClub::assignInvoiceNumber(*this, false);
   oClubList::iterator it;
   oe->calculateTeamResults(false);
-  oe->sortTeams(ClassStartTime, 0);
+  oe->sortTeams(ClassStartTime, 0, true);
   oe->calculateResults(RTClassResult);
   oe->sortRunners(ClassStartTime);
   int pay, paid;

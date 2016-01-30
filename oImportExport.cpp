@@ -181,7 +181,7 @@ bool oEvent::exportOECSV(const char *file, bool byClass)
 }
 
 
-void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass)
+void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass, bool removeNonexisting)
 {
   vector< pair<int, int> > runnersInTeam;
   for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
@@ -199,11 +199,11 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
 
     gdi.addString("", 0, "Importerar anmälningar (IOF, xml)");
     gdi.refreshFast();
-    int ent = 0, fail = 0;
+    int ent = 0, fail = 0, removed = 0;
 
     if (xo.getAttrib("iofVersion")) {
       IOF30Interface reader(this);
-      reader.readEntryList(gdi, xo, ent, fail);
+      reader.readEntryList(gdi, xo, removeNonexisting, ent, fail, removed);
     }
     else {
       xmlList xl;
@@ -235,7 +235,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
                 fail++;
             }
             else {
-              if (addXMLEntry(entries[k], ClubId, updateClass))
+              if (addXMLEntry(entries[k], ClubId, true))
                 ent++;
               else
                 fail++;
@@ -600,8 +600,11 @@ bool oEvent::addXMLTeamEntry(const xmlobject &xentry, int clubId)
     t->setStartNo(Teams.size(), false);
   }
 
-  t->setName(name);
-  t->Class = pc;
+  if (!t->hasFlag(oAbstractRunner::FlagUpdateName))
+    t->setName(name, false);
+  if (!t->Class || !t->hasFlag(oAbstractRunner::FlagUpdateClass))
+    t->setClassId(pc->getId(), false);
+
   t->Club = club;
   oDataInterface DI = t->getDI();
 
@@ -683,7 +686,7 @@ pRunner oEvent::addXMLPerson(const xmlobject &person) {
   }
 
   string given, family;
-  r->setName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family));
+  r->setName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family), false);
   r->setExtIdentifier(pid);
 
   oDataInterface DI=r->getDI();
@@ -706,8 +709,7 @@ pRunner oEvent::addXMLPerson(const xmlobject &person) {
   return r;
 }
 
-pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool updateClass)
-{
+pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool setClass) {
   if (!xentry) return 0;
 
   xmlobject person = xentry.getObject("Person");
@@ -739,7 +741,7 @@ pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool updateClas
   pClass oldClass = r->Class;
   pClub oldClub = r->Club;
 
-  if (r->Class == 0 || updateClass)
+  if (setClass && !r->hasFlag(oAbstractRunner::FlagUpdateClass) )
     r->Class = getXMLClass(xentry);
 
   r->Club = getClubCreate(clubId);
@@ -775,7 +777,7 @@ pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool updateClas
 
       string given2, family2;
       if (pname2) {
-        r2->setName(getFirst(pname2.getObjectString("Given", given2), 2)+" "+pname2.getObjectString("Family", family2));
+        r2->setName(getFirst(pname2.getObjectString("Given", given2), 2)+" "+pname2.getObjectString("Family", family2), false);
       }
 
       r2->setExtIdentifier(pid2);
@@ -811,8 +813,8 @@ pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool updateClas
           }
         }
 
-        if (createTeam && t) {
-          t->setName(given + " / " + given2);
+        if (createTeam && t && !t->hasFlag(oAbstractRunner::FlagUpdateName)) {
+          t->setName(given + " / " + given2, false);
         }
       }
     }
@@ -1354,7 +1356,7 @@ bool oEvent::addXMLCourse(const xmlobject &xcrs, bool addClasses)
 
     pc->setName(cname);
     pc->setLength(len);
-    pc->importControls("");
+    pc->importControls("", false);
     for (size_t i = 0; i<ctrlCode.size(); i++) {
       if (ctrlCode[i]>30 && ctrlCode[i]<1000)
         pc->addControl(ctrlCode[i]);
@@ -2241,7 +2243,7 @@ void oEvent::exportTeamSplits(xmlparser &xml, const set<int> &classes, bool oldS
   int Id=-1;
   bool skipClass=false;
 
-  sortTeams(ClassResult, -1);
+  sortTeams(ClassResult, -1, true);
   for(oTeamList::iterator it=Teams.begin(); it != Teams.end(); ++it) {
     if (it->isRemoved())
       continue;

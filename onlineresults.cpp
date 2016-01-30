@@ -360,11 +360,11 @@ void OnlineResults::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
         if (sendToURL) {
           xmlbuffer bcopy = xmlbuff;
           bcopy.startXML(xml, t);
-          bcopy.commit(xml, t.size());
+          bcopy.commit(xml, xmlbuff.size());
         }
         else {
           xmlbuff.startXML(xml, t);
-          xmlbuff.commit(xml, t.size());
+          xmlbuff.commit(xml, xmlbuff.size());
         }
         xml.endTag();
         xmlSize = xml.closeOut();

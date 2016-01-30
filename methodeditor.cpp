@@ -587,7 +587,7 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
           string err;
           string str;
           try {
-            int score = currentResult->score(*rr[k], st, rt, pt);
+            int score = currentResult->score(*rr[k], st, rt, pt, false);
             str = itos(score);
           }
           catch (meosException &ex) {
@@ -981,7 +981,7 @@ void MethodEditor::debug(gdioutput &gdi_in, int id, bool isTeam) {
       currentResult->debugDumpVariables(gdi, true);
     
     try {
-       int score = currentResult->score(r, st, rt, pt);
+       int score = currentResult->score(r, st, rt, pt, false);
        gdi.addStringUT(1, "ComputedScore: " + itos(score)).setColor(colorGreen);
     }
     catch (meosException &ex) {

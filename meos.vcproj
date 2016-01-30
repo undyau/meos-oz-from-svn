@@ -425,6 +425,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\liveresult.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\localizer.cpp"
 				>
 			</File>

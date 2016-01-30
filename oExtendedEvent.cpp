@@ -62,7 +62,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
 		runnerOldClassXref[j->getId()] = j->getClassId();	
 		int id = j->getCourse(false)->getId();
-		j->setClassId(courseNewClassXref[id]);
+		j->setClassId(courseNewClassXref[id], true);
 	}
 
 	// Do the export
@@ -70,7 +70,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 
 	// Reassign all runners back to original classes
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
-		j->setClassId(runnerOldClassXref[j->getId()]);
+		j->setClassId(runnerOldClassXref[j->getId()], true);
 	}
 
 	// Delete temporary classes

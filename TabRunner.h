@@ -63,7 +63,7 @@ private:
   int runnerId;
   bool ownWindow;
   bool listenToPunches;
-  vector<int> runnersToReport;
+  vector< pair<int, bool> > runnersToReport;
 
   vector<pRunner> unknown_dns;
   vector<pRunner> known_dns;
@@ -75,7 +75,7 @@ private:
 	PrinterObject labelPrinter;
 
   void showRunnerReport(gdioutput &gdi);
-  void runnerReport(gdioutput &gdi, int id);
+  void runnerReport(gdioutput &gdi, int id, bool compactReport);
 
   void showVacancyList(gdioutput &gdi, const string &method="", int classId=0);
   void showCardsList(gdioutput &gdi);
@@ -84,6 +84,10 @@ private:
   bool canSetFinish(pRunner r) const;
 
   void warnDuplicateCard(gdioutput &gdi, int cno, pRunner r);
+
+  int numShorteningLevels() const;
+
+  void updateNumShort(gdioutput &gdi, pCourse crs, pRunner r);
 
 public:
   void showInForestList(gdioutput &gdi);

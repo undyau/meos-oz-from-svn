@@ -212,7 +212,7 @@ void ListEditor::show(gdioutput &gdi) {
   oListParam par;
   par.pageBreak = false;
   par.splitAnalysis = true;
-  par.legNumber = -1;
+  par.setLegNumberCoded(-1);
   par.inputNumber = 0;
   gdi.fillDown();
 
@@ -502,6 +502,9 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       for (int k = 0; k < 4; k++) {
         list.setFontFace(k, gdi.getText("Font" + itos(k)),
                             gdi.getTextNo("FontFactor" + itos(k)));
+
+        int f = gdi.getTextNo("ExtraSpace" + itos(k));
+        list.setExtraSpace(k, f);
       }
 
       list.setSupportFromTo(gdi.isChecked("SupportFrom"), gdi.isChecked("SupportTo"));
@@ -606,7 +609,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       gdi.pushX();
       vector< pair<string, size_t> > lists;
-      oe->getListContainer().getLists(lists, true, false);
+      oe->getListContainer().getLists(lists, true, false, false);
       reverse(lists.begin(), lists.end());
 
       gdi.fillRight();
@@ -1045,13 +1048,14 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
   gdi.fillRight();
   int xp = gdi.getCX();
   int yp = gdi.getCY();
-  const int w = gdi.scaleLength(130);
+  //const int w = gdi.scaleLength(130);
   for (size_t k = 0; k < filters.size(); k++) {
     gdi.addCheckbox(xp, yp, "filter" + itos(k), filters[k].first, 0, filters[k].second);
-    xp += w;
+    xp = gdi.getCX();
     maxX = max(maxX, xp);
     if (k % 10 == 9) {
       xp = x1 + margin;
+      gdi.setCX(xp);
       yp += int(1.3 * gdi.getLineHeight());
     }
   }
@@ -1070,10 +1074,12 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
     gdi.addCheckbox(xp, yp, "subfilter" + itos(k), subfilters[k].first, 0, subfilters[k].second);
     if (subType == oListInfo::EBaseTypeNone)
       gdi.disableInput(("subfilter" + itos(k)).c_str());
-    xp += w;
+    //xp += w;
+    xp = gdi.getCX();
     maxX = max(maxX, xp);
     if (k % 10 == 9) {
       xp = x1 + margin;
+      gdi.setCX(xp);
       yp += int(1.3 * gdi.getLineHeight());
     }
   }
@@ -1087,8 +1093,8 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
   gdi.fillRight();
   const char *expl[4] = {"Rubrik", "Underrubrik", "Lista", "Underlista"};
   vector< pair<string, size_t> > fonts;
-  sort(fonts.begin(), fonts.end());
   gdi.getEnumeratedFonts(fonts);
+  sort(fonts.begin(), fonts.end());
 
   for (int k = 0; k < 4; k++) {
     string id("Font" + itos(k));
@@ -1100,6 +1106,8 @@ void ListEditor::editListProp(gdioutput &gdi, bool newList) {
     int f = list.getFontFaceFactor(k);
     string ff = f == 0 ? "100 %" : itos(f) + " %";
     gdi.addInput("FontFactor" + itos(k), ff, 4, 0, "Skalfaktor", "Relativ skalfaktor för typsnittets storlek i procent");
+    f = list.getExtraSpace(k);
+    gdi.addInput("ExtraSpace" + itos(k), itos(f), 4, 0, "Avstånd", "Extra avstånd ovanför textblock");
     if (k == 1) {
       gdi.dropLine(3);
       gdi.popX();

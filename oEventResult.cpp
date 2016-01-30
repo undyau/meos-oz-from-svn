@@ -106,8 +106,7 @@ void oEvent::calculateSplitResults(int controlIdFrom, int controlIdTo)
   }
 }
 
-void oEvent::calculateResults(ResultType resultType)
-{
+void oEvent::calculateResults(ResultType resultType) {
   const bool totalResults = resultType == RTTotalResult;
   const bool courseResults = resultType == RTCourseResult;
   const bool classCourseResults = resultType == RTClassCourseResult;
@@ -128,6 +127,7 @@ void oEvent::calculateResults(ResultType resultType)
   int vPlace=0;
   int cTime=0;
   int cDuplicateLeg=0;
+  int cLegEquClass = 0;
   bool invalidClass = false;
   bool useResults = false;
   for (it=Runners.begin(); it != Runners.end(); ++it) {
@@ -157,13 +157,15 @@ void oEvent::calculateResults(ResultType resultType)
         cTime=0;
       }
     }
-    else if (it->getClassId()!=cClassId || it->tDuplicateLeg!=cDuplicateLeg) {
+    else if (it->getClassId() != cClassId || it->tDuplicateLeg!=cDuplicateLeg || it->tLegEquClass != cLegEquClass) {
       cClassId=it->getClassId();
       useResults = it->Class ? !it->Class->getNoTiming() : false;
       cPlace=0;
       vPlace=0;
       cTime=0;
       cDuplicateLeg = it->tDuplicateLeg;
+      cLegEquClass = it->tLegEquClass;
+
       invalidClass = it->Class ? it->Class->getClassStatus() != oClass::Normal : false;
     }
 
@@ -178,7 +180,7 @@ void oEvent::calculateResults(ResultType resultType)
       if (it->tStatus==StatusOK){
         cPlace++;
 
-        int rt = it->getRunningTime();
+        int rt = it->getRunningTime() + it->getNumShortening() * 3600 * 24* 8;
 
         if (rt > cTime)
           vPlace=cPlace;
@@ -279,9 +281,9 @@ bool oEvent::calculateTeamResults(int leg, bool totalMultiday)
 
   bool hasRunner;
   if (totalMultiday)
-    hasRunner = sortTeams(ClassTotalResult, leg);
+    hasRunner = sortTeams(ClassTotalResult, leg, true);
   else
-    hasRunner = sortTeams(ClassResult, leg);
+    hasRunner = sortTeams(ClassResult, leg, true);
 
   if (!hasRunner)
     return false;
@@ -313,18 +315,18 @@ bool oEvent::calculateTeamResults(int leg, bool totalMultiday)
     if (invalidClass) {
       p = 0;
     }
-    else if (it->_sortstatus==StatusOK){
+    else if (it->_cachedStatus == StatusOK){
       cPlace++;
 
-      if (it->_sorttime>cTime)
+      if (it->_sortTime>cTime)
         vPlace=cPlace;
 
-      cTime = it->_sorttime;
+      cTime = it->_sortTime;
 
       p = vPlace;
     }
     else {
-      p = 99000+it->_sortstatus;
+      p = 99000+it->_sortStatus; //XXX Set to zero!?
     }
 
     if (totalMultiday)

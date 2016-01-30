@@ -104,6 +104,7 @@ int getMeosBuild();
 string getMeosDate();
 string getMeosFullVersion();
 string getMajorVersion();
+string getMeosCompectVersion();
 
 void getSupporters(vector<string> &supp);
 
@@ -201,3 +202,18 @@ string getGivenName(const string &name);
 
 /** Split a name into Given, Family, and return Family.*/
 string getFamilyName(const string &name);
+
+/** Simple file locking class to prevent opening in different MeOS session. */
+class MeOSFileLock {
+  HANDLE lockedFile;
+  // Not supported
+  MeOSFileLock(const MeOSFileLock &);
+  const MeOSFileLock &operator=(const MeOSFileLock &);
+
+public:
+  MeOSFileLock() {lockedFile = INVALID_HANDLE_VALUE;}
+  ~MeOSFileLock() {unlockFile();}
+
+  void unlockFile();
+  void lockFile(const string &file);
+};

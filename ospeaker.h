@@ -61,6 +61,11 @@ public:
   bool useSinceLast;
   int place;
   int parallelScore;
+
+  // For parallel legs
+  int runnersFinishedLeg;
+  int runnersTotalLeg;
+
   RunnerStatus status;
   RunnerStatus finishStatus;
 
@@ -77,7 +82,8 @@ public:
 
   oSpeakerObject() : owner(0), place(0), parallelScore(0), status(StatusUnknown),
                      finishStatus(StatusUnknown), isRendered(false),
-                     priority(0), missingStartTime(false), timeSinceChange(-1), useSinceLast(false) {}
+                     priority(0), missingStartTime(false), timeSinceChange(-1), useSinceLast(false),
+                     runnersFinishedLeg(0), runnersTotalLeg(0) {}
 
 };
 

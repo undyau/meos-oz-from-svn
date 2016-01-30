@@ -27,7 +27,8 @@ class TabCourse :
   public TabBase
 {
   int courseId;
-  void save(gdioutput &gdi);
+  /** canSwitchViewMode: 0 = no, 1 = yes, 2 = switching to legs */
+  void save(gdioutput &gdi, int canSwitchViewMode);
   int courseCB(gdioutput &gdi, int type, void *data);
   bool addedCourse;
 
@@ -35,7 +36,10 @@ class TabCourse :
   string point_limit;
   string point_reduction;
 
-  void fillCourseControls(gdioutput &gdi, oEvent &oe, const string &ctrl);
+  void fillCourseControls(gdioutput &gdi, const string &ctrl);
+  void fillOtherCourses(gdioutput &gdi, oCourse &crs);
+
+  void saveLegLengths(gdioutput &gdi);
 
 public:
   void selectCourse(gdioutput &gdi, pCourse pc);

@@ -51,6 +51,7 @@ class IOF30Interface {
   oEvent &oe;
 
   int cachedStageNumber;
+  int entrySourceId;
 
   bool useGMT; // Use GMT when exporting
 
@@ -137,15 +138,17 @@ class IOF30Interface {
                    map<int, vector<LegInfo> > &teamClassConfig);
 
   pTeam readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
+                      map<int, pair<string, int> > &bibPatterns,
                       const map<int, vector<LegInfo> > &teamClassConfig);
 
   pRunner readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo, pTeam team,
                           const map<int, vector<LegInfo> > &teamClassConfig);
 
   pTeam readTeamStart(gdioutput &gdi, pClass pc, xmlobject &xTeam,
+                      map<int, pair<string, int> > &bibPatterns,
                       const map<int, vector<LegInfo> > &teamClassConfig);
 
-  pTeam getCreateTeam(gdioutput &gdi, const xmlobject &xTeam);
+  pTeam getCreateTeam(gdioutput &gdi, const xmlobject &xTeam, bool &newTeam);
 
   static int getIndexFromLegPos(int leg, int legorder, const vector<LegInfo> &setup);
   void setupClassConfig(int classId, const xmlobject &xTeam, map<int, vector<LegInfo> > &teamClassConfig);
@@ -245,12 +248,12 @@ class IOF30Interface {
                          const map<int, string> &ctrlId2ExportId);
 
 public:
-  IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false), teamsAsIndividual(false) {cachedStageNumber = -1;}
+  IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false), teamsAsIndividual(false), entrySourceId(1) {cachedStageNumber = -1;}
   virtual ~IOF30Interface() {}
 
   void readEventList(gdioutput &gdi, xmlobject &xo);
 
-  void readEntryList(gdioutput &gdi, xmlobject &xo, int &entRead, int &entFail);
+  void readEntryList(gdioutput &gdi, xmlobject &xo, bool removeNonexisting, int &entRead, int &entFail, int &entRemoved);
 
   void readStartList(gdioutput &gdi, xmlobject &xo, int &entRead, int &entFail);
 

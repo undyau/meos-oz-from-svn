@@ -48,6 +48,8 @@
 #include "pdfwriter.h"
 #include "methodeditor.h"
 #include "MeOSFeatures.h"
+#include "liveresult.h"
+#include <algorithm>
 
 const static int CUSTOM_OFFSET = 10;
 
@@ -67,6 +69,10 @@ TabList::TabList(oEvent *poe):TabBase(poe)
   lastInterResult = false;
   lastSplitState = false;
   lastLargeSize = false;
+
+  lastSelectedResultList = -1;
+  lastLeg = 0;
+  lastFilledResultClassType = -1;
 }
 
 TabList::~TabList(void)
@@ -75,6 +81,12 @@ TabList::~TabList(void)
   delete methodEditor;
   listEditor = 0;
   methodEditor = 0;
+
+  for (size_t k = 0; k < liveResults.size(); k++) {
+    delete liveResults[k];
+    liveResults[k] = 0;
+  }
+  liveResults.clear();
 }
 
 int ListsCB(gdioutput *gdi, int type, void *data);
@@ -182,6 +194,23 @@ int TabList::baseButtons(gdioutput &gdi, int extraButtons) {
 
 void TabList::generateList(gdioutput &gdi)
 {
+  if (currentList.getListCode() == EFixedLiveResult) {
+    liveResult(gdi, currentList);
+    
+    int baseY = 15;
+    if (!gdi.isFullScreen()) { 
+      gdi.addButton(gdi.getWidth()+20, baseY,  gdi.scaleLength(120),
+                  "Cancel", ownWindow ? "Stäng" : "Återgå", ListsCB, "", true, false);
+
+      baseY += 3 + gdi.getButtonHeight();
+      gdi.addButton(gdi.getWidth()+20, baseY, gdi.scaleLength(120),
+                    "FullScreenLive", "Fullskärm", ListsCB, "Visa listan i fullskärm", true, false);
+    }
+    SelectedList="GeneralList";
+
+    return;
+  }
+    
   DWORD storedWidth = 0;
   int oX = 0;
   int oY = 0;
@@ -321,7 +350,8 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
         gdi.openDoc(file.c_str());
       }
     }
-    else if (bi.id == "Window" || bi.id == "AutoScroll" || bi.id == "FullScreen") {
+    else if (bi.id == "Window" || bi.id == "AutoScroll" ||
+             bi.id == "FullScreen" || bi.id == "FullScreenLive") {
       gdioutput *gdi_new;
       TabList *tl_new = this;
       if (!ownWindow) {
@@ -333,6 +363,9 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
           tl.ownWindow = true;
           tl.loadPage(*gdi_new);
           tl_new = &tl;
+          SelectedList = "";
+          currentList = oListInfo();
+          loadPage(gdi);
         }
       }
       else
@@ -351,6 +384,11 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
         double sec = 6.0;
         double delta = h * 20. / (1000. * sec);
         gdi_new->setAutoScroll(delta);
+      }
+      else if (gdi_new && bi.id == "FullScreenLive") {
+        gdi_new->setFullScreen(true);
+        tl_new->hideButtons = true;
+        tl_new->loadPage(*gdi_new);
       }
     }
     else if (bi.id == "Remember") {
@@ -395,6 +433,49 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.setName(name);
       loadPage(gdi);
     }
+    else if (bi.id == "MergeSaved") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("SavedInstance", &lbi)) {
+        //oe->getListContainer().mergeParam(0, lbi.data);
+        const oListParam &par = oe->getListContainer().getParam(lbi.data);
+        gdi.clearPage(true);
+        gdi.addString("", boldLarge, "Slå ihop X#" + par.getName());
+        gdi.setData("ParamIx", lbi.data);
+        gdi.dropLine();
+        gdi.addListBox("Merge", 350, 250, 0, "Slå ihop med:");
+        vector < pair<string, size_t> > cand;
+        oe->getListContainer().getMergeCandidates(lbi.data, cand);
+        gdi.addItem("Merge", cand);
+        gdi.addCheckbox("ShowTitle", "Visa rubrik mellan listorna", 0, false);
+        gdi.fillRight();
+        gdi.addButton("DoMerge", "Slå ihop", ListsCB);
+        gdi.addButton("Cancel", "Avbryt", ListsCB);
+        gdi.dropLine(3);
+      }
+    }
+    else if (bi.id == "DoMerge") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("Merge", &lbi)) {
+        int mergeWidth = lbi.data;
+        int base = (int)gdi.getData("ParamIx");
+        oe->synchronize(false);
+        bool showTitle = gdi.isChecked("ShowTitle");
+        oe->getListContainer().mergeParam(mergeWidth, base, showTitle);
+        oe->synchronize(true);
+        loadPage(gdi);
+      }
+      return 0;
+    }
+    else if (bi.id == "SplitSaved") {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("SavedInstance", &lbi)) {
+        oe->synchronize(false);
+        oe->getListContainer().split(lbi.data);
+        oe->synchronize(true);
+        loadPage(gdi);
+        return 0;
+      }
+    }
     else if (bi.id == "RemoveSaved") {
       ListBoxInfo lbi;
       if (gdi.getSelectedItem("SavedInstance", &lbi)) {
@@ -414,19 +495,32 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       set<int> lst;
       lst.insert(-1);
       gdi.setSelection("ListSelection", lst);
+
+      if (gdi.hasField("ResultType")) {
+        ListBoxInfo entry;
+        gdi.getSelectedItem("ResultType", &entry);
+        gdi.setInputStatus("Generate", int(entry.data) >= 0);
+      }
     }
     else if (bi.id=="SelectNone") {
       set<int> lst;
       gdi.setSelection("ListSelection", lst);
+      if (gdi.hasField("ResultType")) {
+        gdi.setInputStatus("Generate", false);
+      }
     }
     else if (bi.id=="CancelPS") {
       gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
     }
     else if (bi.id=="SavePS") {
-      saveExtraLines(*oe, "SPExtra", gdi);
+      const char *ctype = (char *)gdi.getData("Type");
+      saveExtraLines(*oe, ctype, gdi);
 
-      int aflag = (gdi.isChecked("SplitAnalysis") ? 0 : 1) + (gdi.isChecked("Speed") ? 0 : 2);
-      oe->getDI().setInt("Analysis", aflag);
+      if (gdi.hasField("SplitAnalysis")) {
+        int aflag = (gdi.isChecked("SplitAnalysis") ? 0 : 1) + (gdi.isChecked("Speed") ? 0 : 2)
+                    + (gdi.isChecked("Results") ? 0 : 4);
+        oe->getDI().setInt("Analysis", aflag);
+      }
       gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
     }
     else if (bi.id == "PrinterSetup") {
@@ -437,38 +531,14 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="Generate") {
       ListBoxInfo lbi;
+      bool advancedResults = false;
       if (gdi.getSelectedItem("ListType", &lbi)) {
         currentListType=EStdListType(lbi.data);
       }
       else if (gdi.getSelectedItem("ResultType", &lbi)) {
-        switch(lbi.data) {
-          case 1:
-            currentListType=EStdResultList;
-            break;
-          case 2:
-            currentListType=EStdPatrolResultList;
-            break;
-          case 3:
-            currentListType=EStdTeamResultListAll;
-            break;
-          case 4:
-            currentListType=EStdTeamResultList;
-            break;
-          case 5:
-            currentListType=EStdTeamResultListLeg;
-            break;
-          case 6:
-            currentListType=EGeneralResultList;
-            break;
-          default:
-            if (lbi.data >= CUSTOM_OFFSET) {
-              int index = lbi.data - CUSTOM_OFFSET;
-              const string &uid = oe->getListContainer().getList(index).getUniqueId();
-              currentListType = oe->getListContainer().getCodeFromUnqiueId(uid);
-              break;
-            }
-            return 0;
-        }
+        currentListType = getTypeFromResultIndex(lbi.data);
+        lastSelectedResultList = lbi.data;
+        advancedResults = true;
       }
       else return 0;
 
@@ -480,9 +550,12 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.useControlIdResultFrom = lbi.data;
 
       gdi.getSelectedItem("LegNumber", &lbi);
-      par.legNumber = lbi.data == 1000 ? -1 : lbi.data;
+      par.setLegNumberCoded(lbi.data);
+      lastLeg = lbi.data;
 
       gdi.getSelection("ListSelection", par.selection);
+      if (advancedResults)
+        lastResultClassSelection = par.selection;
       par.filterMaxPer = gdi.getTextNo("ClassLimit");
       par.inputNumber = gdi.getTextNo("InputNumber");
       lastInputNumber = itos(par.inputNumber);
@@ -540,7 +613,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       cnf.getIndividual(par.selection);
       par.listCode = EStdResultList;
       par.showInterTimes = true;
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       par.pageBreak = gdi.isChecked("PageBreak");
       par.splitAnalysis = gdi.isChecked("SplitAnalysis");
 
@@ -560,7 +633,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       cnf.getIndividual(par.selection);
       par.listCode = EStdResultList;
       par.showSplitTimes = true;
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       par.pageBreak = gdi.isChecked("PageBreak");
       oe->generateListInfo(par, gdi.getLineHeight(), currentList);
       generateList(gdi);
@@ -570,7 +643,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oe->sanityCheck(gdi, false);
       oListParam par;
       par.listCode = EStdStartList;
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       par.pageBreak = gdi.isChecked("PageBreak");
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
@@ -585,7 +658,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oListParam par;
       par.listCode = EStdClubStartList;
       par.pageBreak = gdi.isChecked("PageBreak");
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
       //cnf.getIndividual(par.selection);
@@ -604,7 +677,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.listCode = EStdClubResultList;
       par.pageBreak = gdi.isChecked("PageBreak");
       par.splitAnalysis = gdi.isChecked("SplitAnalysis");
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
       cnf.getIndividual(par.selection);
@@ -642,6 +715,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oe->getClassConfigurationInfo(cnf);
       cnf.getRelay(par.selection);
       par.pageBreak = gdi.isChecked("PageBreak");
+      par.setLegNumberCoded(-1);
       oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
       currentList.setCallback(openRunnerTeamCB);
       generateList(gdi);
@@ -651,7 +725,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oe->sanityCheck(gdi, false);
       oListParam par;
       int race = int(bi.getExtra());
-      par.legNumber = race;
+      par.setLegNumberCoded(race);
       par.listCode = EStdIndMultiStartListLeg;
       par.pageBreak = gdi.isChecked("PageBreak");
       ClassConfigInfo cnf;
@@ -667,7 +741,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oListParam par;
       par.pageBreak = gdi.isChecked("PageBreak");
       int race = int(bi.getExtra());
-      par.legNumber = race;
+      par.setLegNumberCoded(race);
       par.listCode = EStdTeamStartListLeg;
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
@@ -727,7 +801,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.pageBreak = gdi.isChecked("PageBreak");
       par.splitAnalysis = gdi.isChecked("SplitAnalysis");
       int race = int(bi.getExtra());
-      par.legNumber = race;
+      par.setLegNumberCoded(race);
       par.listCode = EStdIndMultiResultListLeg;
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
@@ -743,11 +817,11 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.pageBreak = gdi.isChecked("PageBreak");
       par.splitAnalysis = gdi.isChecked("SplitAnalysis");
       int race = int(bi.getExtra());
-      par.legNumber = race;
+      par.setLegNumberCoded(race);
       ListBoxInfo lbi;
       gdi.getSelectedItem("ClassLimit", &lbi);
       par.filterMaxPer = lbi.data;
-      par.listCode = EStdTeamResultListLeg;
+      par.listCode = oe->getListContainer().getType("legresult");
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
       cnf.getLegNRes(race, par.selection);
@@ -825,6 +899,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       oe->getClassConfigurationInfo(cnf);
       oListParam par;
       par.listCode = EStdRentedCard;
+      par.setLegNumberCoded(-1);
       oe->generateListInfo(par,  gdi.getLineHeight(), currentList);
       generateList(gdi);
       gdi.refresh();
@@ -897,7 +972,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       gdi.getSelectedItem("ClassLimit", &lbi);
       par.filterMaxPer = lbi.data;
 
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
       cnf.getIndividual(par.selection);
@@ -915,7 +990,7 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       par.listCode = oe->getListContainer().getType(index);
       par.pageBreak = gdi.isChecked("PageBreak");
       par.splitAnalysis = gdi.isChecked("SplitAnalysis");
-      par.legNumber = -1;
+      par.setLegNumberCoded(-1);
       ClassConfigInfo cnf;
       oe->getClassConfigurationInfo(cnf);
 
@@ -1053,79 +1128,28 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
   else if (type==GUI_LISTBOX) {
     ListBoxInfo lbi=*(ListBoxInfo *)data;
 
-    if (lbi.id=="ListType"){
+    if (lbi.id == "SavedInstance") {
+      int ix = lbi.data;
+      bool split = oe->getListContainer().canSplit(ix);
+      gdi.setInputStatus("SplitSaved", split);
+    }
+    else if (lbi.id=="ListType"){
       EStdListType type = EStdListType(lbi.data);
       selectGeneralList(gdi, type);
     }
     else if (lbi.id == "ListSelection") {
       gdi.getSelection(lbi.id, lastClassSelection);
+      if (gdi.hasField("ResultType")) {
+        ListBoxInfo entry;
+        gdi.getSelectedItem("ResultType", &entry);
+        gdi.setInputStatus("Generate", !lastClassSelection.empty() && int(entry.data) >= 0);
+      }
     }
     else if (lbi.id == "ClassLimit"){
       oe->setProperty("classlimit", lbi.data);
     }
     else if (lbi.id=="ResultType") {
-      bool builtIn = lbi.data < CUSTOM_OFFSET;
-      enableFromTo(gdi, lbi.data==1 || lbi.data==6, lbi.data==1 || lbi.data==6);
-
-      if (lbi.data==6 || !builtIn) {
-        gdi.enableInput("UseLargeSize");
-      }
-      else {
-        gdi.disableInput("UseLargeSize");
-        gdi.check("UseLargeSize", false);
-      }
-
-      string info, title;
-      bool hasResMod = false;
-      if (!builtIn) {
-        int index = lbi.data - CUSTOM_OFFSET;
-        const MetaList &ml = oe->getListContainer().getList(index);
-        info = ml.getListInfo(*oe);
-        title = ml.getListName();
-        hasResMod = !ml.getResultModule().empty();
-      }
-
-      if (info.empty() && gdi.getText("ListInfo", true).empty()) {
-        // Do nothing
-      }
-      else {
-        gdi.restore("ListInfo", false);
-        gdi.setCX(infoCX);
-        gdi.setCY(infoCY);
-
-        if (!info.empty()) {
-          gdi.setRestorePoint("ListInfo");
-          gdi.fillDown();
-          gdi.addString("", fontMediumPlus, title);
-          gdi.dropLine(0.3);
-          gdi.addString("ListInfo", 10, info);
-          gdi.dropLine(0.7);
-        }
-        createListButtons(gdi);
-        gdi.refresh();
-      }
-
-      gdi.setInputStatus("ShowInterResults", builtIn);
-      gdi.setInputStatus("ShowSplits", builtIn);
-      
-      if (builtIn) {
-        gdi.enableInput("LegNumber");
-        oe->fillLegNumbers(gdi, "LegNumber");
-        gdi.setInputStatus("InputNumber", false);
-      }
-      else {
-        gdi.setInputStatus("InputNumber", hasResMod);
-        gdi.setInputStatus("ShowInterResults", false);
-        gdi.setInputStatus("ShowSplits", false);
-        gdi.clearList("LegNumber");
-        gdi.disableInput("LegNumber");
-      }
-
-      oe->fillClasses(gdi, "ListSelection", oEvent::extraNone, oEvent::filterNone);
-      set<int> lst;
-      lst.insert(-1);
-      gdi.setSelection("ListSelection", lst);
-      gdi.enableInput("Generate");
+      setResultOptionsFromType(gdi, lbi.data);
     }
     else if (lbi.id=="ResultSpecialTo") {
       oe->setProperty("ControlTo", lbi.data);
@@ -1250,9 +1274,20 @@ void TabList::selectGeneralList(gdioutput &gdi, EStdListType type)
   gdi.setInputStatus("UseLargeSize", li.supportLarge);
   gdi.setInputStatus("InputNumber", li.supportParameter);
   
+  gdi.setInputStatus("SplitAnalysis", li.supportSplitAnalysis);
+  gdi.setInputStatus("ShowInterResults", li.supportInterResults);
+  gdi.setInputStatus("PageBreak", li.supportPageBreak);
+  gdi.setInputStatus("ClassLimit", li.supportClassLimit);
+  //gdi.setInputStatus("Title", li.supportCustomTitle);
+  
   if (li.supportLegs) {
-    gdi.enableInput("LegNumber");
-    oe->fillLegNumbers(gdi, "LegNumber");
+    //gdi.enableInput("LegNumber");
+    //oe->fillLegNumbers(gdi, "LegNumber", li.isTeamList(), true);
+    set<int> clsUnused;
+    vector< pair<string, size_t> > out;
+    oe->fillLegNumbers(clsUnused, li.isTeamList(), true, out);
+    gdi.addItem("LegNumber", out);
+    gdi.setInputStatus("LegNumber", !out.empty());    
   }
   else {
     gdi.disableInput("LegNumber");
@@ -1268,9 +1303,9 @@ void TabList::loadGeneralList(gdioutput &gdi)
   gdi.fillDown();
   gdi.clearPage(false);
   gdi.addString("", boldLarge, "Skapa generell lista");
-
+  gdi.dropLine(0.8);
   gdi.pushY();
-  gdi.addSelection("ListType", 250, 300, ListsCB, "Lista");
+  gdi.addSelection("ListType", 250, 300, ListsCB, "Lista:");
   oe->fillListTypes(gdi, "ListType", 0);
 
   gdi.fillDown();
@@ -1341,8 +1376,20 @@ void TabList::loadGeneralList(gdioutput &gdi)
   gdi.refresh();
 }
 
+static int getListIx(const map<string, int> &tag2ListIx, 
+                     set<int> &usedListIx, 
+                     const char *tag, int fallback) {
+  map<string, int>::const_iterator res = tag2ListIx.find(tag);
+  if (res != tag2ListIx.end()) {
+    usedListIx.insert(res->second);
+    return res->second;
+  }
+  return fallback;
+}
+
 void TabList::settingsResultList(gdioutput &gdi)
 {
+  lastFilledResultClassType = -1;
   oe->sanityCheck(gdi, true);
   gdi.fillDown();
   gdi.clearPage(false);
@@ -1350,10 +1397,10 @@ void TabList::settingsResultList(gdioutput &gdi)
 
   //gdi.addSelection("ListType", 200, 300, ListsCB, "Lista");
   //oe->fillListTypes(gdi, "ListType", 0);
-
+  const int boxHeight = 380;
   gdi.pushY();
   gdi.fillDown();
-  gdi.addListBox("ListSelection", 200, 300, 0, "Urval:", "", true);
+  gdi.addListBox("ListSelection", 200, boxHeight, ListsCB, "Urval:", "", true);
 
   gdi.dropLine(0.5);
   gdi.fillRight();
@@ -1363,19 +1410,26 @@ void TabList::settingsResultList(gdioutput &gdi)
   gdi.popY();
   gdi.setCX(gdi.scaleLength(250));
   infoCX = gdi.getCX();
-  infoCY = gdi.getCY() + gdi.scaleLength(300);
+  infoCY = gdi.getCY() + gdi.scaleLength(boxHeight) + 2 *gdi.getLineHeight();
   
   gdi.fillDown();
   gdi.addString("", 0, "Typ av lista:");
   gdi.pushX();
   gdi.fillRight();
 
-  gdi.addListBox("ResultType", 180, 300, ListsCB);
+  gdi.addListBox("ResultType", 180, boxHeight, ListsCB);
   
   vector< pair<string, size_t> > lists;
   vector< pair<string, size_t> > dlists;
-  oe->getListContainer().getLists(dlists, false, true);
-
+  const MetaListContainer &lc = oe->getListContainer();
+  lc.getLists(dlists, false, true, !oe->hasTeam());
+  set<int> usedListIx;
+  map<string, int> tag2ListIx;
+  for (size_t k = 0; k < dlists.size(); k++) {
+    int ix = dlists[k].second;
+    if (lc.isInternal(ix))
+      tag2ListIx[lc.getTag(ix)] = dlists[k].second + CUSTOM_OFFSET;
+  }
   lists.reserve(dlists.size() + 10);
 
   lists.push_back(make_pair(lang.tl("Individuell"), 1));
@@ -1386,16 +1440,33 @@ void TabList::settingsResultList(gdioutput &gdi)
   if (oe->getMeOSFeatures().hasFeature(MeOSFeatures::Relay)) {
     lists.push_back(make_pair(lang.tl("Stafett - total"), 3));
     lists.push_back(make_pair(lang.tl("Stafett - sammanställning"), 4));
-    lists.push_back(make_pair(lang.tl("Stafett - sträcka"), 5));
+    
+    lists.push_back(make_pair(lang.tl("Stafett - sträcka"), 
+                    getListIx(tag2ListIx, usedListIx, "legresult", 5)));
   }
   
   lists.push_back(make_pair(lang.tl("Allmänna resultat"), 6));
   
-  for (size_t k = 0; k < dlists.size(); k++)
-    lists.push_back(make_pair(dlists[k].first, dlists[k].second + CUSTOM_OFFSET));
+  size_t startIx = lists.size();
+  for (size_t k = 0; k < dlists.size(); k++) {
+    int ix = dlists[k].second + CUSTOM_OFFSET;
+    if (usedListIx.count(ix))
+      continue;
+    lists.push_back(make_pair(dlists[k].first, ix));
+  }
+  sort(lists.begin() + startIx, lists.end());
 
   gdi.addItem("ResultType", lists);
   gdi.autoGrow("ResultType");
+
+  int lastSelectedResultListOK = -1;
+  for (size_t k = 0; k < lists.size(); k++) {
+    if (lastSelectedResultList == lists[k].second)
+      lastSelectedResultListOK = lists[k].second;
+  }
+
+  if (lastSelectedResultListOK >= 0)
+    gdi.selectItemByData("ResultType", lastSelectedResultListOK);
 
   gdi.fillDown();
   gdi.pushX();
@@ -1443,12 +1514,16 @@ void TabList::settingsResultList(gdioutput &gdi)
   gdi.addInput("Title", "", 32, ListsCB, "Egen listrubrik:");
   gdi.popX();
 
-  gdi.dropLine(4.5);
-  
+  gdi.dropLine(3.5);
+  createListButtons(gdi);
+
   gdi.setRestorePoint("ListInfo");
   infoCY = max(infoCY, gdi.getCY());
   gdi.setCX(infoCX);
-  createListButtons(gdi);
+  gdi.setCY(infoCY);
+  
+  if (lastSelectedResultListOK >= 0)
+    setResultOptionsFromType(gdi, lastSelectedResultListOK);
   gdi.refresh(); 
 }
 
@@ -1590,11 +1665,9 @@ bool TabList::loadPage(gdioutput &gdi)
       checkWidth(gdi);
       gdi.addButton("PatrolResultList", "Patrull", ListsCB);
     }
-    for (size_t k = 0; k<cnf.legNStart.size(); k++) {
-      if (cnf.legNRes[k].size() > 0) {
-        checkWidth(gdi);
-        gdi.addButton("LegNResult", "Sträcka X#" + itos(k+1), ListsCB).setExtra(LPVOID(k));
-      }
+    for (map<int, vector<int> >::const_iterator it = cnf.legResult.begin(); it != cnf.legResult.end(); ++it) {
+      checkWidth(gdi);
+      gdi.addButton("LegNResult", "Sträcka X#" + itos(it->first+1), ListsCB).setExtra(it->first);
     }
 
     if (cnf.hasRogaining()) {
@@ -1637,12 +1710,18 @@ bool TabList::loadPage(gdioutput &gdi)
     gdi.fillRight();
     gdi.pushX();
 
-    gdi.addSelection("SavedInstance", 250, 200, 0);
+    gdi.addSelection("SavedInstance", 250, 200, ListsCB);
     gdi.addItem("SavedInstance", savedParams);
     gdi.autoGrow("SavedInstance");
     gdi.selectFirstItem("SavedInstance");
     gdi.addButton("ShowSaved", "Visa", ListsCB);
     gdi.addButton("RenameSaved", "Döp om", ListsCB);
+    gdi.addButton("MergeSaved", "Slå ihop...", ListsCB);
+    gdi.addButton("SplitSaved", "Dela upp...", ListsCB);
+
+    bool split = oe->getListContainer().canSplit(savedParams[0].second);
+    gdi.setInputStatus("SplitSaved", split);
+    
     gdi.addButton("RemoveSaved", "Ta bort", ListsCB);
     gdi.popX();
     gdi.dropLine(3);
@@ -1711,24 +1790,35 @@ bool TabList::loadPage(gdioutput &gdi)
 }
 
 
-void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode)
+void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, TabType returnMode, PrintSettingsSelection type)
 {
+  if (!gdi.canClear())
+    return;
+
   gdi.clearPage(false);
   gdi.fillDown();
-  gdi.addString("", boldLarge, "Inställningar sträcktidsutskrift");
+  if (type == Splits)
+    gdi.addString("", boldLarge, "Inställningar sträcktidsutskrift");
+  else
+    gdi.addString("", boldLarge, "Inställningar startbevis");
+
   gdi.dropLine();
 
   gdi.fillRight();
   gdi.pushX();
-  if (returnMode == TSITab) {
-    gdi.addButton("PrinterSetup", "Skrivare...", ListsCB, "Skrivarinställningar för sträcktider");
+  if (setupPrinter) {
+    gdi.addButton("PrinterSetup", "Skrivare...", ListsCB, "Skrivarinställningar");
     gdi.dropLine(0.3);
   }
-  if (!oe.empty()) {
+  if (!oe.empty() && type == Splits) {
     bool withSplitAnalysis = (oe.getDCI().getInt("Analysis") & 1) == 0;
     bool withSpeed = (oe.getDCI().getInt("Analysis") & 2) == 0;
+    bool withResult = (oe.getDCI().getInt("Analysis") & 4) == 0;
+
     gdi.addCheckbox("SplitAnalysis", "Med sträcktidsanalys", 0, withSplitAnalysis);
     gdi.addCheckbox("Speed", "Med km-tid", 0, withSpeed);
+    gdi.addCheckbox("Results", "Med resultat", 0, withResult);
+
 	}
   gdi.popX();
 	gdi.dropLine(2);
@@ -1739,11 +1829,13 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode)
 
   gdi.popX();
   gdi.fillDown();
-  customTextLines(oe, "SPExtra", gdi);
+  char *ctype = type == Splits ? "SPExtra" : "EntryExtra";
+  customTextLines(oe, ctype, gdi);
 
   gdi.fillRight();
-  gdi.addButton("SavePS", "OK", ListsCB, "").setExtra(returnMode);
-  gdi.addButton("CancelPS", "Avbryt", ListsCB, "").setExtra(returnMode);
+  gdi.setData("Type", ctype);
+  gdi.addButton("SavePS", "OK", ListsCB).setDefault().setExtra(returnMode);
+  gdi.addButton("CancelPS", "Avbryt", ListsCB).setCancel().setExtra(returnMode);
 
   gdi.refresh();
 }
@@ -1789,4 +1881,149 @@ void TabList::customTextLines(oEvent &oe, const char *dataField, gdioutput &gdi)
     gdi.fillDown();
     gdi.dropLine(2);
   }
+}
+
+void TabList::liveResult(gdioutput &gdi, oListInfo &li) {
+  if (liveResults.empty() || !liveResults.back()) {
+    liveResults.push_back(0);
+    LiveResult *lr = new LiveResult(oe);
+    liveResults.back() = lr;
+  }
+  liveResults.back()->showTimer(gdi, li);
+}
+
+EStdListType TabList::getTypeFromResultIndex(int ix) const {
+  switch(ix) {
+    case 1:
+      return EStdResultList;
+    case 2:
+      return EStdPatrolResultList;
+    case 3:
+      return EStdTeamResultListAll;
+    case 4:
+      return EStdTeamResultList;
+    //case 5:
+    //  return EStdTeamResultListLeg;
+    case 6:
+      return EGeneralResultList;
+    default:
+      if (ix >= CUSTOM_OFFSET) {
+        int index = ix - CUSTOM_OFFSET;
+        const string &uid = oe->getListContainer().getList(index).getUniqueId();
+        return oe->getListContainer().getCodeFromUnqiueId(uid);
+      }
+  }
+  return EStdNone;
+}
+
+void TabList::setResultOptionsFromType(gdioutput &gdi, int data) {
+  bool builtIn = data < CUSTOM_OFFSET;
+  string info, title;
+  bool hasResMod = false;
+  oListInfo li;
+  EStdListType type = getTypeFromResultIndex(data);
+  oe->getListType(type, li);
+  ListBoxInfo lbi;
+  if (gdi.getSelectedItem("LegNumber", &lbi) && int(lbi.data) >= 0)
+    lastLeg = lbi.data;
+           
+  if (builtIn) {
+    enableFromTo(gdi, data==1 || data==6, data==1 || data==6);
+
+    if (data==6) {
+      gdi.enableInput("UseLargeSize");
+    }
+    else {
+      gdi.disableInput("UseLargeSize");
+      gdi.check("UseLargeSize", false);
+    }
+
+    gdi.setInputStatus("ShowInterResults", builtIn);
+    gdi.setInputStatus("ShowSplits", builtIn);
+      
+
+    set<int> clsUnused;
+    vector< pair<string, size_t> > out;
+      
+    oe->fillLegNumbers(clsUnused, li.isTeamList(), true, out);
+    gdi.addItem("LegNumber", out);
+    gdi.setInputStatus("LegNumber", !out.empty());
+    
+    if (!out.empty() && lastLeg >= 0)
+      gdi.selectItemByData("LegNumber", lastLeg);
+  
+    //oe->fillLegNumbers(gdi, "LegNumber", li.isTeamList(), true);
+    gdi.setInputStatus("InputNumber", false);
+  }
+  else {
+      
+    gdi.setInputStatus("UseLargeSize", li.supportLarge);
+    gdi.setInputStatus("InputNumber", li.supportParameter);
+  
+    //gdi.setInputStatus("SplitAnalysis", li.supportSplitAnalysis);
+    //gdi.setInputStatus("ShowInterResults", li.supportInterResults);
+    //gdi.setInputStatus("PageBreak", li.supportPageBreak);
+    //gdi.setInputStatus("ClassLimit", li.supportClassLimit);
+      
+    if (li.supportLegs) {
+      gdi.enableInput("LegNumber");
+      //oe->fillLegNumbers(gdi, "LegNumber", li.isTeamList(), true);
+      set<int> clsUnused;
+      vector< pair<string, size_t> > out;
+      oe->fillLegNumbers(clsUnused, li.isTeamList(), true, out);
+      gdi.addItem("LegNumber", out);
+      if (!out.empty() && lastLeg >= 0)
+        gdi.selectItemByData("LegNumber", lastLeg);
+      gdi.setInputStatus("LegNumber", !out.empty());
+    }
+    else {
+      ListBoxInfo lbi;
+      if (gdi.getSelectedItem("LegNumber", &lbi) && int(lbi.data) >= 0)
+        lastLeg = lbi.data;
+      gdi.disableInput("LegNumber");
+      gdi.clearList("LegNumber");
+    }
+
+    enableFromTo(gdi, li.supportFrom, li.supportTo);
+  }
+
+  if (!builtIn) {
+    int index = data - CUSTOM_OFFSET;
+    const MetaList &ml = oe->getListContainer().getList(index);
+    info = ml.getListInfo(*oe);
+    title = ml.getListName();
+    hasResMod = !ml.getResultModule().empty();
+  }
+
+  if (info.empty() && gdi.getText("ListInfo", true).empty()) {
+    // Do nothing
+  }
+  else {
+    gdi.restore("ListInfo", false);
+    gdi.setCX(infoCX);
+    gdi.setCY(infoCY);
+
+    if (!info.empty()) {
+      gdi.setRestorePoint("ListInfo");
+      gdi.fillDown();
+      gdi.addString("", fontMediumPlus, title);
+      gdi.dropLine(0.3);
+      gdi.addString("ListInfo", 10, info);
+      gdi.dropLine(0.7);
+    }
+    //createListButtons(gdi);
+    gdi.refresh();
+  }
+  oEvent::ClassFilter ct = li.isTeamList() ? oEvent::filterOnlyMulti : oEvent::filterNone;
+  set<int> curSel;
+  gdi.getSelection("ListSelection", curSel);
+
+  if (lastFilledResultClassType != ct) {
+    lastFilledResultClassType = ct;
+    lastResultClassSelection.insert(curSel.begin(), curSel.end());
+    oe->fillClasses(gdi, "ListSelection", oEvent::extraNone, ct);
+    gdi.setSelection("ListSelection", lastResultClassSelection);
+  }
+
+  gdi.setInputStatus("Generate", data >= 0 && !lastResultClassSelection.empty());
 }

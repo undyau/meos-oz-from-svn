@@ -64,19 +64,24 @@ const vector< pair<string, size_t> > &oEvent::fillTeams(vector< pair<string, siz
   out.clear();
 
   string tn;
-  string dashes = getMeOSFeatures().hasFeature(MeOSFeatures::Bib) ?  MakeDash("--- ") : _EmptyString;
-  int maxSno = 0;
+  int maxBib = 0;
   for (it=Teams.begin(); it != Teams.end(); ++it) {
     if (!it->Removed) {
-      maxSno = max(it->getStartNo(), maxSno);
+      maxBib = max<int>(it->getBib().length(), maxBib);
     }
   }
-
+  
+  string rawDash = "";
+  for (int i = 0; i < min(maxBib, 2); i++)
+    rawDash  += "-";
+  rawDash += " ";
+  string dashes = getMeOSFeatures().hasFeature(MeOSFeatures::Bib) ?  MakeDash(rawDash) : _EmptyString;
+  
   for (it=Teams.begin(); it != Teams.end(); ++it) {
     if (!it->Removed) {
       const string &bib = it->getBib();
       if (!bib.empty()) {
-        int nb = atoi(bib.c_str());
+        /*int nb = atoi(bib.c_str());
         if (nb > 0 && nb == it->getStartNo()) {
           char bf[24];
           if (maxSno>999)
@@ -86,8 +91,12 @@ const vector< pair<string, size_t> > &oEvent::fillTeams(vector< pair<string, siz
 
           tn = bf + it->Name;
         }
-        else
-          tn = bib + " " + it->Name;
+        else*/
+        string paddedBib;
+        for (int i = 0; i < int(maxBib - bib.length()); i++)
+          paddedBib += "0";
+        
+        tn = paddedBib + bib + " " + it->Name;
       }
       else {
         tn = dashes + it->Name;
@@ -187,6 +196,13 @@ pTeam oEvent::addTeam(const oTeam &t, bool autoAssignStartNo) {
 
 int oEvent::getFreeTeamId()
 {
+  if (qFreeTeamId > int(Teams.size() + 1000)) {
+    for (int j = qFreeTeamId - Teams.size(); j > 0; j -= Teams.size()) {
+      if (getTeam(j) == 0)
+        return j;
+    }
+  }
+
   qFreeTeamId++;
   return qFreeTeamId;
 }
@@ -665,9 +681,8 @@ bool oTeam::adjustMultiRunners(bool sync)
   return apply(sync, 0, false);
 }
 
-
 void oEvent::makeUniqueTeamNames() {
-  sortTeams(ClassStartTime, 0);
+  sortTeams(ClassStartTime, 0, true);
   for (oClassList::const_iterator cls = Classes.begin(); cls != Classes.end(); ++cls) {
     if (cls->isRemoved())
       continue;
@@ -687,7 +702,7 @@ void oEvent::makeUniqueTeamNames() {
         for (list<pTeam>::iterator tit = t.begin(); tit != t.end(); ) {
           string name = (*tit)->Name + " " + itos(counter);
           if (teams.count(name) == 0) {
-            (*tit)->setName(name);
+            (*tit)->setName(name, true);
             (*tit)->synchronize();
             ++tit;
           }

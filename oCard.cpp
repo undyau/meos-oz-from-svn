@@ -57,7 +57,6 @@ oCard::oCard(oEvent *poe, int id): oBase(poe)
   oe->qFreeCardId = max(id, oe->qFreeCardId);
 }
 
-
 oCard::~oCard()
 {
 
@@ -296,9 +295,29 @@ bool oCard::fillPunches(gdioutput &gdi, string name, pCourse crs)
   if (!hasStart && showStart)
     gdi.addItem(name, lang.tl("Start")+"\t-", 0);
 
-  if (!hasFinish && showFinish)
-    gdi.addItem(name, lang.tl("Mål")+"\t-", 0);
+  if (!hasFinish && showFinish) {
 
+    while (ctrl) {
+      if (ctrl->isRogaining(hasRogaining)) {
+        // Check if we have reach finihs without adding rogaining punches
+        while (ctrl && ctrl->isRogaining(hasRogaining)) {
+          if (rogainingIndex.count(matchPunch) == 1)
+            gdi.addItem(name, rogainingIndex[matchPunch]->getString(),
+                        int(rogainingIndex[matchPunch]));
+          else
+            gdi.addItem(name, "-\t-", 0);
+          ctrl = crs->getControl(++matchPunch);
+        }
+        punchRemain = ctrl ? ctrl->getNumMulti() : 1;
+      }
+      else {
+        gdi.addItem(name, "-\t-", 0);
+        ctrl = crs->getControl(++matchPunch);
+      }
+    }
+
+    gdi.addItem(name, lang.tl("Mål")+"\t-", 0);
+  }
 
   if (extra) {
     //Show punches that are not used.
@@ -493,13 +512,17 @@ pCard oEvent::addCard(const oCard &oc)
 
 pCard oEvent::getCardByNumber(int cno) const
 {
-  oCardList::const_iterator it;
-
-  for (it=Cards.begin(); it != Cards.end(); ++it){
-    if (it->cardNo==cno)
-      return const_cast<pCard>(&*it);
+  oCardList::const_reverse_iterator it;
+  pCard second = 0;
+  for (it=Cards.rbegin(); it != Cards.rend(); ++it){
+    if (it->cardNo==cno) {
+      if (it->getOwner() == 0)
+        return const_cast<pCard>(&*it);
+      else if (second == 0)
+        second = const_cast<pCard>(&*it);
+    }
   }
-  return 0;
+  return second;
 }
 
 bool oEvent::isCardRead(const SICard &card) const
@@ -679,4 +702,15 @@ void oCard::setupFromRadioPunches(oRunner &r) {
 void oCard::changedObject() {
   if (tOwner)
     tOwner->markClassChanged(-1);
+}
+
+int oCard::getNumControlPunches(int startPunchType, int finishPunchType) const {
+  int count = 0;
+  for( list<oPunch>::const_iterator it = punches.begin(); it != punches.end(); ++it) {
+    if (it->isFinish(finishPunchType) || it->isCheck() || it->isStart(startPunchType)) {
+      continue;
+    }
+    count++;
+  }
+  return count;
 }

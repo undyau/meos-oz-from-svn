@@ -247,7 +247,7 @@ public:
     else return false;
   }
 
-  inline string getDate(const char *Name) const
+  inline const string &getDate(const char *Name) const
     {return oDC->getDate(Data, Name);}
 
   inline void buildDataFields(gdioutput &gdi) const
@@ -335,10 +335,10 @@ public:
   inline __int64 getInt64(const string &name) const
     {return oDC->getInt64(Data, name.c_str());}
 
-  inline string getString(const string &name) const
+  inline const string &getString(const string &name) const
     {return oDC->getString(oB, name.c_str());}
 
-  inline string getDate(const string &name) const
+  inline const string &getDate(const string &name) const
     {return oDC->getDate(Data, name.c_str());}
 
   inline void buildDataFields(gdioutput &gdi) const

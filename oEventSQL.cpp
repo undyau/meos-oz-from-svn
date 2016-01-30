@@ -116,7 +116,10 @@ void oEvent::startReconnectDaemon()
 
   gdibase.setDBErrorState(false);
   gdibase.setWindowTitle(oe->getTitleName());
-  gdibase.alert("warning:dbproblem#" + string(bf));
+  if (!isReadOnly()) {
+    // Do not show in kiosk-mode
+    gdibase.alert("warning:dbproblem#" + string(bf));
+  }
 }
 
 bool oEvent::msSynchronize(oBase *ob)

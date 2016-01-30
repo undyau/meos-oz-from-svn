@@ -109,7 +109,7 @@ bool CompareSpkSPList(const oSpeakerObject &a, const oSpeakerObject &b)
     if (at == bt) {
       if (a.runningTimeSinceLast.preliminary > 0 && b.runningTimeSinceLast.preliminary > 0) {
         if (a.runningTimeSinceLast.preliminary != b.runningTimeSinceLast.preliminary)
-          return a.runningTimeSinceLast.preliminary < b.runningTimeSinceLast.preliminary;
+          return a.runningTimeSinceLast.preliminary > b.runningTimeSinceLast.preliminary;
       }
       else if (a.runningTimeSinceLast.preliminary>0)
         return true;
@@ -120,8 +120,15 @@ bool CompareSpkSPList(const oSpeakerObject &a, const oSpeakerObject &b)
     if (a.missingStartTime != b.missingStartTime)
       return a.missingStartTime < b.missingStartTime;
 
-    if (at==bt)
+    if (at==bt) {
+      if (a.parallelScore != b.parallelScore)
+        return a.parallelScore > b.parallelScore;
+
+      if (a.bib != b.bib) {
+        return compareBib(a.bib, b.bib);
+      }
       return a.names<b.names;
+    }
     else if (at>=0 && bt>=0) {
       if (a.priority == 0)
         return bt<at;
@@ -136,7 +143,15 @@ bool CompareSpkSPList(const oSpeakerObject &a, const oSpeakerObject &b)
   }
   else if (a.status!=b.status)
     return a.status<b.status;
-  else return a.names<b.names;
+
+  if (a.parallelScore != b.parallelScore)
+    return a.parallelScore > b.parallelScore;
+
+  if (a.bib != b.bib) {
+    return compareBib(a.bib, b.bib);
+  }
+
+  return a.names<b.names;
 }
 
 //Order by known time for calculating results
@@ -154,15 +169,15 @@ bool CompareSOResult(const oSpeakerObject &a, const oSpeakerObject &b)
     int bt=b.runningTime.time;
     if (at!=bt)
       return at<bt;
-    else {
-      at=a.runningTimeLeg.time;
-      bt=b.runningTimeLeg.time;
-      if (at!=bt)
-        return at<bt;
-      return a.names<b.names;
-    }
+
+    at=a.runningTimeLeg.time;
+    bt=b.runningTimeLeg.time;
+    if (at!=bt)
+      return at<bt;
+
+    return a.names<b.names;
   }
-  else return a.names<b.names;
+  return a.names<b.names;
 }
 
 int SpeakerCB (gdioutput *gdi, int type, void *data) {
@@ -294,10 +309,17 @@ void renderRowSpeakerList(const oSpeakerObject &r, const oSpeakerObject *next_r,
     }
   }
 
+  if (r.runnersFinishedLeg < r.runnersTotalLeg && r.runnersFinishedLeg>0) {
+    // Fraction of runners has finished on leg
+    names += " (" + itos(r.runnersFinishedLeg) + "/" + itos(r.runnersTotalLeg) + ")";
+  }
+
   for (size_t k = 0; k < r.outgoingnames.size(); k++) {
     if (k == 0) {
       names += " > ";
     }
+    else 
+      names += "/";
 
     if (!shortName) {
       names += r.outgoingnames[k];
@@ -653,10 +675,17 @@ void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId,
   
   //char bf2[64]="";
   string legName, cname = pCls->getName();
-  if (stages.size()>1)
-    cname += lang.tl(", Sträcka X#" + itos(leg+1));
+  size_t istage = -1;
+  for (size_t k = 0; k < stages.size(); k++) {
+    if (stages[k].first >= leg) {
+      istage = k;
+      break;
+    }
+  }
+  if (stages.size()>1 && istage < stages.size())
+    cname += lang.tl(", Sträcka X#" + itos(stages[istage].second));
 
-  if (ControlId != oPunch::PunchFinish  && !crs) {
+  if (ControlId != oPunch::PunchFinish  && crs) {
     cname += ", " + crs->getRadioName(ControlId);
   }
   else {

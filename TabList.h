@@ -23,6 +23,7 @@
 #include "tabbase.h"
 #include "oListInfo.h"
 
+class LiveResult;
 class ListEditor;
 class MethodEditor;
 
@@ -38,6 +39,9 @@ protected:
   bool lastInterResult;
   bool lastSplitState;
   bool lastLargeSize;
+  
+  
+  EStdListType getTypeFromResultIndex(int ix) const;
 
   int infoCX;
   int infoCY;
@@ -50,6 +54,15 @@ protected:
   int offsetY;
   int offsetX;
   set<int> lastClassSelection;
+  vector<LiveResult *> liveResults;
+
+  int lastSelectedResultList;
+  set<int> lastResultClassSelection;
+  int lastLeg;
+  int lastFilledResultClassType;
+  
+  void setResultOptionsFromType(gdioutput &gdi, int data);
+
 
   bool hideButtons;
   bool ownWindow;
@@ -59,7 +72,15 @@ protected:
   bool noReEvaluate;
   void enableFromTo(gdioutput &gdi, bool from, bool to);
 
+  void liveResult(gdioutput &gdi, oListInfo &currentList);
+
   int baseButtons(gdioutput &gdi, int extraButtons);
+
+private:
+  // Not supported, copy works not.
+  TabList(const TabList &);
+  const TabList &operator = (const TabList &);
+  
 public:
   bool loadPage(gdioutput &gdi);
   bool loadPage(gdioutput &gdi, const string &command);
@@ -69,7 +90,12 @@ public:
   void rebuildList(gdioutput &gdi);
   void settingsResultList(gdioutput &gdi);
 
-  static void splitPrintSettings(oEvent &oe, gdioutput &gdi, TabType returnMode);
+  enum PrintSettingsSelection {
+    Splits = 0,
+    StartInfo = 1,
+  };
+
+  static void splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, TabType returnMode, PrintSettingsSelection type);
   static void customTextLines(oEvent &oe, const char *dataField, gdioutput &gdi);
   static void saveExtraLines(oEvent &oe, const char *dataField, gdioutput &gdi);
 

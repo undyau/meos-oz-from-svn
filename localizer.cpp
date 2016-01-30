@@ -142,9 +142,10 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
   }
 
   if (str[0]==',' || str[0]==' ' || str[0]=='.'
-       || str[0]==':'  || str[0]==';' || str[0]=='<' || str[0]=='>') {
+       || str[0]==':'  || str[0]==';' || str[0]=='<' || str[0]=='>' || str[0]=='-' || str[0]==0x96) {
     unsigned k=1;
-    while(str[k] && (str[k]==' ' || str[k]=='.' || str[k]==':' || str[k]=='<' || str[k]=='>'))
+    while(str[k] && (str[k]==' ' || str[k]=='.' || str[k]==':' || str[k]=='<' || str[k]=='>'
+           || str[k]=='-' || str[k]==0x96))
       k++;
 
     if (k<str.length()) {
@@ -196,7 +197,7 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
 
   char last = str[len-1];
   if (last != ':' && last != '.' && last != ' ' && last != ',' &&
-      last != ';' && last != '<' && last != '>') {
+      last != ';' && last != '<' && last != '>' && last != '-' && last != 0x96) {
 #ifdef _DEBUG
     if (str.length()>1)
       unknown[str] = "";
@@ -213,7 +214,7 @@ const string &LocalizerImpl::translate(const string &str, bool &found)
   while(pos>0) {
     char last = str[pos];
     if (last != ':' && last != ' ' && last != ',' && last != '.' &&
-        last != ';' && last != '<' && last != '>')
+        last != ';' && last != '<' && last != '>' && last != '-' && last != 0x96)
       break;
 
     pos = str.find_last_not_of(last, pos);

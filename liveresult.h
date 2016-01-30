@@ -1,13 +1,4 @@
-// TimeStamp.h: interface for the TimeStamp class.
-//
-//////////////////////////////////////////////////////////////////////
-
-#if !defined(AFX_TIMESTAMP_H__CC16BFC5_ECD9_4D76_AC98_79F802314B65__INCLUDED_)
-#define AFX_TIMESTAMP_H__CC16BFC5_ECD9_4D76_AC98_79F802314B65__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
 /************************************************************************
     MeOS - Orienteering Software
     Copyright (C) 2009-2015 Melin Software HB
@@ -29,21 +20,41 @@
     Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
 
 ************************************************************************/
+#include "oListInfo.h"
 
-class TimeStamp
-{
-  unsigned int Time;
+class gdioutput;
+
+class LiveResult {
+  oEvent *oe;
+  oListInfo li;
+  bool active;
+  unsigned int lastTime;
+  map< pair<int, int>, int > processedPunches;
+  pRunner rToWatch;
+  string baseFont;
+  void showDefaultView(gdioutput &gdi);
+  map<int, pair<int, int> > startFinishTime;
+  int showResultList;
+  int resYPos;  
+  string getFont(const gdioutput &gdi, double relScale) const;
+  double timerScale;
+  struct Result {
+    int place;
+    pRunner r;
+    int time;
+    bool operator<(const Result &b) const {
+      return time < b.time;
+    }
+  };
+
+  vector< Result > results;
+
+  void calculateResults();
+
 public:
-  void setStamp(string s);
-  string getStamp() const;
-  string getStampString() const;
-  int getAge() const;
-  unsigned int getModificationTime() const {return Time;}
+  LiveResult(oEvent *oe);
+  ~LiveResult() {}
 
-  void update();
-  void update(TimeStamp &ts);
-  TimeStamp();
-  virtual ~TimeStamp();
+  void showTimer(gdioutput &gdi, const oListInfo &li);
+  void timerEvent(gdioutput &gdi, int type, BaseInfo &bi);
 };
-
-#endif // !defined(AFX_TIMESTAMP_H__CC16BFC5_ECD9_4D76_AC98_79F802314B65__INCLUDED_)

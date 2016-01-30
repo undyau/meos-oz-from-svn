@@ -93,6 +93,9 @@ public:
   pRunner getOwner() const;
   int getNumPunches() const {return punches.size();}
 
+  /** Returns the number of real control punches on the course. */
+  int getNumControlPunches(int startPunchType, int finishPunchType) const;
+  
   bool setPunchTime(const pPunch punch, string time);
   bool isCardRead(const SICard &card) const;
   void setReadId(const SICard &card);

@@ -45,6 +45,8 @@ static char THIS_FILE[]=__FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
+const int externalSourceId = 17000017;
+
 csvparser::csvparser()
 {
   LineNumber=0;
@@ -83,7 +85,7 @@ int csvparser::iscsv(const char *file)
   if (sp.size()<5)//No csv
     return 0;
 
-  if (_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0) //OS-fil (SWE/ENG)??
+  if (_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0 || _stricmp(sp[1], "Descr.")==0) //OS-fil (SWE/ENG)??
     return 2;
 
   else return 1; //OE?!
@@ -159,6 +161,7 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
 
       //Club is autocreated...
       pTeam team=event.addTeam(string(sp[OSclub])+" "+string(sp[OSdesc]), ClubId,  ClassId);
+      team->setEntrySource(externalSourceId);
 
       team->setStartNo(atoi(sp[OSstno]), false);
 
@@ -188,7 +191,8 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
         int cardNo = atoi(sp[rindex+OSRcard]);
         pRunner r = event.addRunner(string(sp[rindex+OSRfname])+" "+string(sp[rindex+OSRsname]), ClubId,
                                     ClassId, cardNo, year, false);
-
+        
+        r->setEntrySource(externalSourceId);
         oDataInterface DI=r->getDI();
         //DI.setInt("BirthYear", extendYear(atoi(sp[rindex+OSRyb])));
         DI.setString("Sex", sp[rindex+OSRsex]);
@@ -267,7 +271,7 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
         continue;
 
       string name = string(sp[ORfirstname])+" "+string(sp[ORsurname]);
-      pr->setName(name);
+      pr->setName(name, false);
       pr->setClubId(pclub ? pclub->getId():0);
 			pr->setCardNo( atoi(sp[ORcard]), false );
 			
@@ -279,7 +283,7 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
 
         if (pc) { 
           pc->synchronize();        
-          pr->setClassId(pc->getId());
+          pr->setClassId(pc->getId(), false);
 				}
 				else {
 					pc=event.getClassCreate(-1,sp[ORclass]); 
@@ -355,10 +359,21 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       }
 
       int id = atoi(sp[OEid]);
+      int extId = id;
       pRunner pr = 0;
 
       if (id>0)
         pr = event.getRunner(id, 0);
+
+      if (pr) {
+        if (pr->getEntrySource() != externalSourceId) {
+          // If not same source, do not accept match (will not work with older versions of MeOS files)
+          pr = 0;
+          id = 0;
+        }
+      }
+
+      const bool newEntry = (pr == 0);
 
       if (pr == 0) {
         if (id==0) {
@@ -374,11 +389,15 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       if (pr==0)
         continue;
 
-      if (id>0)
-        pr->setExtIdentifier(id);
+      if (extId>0)
+        pr->setExtIdentifier(extId);
 
-      string name = string(sp[OEfirstname])+" "+string(sp[OEsurname]);
-      pr->setName(name);
+      pr->setEntrySource(externalSourceId);
+
+      if (!pr->hasFlag(oAbstractRunner::FlagUpdateName)) {
+        string name = string(sp[OEfirstname])+" "+string(sp[OEsurname]);
+        pr->setName(name, false);
+      }
       pr->setClubId(pclub ? pclub->getId():0);
       pr->setCardNo( atoi(sp[OEcard]), false );
 
@@ -393,29 +412,33 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
 
       //Autocreate class if it does not exist...
       int classId=atoi(sp[OEclassno]);
-      if (classId>0) {
+      if (classId>0 && !pr->hasFlag(oAbstractRunner::FlagUpdateClass)) {
         pClass pc=event.getClassCreate(classId, sp[OEclass]);
 
         if (pc) {
           pc->synchronize();
-          pr->setClassId(pc->getId());
+          if (pr->getClassId() == 0 || !pr->hasFlag(oAbstractRunner::FlagUpdateClass))
+            pr->setClassId(pc->getId(), false);
         }
       }
       int stno=atoi(sp[OEstno]);
-
-      if (stno>0)
-        pr->setStartNo(stno, false);
-      else
-        pr->setStartNo(nimport, false);
-
+      bool needSno = pr->getStartNo() == 0 || newEntry;
+      bool needBib = pr->getBib().empty();
+      
+      if (needSno || newEntry) {
+        if (stno>0)
+          pr->setStartNo(stno, false);
+        else
+          pr->setStartNo(nimport, false);
+      }
       oDataInterface DI=pr->getDI();
 
       DI.setString("Sex", sp[OEsex]);
       DI.setInt("BirthYear", extendYear(atoi(sp[OEbirth])));
       DI.setString("Nationality", sp[OEnat]);
 
-      if (sp.size()>OEbib)
-        pr->setBib(sp[OEbib], false, false);
+      if (sp.size()>OEbib && needBib)
+        pr->setBib(sp[OEbib], 0, false, false);
 
       if (sp.size()>=38) {//ECO
         DI.setInt("Fee", atoi(sp[OEfee]));
@@ -600,7 +623,7 @@ bool csvparser::ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses)
       }
       else {
         // Reset control
-        pc->importControls("");
+        pc->importControls("", false);
         pc->setLength(int(Length*1000));
       }
 

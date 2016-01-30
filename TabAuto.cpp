@@ -330,9 +330,9 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
             par.splitAnalysis = gdi.isChecked("SplitAnalysis");
             gdi.getSelectedItem("LegNumber", &lbi);
             if (signed(lbi.data)>=0)
-              par.legNumber = lbi.data == 1000 ? -1: lbi.data;
+              par.setLegNumberCoded(lbi.data);
             else
-              par.legNumber = 0;
+              par.setLegNumberCoded(0);
 
             oe->generateListInfo(par, gdi.getLineHeight(), prm->listInfo);
           }
@@ -718,20 +718,21 @@ void PrintResultMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
       oe.getClassConfigurationInfo(cnf);
       int type = EStdResultListLARGE;
       if (cnf.hasRelay())
-        type = EStdTeamResultListLegLARGE;
+        type = EStdTeamAllLegLARGE;
       else if (cnf.hasPatrol())
-        type = EStdRaidResultListLARGE;
+        type = EStdPatrolResultListLARGE;
 
       gdi.selectItemByData("ListType", type);
-
     }
     else
       gdi.selectItemByData("ListType", listInfo.getListCode());
 
     gdi.addSelection("LegNumber", 140, 300, 0, "Sträcka:");
-    oe.fillLegNumbers(gdi, "LegNumber");
-    int leg = listInfo.getLegNumber();
-    gdi.selectItemByData("LegNumber", leg==-1 ? 1000 : leg);
+    set<int> clsUnused;
+    vector< pair<string, size_t> > out;
+    oe.fillLegNumbers(clsUnused, listInfo.isTeamList(), true, out);
+    gdi.addItem("LegNumber", out);
+    gdi.selectItemByData("LegNumber", listInfo.getLegNumberCoded());
 
     gdi.addCheckbox("PageBreak", "Sidbrytning mellan klasser", 0, pageBreak);
     gdi.addCheckbox("ShowInterResults", "Visa mellantider", 0, showInterResult,

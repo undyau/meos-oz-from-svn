@@ -134,7 +134,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       if (pc) {
         gdi.clearPage(true);
         oe->calculateTeamResults(false);
-        oe->sortTeams(ClassStartTime, 0);
+        oe->sortTeams(ClassStartTime, 0, true);
         oe->calculateResults(oEvent::RTClassResult);
         oe->sortRunners(ClassStartTime);
         int pay, paid;

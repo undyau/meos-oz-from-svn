@@ -38,6 +38,8 @@ static char THIS_FILE[]=__FILE__;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
+const __int64 minYearConstant = 2014 - 1601;
+
 TimeStamp::TimeStamp()
 {
   Time=0;
@@ -64,7 +66,7 @@ void TimeStamp::update()
 
   __int64 &currenttime=*(__int64*)&ft;
 
-  Time=int((currenttime/10000000)-__int64(370)*365*24*3600);
+  Time=unsigned((currenttime/10000000L) - minYearConstant*365*24*3600);
 }
 
 int TimeStamp::getAge() const
@@ -75,14 +77,14 @@ int TimeStamp::getAge() const
   SystemTimeToFileTime(&st, &ft);
   __int64 &currenttime=*(__int64*)&ft;
 
-  int CTime=int((currenttime/10000000)-__int64(370)*365*24*3600);
+  int CTime=int((currenttime/10000000)-minYearConstant*365*24*3600);
 
   return CTime-Time;
 }
 
 string TimeStamp::getStamp() const
 {
-  __int64 ft64=(__int64(Time)+__int64(370)*365*24*3600)*10000000;
+  __int64 ft64=(__int64(Time)+minYearConstant*365*24*3600)*10000000;
   FILETIME &ft=*(FILETIME*)&ft64;
   SYSTEMTIME st;
   FileTimeToSystemTime(&ft, &st);
@@ -95,7 +97,7 @@ string TimeStamp::getStamp() const
 
 string TimeStamp::getStampString() const
 {
-  __int64 ft64=(__int64(Time)+__int64(370)*365*24*3600)*10000000;
+  __int64 ft64=(__int64(Time)+minYearConstant*365*24*3600)*10000000;
   FILETIME &ft=*(FILETIME*)&ft64;
   SYSTEMTIME st;
   FileTimeToSystemTime(&ft, &st);
@@ -127,5 +129,5 @@ void TimeStamp::setStamp(string s)
 
   __int64 &currenttime=*(__int64*)&ft;
 
-  Time=int((currenttime/10000000)-__int64(370)*365*24*3600);
+  Time = unsigned((currenttime/10000000)-minYearConstant*365*24*3600);
 }

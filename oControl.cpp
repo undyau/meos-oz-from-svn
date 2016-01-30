@@ -35,9 +35,12 @@
 #include "Localizer.h"
 #include "Table.h"
 #include "MeOSFeatures.h"
+#include <set>
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
+
+using namespace std;
 
 oControl::oControl(oEvent *poe): oBase(poe)
 {
@@ -46,8 +49,13 @@ oControl::oControl(oEvent *poe): oBase(poe)
   Status=StatusOK;
   tMissedTimeMax = 0;
   tMissedTimeTotal = 0;
-  tNumVisitors = 0;
+  tNumVisitorsActual = 0;
+  tNumVisitorsExpected = 0;
   tMissedTimeMedian = 0;
+  tMistakeQuotient = 0;
+  tNumRunnersRemaining = 0;
+  tStatDataRevision = -1;
+
   tHasFreePunchLabel = false;
   tNumberDuplicates = 0;
 }
@@ -58,10 +66,16 @@ oControl::oControl(oEvent *poe, int id): oBase(poe)
   getDI().initData();
   nNumbers=0;
   Status=StatusOK;
+
   tMissedTimeMax = 0;
   tMissedTimeTotal = 0;
-  tNumVisitors = 0;
+  tNumVisitorsActual = 0;
+  tNumVisitorsExpected = 0;
+  tMistakeQuotient = 0;
   tMissedTimeMedian = 0;
+  tNumRunnersRemaining = 0;
+  tStatDataRevision = -1;
+
   tHasFreePunchLabel = false;
   tNumberDuplicates = 0;
 }
@@ -594,24 +608,75 @@ bool oControl::controlCompleted(bool supportRogaining) const
   else return true;
 }
 
-void oEvent::setupMissedControlTime() {
+int oControl::getMissedTimeTotal() const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  return tMissedTimeTotal;
+}
+
+int oControl::getMissedTimeMax() const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  return tMissedTimeMax;
+}
+
+int oControl::getMissedTimeMedian() const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  return tMissedTimeMedian;
+}
+
+int oControl::getMistakeQuotient() const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  return tMistakeQuotient;
+}
+
+
+int oControl::getNumVisitors(bool actulaVisits) const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  if (actulaVisits)
+    return tNumVisitorsActual;
+  else
+    return tNumVisitorsExpected;
+}
+
+int oControl::getNumRunnersRemaining() const {
+  if (tStatDataRevision != oe->getRevision())
+    oe->setupControlStatistics();
+
+  return tNumRunnersRemaining;
+}
+
+void oEvent::setupControlStatistics() const {
   // Reset all times
-  for (oControlList::iterator it = Controls.begin(); it != Controls.end(); ++it) {
+  for (oControlList::const_iterator it = Controls.begin(); it != Controls.end(); ++it) {
     it->tMissedTimeMax = 0;
     it->tMissedTimeTotal = 0;
-    it->tNumVisitors = 0;
+    it->tNumVisitorsActual = 0;
+    it->tNumVisitorsExpected = 0;
+    it->tNumRunnersRemaining = 0;
     it->tMissedTimeMedian = 0;
+    it->tMistakeQuotient = 0;
+    it->tStatDataRevision = dataRevision; // Mark as up-to-date
   }
 
-  map<int, vector<int> > lostPerControl;
+  map<int, pair<int, vector<int> > > lostPerControl; // First is "actual" misses,
   vector<int> delta;
-  for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+  for (oRunnerList::const_iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved())
       continue;
     pCourse pc = it->getCourse(true);
     if (!pc)
       continue;
     it->getSplitAnalysis(delta);
+
     int nc = pc->getNumControls();
     if (delta.size()>unsigned(nc)) {
       for (int i = 0; i<nc; i++) {
@@ -625,23 +690,41 @@ void oEvent::setupMissedControlTime() {
           ctrl->tMissedTimeMax = max(ctrl->tMissedTimeMax, delta[i]);
         }
 
-        if (delta[i] >= 0)
-          lostPerControl[ctrl->getId()].push_back(delta[i]);
+        if (delta[i] > 0) {
+          lostPerControl[ctrl->getId()].second.push_back(delta[i]);
+          ++lostPerControl[ctrl->getId()].first;
+        }
 
-        ctrl->tNumVisitors++;
+        ctrl->tNumVisitorsActual++;
       }
+    }
+
+    if (!it->isVacant() && it->getStatus() != StatusDNS
+      && it->getStatus() != StatusNotCompetiting) {
+
+      for (int i = 0; i < nc; i++) {
+        pControl ctrl = pc->getControl(i);
+        ctrl->tNumVisitorsExpected++;
+
+        if (it->getStatus() == StatusUnknown)
+          ctrl->tNumRunnersRemaining++;
+      }
+
     }
   }
 
-  for (oControlList::iterator it = Controls.begin(); it != Controls.end(); ++it) {
+  for (oControlList::const_iterator it = Controls.begin(); it != Controls.end(); ++it) {
     if (!it->isRemoved()) {
       int id = it->getId();
 
-      map<int, vector<int> >::iterator res = lostPerControl.find(id);
+      map<int, pair<int, vector<int> > >::iterator res = lostPerControl.find(id);
       if (res != lostPerControl.end()) {
-        sort(res->second.begin(), res->second.end());
-        int avg = res->second[res->second.size() / 2];
-        it->tMissedTimeMedian = avg;
+        if (!res->second.second.empty()) {
+          sort(res->second.second.begin(), res->second.second.end());
+          int avg = res->second.second[res->second.second.size() / 2];
+          it->tMissedTimeMedian = avg;
+        }
+        it->tMistakeQuotient = (100 * res->second.first + 50) / it->tNumVisitorsActual; 
       }
     }
   }
@@ -741,7 +824,6 @@ void oEvent::generateControlTableData(Table &table, oControl *addControl)
   }
 
   synchronizeList(oLControlId);
-  setupMissedControlTime();
   oControlList::iterator it;
 
   for (it=Controls.begin(); it != Controls.end(); ++it){
@@ -764,8 +846,8 @@ void oControl::addTableRow(Table &table) const {
   table.set(row++, it, TID_STATUS, getStatusS(), canEdit, cellSelection);
   table.set(row++, it, TID_CODES, codeNumbers(), true);
 
-  int nv = getNumVisitors();
-  table.set(row++, it, 50, itos(getNumVisitors()), false);
+  int nv = getNumVisitors(true);
+  table.set(row++, it, 50, itos(nv), false);
   table.set(row++, it, 51, nv > 0 ? formatTime(getMissedTimeMax()) : "-", false);
   table.set(row++, it, 52, nv > 0 ? formatTime(getMissedTimeTotal()/nv) : "-", false);
   table.set(row++, it, 53, nv > 0 ? formatTime(getMissedTimeMedian()) : "-", false);
@@ -879,5 +961,33 @@ void oControl::getCourseControls(vector<int> &cc) const {
   cc.resize(tNumberDuplicates);
   for (int i = 0; i < tNumberDuplicates; i++) {
     cc[i] = getCourseControlIdFromIdIndex(Id, i);
+  }
+}
+
+void oControl::getCourses(vector<pCourse> &crs) const {
+  crs.clear();
+  for (oCourseList::const_iterator it = oe->Courses.begin(); it != oe->Courses.end(); it++) {
+    if (it->isRemoved())
+      continue;
+
+    if (it->hasControl(this))
+      crs.push_back(pCourse(&*it));
+  }
+}
+
+void oControl::getClasses(vector<pClass> &cls) const {
+  vector<pCourse> crs;
+  getCourses(crs);
+  std::set<int> cid;
+  for (size_t k = 0; k< crs.size(); k++) {
+    cid.insert(crs[k]->getId());
+  }
+
+  for (oClassList::const_iterator it = oe->Classes.begin(); it != oe->Classes.end(); it++) {
+    if (it->isRemoved())
+      continue;
+
+    if (it->hasAnyCourse(cid))
+      cls.push_back(pClass(&*it));
   }
 }

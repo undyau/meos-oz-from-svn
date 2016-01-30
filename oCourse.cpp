@@ -47,6 +47,8 @@ oCourse::oCourse(oEvent *poe) : oBase(poe)
   nControls=0;
   Length=0;
   clearCache();
+  tMapsUsed = -1;
+  tMapsUsedNoVacant = -1;
   Id=oe->getFreeCourseId();
 }
 
@@ -58,7 +60,9 @@ oCourse::oCourse(oEvent *poe, int id) : oBase(poe)
   clearCache();
   if (id == 0)
     id = oe->getFreeCourseId();
-  Id=id;
+  Id=id;  
+  tMapsUsed = -1;
+  tMapsUsedNoVacant = -1;
   oe->qFreeCourseId = max(id, oe->qFreeCourseId);
 }
 
@@ -108,10 +112,10 @@ void oCourse::Set(const xmlobject *xo)
       Name=it->get();
     }
     else if (it->is("Controls")){
-      importControls(it->get());
+      importControls(it->get(), false);
     }
     else if (it->is("Legs")) {
-      importLegLengths(it->get());
+      importLegLengths(it->get(), false);
     }
     else if (it->is("oData")){
       getDI().set(*it);
@@ -254,7 +258,7 @@ void oCourse::splitControls(const string &ctrls, vector<int> &nr) {
   }
 }
 
-void oCourse::importControls(const string &ctrls) {
+bool oCourse::importControls(const string &ctrls, bool updateLegLengths) {
   int oldNC = nControls;
   vector<int> oldC;
   for (int k = 0; k<nControls; k++)
@@ -270,6 +274,45 @@ void oCourse::importControls(const string &ctrls) {
 
   bool changed = nControls != oldNC;
 
+  if (changed && updateLegLengths && legLengths.size() > 0) {
+    int oldIndex = 0;
+    int newIndex = 0;
+    vector<int> newLen(nControls + 1);
+    bool lastOK = true;
+    while (newIndex < nControls) {
+      if (oldIndex < int(oldC.size())) {
+        if (oldC[oldIndex] == newC[newIndex]) {
+          if (lastOK && oldIndex < int(legLengths.size())) {
+            newLen[newIndex] = legLengths[oldIndex];
+          }
+          lastOK = true;
+          oldIndex++;
+        }
+        else {
+          lastOK = false;
+          int forward = oldIndex + 1;
+          while(forward < int(oldC.size())) {
+            if (oldC[forward] == newC[newIndex]) {
+              oldIndex = forward + 1;
+              lastOK = true;
+              break;
+            }
+            forward++;
+          }
+        }
+      }
+      else {
+        lastOK = false;
+      }
+      newIndex++;
+    }
+
+    if (lastOK) {
+      newLen.back() = legLengths.back();
+    }
+    swap(newLen, legLengths);
+  }
+
   for (int k = 0; !changed && k<nControls; k++)
     changed |= oldC[k] != Controls[k]->getId();
 
@@ -278,16 +321,30 @@ void oCourse::importControls(const string &ctrls) {
 
     oe->punchIndex.clear();
   }
+
+  return changed;
 }
 
-void oCourse::importLegLengths(const string &legs)
+void oCourse::importLegLengths(const string &legs, bool setChanged)
 {
   vector<string> splits;
   split(legs, ";", splits);
 
-  legLengths.resize(splits.size());
-  for (size_t k = 0; k<legLengths.size(); k++)
-    legLengths[k] = atoi(splits[k].c_str());
+  bool changed = false;
+
+  if (legLengths.size() != splits.size()) {
+    legLengths.resize(splits.size());
+    changed = true;
+  }
+  for (size_t k = 0; k<legLengths.size(); k++) {
+    int val = atoi(splits[k].c_str());
+    if (legLengths[k] != val)
+      changed = true;
+    legLengths[k] = val;
+  }
+
+  if (changed && setChanged) 
+    updateChanged();
 }
 
 oControl *oCourse::getControl(int index) const
@@ -295,6 +352,13 @@ oControl *oCourse::getControl(int index) const
   if (index>=0 && index<nControls)
     return Controls[index];
   else return 0;
+}
+
+int oCourse::getLegLength(int index) const {
+  if (size_t(index) < legLengths.size()) {
+    return legLengths[index];
+  }
+  return 0;
 }
 
 bool oCourse::fillCourse(gdioutput &gdi, const string &name)
@@ -481,8 +545,7 @@ pCourse oEvent::getCourseCreate(int Id)
   }
 }
 
-pCourse oEvent::getCourse(int Id) const
-{
+pCourse oEvent::getCourse(int Id) const {
   if (Id==0)
     return 0;
 
@@ -493,8 +556,7 @@ pCourse oEvent::getCourse(int Id) const
   return 0;
 }
 
-pCourse oEvent::getCourse(const string &n) const
-{
+pCourse oEvent::getCourse(const string &n) const {
   oCourseList::const_iterator it;
 
   for (it=Courses.begin(); it != Courses.end(); ++it) {
@@ -518,21 +580,45 @@ const vector< pair<string, size_t> > &oEvent::fillCourses(vector< pair<string, s
   synchronizeList(oLCourseId);
 
   Courses.sort();
-  string b;
+
+  vector< pair<pCourse, pair<pCourse, bool>> > ac;
+  ac.reserve(Courses.size());
+  map<int,int> id2ix;
   for (it=Courses.begin(); it != Courses.end(); ++it) {
     if (!it->Removed){
+      id2ix[it->getId()] = ac.size();
+      ac.push_back(make_pair(pCourse(&*it), make_pair(pCourse(0), false)));
+    }
+  }
 
-      if (simple) //gdi.addItem(name, it->Name, it->Id);
-        out.push_back(make_pair(it->Name, it->Id));
-      else {
-        b = it->Name + "\t(" + itos(it->nControls) + ")";
-        //sprintf_s(bf, 16, "\t(%d)", it->nControls);
-        //b+=bf;
-        if (!it->getCourseProblems().empty())
-          b = "[!] " + b;
-        //gdi.addItem(name, b, it->Id);
-        out.push_back(make_pair(b, it->Id));
+  for (size_t k = 0; k < ac.size(); k++) {
+    pCourse sh = ac[k].first->getShorterVersion();
+    if (sh != 0) {
+      int ix = id2ix[sh->getId()];
+      if (!ac[ix].second.first)
+        ac[ix].second.first = ac[k].first;
+      else
+        ac[ix].second.second = true;
+    }
+  }
+
+  string b;
+  for (size_t k = 0; k < ac.size(); k++) {
+    pCourse it = ac[k].first;
+
+    if (simple) //gdi.addItem(name, it->Name, it->Id);
+      out.push_back(make_pair(it->Name, it->Id));
+    else {
+      b = it->Name;
+      if (ac[k].second.first) {
+        b += " < " + ac[k].second.first->Name;
+        if (ac[k].second.second)
+          b += ", ...";
       }
+      b += "\t(" + itos(it->nControls) + ")";
+      if (!it->getCourseProblems().empty())
+        b = "[!] " + b;
+      out.push_back(make_pair(b, it->Id));
     }
   }
   return out;
@@ -547,6 +633,17 @@ int oCourse::getNumberMaps() const
 {
   return getDCI().getInt("NumberMaps");
 }
+
+int oCourse::getNumUsedMaps(bool noVacant) const {
+  if (tMapsUsed == -1)
+    oe->calculateNumRemainingMaps();
+
+  if (noVacant)
+    return tMapsUsedNoVacant;
+  else
+    return tMapsUsed;
+}
+
 
 void oCourse::setStart(const string &start, bool sync)
 {
@@ -572,25 +669,63 @@ string oCourse::getStart() const
 void oEvent::calculateNumRemainingMaps()
 {
   synchronizeList(oLCourseId, true, false);
+  synchronizeList(oLTeamId, false, false);
   synchronizeList(oLRunnerId, false, true);
-
+  
   for (oCourseList::iterator cit=Courses.begin();
-    cit!=Courses.end();++cit) {
+    cit!=Courses.end();++cit) {      
     int numMaps = cit->getNumberMaps();
     if (numMaps == 0)
       cit->tMapsRemaining = numeric_limits<int>::min();
     else
       cit->tMapsRemaining = numMaps;
+
+    cit->tMapsUsed = 0;
+    cit->tMapsUsedNoVacant = 0;
   }
 
-  list<oRunner>::const_iterator it;
-  for (it=Runners.begin(); it != Runners.end(); ++it)
-    if (!it->isRemoved() && it->getStatus()!=StatusDNS){
+  
+  for (oRunnerList::const_iterator it=Runners.begin(); it != Runners.end(); ++it) {
+    if (!it->isRemoved() && it->getStatus() != StatusDNS) {
       pCourse pc = it->getCourse(false);
+      if (pc) {
+        if (pc->tMapsRemaining != numeric_limits<int>::min())
+          pc->tMapsRemaining--;
 
-      if (pc && pc->tMapsRemaining != numeric_limits<int>::min())
-        pc->tMapsRemaining--;
+        pc->tMapsUsed++;
+        if (!it->isVacant())
+          pc->tMapsUsedNoVacant++;
+      }
     }
+  }
+
+  // Count maps used for vacant team positions
+
+  for (oTeamList::const_iterator it=Teams.begin(); it != Teams.end(); ++it) {
+    if (!it->isRemoved()/* && it->getStatus() != StatusDNS*/) {
+      for (size_t j = 0; j < it->Runners.size(); j++) {
+        pRunner r = it->Runners[j];
+        if (r)
+          continue; // Already included
+
+        if (it->Class) {
+          const vector<pCourse> &courses = it->Class->MultiCourse[j];
+          if (courses.size()>0) {
+            int index = it->StartNo;
+            if (index > 0)
+              index = (index-1) % courses.size();
+            pCourse tCrs = courses[index];
+            if (tCrs) {
+              tCrs->tMapsUsed++;
+
+              if (tCrs->tMapsRemaining != numeric_limits<int>::min())
+                tCrs->tMapsRemaining--;
+            }
+          }
+        }
+      }
+    }    
+  }
 }
 
 int oCourse::getIdSum(int nC) {
@@ -730,6 +865,8 @@ void oCourse::clearCache() const {
   cachedHasRogaining = 0;
   cachedControlOrdinal.clear();
   cacheDataRevision = oe->dataRevision;
+  tMapsUsed = -1;
+  tMapsUsedNoVacant = -1;
 }
 
 string oCourse::getCourseProblems() const
@@ -1121,3 +1258,46 @@ string oCourse::getRadioName(int courseControlId) const {
 
   return name;
 }
+
+// Returns the next shorter course, if any, null otherwise
+pCourse oCourse::getShorterVersion() const {
+  int ix = getDCI().getInt("Shorten");
+  return oe->getCourse(ix);
+}
+
+// Returns the next longer course, if any, null otherwise. Note that this method is slow.
+pCourse oCourse::getLongerVersion() const {
+  oCourseList::const_iterator it;
+  for (it = oe->Courses.begin(); it != oe->Courses.end(); ++it) {
+    int ix = it->getDCI().getInt("Shorten");
+    if (ix == Id)
+      return pCourse(&*it);
+  }
+  return 0;
+}
+
+void oCourse::setShorterVersion(pCourse shorten) {
+  if (shorten != 0)
+    getDI().setInt("Shorten", shorten->getId());
+  else
+    getDI().setInt("Shorten", 0);
+}
+
+bool oCourse::hasControl(const oControl *ctrl) const {
+  for (int i = 0; i < nControls; i++) {
+    if (Controls[i] == ctrl)
+      return true;
+  }
+  return false;
+}
+
+void oCourse::getClasses(vector<pClass> &usageClass) const  {
+  vector<pClass> cls;
+  oe->getClasses(cls, false);
+
+  for (size_t k = 0; k < cls.size(); k++) {
+    if (cls[k]->usesCourse(*this))
+      usageClass.push_back(cls[k]);
+  }
+}
+

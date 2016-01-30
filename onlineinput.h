@@ -33,12 +33,14 @@ class OnlineInput :
 protected:
   string url;
   int cmpId;
+  string unitId;
   int lastImportedId;
   int importCounter;
   int bytesImported;
   DWORD lastSync;
 
   bool useROCProtocol;
+  bool useUnitId;
 
   deque<string> info;
   map<int, oPunch::SpecialPunch> specialPunches;
@@ -67,7 +69,7 @@ public:
   void status(gdioutput &gdi);
   void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
   OnlineInput() : AutoMachine("Onlineinput"), cmpId(0), importCounter(1),
-                    bytesImported(0), lastSync(0), lastImportedId(0), useROCProtocol(false) {}
+                    bytesImported(0), lastSync(0), lastImportedId(0), useROCProtocol(false), useUnitId(false) {}
   ~OnlineInput();
   friend class TabAuto;
 };

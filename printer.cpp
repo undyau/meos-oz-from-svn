@@ -425,7 +425,9 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   OffsetX = 0;
 
   pageInfo.topMargin = float(ds.MarginY * 2);
-  pageInfo.scale = 1.0f;
+  pageInfo.scaleX = 1.0f;
+  pageInfo.scaleY = 1.0f;
+  
   pageInfo.leftMargin = float(ds.MarginX);
   pageInfo.bottomMargin = float(ds.MarginY);
   pageInfo.pageY = float(PageYMax);
@@ -674,9 +676,9 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
       text.yp = float(text.ti.absPrintY * pi.yMM2PrintC + pi.yMM2PrintK);
     }
     else {
-      text.xp = (text.ti.xp - minX) * pi.scale + pi.leftMargin;
+      text.xp = (text.ti.xp - minX) * pi.scaleX + pi.leftMargin;
       int off = invertHeightY ? (text.ti.textRect.bottom - text.ti.textRect.top) : 0;
-      text.yp = (text.ti.yp + off) * pi.scale + pi.topMargin;
+      text.yp = (text.ti.yp + off) * pi.scaleY + pi.topMargin;
     }
 
     pages.back().calculateCS(text.ti);
@@ -707,7 +709,7 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
       bool nextIsHead = false;
       bool firstCanBreak = true;
       for (map<int,int>::iterator it = forwardyp.begin(); it != forwardyp.end(); ++it, ++ix) {
-        float y = (max<int>(indexedTL[it->second]->textRect.bottom, indexedTL[it->second]->yp) + offsetY) * pi.scale + pi.topMargin;
+        float y = (max<int>(indexedTL[it->second]->textRect.bottom, indexedTL[it->second]->yp) + offsetY) * pi.scaleY + pi.topMargin;
         float size = GDIImplFontSet::baseSize(indexedTL[it->second]->format, 1.0);
 
         bool over = y > pi.pageY - pi.bottomMargin;

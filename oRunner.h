@@ -50,6 +50,8 @@ typedef const oTeam* cTeam;
 
 struct SICard;
 
+const int MaxRankingConstant = 99999999;
+
 class oAbstractRunner : public oBase {
 protected:
   string Name;
@@ -84,6 +86,7 @@ public:
     int timeAfter;
     int points;
     int place;
+    int internalScore;
     vector<int> outputTimes;
     vector<int> outputNumbers;
     RunnerStatus status;
@@ -98,9 +101,9 @@ public:
     int getPlace() const {return place;}
     RunnerStatus getStatus() const {return status;}
 
-    const string &getStatusS() const;
+    const string &getStatusS(RunnerStatus inputStatus) const;
     const string &getPrintPlaceS(bool withDot) const;
-    const string &getRunningTimeS() const;
+    const string &getRunningTimeS(int inputTime) const;
     const string &getFinishTimeS(const oEvent *oe) const;
     const string &getStartTimeS(const oEvent *oe) const;
 
@@ -135,9 +138,39 @@ protected:
   int inputPlace;
 
   bool sqlChanged;
+  bool tEntryTouched;
 
   void changedObject();
 public:
+
+  /** Returs true if the class is a patrol class */
+  bool isPatrolMember() const {
+    return Class && Class->getClassType() == oClassPatrol;
+  }
+
+  /** Returns true if the team / runner has a start time available*/
+  virtual bool startTimeAvailable() const;
+
+  int getEntrySource() const;
+  void setEntrySource(int src);
+  void flagEntryTouched(bool flag);
+  bool isEntryTouched() const;
+
+  /** Returns number of shortenings taken. */
+  virtual int getNumShortening() const = 0;
+  
+  enum TransferFlags {
+    FlagTransferNew = 1,
+    FlagUpdateCard = 2,
+    FlagTransferSpecified = 4,
+    FlagFeeSpecified = 8,
+    FlagUpdateClass = 16,
+    FlagUpdateName = 32,
+  };
+
+  bool hasFlag(TransferFlags flag) const;
+  void setFlag(TransferFlags flag, bool state);
+
   // Get the runners team or the team itself
   virtual cTeam getTeam() const = 0;
   virtual pTeam getTeam() = 0;
@@ -197,7 +230,7 @@ public:
 
   virtual int getBirthAge() const;
 
-  virtual void setName(const string &n);
+  virtual void setName(const string &n, bool manualChange);
   virtual const string &getName() const {return Name;}
 
   virtual void setFinishTimeS(const string &t);
@@ -221,14 +254,14 @@ public:
 
   virtual const string &getClass() const {if (Class) return Class->Name; else return _EmptyString;}
   virtual int getClassId() const {if (Class) return Class->Id; else return 0;}
-  virtual void setClassId(int id);
+  virtual void setClassId(int id, bool isManualUpdate);
   virtual int getStartNo() const {return StartNo;}
   virtual void setStartNo(int no, bool storeTmpOnly);
 
   // Start number is equal to bib-no, but bib
   // is only set when it should be shown in lists etc.
   const string &getBib() const;
-  virtual void setBib(const string &bib, bool updateStartNo, bool setTmpOnly) = 0;
+  virtual void setBib(const string &bib, int numericalBib, bool updateStartNo, bool setTmpOnly) = 0;
   int getEncodedBib() const;
 
   virtual int getStartTime() const {return tStartTime;}
@@ -272,6 +305,9 @@ public:
     if setTmp is true, the status is only stored in a temporary container.
     */
   virtual bool setStatus(RunnerStatus st, bool updatePermanent, bool setTmp, bool recalculate = true);
+   
+  /** Returns the ranking of the runner or the team (first runner in it?) */
+  virtual int getRanking() const = 0;
 
   /// Get total status for this running (including team/earlier races)
   virtual RunnerStatus getTotalStatus() const;
@@ -348,11 +384,14 @@ protected:
   mutable int tCoursePlace;
   mutable int tTotalPlace;
   mutable int tLeg;
+  mutable int tLegEquClass;
   mutable pTeam tInTeam;
   mutable pRunner tParentRunner;
   mutable bool tNeedNoCard;
   mutable bool tUseStartPunch;
   mutable int tDuplicateLeg;
+  mutable int tNumShortening;
+  mutable int tShortenDataRevision;
 
   //Temporary status and running time
   RunnerStatus tempStatus;
@@ -443,8 +482,19 @@ protected:
   mutable int tAdaptedCourseRevision;
 
 public:
-
+  
   void markClassChanged(int controlId);
+
+  int getRanking() const;
+
+  /** Returns true if the team / runner has a valid start time available*/
+  virtual bool startTimeAvailable() const;
+
+  /** Get a total input time from previous legs and stages*/
+  int getTotalTimeInput() const;
+
+  /** Get a total input time from previous legs and stages*/
+  RunnerStatus getTotalStatusInput() const;
 
   // Returns public unqiue identifier of runner's race (for binding card numbers etc.)
   int getRaceIdentifier() const;
@@ -531,6 +581,8 @@ public:
   void printSplits(gdioutput &gdi) const;
 	void printLabel(gdioutput &gdi) const;
 
+  void printStartInfo(gdioutput &gdi) const;
+
   /** Take the start time from runner r*/
   void cloneStartTime(const pRunner r);
 
@@ -540,8 +592,8 @@ public:
   // Leg to run for this runner. Maps into oClass.MultiCourse.
   // Need to check index in bounds.
   int legToRun() const {return tInTeam ? tLeg : tDuplicateLeg;}
-  void setName(const string &n);
-  void setClassId(int id);
+  void setName(const string &n, bool manualUpdate);
+  void setClassId(int id, bool isManualUpdate);
   void setClub(const string &Name);
   pClub setClubId(int clubId);
 
@@ -549,7 +601,7 @@ public:
   // is only set when it should be shown in lists etc.
   // Need not be so for teams. Course depends on start number,
   // which should be more stable.
-  void setBib(const string &bib, bool updateStartNo, bool setTmpOnly);
+  void setBib(const string &bib, int bibNumerical, bool updateStartNo, bool setTmpOnly);
   void setStartNo(int no, bool setTmpOnly);
 
   pRunner nextNeedReadout() const;
@@ -616,7 +668,10 @@ public:
   string getFamilyName() const;
 
   pCourse getCourse(bool getAdaptedCourse) const;
-  string getCourseName() const;
+  const string &getCourseName() const;
+
+  int getNumShortening() const;
+  void setNumShortening(int numShorten);
 
   pCard getCard() const {return Card;}
   int getCardId(){if (Card) return Card->Id; else return 0;}

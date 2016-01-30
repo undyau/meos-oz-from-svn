@@ -157,6 +157,19 @@ int APIENTRY WinMain(HINSTANCE hInstance,
     exit(0);
   }
 
+
+  for (int k = 0; k < 100; k++) {
+    RunnerStatusOrderMap[k] = 0;
+  }
+  RunnerStatusOrderMap[StatusOK] = 0;
+  RunnerStatusOrderMap[StatusMAX] = 1;
+  RunnerStatusOrderMap[StatusMP] = 2;
+  RunnerStatusOrderMap[StatusDNF] = 3;
+  RunnerStatusOrderMap[StatusDQ] = 4;
+  RunnerStatusOrderMap[StatusDNS] = 5;
+  RunnerStatusOrderMap[StatusUnknown] = 6;
+  RunnerStatusOrderMap[StatusNotCompetiting] = 7;
+
   lang.init();
   StringCache::getInstance().init();
 
@@ -191,8 +204,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   lang.get().addLangResource("Svenska", "103");
   lang.get().addLangResource("Deutsch", "105");
   lang.get().addLangResource("Dansk", "106");
+  lang.get().addLangResource("Français", "110");
   lang.get().addLangResource("Russian (ISO 8859-5)", "107");
   lang.get().addLangResource("English (ISO 8859-2)", "108");
+  lang.get().addLangResource("English (ISO 8859-8)", "109");
 
   if (fileExist("extra.lng")) {
     lang.get().addLangResource("Extraspråk", "extra.lng");

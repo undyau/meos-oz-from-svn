@@ -222,6 +222,8 @@ struct value_list_ba
 ///
 /// See value_list_ba's documentation for more details.
 
+#pragma warning(disable:4512)
+
 template <class Seq, class Manip>
 struct value_list_b
 {
