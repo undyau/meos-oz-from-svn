@@ -390,7 +390,7 @@ oEvent::~oEvent()
 void oEvent::initProperties()
 {
   setProperty("TextSize", getPropertyString("TextSize", "0"));
-  setProperty("Language", getPropertyString("Language", "103"));
+  setProperty("Language", getPropertyString("Language", "104")); //English
 
   setProperty("Interactive", getPropertyString("Interactive", "1"));
   setProperty("Database", getPropertyString("Database", "1"));

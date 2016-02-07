@@ -219,7 +219,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
       lang.get().addLangResource("Extraspråk", lpath);
   }
 
-  string defLang = gEvent->getPropertyString("Language", "Svenska");
+  string defLang = gEvent->getPropertyString("Language", "English");
 
   // Backward compatibility
   if (defLang=="103")

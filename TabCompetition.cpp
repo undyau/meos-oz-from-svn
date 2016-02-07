@@ -3246,7 +3246,7 @@ void TabCompetition::welcomeToMeOS(gdioutput &gdi) {
   const char *id = "Language";
   gdi.addSelection(id, 90, 200, CompetitionCB);
   vector<string> ln = lang.get().getLangResource();
-  string current = oe->getPropertyString("Language", "Svenska");
+  string current = oe->getPropertyString("Language", "English");
   int ix = -1;
   for (size_t k = 0; k<ln.size(); k++) {
     gdi.addItem(id, ln[k], k);
