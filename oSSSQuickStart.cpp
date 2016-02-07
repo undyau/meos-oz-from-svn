@@ -4,6 +4,7 @@
 #include "gdioutput.h"
 #include "csvparser.h"
 #include "meos_util.h"
+#include "metalist.h"
 
 oSSSQuickStart::oSSSQuickStart(oExtendedEvent& a_Event):m_Event(a_Event)
 {
@@ -63,6 +64,20 @@ if (load)
 
 	gdi.alert("Loaded " + itos(ImportCount()) + " competitors onto start list");
 	}
+
+// Add custom lists for SSS
+	char path[256];
+	if (getUserFile(path, "SSS Receipt Results.xml"))
+		{
+		string file(path);
+    xmlparser xml(0);
+    xml.read(file);
+    xmlobject xlist = xml.getObject(0);
+    m_Event.synchronize();
+    m_Event.getListContainer().load(MetaListContainer::ExternalList, xlist, false);
+    m_Event.synchronize(true);
+		}
+
 
 return true;
 }

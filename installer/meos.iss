@@ -44,8 +44,8 @@ Source: "ind_courseresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "sss201230.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "classcourse.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "msvcm90.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "msvcp90.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "msvcr90.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "SSS Receipt Results.xml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "SSS Results.xml"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
