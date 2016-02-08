@@ -1509,16 +1509,14 @@ LRESULT CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 
 namespace setup {
-const int nFiles=9;
+const int nFiles=7;
 const char *fileList[nFiles]={"baseclass.xml",
                                "family.mwd",
                                "given.mwd",
                                "club.mwd",
                                "class.mwd",
                                "database.clubs",
-                               "database.persons",
-                               "SSS Receipt Results.xml",
-                               "SSS Results.xml"};
+                               "database.persons"};
 }
 
 void Setup(bool overwrite, bool overwriteAll)

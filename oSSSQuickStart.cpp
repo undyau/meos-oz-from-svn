@@ -65,21 +65,45 @@ if (load)
 	gdi.alert("Loaded " + itos(ImportCount()) + " competitors onto start list");
 	}
 
+AddMeosOzCustomList(string("SSS Receipt Results.xml"));
+AddMeosOzCustomList(string("SSS Results.xml"));
+
+return true;
+}
+
+void oSSSQuickStart::AddMeosOzCustomList(string a_ReportDef)
+{
 // Add custom lists for SSS
-	char path[256];
-	if (getUserFile(path, "SSS Receipt Results.xml"))
+	char path[MAX_PATH];
+	if (getUserFile(path, a_ReportDef.c_str()))
 		{
 		string file(path);
+		if (!fileExist(path))
+			{
+			char exepath[MAX_PATH];
+			if (GetModuleFileName(NULL, exepath, MAX_PATH))
+				{
+				for (int i = strlen(exepath) - 1; i > 1; i--)
+					if (exepath[i-1] == '\\')
+						{
+						exepath[i] = '\0';
+						break;
+						}
+				strcat(exepath,a_ReportDef.c_str());
+				if (fileExist(exepath))
+					CopyFile(exepath, path, true);
+				}
+			}
+		}
+	if (fileExist(path))
+		{
     xmlparser xml(0);
-    xml.read(file);
+    xml.read(path);
     xmlobject xlist = xml.getObject(0);
     m_Event.synchronize();
     m_Event.getListContainer().load(MetaListContainer::ExternalList, xlist, false);
     m_Event.synchronize(true);
 		}
-
-
-return true;
 }
 
 bool oSSSQuickStart::GetEventTemplateFromWeb(string& a_File)
