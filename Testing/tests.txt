@@ -2,7 +2,7 @@
 2.  Sydney Summer Series - create
 3.  Sydney Summer Series - results format
 4.  Sydney Summer Series - upload to itsdamp
-5.  Regular SL event - startlist with courses on
+5.  Regular SL event 
 6.  Print Label still works
 7.  Startlist repeated import (eg from eSiResgo)
 8.  Australian stats in summary

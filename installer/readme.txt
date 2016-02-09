@@ -1,3 +1,8 @@
+ 9 February 2016 3.3.526
+- Merge with standard MEOS 3.3.526
+- Make SSS custom reports visible
+- Default start draw is manual after Eventor import 
+
 13 June 2015 3.2.451.2
 - Persist name of entry list import file
 - Add custom reports to SSS competition file
