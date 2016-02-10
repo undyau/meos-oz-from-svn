@@ -143,6 +143,8 @@ bool MeosSQL::listCompetitions(oEvent *oe, bool keepConnection) {
     return false;
   }
 
+// READ THIS
+// Next line only works in Release build !
   string serverInfo = con.server_info();
 
   if (serverInfo < "5.0.3") {

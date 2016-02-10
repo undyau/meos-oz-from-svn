@@ -1,6 +1,7 @@
  9 February 2016 3.3.526
-- Merge with standard MEOS 3.3.526
-- Make SSS custom reports visible
+- Merge with standard MEOS 3.3.526.1
+  For changes see 3.3 Beta 1 notes in http://www.melin.nu/meos/en/whatsnew25.php
+- Make SSS custom reports visible (again)
 - Default start draw is manual after Eventor import 
 
 13 June 2015 3.2.451.2
