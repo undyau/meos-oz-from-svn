@@ -45,6 +45,7 @@
 #include "meosexception.h"
 #include "MeOSFeatures.h"
 #include "RunnerDB.h"
+#include "oExtendedEvent.h"
 
 TabSI::TabSI(oEvent *poe):TabBase(poe) {
   interactiveReadout=poe->getPropertyInt("Interactive", 1)!=0;
@@ -2369,7 +2370,9 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
   string name;
   string club;
 	oExtendedEvent* ev = static_cast<oExtendedEvent*>(oe);
-  if (useDatabase && !ev->IsRentedCard(sic.CardNumber)) {
+
+	gdi.check("RentCard",ev->isRentedCard(sic.CardNumber));
+  if (useDatabase && !ev->isRentedCard(sic.CardNumber)) {
     pRunner db_r=oe->dbLookUpByCard(sic.CardNumber);
 
     if (db_r) {
@@ -2379,7 +2382,7 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
   }
 
   //Else get name from card
-  if (name.empty() && !ev->IsRentedCard(sic.CardNumber) && (sic.FirstName[0] || sic.LastName[0]))
+  if (name.empty() && !ev->isRentedCard(sic.CardNumber) && (sic.FirstName[0] || sic.LastName[0]))
     name=string(sic.FirstName)+" "+sic.LastName;
 
   gdi.setText("Name", name);

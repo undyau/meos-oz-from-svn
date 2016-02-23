@@ -1,3 +1,6 @@
+  23 February 2016 3.3.526.2
+- Intelligent processing of known rented cards when using quick entry 
+ 
  9 February 2016 3.3.526
 - Merge with standard MEOS 3.3.526.1
   For changes see 3.3 Beta 1 notes in http://www.melin.nu/meos/en/whatsnew25.php
