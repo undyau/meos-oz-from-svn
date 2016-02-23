@@ -2368,7 +2368,8 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
 
   string name;
   string club;
-  if (useDatabase) {
+	oExtendedEvent* ev = static_cast<oExtendedEvent*>(oe);
+  if (useDatabase && !ev->IsRentedCard(sic.CardNumber)) {
     pRunner db_r=oe->dbLookUpByCard(sic.CardNumber);
 
     if (db_r) {
@@ -2378,7 +2379,7 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
   }
 
   //Else get name from card
-  if (name.empty() && (sic.FirstName[0] || sic.LastName[0]))
+  if (name.empty() && !ev->IsRentedCard(sic.CardNumber) && (sic.FirstName[0] || sic.LastName[0]))
     name=string(sic.FirstName)+" "+sic.LastName;
 
   gdi.setText("Name", name);
