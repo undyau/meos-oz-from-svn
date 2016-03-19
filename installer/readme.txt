@@ -1,3 +1,6 @@
+  19 March 2016 3.3.526.3
+- Add new & altered club names 
+
   23 February 2016 3.3.526.2
 - Intelligent processing of known rented cards when using quick entry 
  
