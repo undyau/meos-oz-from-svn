@@ -1,3 +1,6 @@
+  8 October 2016 3.3.526.4
+- Delete competition did nothing. Now fixed.
+
   19 March 2016 3.3.526.3
 - Add new & altered club names 
 
