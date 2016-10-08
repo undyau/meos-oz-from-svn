@@ -3328,6 +3328,7 @@ bool oEvent::deleteCompetition()
   if (!empty() && !HasDBConnection) {
     string removed = string(CurrentFile)+".removed";
     ::remove(removed.c_str()); //Delete old removed file
+		openFileLock->unlockFile();
     ::rename(CurrentFile, removed.c_str());
     return true;
   }
