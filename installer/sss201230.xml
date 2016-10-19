@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 
 
-<meosdata version="3.2">
+<meosdata version="3.3">
 <Name>Sydney Summer Series</Name>
-<Date>2012-11-08</Date>
+<Date>2016-10-19</Date>
 <ZeroTime>54000</ZeroTime>
 <NameId>meos_20121108_124210_3DB</NameId>
 <IsSydneySummerSeries>1</IsSydneySummerSeries>
-<Updated>20150613123955</Updated>
+<Updated>20161020065819</Updated>
 <oData>
 <CardFee>400</CardFee>
 <EliteFee>2000</EliteFee>
@@ -16,6 +16,9 @@
 <YouthAge>16</YouthAge>
 <SeniorAge>20</SeniorAge>
 <LateEntryFactor>50 %</LateEntryFactor>
+<Organizer>Big Foot Orienteers</Organizer>
+<Street>29 Bellevue Street</Street>
+<Address>2067 Chatswood West</Address>
 <CurrencyFactor>100</CurrencyFactor>
 <CurrencySymbol>$</CurrencySymbol>
 <CurrencySeparator>.</CurrencySeparator>
@@ -24,7 +27,7 @@
 <ControlList>
 <Control>
 <Id>201</Id>
-<Updated>20121128171601</Updated>
+<Updated>21490104234417</Updated>
 <Name>1</Name>
 <Numbers>201;101</Numbers>
 <Status>6</Status>
@@ -34,7 +37,7 @@
 </Control>
 <Control>
 <Id>202</Id>
-<Updated>20121128171607</Updated>
+<Updated>21490104234423</Updated>
 <Name>2</Name>
 <Numbers>202;102</Numbers>
 <Status>6</Status>
@@ -44,7 +47,7 @@
 </Control>
 <Control>
 <Id>203</Id>
-<Updated>20121108124810</Updated>
+<Updated>21481215191626</Updated>
 <Name>3</Name>
 <Numbers>203;103</Numbers>
 <Status>6</Status>
@@ -54,7 +57,7 @@
 </Control>
 <Control>
 <Id>204</Id>
-<Updated>20121108124819</Updated>
+<Updated>21481215191635</Updated>
 <Name>4</Name>
 <Numbers>204;104</Numbers>
 <Status>6</Status>
@@ -64,7 +67,7 @@
 </Control>
 <Control>
 <Id>205</Id>
-<Updated>20121108124829</Updated>
+<Updated>21481215191645</Updated>
 <Name>5</Name>
 <Numbers>205;105</Numbers>
 <Status>6</Status>
@@ -74,7 +77,7 @@
 </Control>
 <Control>
 <Id>206</Id>
-<Updated>20121108124836</Updated>
+<Updated>21481215191652</Updated>
 <Name>6</Name>
 <Numbers>206;106</Numbers>
 <Status>6</Status>
@@ -84,7 +87,7 @@
 </Control>
 <Control>
 <Id>207</Id>
-<Updated>20121108124847</Updated>
+<Updated>21481215191703</Updated>
 <Name>7</Name>
 <Numbers>207;107</Numbers>
 <Status>6</Status>
@@ -94,7 +97,7 @@
 </Control>
 <Control>
 <Id>208</Id>
-<Updated>20121108124903</Updated>
+<Updated>21481215191719</Updated>
 <Name>8</Name>
 <Numbers>208;108</Numbers>
 <Status>6</Status>
@@ -104,7 +107,7 @@
 </Control>
 <Control>
 <Id>209</Id>
-<Updated>20121108124909</Updated>
+<Updated>21481215191725</Updated>
 <Name>9</Name>
 <Numbers>209;109</Numbers>
 <Status>6</Status>
@@ -114,7 +117,7 @@
 </Control>
 <Control>
 <Id>210</Id>
-<Updated>20121108125021</Updated>
+<Updated>21481215191837</Updated>
 <Name>10</Name>
 <Numbers>210;110</Numbers>
 <Status>6</Status>
@@ -124,7 +127,7 @@
 </Control>
 <Control>
 <Id>211</Id>
-<Updated>20121108124921</Updated>
+<Updated>21481215191737</Updated>
 <Name>11</Name>
 <Numbers>211;111</Numbers>
 <Status>6</Status>
@@ -134,7 +137,7 @@
 </Control>
 <Control>
 <Id>212</Id>
-<Updated>20121108124926</Updated>
+<Updated>21481215191742</Updated>
 <Name>12</Name>
 <Numbers>212;112</Numbers>
 <Status>6</Status>
@@ -144,7 +147,7 @@
 </Control>
 <Control>
 <Id>213</Id>
-<Updated>20121108124934</Updated>
+<Updated>21481215191750</Updated>
 <Name>13</Name>
 <Numbers>213;113</Numbers>
 <Status>6</Status>
@@ -154,7 +157,7 @@
 </Control>
 <Control>
 <Id>214</Id>
-<Updated>20121108124940</Updated>
+<Updated>21481215191756</Updated>
 <Name>14</Name>
 <Numbers>214;114</Numbers>
 <Status>6</Status>
@@ -164,7 +167,7 @@
 </Control>
 <Control>
 <Id>215</Id>
-<Updated>20121108124945</Updated>
+<Updated>21481215191801</Updated>
 <Name>15</Name>
 <Numbers>215;115</Numbers>
 <Status>6</Status>
@@ -174,7 +177,7 @@
 </Control>
 <Control>
 <Id>216</Id>
-<Updated>20121108124950</Updated>
+<Updated>21481215191806</Updated>
 <Name>16</Name>
 <Numbers>216;116</Numbers>
 <Status>6</Status>
@@ -184,7 +187,7 @@
 </Control>
 <Control>
 <Id>217</Id>
-<Updated>20121108124956</Updated>
+<Updated>21481215191812</Updated>
 <Name>17</Name>
 <Numbers>217;117</Numbers>
 <Status>6</Status>
@@ -194,7 +197,7 @@
 </Control>
 <Control>
 <Id>218</Id>
-<Updated>20121108125001</Updated>
+<Updated>21481215191817</Updated>
 <Name>18</Name>
 <Numbers>218;118</Numbers>
 <Status>6</Status>
@@ -204,7 +207,7 @@
 </Control>
 <Control>
 <Id>219</Id>
-<Updated>20121108125007</Updated>
+<Updated>21481215191823</Updated>
 <Name>19</Name>
 <Numbers>219;119</Numbers>
 <Status>6</Status>
@@ -214,7 +217,7 @@
 </Control>
 <Control>
 <Id>220</Id>
-<Updated>20121108125015</Updated>
+<Updated>21481215191831</Updated>
 <Name>20</Name>
 <Numbers>220;120</Numbers>
 <Status>6</Status>
@@ -224,7 +227,7 @@
 </Control>
 <Control>
 <Id>221</Id>
-<Updated>20121108125111</Updated>
+<Updated>21481215191927</Updated>
 <Name>21</Name>
 <Numbers>221;121</Numbers>
 <Status>6</Status>
@@ -234,7 +237,7 @@
 </Control>
 <Control>
 <Id>222</Id>
-<Updated>20121108125115</Updated>
+<Updated>21481215191931</Updated>
 <Name>22</Name>
 <Numbers>222;122</Numbers>
 <Status>6</Status>
@@ -244,7 +247,7 @@
 </Control>
 <Control>
 <Id>223</Id>
-<Updated>20121108125119</Updated>
+<Updated>21481215191935</Updated>
 <Name>23</Name>
 <Numbers>223;123</Numbers>
 <Status>6</Status>
@@ -254,7 +257,7 @@
 </Control>
 <Control>
 <Id>224</Id>
-<Updated>20121108125123</Updated>
+<Updated>21481215191939</Updated>
 <Name>24</Name>
 <Numbers>224;124</Numbers>
 <Status>6</Status>
@@ -264,7 +267,7 @@
 </Control>
 <Control>
 <Id>225</Id>
-<Updated>20121108125131</Updated>
+<Updated>21481215191947</Updated>
 <Name>25</Name>
 <Numbers>225;125</Numbers>
 <Status>6</Status>
@@ -274,7 +277,7 @@
 </Control>
 <Control>
 <Id>226</Id>
-<Updated>20121108125137</Updated>
+<Updated>21481215191953</Updated>
 <Name>26</Name>
 <Numbers>226;126</Numbers>
 <Status>6</Status>
@@ -284,7 +287,7 @@
 </Control>
 <Control>
 <Id>227</Id>
-<Updated>20121108125142</Updated>
+<Updated>21481215191958</Updated>
 <Name>27</Name>
 <Numbers>227;127</Numbers>
 <Status>6</Status>
@@ -294,7 +297,7 @@
 </Control>
 <Control>
 <Id>228</Id>
-<Updated>20121108125148</Updated>
+<Updated>21481215192004</Updated>
 <Name>28</Name>
 <Numbers>228;128</Numbers>
 <Status>6</Status>
@@ -304,7 +307,7 @@
 </Control>
 <Control>
 <Id>229</Id>
-<Updated>20121108125154</Updated>
+<Updated>21481215192010</Updated>
 <Name>29</Name>
 <Numbers>229;129</Numbers>
 <Status>6</Status>
@@ -314,7 +317,7 @@
 </Control>
 <Control>
 <Id>230</Id>
-<Updated>20121108125201</Updated>
+<Updated>21481215192017</Updated>
 <Name>30</Name>
 <Numbers>230;130</Numbers>
 <Status>6</Status>
@@ -326,7 +329,7 @@
 <CourseList>
 <Course>
 <Id>1</Id>
-<Updated>20150613123814</Updated>
+<Updated>20161020065818</Updated>
 <Name>Score</Name>
 <Controls>201;202;203;204;205;206;207;208;209;210;211;212;213;214;215;216;217;218;219;220;221;222;223;224;225;226;227;228;229;230;</Controls>
 <oData>
@@ -339,10 +342,11 @@
 <ClassList>
 <Class>
 <Id>4</Id>
-<Updated>20121108125923</Updated>
+<Updated>20161020065858</Updated>
 <Name>JW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -353,10 +357,11 @@
 </Class>
 <Class>
 <Id>5</Id>
-<Updated>20121108125939</Updated>
+<Updated>20161020065858</Updated>
 <Name>JM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -367,10 +372,11 @@
 </Class>
 <Class>
 <Id>6</Id>
-<Updated>20121108125945</Updated>
+<Updated>20161020065858</Updated>
 <Name>OW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -381,10 +387,11 @@
 </Class>
 <Class>
 <Id>7</Id>
-<Updated>20121108130013</Updated>
+<Updated>20161020065858</Updated>
 <Name>OM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -395,10 +402,11 @@
 </Class>
 <Class>
 <Id>8</Id>
-<Updated>20121108130021</Updated>
+<Updated>20161020065858</Updated>
 <Name>MW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -409,10 +417,11 @@
 </Class>
 <Class>
 <Id>9</Id>
-<Updated>20121108130028</Updated>
+<Updated>20161020065858</Updated>
 <Name>MM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -423,10 +432,11 @@
 </Class>
 <Class>
 <Id>10</Id>
-<Updated>20121108130040</Updated>
+<Updated>20161020065858</Updated>
 <Name>VW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -437,10 +447,11 @@
 </Class>
 <Class>
 <Id>11</Id>
-<Updated>20121108130045</Updated>
+<Updated>20161020065858</Updated>
 <Name>VM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -451,10 +462,11 @@
 </Class>
 <Class>
 <Id>12</Id>
-<Updated>20121108130102</Updated>
+<Updated>20161020065858</Updated>
 <Name>SVW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -465,10 +477,11 @@
 </Class>
 <Class>
 <Id>13</Id>
-<Updated>20121108130107</Updated>
+<Updated>20161020065858</Updated>
 <Name>SVM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -479,10 +492,11 @@
 </Class>
 <Class>
 <Id>14</Id>
-<Updated>20121108130130</Updated>
+<Updated>20161020065858</Updated>
 <Name>LW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -493,10 +507,11 @@
 </Class>
 <Class>
 <Id>15</Id>
-<Updated>20121108130135</Updated>
+<Updated>20161020065858</Updated>
 <Name>LM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -507,10 +522,11 @@
 </Class>
 <Class>
 <Id>16</Id>
-<Updated>20121108130139</Updated>
+<Updated>20161020065858</Updated>
 <Name>IW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -521,10 +537,11 @@
 </Class>
 <Class>
 <Id>17</Id>
-<Updated>20121108130143</Updated>
+<Updated>20161020065858</Updated>
 <Name>IM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -535,10 +552,11 @@
 </Class>
 <Class>
 <Id>18</Id>
-<Updated>20131017215641</Updated>
+<Updated>20161020065858</Updated>
 <Name>WaW</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -549,10 +567,11 @@
 </Class>
 <Class>
 <Id>19</Id>
-<Updated>20131017215645</Updated>
+<Updated>20161020065858</Updated>
 <Name>WaM</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -563,10 +582,11 @@
 </Class>
 <Class>
 <Id>20</Id>
-<Updated>20131017215650</Updated>
+<Updated>20161020065858</Updated>
 <Name>Group</Name>
 <Course>1</Course>
 <oData>
+<AllowQuickEntry>1</AllowQuickEntry>
 <ClassType>Öppen</ClassType>
 <ClassFee>2000</ClassFee>
 <HighClassFee>3000</HighClassFee>
@@ -579,7 +599,7 @@
 <ClubList>
 <Club>
 <Id>888888888</Id>
-<Updated>20121108130310</Updated>
+<Updated>21481215193126</Updated>
 <Name>Vacant</Name>
 <oData>
 </oData>
@@ -594,7 +614,56 @@
 <CardList>
 </CardList>
 <Lists>
-<MeOSListDefinition version="3.2">
+<MeOSListDefinition version="3.3">
+<ListName>SSS Results Receipt</ListName>
+<ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
+<UID>A6608405055551431389B3535213210</UID>
+<SortOrder>ClassPoints</SortOrder>
+<ListType>Runner</ListType>
+<SubListType>None</SubListType>
+<Filter name="FilterResult"/>
+<HeadFont scale="100" above="0"/>
+<SubHeadFont scale="100" above="0"/>
+<ListFont scale="120" above="0"/>
+<SubListFont scale="100" above="0"/>
+<Head>
+<Line>
+<Block Type="CmpName">
+<Align BlockAlign="true">None</Align>
+</Block>
+</Line>
+</Head>
+<SubHead>
+<Line>
+</Line>
+<Line>
+<Block Type="ClassName">
+<Align BlockAlign="true">None</Align>
+<Font>BoldHuge</Font>
+</Block>
+</Line>
+</SubHead>
+<List>
+<Line>
+<Block Type="RunnerPlace">
+<Align BlockAlign="true">None</Align>
+<Font>BoldLarge</Font>
+</Block>
+<Block Type="RunnerName">
+<Align BlockAlign="true">None</Align>
+<Font>BoldLarge</Font>
+</Block>
+<Block Type="RunnerRogainingPointTotal">
+<Align BlockAlign="false">None</Align>
+<Font>BoldLarge</Font>
+<TextAdjust>Right</TextAdjust>
+</Block>
+</Line>
+</List>
+<SubList>
+</SubList>
+</MeOSListDefinition>
+<MeOSListDefinition version="3.3">
 <ListName>SSS Results</ListName>
 <ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
 <UID>A-8151303428791508141B2494685629</UID>
@@ -602,10 +671,10 @@
 <ListType>Runner</ListType>
 <SubListType>None</SubListType>
 <Filter name="FilterResult"/>
-<HeadFont scale="100"></HeadFont>
-<SubHeadFont scale="100"></SubHeadFont>
-<ListFont scale="100"></ListFont>
-<SubListFont scale="100"></SubListFont>
+<HeadFont scale="100" above="0"/>
+<SubHeadFont scale="100" above="0"/>
+<ListFont scale="100" above="0"/>
+<SubListFont scale="100" above="0"/>
 <Head>
 <Line>
 <Block Type="CmpName">
@@ -662,55 +731,6 @@
 </Block>
 <Block Type="String">
 <Align BlockAlign="true">None</Align>
-</Block>
-</Line>
-</List>
-<SubList>
-</SubList>
-</MeOSListDefinition>
-<MeOSListDefinition version="3.2">
-<ListName>SSS Results Receipt</ListName>
-<ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
-<UID>A8117745476920118535B3535213210</UID>
-<SortOrder>ClassPoints</SortOrder>
-<ListType>Runner</ListType>
-<SubListType>None</SubListType>
-<Filter name="FilterResult"/>
-<HeadFont scale="100"></HeadFont>
-<SubHeadFont scale="100"></SubHeadFont>
-<ListFont scale="120"></ListFont>
-<SubListFont scale="100"></SubListFont>
-<Head>
-<Line>
-<Block Type="CmpName">
-<Align BlockAlign="true">None</Align>
-</Block>
-</Line>
-</Head>
-<SubHead>
-<Line>
-</Line>
-<Line>
-<Block Type="ClassName">
-<Align BlockAlign="true">None</Align>
-<Font>BoldHuge</Font>
-</Block>
-</Line>
-</SubHead>
-<List>
-<Line>
-<Block Type="RunnerPlace">
-<Align BlockAlign="true">None</Align>
-<Font>BoldLarge</Font>
-</Block>
-<Block Type="RunnerName">
-<Align BlockAlign="true">None</Align>
-<Font>BoldLarge</Font>
-</Block>
-<Block Type="RunnerRogainingPointTotal">
-<Align BlockAlign="false">None</Align>
-<Font>BoldLarge</Font>
-<TextAdjust>Right</TextAdjust>
 </Block>
 </Line>
 </List>
