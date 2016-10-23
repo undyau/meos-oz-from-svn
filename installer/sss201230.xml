@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 
 
-<meosdata version="3.3">
+<meosdata version="3.2">
 <Name>Sydney Summer Series</Name>
 <Date>2016-10-19</Date>
 <ZeroTime>54000</ZeroTime>
@@ -614,7 +614,7 @@
 <CardList>
 </CardList>
 <Lists>
-<MeOSListDefinition version="3.3">
+<MeOSListDefinition version="3.2">
 <ListName>SSS Results Receipt</ListName>
 <ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
 <UID>A6608405055551431389B3535213210</UID>
@@ -663,7 +663,7 @@
 <SubList>
 </SubList>
 </MeOSListDefinition>
-<MeOSListDefinition version="3.3">
+<MeOSListDefinition version="3.2">
 <ListName>SSS Results</ListName>
 <ListOrigin>Summer Series #20 - Pymble (2015-06-13)</ListOrigin>
 <UID>A-8151303428791508141B2494685629</UID>
