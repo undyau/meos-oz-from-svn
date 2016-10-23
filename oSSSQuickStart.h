@@ -12,6 +12,7 @@ public:
 private:
   oExtendedEvent& m_Event;
   bool GetEventTemplateFromWeb(string& a_File);
+	bool GetEventTemplateFromInstall(string& a_File);
 	bool GetStartListFromWeb(string& a_File);
 	void AddMeosOzCustomList(string a_ReportDef);
 	int m_ImportCount;

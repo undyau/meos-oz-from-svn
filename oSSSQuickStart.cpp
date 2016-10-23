@@ -16,10 +16,11 @@ oSSSQuickStart::~oSSSQuickStart(void)
 
 bool oSSSQuickStart::ConfigureEvent(gdioutput &gdi)
 {
-// retrieve competition from web
+// retrieve competition from install or web
 string file = getTempFile();
-if (!GetEventTemplateFromWeb(file))
-	return false;
+if (!GetEventTemplateFromInstall(file))
+	if (!GetEventTemplateFromWeb(file))
+		return false;
 
 
 gdi.setWaitCursor(true);
@@ -104,6 +105,32 @@ void oSSSQuickStart::AddMeosOzCustomList(string a_ReportDef)
     m_Event.getListContainer().load(MetaListContainer::ExternalList, xlist, false);
     m_Event.synchronize(true);
 		}
+}
+
+bool oSSSQuickStart::GetEventTemplateFromInstall(string& a_File)
+{
+	  TCHAR ownPth[MAX_PATH]; 
+
+    // Will contain exe path
+    HMODULE hModule = GetModuleHandle(NULL);
+    if (hModule != NULL) {
+      GetModuleFileName(hModule,ownPth, (sizeof(ownPth)));
+			int pos = strlen(ownPth) - 1;
+			while (ownPth[pos] != '\\' && pos > 0)
+				--pos;
+			if (pos == 0)
+				return false;
+			ownPth[pos] = '\0';
+
+			string templateFile(ownPth);
+			templateFile += "\\sss201230.xml";
+			if (!fileExist(templateFile.c_str()))
+				return false;
+			else
+				return !!CopyFile(templateFile.c_str(), a_File.c_str(), FALSE);
+		}
+		else
+			return false;
 }
 
 bool oSSSQuickStart::GetEventTemplateFromWeb(string& a_File)

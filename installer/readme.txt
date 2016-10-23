@@ -1,3 +1,8 @@
+  23 October 2016 3.3.526.5
+- Look for installed template for SSS before looking on web.
+- SSS template update to allow quick-entry on all courses.
+- Remove junk clubs from clubs database.
+
   8 October 2016 3.3.526.4
 - Delete competition did nothing. Now fixed.
 
