@@ -2386,8 +2386,15 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
         for (unsigned int i = 0; i < classes.size(); i++)
           if (classes.at(i) < min || min == -1)
             min = classes.at(i);
-        if (oe->getClass(min))
-          gdi.setText("Class", oe->getClass(min)->getName());
+				if (oe->getClass(min)) {  // Want to just match on class, but list contains map count too :(
+					char bf[256];
+					int nmaps = oe->getClass(min)->getNumRemainingMaps(false);
+					if (nmaps != numeric_limits<int>::min())
+						sprintf_s(bf, "%s (%d %s)", oe->getClass(min)->getName().c_str(), nmaps, lang.tl("kartor").c_str());
+					else
+						sprintf_s(bf, "%s ( - %s)", oe->getClass(min)->getName().c_str(), lang.tl("kartor").c_str());
+          gdi.selectItemByData("Class", min);
+				}
       }
     }
   }

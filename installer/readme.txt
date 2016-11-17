@@ -1,3 +1,8 @@
+  17 November 2016 3.3.526.6
+- Set age, gender details in SSS classes.
+- Set class if possible in quick entry mode.
+- Remove SSS start list load functionality.
+
   23 October 2016 3.3.526.5
 - Look for installed template for SSS before looking on web.
 - SSS template update to allow quick-entry on all courses.
