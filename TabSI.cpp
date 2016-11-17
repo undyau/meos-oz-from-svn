@@ -2378,6 +2378,17 @@ void TabSI::entryCard(gdioutput &gdi, const SICard &sic)
     if (db_r) {
       name=db_r->getName();
       club=db_r->getClub();
+      vector<int> classes;
+      oe->getClassesFromBirthYear(db_r->getBirthYear(), db_r->getSex(), classes);
+    // Will have all classes runner is eligible for. Select lowest numbered class.
+      if (gdi.hasField("Class") && !classes.empty()) {
+        int min(-1);
+        for (unsigned int i = 0; i < classes.size(); i++)
+          if (classes.at(i) < min || min == -1)
+            min = classes.at(i);
+        if (oe->getClass(min))
+          gdi.setText("Class", oe->getClass(min)->getName());
+      }
     }
   }
 

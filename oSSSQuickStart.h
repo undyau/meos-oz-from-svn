@@ -15,6 +15,7 @@ private:
 	bool GetEventTemplateFromInstall(string& a_File);
 	bool GetStartListFromWeb(string& a_File);
 	void AddMeosOzCustomList(string a_ReportDef);
+	void CustomiseClasses(); // Set age limits, gender for each class
 	int m_ImportCount;
 };
 #pragma warning (default: 4512)
