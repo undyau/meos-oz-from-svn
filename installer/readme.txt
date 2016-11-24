@@ -1,3 +1,6 @@
+  24 November 2016 3.3.526.7
+- Stop creating duplicate custom reports for SSS.
+
   17 November 2016 3.3.526.6
 - Set age, gender details in SSS classes.
 - Set class if possible in quick entry mode.

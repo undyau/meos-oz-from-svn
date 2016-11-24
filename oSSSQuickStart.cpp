@@ -51,7 +51,6 @@ return true;
 
 void oSSSQuickStart::AddMeosOzCustomList(string a_ReportDef)
 {
-// Add custom lists for SSS
 	char path[MAX_PATH];
 	if (getUserFile(path, a_ReportDef.c_str()))
 		{
@@ -75,12 +74,29 @@ void oSSSQuickStart::AddMeosOzCustomList(string a_ReportDef)
 		}
 	if (fileExist(path))
 		{
-    xmlparser xml(0);
-    xml.read(path);
-    xmlobject xlist = xml.getObject(0);
-    m_Event.synchronize();
-    m_Event.getListContainer().load(MetaListContainer::ExternalList, xlist, false);
-    m_Event.synchronize(true);
+		xmlparser xml(0);
+		xml.read(path);
+		xmlobject xlist = xml.getObject(0);
+
+// Check that we don't have the list already
+// Do nothing if we have that list already
+		string listName;
+		xlist.getObjectString("ListName", listName);
+		MetaListContainer &lc = m_Event.getListContainer();
+		if (lc.getNumLists(MetaListContainer::ExternalList) > 0) 
+		for (int k = 0; k < lc.getNumLists(); k++) 
+			{
+			if (lc.isExternal(k)) 
+				{
+				MetaList &mc = lc.getList(k);
+				if (mc.getListName() == listName)
+					return;
+				}
+			}
+
+		m_Event.synchronize();
+		m_Event.getListContainer().load(MetaListContainer::ExternalList, xlist, false);
+		m_Event.synchronize(true);
 		}
 }
 
