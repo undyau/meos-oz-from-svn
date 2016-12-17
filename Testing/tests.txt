@@ -9,4 +9,6 @@
 9.  Sydney Summer Series - loads custom results reports
 10. SI number in output XML
 11. Test with server mode
+12. Test hire stick auto detect in server mode
+13. Test no crash if creting an auto report service on a list that is empty.
 
