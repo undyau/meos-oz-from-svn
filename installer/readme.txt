@@ -1,3 +1,9 @@
+  18 December 2016 3.4.666.1
+- Merge with standard MEOS 3.4.666
+  For changes see 3.4 Beta 1 notes in http://www.melin.nu/meos/en/whatsnew25.php
+- Remove MEOS-OZ random cross-class draw (MEOS now has this)
+- Remove MEOS-OZ Competitors in Forest logic
+  
   24 November 2016 3.3.526.7
 - Stop creating duplicate custom reports for SSS.
 
