@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -72,6 +72,11 @@ protected:
   // Returns true if a SI-manager line is identified
   bool checkSimanLine(const oEvent &oe, const vector<char *> &sp, SICard &cards);
 
+  // Check and process a punch line
+  static int selectPunchIndex(const string &competitionDate, const vector<char *> &sp, 
+                              int &cardIndex, int &timeIndex, int &dateIndex,
+                              string &processedTime, string &date);
+
 public:
   void parse(const string &file, list< vector<string> > &dataOutput);
 
@@ -87,7 +92,7 @@ public:
   int nimport;
   bool ImportOCAD_CSV(oEvent &event, const char *file, bool addClasses);
   bool ImportOS_CSV(oEvent &event, const char *file);
-	bool ImportOr_CSV(oEvent &event, const char *file);
+  bool ImportOr_CSV(oEvent &event, const char *file);
   bool ImportRAID(oEvent &event, const char *file);
 
   bool importPunches(const oEvent &oe, const char *file,

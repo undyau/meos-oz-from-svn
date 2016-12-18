@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -474,8 +474,10 @@ pFreePunch oEvent::addFreePunch(int time, int type, int card, bool updateStartFi
     pRunner tr = fp->getTiedRunner();
     if (tr && tr->getStatus() == StatusUnknown && time > 0) {
       tr->synchronize();
-      if (type == oPunch::PunchStart)
-        tr->setStartTime(time, true, false);
+      if (type == oPunch::PunchStart) {
+        if (tr->getClassRef() && !tr->getClassRef()->ignoreStartPunch())
+          tr->setStartTime(time, true, false);
+      }
       else
         tr->setFinishTime(time);
 
@@ -672,7 +674,8 @@ bool oEvent::advancePunchInformation(const vector<gdioutput *> &gdi, vector<Sock
         fp.tIndex = 0;
         fp.tMatchControlId = oFreePunch::getControlIdFromHash(fp.iHashType, false);
         fp.changed = false;
-        advanceInformationPunches.insert(make_pair(make_pair<int,int>(pi[k].iHashType, r->getCardNo()),fp));
+		pair<int, int> hc(pi[k].iHashType, r->getCardNo());
+        advanceInformationPunches.insert(make_pair(hc,fp));
         if (r->Class) {
           r->markClassChanged(oFreePunch::getControlIdFromHash(pi[k].iHashType, false));
           classChanged(r->Class, true);

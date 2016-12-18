@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -133,6 +133,8 @@ protected:
   int t_maxX;
   int t_maxY;
 
+  static int uniqueId;
+  int id;
   bool clearOnHide;
   bool commandLock;
   string tableName;
@@ -245,6 +247,12 @@ protected:
 
   bool compareRow(int indexA, int indexB) const;
 public:
+
+  void setTableText(gdioutput &gdi, int editRow, int editCol, const string &bf);
+
+  int getTableId() const {return id;}
+  static void resetTableIds() {uniqueId = 1;}
+
   void setGenerator(GENERATETABLEDATA gen, void *genPtr) {
     generatorPtr = genPtr;
     generator = gen;

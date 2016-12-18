@@ -48,7 +48,6 @@ string getTempPath();
 void removeTempFile(const string &file); // Delete a temporyary
 void registerTempFile(const string &tempFile); //Register a file/folder as temporary => autmatic removal on exit.
 
-const extern string _NoClub;
 const extern string _EmptyString;
 const extern string _VacantName;
 const extern string _UnkownName;

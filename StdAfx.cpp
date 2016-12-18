@@ -4,8 +4,6 @@
 
 #include "stdafx.h"
 
-
-const string _NoClub="Klubblös";
 const string _EmptyString="";
 const string _VacantName="Vakant";
 const string _UnkownName="N.N.";

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "stdafx.h"
@@ -26,9 +26,9 @@
 //ABCDEFGHIJKLMNO
 //V2: ABCDEFGHIHJKMN
 //V31: a
-//V33: abc
+//V33: abcde
 int getMeosBuild() {
-  string revision("$Rev: 352 $");
+  string revision("$Rev: 492 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
@@ -37,9 +37,10 @@ int getMeosBuild() {
 //V3: abcdefghijklmnopqrstuvxyz
 //V31: abcde
 //V32: abcdefgh
-//V33: abcdefg
+//V33: abcdefghij
+//V34: abc
 string getMeosDate() {
-  string date("$Date: 2015-11-29 21:49:42 +0100 (sÃ¶, 29 nov 2015) $");
+  string date("$Date: 2016-12-10 16:33:53 +0100 (lÃ¶, 10 dec 2016) $");
   return date.substr(7,10);
 }
 
@@ -48,7 +49,7 @@ string getBuildType() {
 }
 
 string getMajorVersion() {
-  return "3.3";
+  return "3.4";
 }
 
 string getMeosFullVersion() {
@@ -85,6 +86,7 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Rune Thurén, Vallentuna-Össeby OL");
   supp.push_back("Roland Persson, Kalmar OK");
   supp.push_back("Robert Jessen, Främmestads IK");
+  supp.push_back("Anders Platt, Järla Orientering");
   supp.push_back("Almby IK, Örebro");
   supp.push_back("Peter Rydesäter, Rehns BK");
   supp.push_back("IK Hakarpspojkarna");
@@ -127,6 +129,7 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Annebergs GIF");
   supp.push_back("Lars-Eric Gahlin, Östersunds OK");
   supp.push_back("Sundsvalls OK:s Veteraner");
+  supp.push_back("OK Skogshjortarna");
   supp.push_back("Kinnaströms SK");
   supp.push_back("OK Pan Århus");
   supp.push_back("Jan Ernberg, Täby OK");
@@ -145,4 +148,19 @@ void getSupporters(vector<string> &supp)
   supp.push_back("OK Vivill");
   supp.push_back("IFK Mora OK");
   supp.push_back("Sonny Andersson, Huskvarna");
+  supp.push_back("Hässleholms OK Skolorientering");
+  supp.push_back("IBM-klubben Orientering");
+  supp.push_back("OK Øst, Birkerød");
+  supp.push_back("OK Klemmingen");
+  supp.push_back("Hans Johansson");
+  supp.push_back("KOB Kysak");  
+  supp.push_back("Per Ivarsson, Trollhättans SOK");
+  supp.push_back("Sergio Yañez, ABC TRAIL");
+  supp.push_back("Western Race Services");
+  supp.push_back("IK Gandvik, Skara");
+  supp.push_back("IK Stern");
+  supp.push_back("OK Roslagen");
+  supp.push_back("Emmaboda Verda OK");
+  supp.push_back("KOB ATU Košice");
+  supp.push_back("Gävle OK");
 }

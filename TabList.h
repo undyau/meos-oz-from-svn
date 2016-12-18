@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "tabbase.h"
@@ -70,10 +70,7 @@ protected:
   MethodEditor *methodEditor;
 
   bool noReEvaluate;
-  void enableFromTo(gdioutput &gdi, bool from, bool to);
-
-  void liveResult(gdioutput &gdi, oListInfo &currentList);
-
+  
   int baseButtons(gdioutput &gdi, int extraButtons);
 
 private:
@@ -84,6 +81,13 @@ private:
 public:
   bool loadPage(gdioutput &gdi);
   bool loadPage(gdioutput &gdi, const string &command);
+  
+  // Clear up competition specific settings
+  void clearCompetitionData();
+  static void makeClassSelection(gdioutput &gdi);
+  static void makeFromTo(gdioutput &gdi);
+  static void enableFromTo(oEvent &oe, gdioutput &gdi, bool from, bool to);
+  void liveResult(gdioutput &gdi, oListInfo &currentList);
 
   int listCB(gdioutput &gdi, int type, void *data);
   void loadGeneralList(gdioutput &gdi);
@@ -101,6 +105,8 @@ public:
 
   ListEditor *getListeditor() const {return listEditor;}
 
+  const char * getTypeStr() const {return "TListTab";}
+  TabType getType() const {return TListTab;}
 
   TabList(oEvent *oe);
   ~TabList(void);

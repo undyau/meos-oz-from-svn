@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -29,6 +29,7 @@
 
 #include "oEvent.h"
 #include "xmlparser.h"
+#include "recorder.h"
 
 #include "gdioutput.h"
 #include "commctrl.h"
@@ -69,6 +70,11 @@ oEvent *gEvent=0;
 SportIdent *gSI=0;
 Localizer lang;
 AutoTask *autoTask = 0;
+#ifdef _DEBUG
+  bool enableTests = true;
+#else
+  bool enableTests = false;
+#endif
 
 vector<gdioutput *> gdi_extra;
 void initMySQLCriticalSection(bool init);
@@ -144,6 +150,29 @@ static char settings[260];
 // Startup path
 static char programPath[MAX_PATH];
 
+void mainMessageLoop(HACCEL hAccelTable, DWORD time) {
+  MSG msg;
+  BOOL bRet;
+  
+  if (time > 0) {
+    time += GetTickCount();
+  }
+  // Main message loop:
+  while ( (bRet = GetMessage(&msg, NULL, 0, 0)) != 0 ) {
+    if (bRet == -1)
+      return;
+
+    if (hAccelTable == 0 || !TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+    }
+    if (time != 0) {
+      if (GetTickCount() > time)
+        return;
+    }
+  }
+}
+
 int APIENTRY WinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPSTR     lpCmdLine,
@@ -155,6 +184,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   if (strstr(lpCmdLine, "-s") != 0) {
     Setup(true, false);
     exit(0);
+  }
+  else if (strstr(lpCmdLine, "-test") != 0) {
+    enableTests = true;
   }
 
 
@@ -184,7 +216,6 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
   tabList=new list<TabObject>;
 
-  MSG msg;
   HACCEL hAccelTable;
 
   gdi_main = new gdioutput("main", 1.0, ANSI);
@@ -262,9 +293,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
       catch (std::exception &ex) {
         string errLoc = "Kunde inte ladda X\n\n(Y)#" + string(listpath) + "#" + lang.tl(ex.what());
         if (err.empty())
-          err = errLoc;
+          err = lang.tl(errLoc);
         else
-          err += "\n" + errLoc;
+          err += "\n" + lang.tl(errLoc);
       }
     }
     if (!err.empty())
@@ -311,13 +342,14 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
   initMySQLCriticalSection(true);
   // Main message loop:
-  while (GetMessage(&msg, NULL, 0, 0)) {
+  mainMessageLoop(hAccelTable, 0);
+  /*while (GetMessage(&msg, NULL, 0, 0)) {
     if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     }
   }
-
+  */
   tabAutoRegister(0);
   tabList->clear();
   delete tabList;
@@ -355,7 +387,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
   StringCache::getInstance().clear();
   lang.unload();
 
-  return msg.wParam;
+  return 0;
 }
 
 
@@ -447,11 +479,11 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam)
     return (CallNextHookEx(g_hhk, nCode, wParam, lParam));
 }
 
-void flushEvent(const string &id, const string &origin, DWORD data, void *extra)
+void flushEvent(const string &id, const string &origin, DWORD data, int extraData)
 {
   for (size_t k = 0; k<gdi_extra.size(); k++) {
     if (gdi_extra[k]) {
-      gdi_extra[k]->makeEvent(id, origin, data, extra, false);
+      gdi_extra[k]->makeEvent(id, origin, data, extraData, false);
     }
   }
 }
@@ -728,7 +760,13 @@ gdioutput *createExtraWindow(const string &tag, const string &title, int max_x, 
                gEvent->getPropertyString("TextFont", "Arial"), gdi_main->getEncoding());
 
   gdi->init(hWnd, hWnd, 0);
-
+  gdi->isTestMode = gdi_main->isTestMode;
+  if (gdi->isTestMode) {
+    if (!gdi_main->cmdAnswers.empty()) {
+      gdi->dbPushDialogAnswer(gdi_main->cmdAnswers.front());
+      gdi_main->cmdAnswers.pop_front();
+    }
+  }
   SetWindowLong(hWnd, GWL_USERDATA, gdi_extra.size());
   currentFocusIx = gdi_extra.size();
   gdi_extra.push_back(gdi);
@@ -736,7 +774,13 @@ gdioutput *createExtraWindow(const string &tag, const string &title, int max_x, 
   return gdi;
 }
 
-
+/** Returns the tag of the last extra window. */
+const string &getLastExtraWindow() {
+  if (gdi_extra.empty())
+    throw meosException("Empty");
+  else
+    return gdi_extra.back()->getTag();
+}
 //
 //  FUNCTION: WndProc(HWND, unsigned, WORD, LONG)
 //
@@ -982,7 +1026,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             if (it->id==id) {
               try {
                 gdi_main->setWaitCursor(true);
+                string cmd = "showTab("+ string(it->getTab().getTypeStr()) + "); //" + it->name;
                 it->loadPage(*gdi_main);
+                gdi_main->getRecorder().record(cmd);
               }
               catch(std::exception &ex) {
                 gdi_main->alert(ex.what());

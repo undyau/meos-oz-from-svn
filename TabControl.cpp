@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -43,9 +43,8 @@
 
 TabControl::TabControl(oEvent *poe):TabBase(poe)
 {
-  tableMode = false;
-  controlId = 0;
- }
+  clearCompetitionData();
+}
 
 TabControl::~TabControl(void)
 {
@@ -161,9 +160,7 @@ void TabControl::save(gdioutput &gdi)
     if (!pc->setNumbers(gdi.getText("Code")))
       gdi.alert("Kodsiffran måste vara ett heltal. Flera kodsiffror måste separeras med komma.");
 
-    ListBoxInfo lbi;
-    gdi.getSelectedItem("Status", &lbi);
-    pc->setStatus(oControl::ControlStatus(lbi.data));
+    pc->setStatus(oControl::ControlStatus(gdi.getSelectedItem("Status").first));
     pc->setTimeAdjust(gdi.getText("TimeAdjust"));
     if (pc->getStatus() != oControl::StatusRogaining) {
       if (pc->getStatus() != oControl::StatusNoTiming)
@@ -524,4 +521,9 @@ bool TabControl::loadPage(gdioutput &gdi)
 
   gdi.refresh();
   return true;
+}
+
+void TabControl::clearCompetitionData() {
+  tableMode = false;
+  controlId = 0;
 }

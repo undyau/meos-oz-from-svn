@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "stdafx.h"
@@ -399,14 +399,14 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
 
       ListBoxInfo lbi;
       bool force = false;
-      gdi.getSelectedItem("Type", &lbi);
+      gdi.getSelectedItem("Type", lbi);
 
       EPostType ptype = EPostType(lbi.data);
 
       string str = gdi.getText("Text");
       if (ptype != lString) {
         if (!str.empty() && str.find_first_of('X') == string::npos && str[0]!='@') {
-          throw meosException("Texten ska innehålla tecknet X, som byts ut mot tävlingssspecifik data");
+          throw meosException("Texten ska innehålla tecknet X, som byts ut mot tävlingsspecifik data");
         }
       }
 
@@ -417,15 +417,15 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
         force = true;
       mlp.setText(str);
 
-      gdi.getSelectedItem("AlignType", &lbi);
+      gdi.getSelectedItem("AlignType", lbi);
       mlp.align(EPostType(lbi.data), gdi.isChecked("BlockAlign"));
       mlp.alignText(gdi.getText("AlignText"));
       mlp.mergePrevious(gdi.isChecked("MergeText"));
 
-      gdi.getSelectedItem("TextAdjust", &lbi);
+      gdi.getSelectedItem("TextAdjust", lbi);
       mlp.setTextAdjust(lbi.data);
 
-      mlp.setColor(GDICOLOR((int)gdi.getExtra("Color")));
+      mlp.setColor(GDICOLOR(gdi.getExtraInt("Color")));
 
       if (gdi.isChecked("UseLeg")) {
         int leg = gdi.getTextNo("Leg");
@@ -452,7 +452,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       mlp.setBlock(gdi.getTextNo("BlockSize"));
       mlp.indent(gdi.getTextNo("MinIndeent"));
 
-      gdi.getSelectedItem("Fonts", &lbi);
+      gdi.getSelectedItem("Fonts", lbi);
       mlp.setFont(gdiFonts(lbi.data));
       makeDirty(gdi, MakeDirty, MakeDirty);
       if (!gdi.hasData("NoRedraw") || force) {
@@ -470,16 +470,16 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       list.setListName(name);
       ListBoxInfo lbi;
 
-      if (gdi.getSelectedItem("SortOrder", &lbi))
+      if (gdi.getSelectedItem("SortOrder", lbi))
         list.setSortOrder(SortOrder(lbi.data));
 
-      if (gdi.getSelectedItem("BaseType", &lbi))
+      if (gdi.getSelectedItem("BaseType", lbi))
         list.setListType(oListInfo::EBaseType(lbi.data));
 
-      if (gdi.getSelectedItem("ResultType", &lbi))
+      if (gdi.getSelectedItem("ResultType", lbi))
         list.setResultModule(*oe, lbi.data);
 
-      if (gdi.getSelectedItem("SubType", &lbi))
+      if (gdi.getSelectedItem("SubType", lbi))
         list.setSubListType(oListInfo::EBaseType(lbi.data));
 
       vector< pair<string, bool> > filtersIn;
@@ -629,7 +629,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
     }
     else if (bi.id == "DoOpen" || bi.id == "DoOpenCopy" ) {
       ListBoxInfo lbi;
-      if (gdi.getSelectedItem("OpenList", &lbi)) {
+      if (gdi.getSelectedItem("OpenList", lbi)) {
         load(oe->getListContainer(), lbi.data);
       }
 
@@ -754,7 +754,7 @@ int ListEditor::editList(gdioutput &gdi, int type, BaseInfo &data) {
       currentList->getSortOrder(lbi.data != 0, types, currentType);
       if (lbi.data == 0) {
         ListBoxInfo mlbi;
-        gdi.getSelectedItem("SortOrder", &mlbi);
+        gdi.getSelectedItem("SortOrder", mlbi);
         currentType = mlbi.data;
       }
       gdi.addItem("SortOrder", types);
@@ -1191,7 +1191,7 @@ bool ListEditor::checkSave(gdioutput &gdi) {
 void ListEditor::enableOpen(gdioutput &gdi) {
   ListBoxInfo lbi;
   bool enabled = true;
-  if (gdi.getSelectedItem("OpenList", &lbi)) {
+  if (gdi.getSelectedItem("OpenList", lbi)) {
     if (oe->getListContainer().isInternal(lbi.data))
       enabled = false;
   }

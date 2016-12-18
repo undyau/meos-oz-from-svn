@@ -66,7 +66,7 @@ void oExtendedEvent::exportCourseOrderedIOFSplits(IOFVersion version, const char
 	}
 
 	// Do the export
-	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, /*USe UTC*/false, classes, leg, true, true);
+	oEvent::exportIOFSplits(version, file, oldStylePatrolExport, /*USe UTC*/false, classes, leg, true, true, true);
 
 	// Reassign all runners back to original classes
 	for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
@@ -235,107 +235,6 @@ string oEvent::shortenName(string name)
 }
 
 
-
-/* Would like a semi-open interval [min, max) */
-int random_in_range (unsigned int min, unsigned int max)
-{
-  int base_random = rand(); /* in [0, RAND_MAX] */
-  if (RAND_MAX == base_random) return random_in_range(min, max);
-  /* now guaranteed to be in [0, RAND_MAX) */
-  int range       = max - min,
-      remainder   = RAND_MAX % range,
-      bucket      = RAND_MAX / range;
-  /* There are range buckets, plus one smaller interval
-     within remainder of RAND_MAX */
-  if (base_random < RAND_MAX - remainder) {
-    return min + base_random/bucket;
-  } else {
-    return random_in_range (min, max);
-  }
-}
-
-void oExtendedEvent::simpleDrawRemaining(gdioutput &gdi, const string &firstStart, 
-                               const string &minIntervall, const string &vacances)
-{
-  gdi.refresh();
-  gdi.fillDown();
-  gdi.addString("", 1, "MEOS-OZ custom randomised gap filling draw").setColor(colorGreen);
-  gdi.addString("", 0, "Inspekterar klasser...");
-  gdi.refreshFast();
-
-  int baseInterval = convertAbsoluteTimeMS(minIntervall);
-  int iFirstStart = getRelativeTime(firstStart);
-  double vacancy = atof(vacances.c_str())/100;
-
-  // Find latest allocated start-time
-	int latest(0), toBeSet(0);
-  std::map<pCourse, int> counts;
-  for (oRunnerList::iterator j = Runners.begin(); j != Runners.end(); j++) {
-    latest = max(latest, j->getStartTime());
-    if (j->getStartTime() == 0)
-      toBeSet++;
-
-    if (j->getCourse(false) != NULL)
-      {
-      if (counts.find(j->getCourse(false)) != counts.end())
-         counts[j->getCourse(false)] = counts[j->getCourse(false)] + 1;
-      else
-         counts[j->getCourse(false)] = 1;
-      }
-	}
-
-  char bf[256];
-  sprintf_s(bf, lang.tl("Löpare utan starttid: %d.").c_str(), toBeSet);
-  gdi.addStringUT(1, bf);
-  gdi.refreshFast();
-
-  // Find course with most entries
-  int largest(0);
-  for (std::map<pCourse, int>::iterator i = counts.begin(); i != counts.end(); i++)
-     if ((i->second) > largest)
-       largest = i->second;
-
-
-  // Determine required last start - if its earlier than existing last start, use that.
-  int range = int ((largest * baseInterval * (100 + vacancy + 1)) /100);
-  if (iFirstStart + range < latest)
-    range = latest - iFirstStart;
-
-  // Allocate start for each course
-	for (oCourseList::iterator j = Courses.begin(); j != Courses.end(); j++) 
-    {
-    std::map<int, oRunner*> starts;
-    std::vector<oRunner*> notset;
-    for (oRunnerList::iterator k = Runners.begin(); k != Runners.end(); k++) 
-      {
-      if (k->getCourse(false) == &(*j))
-        {
-        if (k->getStartTime() > 0)
-          starts[k->getStartTime()] = &(*k);
-        else
-          notset.push_back(&(*k));
-        }
-      }
-
-    for (unsigned int i = 0; i < notset.size(); i++)
-      {
-      int target = iFirstStart + baseInterval * random_in_range(0, range/baseInterval);
-      while (starts.find(target) != starts.end())
-        {
-        target = iFirstStart + baseInterval * random_in_range(0, range/baseInterval);
-        }
-      starts[target] = notset[i];
-      }
-
-    for (std::map<int, oRunner*>::iterator l = starts.begin(); l != starts.end(); l++)
-      l->second->setStartTime(l->first, true, false);
-    }
-
-  return;
-}
-
-
-
 void oEvent::calculateCourseRogainingResults()
 {
 	sortRunners(CoursePoints);
@@ -399,84 +298,6 @@ void oEvent::calculateCourseRogainingResults()
 	}
 }
 
-
-void oExtendedEvent::listStrangers(gdioutput &gdi, std::list<oFreePunch> &strangers)
-{
-  char bf[64];
-  int yp = gdi.getCY();
-  int xp = gdi.getCX();
-
-	for (std::list<oFreePunch>::const_iterator k = strangers.begin(); k != strangers.end(); k++) {
-		sprintf_s(bf, "%d", k->getCardNo());
-		gdi.addStringUT(yp, xp, 0, bf);
-		gdi.addStringUT(yp, xp+100, 0, k->getTime());
-		pRunner runner;
-		if ((runner = dbLookUpByCard(k->getCardNo())) != NULL)
-			gdi.addStringUT(yp, xp+200, 0, string("possibly ") + runner->getName());
-		else
-			gdi.addStringUT(yp, xp+200, 0, string("unknown"));
-		yp += gdi.getLineHeight();
-		}
-}
-
-void oExtendedEvent::listLatePunches(gdioutput &gdi, std::list<oFreePunch> &strangers)
-{
-  char bf[64];
-  int yp = gdi.getCY();
-  int xp = gdi.getCX();
-
-	for (std::list<oFreePunch>::const_iterator k = strangers.begin(); k != strangers.end(); k++) {
-		sprintf_s(bf, "%d", k->getCardNo());
-		gdi.addStringUT(yp, xp, 0, bf);
-		gdi.addStringUT(yp, xp+100, 0, k->getTime());
-		gdi.addStringUT(yp, xp+160, 0, itos(k->getControlNumber()));
-		vector<pRunner> r;
-		getRunnersByCard(k->getCardNo(), r);
-		string name;
-		for (size_t i = 0; i < r.size(); i++) {
-			if (name.size() != 0)
-				name += " or ";
-			name += r[i]->getName();
-			}
-		gdi.addStringUT(yp, xp+220, 0, string("possibly ") + name);
-		yp += gdi.getLineHeight();
-		}
-}
-
-void oExtendedEvent::analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns, 
-																vector<pRunner> &known, vector<pRunner> &unknown, 
-																std::list<oFreePunch> &strangers, std::list<oFreePunch> &unknown_reused)
-{
-	oEvent::analyseDNS(unknown_dns, known_dns, known, unknown);
-		
-	strangers.empty();
-
-	std::map<int, std::vector<pRunner>> runners;
-	for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
-		runners[it->getCardNo()].push_back(&*it);
-		
-		if (it->getCard() != 0) {
-			int temp = it->getCard()->getCardNo();
-			if (temp != 0 && temp != it->getCardNo())
-				runners[temp].push_back(&*it);
-			}
-		}
-
-	for (oFreePunchList::iterator it = punches.begin(); it!=punches.end(); ++it) {
-		if (runners[it->getCardNo()].size() == 0)
-			strangers.push_back(*it);
-		else {
-			int lastFinish(0);
-			for (size_t i=0; i<runners[it->getCardNo()].size(); i++) {
-				int time = max(runners[it->getCardNo()][i]->getFinishTime(),runners[it->getCardNo()][i]->getStartTime());
-				if (time > lastFinish)
-					lastFinish = time;
-				}
-			if (lastFinish < it->getAdjustedTime())
-				unknown_reused.push_back(*it);
-			}
-		}
-}
 
 void oExtendedEvent::uploadSss(gdioutput &gdi)
 {

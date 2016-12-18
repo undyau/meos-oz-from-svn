@@ -1,6 +1,6 @@
 /********************i****************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -37,16 +37,6 @@ LiveResult::LiveResult(oEvent *oe) : oe(oe), active(false), lastTime(0), rToWatc
   timerScale = 1.0;
 }
 
-int liveEventCB(gdioutput *gdi, int type, void *data)
-{
-  BaseInfo *bi = (BaseInfo *) data;
-  LiveResult *li = (LiveResult *)bi->getExtra();
-  if (!li) 
-    throw std::exception("Internal error");
-  li->timerEvent(*gdi, type, *bi);
-  
-  return 0;
-}
 
 string LiveResult::getFont(const gdioutput &gdi, double relScale) const {
   int h,w;
@@ -94,7 +84,7 @@ void LiveResult::showTimer(gdioutput &gdi, const oListInfo &liIn) {
   gdi.clearPage(false);
   showDefaultView(gdi);
 
-  gdi.registerEvent("DataUpdate", liveEventCB).setExtra(this);
+  gdi.registerEvent("DataUpdate", 0).setHandler(this);
   gdi.setData("DataSync", 1);
   gdi.setData("PunchSync", 1);
   gdi.setRestorePoint("LiveResult");
@@ -166,19 +156,16 @@ void LiveResult::showTimer(gdioutput &gdi, const oListInfo &liIn) {
 
   calculateResults();
   showResultList = 0;
-  gdi.addTimeoutMilli(1000, "res", liveEventCB).setExtra(this);
+  gdi.addTimeoutMilli(1000, "res", 0).setHandler(this);
   gdi.refreshFast();
 }
 
-void LiveResult::timerEvent(gdioutput &gdi, int type, BaseInfo &bi) {
+
+void LiveResult::handle(gdioutput &gdi, BaseInfo &bu, GuiEventType type) {
   if (type == GUI_EVENT) {
-    //EventInfo &ev = dynamic_cast<EventInfo &>(bi);
     vector<const oFreePunch *> pp;
- 
-    oe->getLatestPunches(lastTime + 1, pp);
-    pRunner newRToWatch = 0;
-    const oFreePunch *fp = 0;
-    bool exit = false;
+    oe->getLatestPunches(lastTime, pp);
+    
     int fromPunch = li.getParam().useControlIdResultFrom;
     int toPunch = li.getParam().useControlIdResultTo;
     if (fromPunch == 0)
@@ -186,6 +173,9 @@ void LiveResult::timerEvent(gdioutput &gdi, int type, BaseInfo &bi) {
     if (toPunch == 0)
       toPunch = oPunch::PunchFinish;
     
+    bool hasCheckedOld = false;
+    vector< pair<int, const oFreePunch*> > enter, exit, backExit;
+
     for (size_t k = 0; k < pp.size(); k++) {
       lastTime = max(pp[k]->getModificationTime(), lastTime);
       pRunner r = pp[k]->getTiedRunner();
@@ -198,50 +188,171 @@ void LiveResult::timerEvent(gdioutput &gdi, int type, BaseInfo &bi) {
       pair<int, int> key = make_pair(r->getId(), pp[k]->getControlId());
       
       bool accept = !processedPunches.count(key) || abs(processedPunches[key] - pp[k]->getAdjustedTime()) > 5;
+      
+      if (accept && !hasCheckedOld && pp[k]->getTypeCode() == fromPunch) {
+        hasCheckedOld = true;
+        while (rToWatch.size() > 1) {
+          watchedR.push_back(rToWatch.front());
+          rToWatch.erase(rToWatch.begin()); // TODO: Better algorithm for forgetting?
+        }
+      }
+
       processedPunches[key] = pp[k]->getAdjustedTime();
 
       if (accept) {
         if (pp[k]->getTypeCode() == fromPunch) {
-          if (fp == 0 || fp->getAdjustedTime() < pp[k]->getAdjustedTime()) {
-            fp = pp[k];
-            newRToWatch = r;
-          }
+          enter.push_back(make_pair(pp[k]->getAdjustedTime(), pp[k]));
         }
         else if (pp[k]->getTypeCode() == toPunch) {
-          if (fp == 0 && rToWatch ==r) {
-            fp = pp[k];
-            exit = true;
-            break;
+          if (count(rToWatch.begin(), rToWatch.end(), r->getId()) > 0) {
+            exit.push_back(make_pair(pp[k]->getAdjustedTime(), pp[k]));
+          }
+          else if (count(watchedR.begin(), watchedR.end(), r->getId()) > 0) {
+            backExit.push_back(make_pair(pp[k]->getAdjustedTime(), pp[k]));
           }
         }
       }
     }
     
+    sort(enter.begin(), enter.end());
+    sort(exit.begin(), exit.end());
+
     int h,w;
     gdi.getTargetDimension(w, h);
-    string font = getFont(gdi, timerScale);
+    bool doRefresh = false;
 
-    if (newRToWatch && !exit) {
+    for (size_t k = 0; k < enter.size(); k++) {
       showResultList = -1;
-      rToWatch = newRToWatch;
+      const oFreePunch *fp = enter[k].second;
+      pRunner newRToWatch = fp->getTiedRunner();
+
+      if (count(rToWatch.begin(), rToWatch.end(), newRToWatch->getId()))
+        continue;
+
+      rToWatch.push_back(newRToWatch->getId());
       gdi.restore("LiveResult", false);
-      BaseInfo *bi = gdi.setText("timing", rToWatch->getName(), false);
-      dynamic_cast<TextInfo &>(*bi).changeFont(getFont(gdi, 0.7));
-      gdi.addTimer(h/2, w/2, boldHuge|textCenter|timeWithTenth, 0, 0, 0, NOTIMEOUT, font.c_str());
-      startFinishTime[rToWatch->getId()].first = fp->getAdjustedTime();
-      gdi.refreshFast();
+      startFinishTime[newRToWatch->getId()].first = fp->getAdjustedTime();
+      isDuel = false;
+      if (rToWatch.size() == 1) {
+        string font = getFont(gdi, timerScale);
+        BaseInfo *bi = gdi.setText("timing", newRToWatch->getName(), false);
+        dynamic_cast<TextInfo &>(*bi).changeFont(getFont(gdi, 0.7));
+        gdi.addTimer(h/2, w/2, boldHuge|textCenter|timeWithTenth, 0, 0, 0, NOTIMEOUT, font.c_str());
+        screenSize = 1;
+      }
+      else if (rToWatch.size() == 2) {
+        string font = getFont(gdi, timerScale * 0.6);
+  
+        pRunner r0 = oe->getRunner(rToWatch[0], 0);
+        pRunner r1 = oe->getRunner(rToWatch[1], 0);
+
+        string n = (r0 ? r0->getName(): "-") + " / " + (r1 ? r1->getName() : "-");
+        bool duel = r0 && r1 && fromPunch == oPunch::PunchStart && 
+                          r0->getTeam() != 0 && 
+                          r0->getTeam() == r1->getTeam();
+        isDuel = duel;
+        if (n.length() < 30) {
+          BaseInfo *bi = gdi.setText("timing", n, false);
+          TextInfo &ti = dynamic_cast<TextInfo &>(*bi);
+          ti.changeFont(getFont(gdi, 0.5));
+        }
+        else {
+          BaseInfo *bi = gdi.setText("timing", "", false);
+          TextInfo &ti = dynamic_cast<TextInfo &>(*bi);
+          string sfont = getFont(gdi, 0.5);
+          TextInfo &ti2 = gdi.addString("n1", ti.yp, gdi.scaleLength(20), boldHuge, 
+                                        "#" + (r0 ? r0->getName() : string("")), 0, 0, sfont.c_str());
+          gdi.addString("n2", ti.yp + ti2.getHeight() + 4, gdi.getWidth(), boldHuge | textRight, 
+                        "#" + (r1 ? r1->getName() : string("")), 0, 0, sfont.c_str());
+        }
+        int id1 = rToWatch[0];
+        int id2 = rToWatch[1];
+
+        int t1 = startFinishTime[id1].first;
+        int diff = abs(fp->getAdjustedTime() - t1);
+        runner2ScreenPos[id1] = 1;
+        runner2ScreenPos[id2] = 2;
+        screenSize = 2;
+        int startTimeR2 = 0;
+        if (duel) {
+          // Ensure same start time
+          int t2 = startFinishTime[id2].first;
+          int st = min(t1,t2);
+          startFinishTime[id1].first = st;
+          startFinishTime[id2].first = st;
+
+          for (size_t i = 0; i < rToWatch.size(); i++) {
+            pRunner r = oe->getRunner(rToWatch[i], 0);
+            if (r) {
+              r->synchronize();
+              r->setStartTime(st, true, false, true);
+              r->synchronize(false);
+            }
+          }
+          startTimeR2 = diff;
+        }
+
+        gdi.addTimer(h/2, w/2-w/4, boldHuge|textCenter|timeWithTenth, diff, 0, 0, NOTIMEOUT, font.c_str()).id = "timer1";
+        gdi.addTimer(h/2, w/2+w/4, boldHuge|textCenter|timeWithTenth, startTimeR2, 0, 0, NOTIMEOUT, font.c_str()).id = "timer2";
+      }
+
+      doRefresh = true;
     }
-    else if (rToWatch && exit) {
-      showResultList = -1;
-      pair<int,int> &se = startFinishTime[rToWatch->getId()];
-      se.second = fp->getAdjustedTime();
-      int rt = se.second - se.first;
-      gdi.restore("LiveResult", false);
-      gdi.addString("", h/2, w/2, boldHuge|textCenter, formatTime(rt), 0, 0, font.c_str()).setColor(colorGreen);
-      rToWatch = 0;
-      gdi.refreshFast();
-      gdi.addTimeout(5, liveEventCB).setExtra(this);
+
+    for (size_t k = 0; k < exit.size(); k++) {
+      const oFreePunch *fp = exit[k].second;
+      pRunner rToFinish = fp->getTiedRunner();
+
+      if (count(rToWatch.begin(), rToWatch.end(), rToFinish->getId()) > 0) {
+        showResultList = -1;
+        pair<int,int> &se = startFinishTime[rToFinish->getId()];
+        se.second = fp->getAdjustedTime();
+        int rt = se.second - se.first;
+        size_t ix = find(rToWatch.begin(), rToWatch.end(), rToFinish->getId()) - rToWatch.begin();
+      
+        if (screenSize == 1) {
+          gdi.restore("LiveResult", false);
+          string font = getFont(gdi, timerScale);
+          gdi.addString("", h/2, w/2, boldHuge|textCenter, formatTime(rt), 0, 0, font.c_str()).setColor(colorGreen);
+          gdi.addTimeout(5, 0).setHandler(this);
+        }
+        else if (screenSize == 2) {
+          string id = "timer" + itos(runner2ScreenPos[rToFinish->getId()]);
+          BaseInfo *bi = gdi.setText(id, formatTime(rt), false);
+          string font = getFont(gdi, timerScale * 0.6);
+  
+          if (bi) {
+            TextInfo &ti = dynamic_cast<TextInfo &>(*bi);
+            ti.format = boldHuge|textCenter;
+            ti.hasTimer = false;
+            
+           if (rToWatch.size() == 2 || !isDuel) 
+              ti.setColor(colorGreen);
+          }
+
+          if (rToWatch.size() == 1) {
+            gdi.addTimeout(5, 0).setHandler(this);
+          }
+        }
+
+        rToWatch.erase(rToWatch.begin() + ix);
+        doRefresh = true;
+      }
     }
+
+    for (size_t k = 0; k < backExit.size(); k++) {
+      const oFreePunch *fp = backExit[k].second;
+      pRunner rToFinish = fp->getTiedRunner();
+      if (count(watchedR.begin(), watchedR.end(), rToFinish->getId()) > 0) {
+        pair<int,int> &se = startFinishTime[rToFinish->getId()];
+        se.second = fp->getAdjustedTime();
+        size_t ix = find(watchedR.begin(), watchedR.end(), rToFinish->getId()) - watchedR.begin();
+        watchedR.erase(watchedR.begin() + ix);
+      }
+    }
+
+    if (doRefresh)
+      gdi.refreshFast();
   }
   else if (type == GUI_TIMEOUT) {
     gdi.restore("LiveResult", false);
@@ -255,7 +366,7 @@ void LiveResult::timerEvent(gdioutput &gdi, int type, BaseInfo &bi) {
     resYPos = ti.textRect.bottom + gdi.scaleLength(20);
     calculateResults();
     showResultList = 0;
-    gdi.addTimeoutMilli(300, "res", liveEventCB).setExtra(this);
+    gdi.addTimeoutMilli(300, "res", 0).setHandler(this);
   }
   else if (type == GUI_TIMER) {
     if (size_t(showResultList) >= results.size())
@@ -263,30 +374,35 @@ void LiveResult::timerEvent(gdioutput &gdi, int type, BaseInfo &bi) {
     Result &res = results[showResultList];
     string font = getFont(gdi, 0.7);
     int y = resYPos;
-    if (res.place > 0) {
+    pRunner r = oe->getRunner(res.runnerId, 0);
+    if (!r) {
+      showResultList++;
+      gdi.addTimeoutMilli(10, "res" + itos(showResultList), 0).setHandler(this);
+    }
+    else if (res.place > 0) {
       int h,w;
       gdi.getTargetDimension(w, h);
    
       gdi.takeShownStringsSnapshot();
       TextInfo &ti = gdi.addStringUT(y, 30, fontLarge, itos(res.place) + ".", 0, 0, font.c_str());
       int ht = ti.textRect.bottom - ti.textRect.top;
-      gdi.addStringUT(y, 30 + ht * 2 , fontLarge, res.r->getName(), 0, 0, font.c_str());
+      gdi.addStringUT(y, 30 + ht * 2 , fontLarge, r->getName(), 0, 0, font.c_str());
       //int w = gdi.getWidth();
       gdi.addStringUT(y, w - 4 * ht, fontLarge, formatTime(res.time), 0, 0, font.c_str());
       gdi.refreshSmartFromSnapshot(false);
       resYPos += int (ht * 1.1);
       showResultList++;
       
-
       int limit = h - ht * 2;
       //OutputDebugString(("w:" + itos(resYPos) + " " + itos(limit) + "\n").c_str());
       if ( resYPos < limit )
-        gdi.addTimeoutMilli(300, "res" + itos(showResultList), liveEventCB).setExtra(this);
+        gdi.addTimeoutMilli(300, "res" + itos(showResultList), 0).setHandler(this);
     }
   }
 }
 
 void LiveResult::calculateResults() {
+  rToWatch.clear();
   results.clear();
   results.reserve(startFinishTime.size());
   const int highTime = 10000000;
@@ -296,7 +412,7 @@ void LiveResult::calculateResults() {
     if (!r)
       continue;
     results.push_back(Result());
-    results.back().r = r;
+    results.back().runnerId = it->first;
     results.back().time = it->second.second - it->second.first;
     if (results.back().time <= 0 || r->getStatus() > StatusOK)
       results.back().time = highTime;
@@ -316,6 +432,4 @@ void LiveResult::calculateResults() {
       results[k].place = 0;
     }
   }
-
 }
-

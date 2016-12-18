@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -37,6 +37,8 @@
 #include "IOF30Interface.h"
 #include "meosexception.h"
 #include "MeOSFeatures.h"
+#include "oEventDraw.h"
+#include "oListInfo.h"
 
 #include "TabCourse.h"
 #include "TabCompetition.h"
@@ -45,8 +47,7 @@
 
 TabCourse::TabCourse(oEvent *poe):TabBase(poe)
 {
-  courseId = 0;
-  addedCourse = false;
+  clearCompetitionData();
 }
 
 TabCourse::~TabCourse(void)
@@ -114,27 +115,38 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
     string usedInClasses;
     for (size_t k = 0; k < cls.size(); k++) {
       int nleg = max<int>(cls[k]->getNumStages(), 1);
-      vector<int> usage;
+      int nlegwithcrs = 0;
+      vector<string> usage;
+      set<int> allClassCrs;
       for (int j = 0; j < nleg; j++) {
         cls[k]->getCourses(j, crs);
+        if (!crs.empty())
+          nlegwithcrs++;
+
+        bool done = false;
         for (size_t i = 0; i < crs.size(); i++) {
-          if (crs[i] == pc) {
-            usage.push_back(j+1);
-            break;
+          if (!crs[i])
+            continue;
+          allClassCrs.insert(crs[i]->getId());
+          if (!done && crs[i] == pc) {
+            usage.push_back(cls[k]->getLegNumber(j));
+            done = true; // Cannot break, fill allClasssCrs
           }
         }
       }
       string add;
-      if (usage.size() == nleg) {
+      if (usage.size() == nleg || 
+          usage.size() == nlegwithcrs || 
+          (!usage.empty() && allClassCrs.size() == 1)) {
         add = cls[k]->getName();
       }
-      else if (usage.size() > 1) {
+      else if (!usage.empty()) {
         add = cls[k]->getName();
         add += " (";
         for (size_t i = 0; i < usage.size(); i++) {
           if (i > 0)
             add += ", ";
-          add += itos(usage[i]);
+          add += usage[i];
         }
         add += ")";
       }
@@ -193,6 +205,7 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
 
     gdi.enableEditControls(false);
   }
+  gdi.setInputStatus("DrawCourse", pc != 0);  
 }
 
 int CourseCB(gdioutput *gdi, int type, void *data)
@@ -259,7 +272,7 @@ void TabCourse::save(gdioutput &gdi, int canSwitchViewMode)
 
   if (gdi.isChecked("Shorten")) {
     ListBoxInfo ci;
-    if (gdi.getSelectedItem("ShortCourse", &ci) && oe->getCourse(ci.data)) {
+    if (gdi.getSelectedItem("ShortCourse", ci) && oe->getCourse(ci.data)) {
       pc->setShorterVersion(oe->getCourse(ci.data));
     }
     else
@@ -403,7 +416,7 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       gdi.setInputStatus("ShortCourse", w);
       if (w) {
         ListBoxInfo clb;
-        if (!gdi.getSelectedItem("ShortCoursse", &clb) || clb.data <= 0)
+        if (!gdi.getSelectedItem("ShortCoursse", clb) || clb.data <= 0)
           gdi.selectFirstItem("CommonControl");
       }
     }
@@ -446,6 +459,98 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       gdi.dropLine();
       gdi.refresh();
     }
+    else if (bi.id == "DrawCourse") {
+      save(gdi, true);
+      pCourse crs = oe->getCourse(courseId);
+      if (crs == 0)
+        throw meosException("Ingen bana vald.");
+      vector<pClass> cls;
+      oe->getClasses(cls, true);
+      string clsNames;
+      bool hasAsked = false;
+      courseDrawClasses.clear();
+      for (size_t k = 0; k < cls.size(); k++) {
+        if (cls[k]->getCourseId() != courseId)
+          continue;
+        if (!hasAsked &&oe->classHasResults(cls[k]->getId())) {
+          hasAsked = true;
+          if (!gdi.ask("warning:drawresult"))
+            return 0;
+        }
+        courseDrawClasses.push_back(ClassDrawSpecification(cls[k]->getId(), 0, -1, -1, 0));
+        if (!clsNames.empty())
+          clsNames += ", ";
+        clsNames += cls[k]->getName();
+      }
+      if (courseDrawClasses.empty())
+        throw meosException("Ingen klass använder banan.");
+
+      gdi.clearPage(false);
+      gdi.addString("", boldLarge, "Lotta klasser med banan X#" + crs->getName());
+      gdi.addStringUT(0, clsNames);
+      gdi.dropLine();
+      gdi.pushX();
+
+      gdi.fillRight();
+      int firstStart = 3600;
+      int interval = 2*60;
+      int vac = 1;
+      gdi.addInput("FirstStart", oe->getAbsTime(firstStart), 10, 0, "Första start:");
+      gdi.addInput("Interval", formatTime(interval), 10, 0, "Startintervall (min):");
+      gdi.addInput("Vacances", itos(vac), 10, 0, "Antal vakanser:");
+      gdi.fillDown();
+      gdi.popX();
+      gdi.dropLine(3);
+      gdi.addSelection("Method", 200, 200, 0, "Metod:");
+      gdi.addItem("Method", lang.tl("Lottning"), DMRandom);
+      gdi.addItem("Method", lang.tl("SOFT-lottning"), DMSOFT);
+
+      gdi.selectItemByData("Method", getDefaultMethod());
+      gdi.dropLine(0.9);
+      gdi.fillRight();
+      gdi.addButton("DoDrawCourse", "Lotta", CourseCB).setDefault();
+      gdi.addButton("Cancel", "Avbryt", CourseCB).setCancel();
+      gdi.dropLine();
+      gdi.fillDown();
+      gdi.refresh();
+    }
+    else if (bi.id == "DoDrawCourse") {
+      string firstStart = gdi.getText("FirstStart");
+      string minInterval = gdi.getText("Interval");
+      int vacances = gdi.getTextNo("Vacances");
+      int fs = oe->getRelativeTime(firstStart);
+      int iv = convertAbsoluteTimeMS(minInterval);
+      DrawMethod method = DrawMethod(gdi.getSelectedItem("Method").first);
+      courseDrawClasses[0].firstStart = fs;
+      courseDrawClasses[0].vacances = vacances;
+      courseDrawClasses[0].interval = iv;
+
+      for (size_t k = 1; k < courseDrawClasses.size(); k++) {
+        vector<pRunner> r;
+        oe->getRunners(courseDrawClasses[k-1].classID, 0, r, false);
+
+        courseDrawClasses[k].firstStart = courseDrawClasses[k-1].firstStart + r.size() * iv;
+        courseDrawClasses[k].vacances = vacances;
+        courseDrawClasses[k].interval = iv;
+      }
+
+      oe->drawList(courseDrawClasses, method == DMSOFT, 1, oEvent::drawAll); 
+
+      oe->addAutoBib();
+
+      gdi.clearPage(false);
+      gdi.addButton("Cancel", "Återgå", CourseCB);
+
+      oListParam par;
+      oListInfo info;
+      par.listCode = EStdStartList;
+      for (size_t k=0; k<courseDrawClasses.size(); k++)
+        par.selection.insert(courseDrawClasses[k].classID);
+
+      oe->generateListInfo(par, gdi.getLineHeight(), info);
+      oe->generateList(gdi, false, info, true);
+      gdi.refresh();
+    }
     else if (bi.id=="Add") {
       if (courseId>0) {
         string ctrl = gdi.getText("Controls");
@@ -480,10 +585,8 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="Remove"){
       DWORD cid = courseId;
-      if (cid==0){
-        gdi.alert("Ingen bana vald.");
-        return 0;
-      }
+      if (cid==0)
+        throw meosException("Ingen bana vald.");
 
       if (oe->isCourseUsed(cid))
         gdi.alert("Banan används och kan inte tas bort.");
@@ -564,8 +667,7 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
   return 0;
 }
 
-bool TabCourse::loadPage(gdioutput &gdi)
-{
+bool TabCourse::loadPage(gdioutput &gdi) {
   oe->checkDB();
   gdi.selectTab(tabId);
 
@@ -591,10 +693,17 @@ bool TabCourse::loadPage(gdioutput &gdi)
 
   oe->fillCourses(gdi, "Courses");
 
-  gdi.dropLine(1);
+  gdi.dropLine(0.7);
+  gdi.pushX();
+  gdi.addString("", boldText, "Funktioner");
+  gdi.dropLine();
   gdi.fillRight();
   gdi.addButton("ImportCourses", "Importera från fil...", CourseCB);
   gdi.addButton("ExportCourses", "Exportera...", CourseCB);
+  gdi.popX();
+  gdi.dropLine(2.5);
+  gdi.addButton("DrawCourse", "Lotta starttider..", CourseCB);
+  gdi.disableInput("DrawCourse");
   gdi.newColumn();
   gdi.fillDown();
 
@@ -948,4 +1057,17 @@ void TabCourse::saveLegLengths(gdioutput &gdi) {
         
   pc->importLegLengths(lstr, true);
   pc->synchronize(true);
+}
+
+DrawMethod TabCourse::getDefaultMethod() const {
+  int dm = oe->getPropertyInt("DefaultDrawMethod", DMSOFT);
+  if (dm == DMRandom)
+    return DMRandom;
+  else
+    return DMSOFT;
+}
+
+void TabCourse::clearCompetitionData() {
+  courseId = 0;
+  addedCourse = false;
 }

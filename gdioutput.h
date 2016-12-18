@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -37,6 +37,7 @@
 #include <vector>
 #include <hash_set>
 #include <hash_map>
+#include <algorithm>
 
 class Toolbar;
 
@@ -81,6 +82,8 @@ struct FontInfo {
   HFONT italic;
 };
 
+class Recorder;
+
 class gdioutput  {
 protected:
   string tag;
@@ -89,11 +92,10 @@ protected:
   // Flag set to true when clearPage is called.
   bool hasCleared;
   bool useTables;
-  //list<TextInfo> transformedPageText;
-  //__int64 globalCS;
-  //TextInfo *pageInfo;
   FontEncoding fontEncoding;
-
+  // Set to true when in test mode
+  bool isTestMode;
+  
   int getCharSet() const;
 
   bool highContrast;
@@ -230,7 +232,7 @@ protected:
 
   bool lockRefresh;
   bool fullScreen;
-
+  bool hideBG;
   mutable bool commandLock;
   mutable DWORD commandUnlockTime;
 
@@ -258,9 +260,37 @@ protected:
   bool hasAnyTimer;
 
   friend class InputInfo;
+  friend class TestMeOS;
+
+  // Recorder, the second member is true if the recorder is owned and should be deleted
+  pair<Recorder *, bool> recorder;
 public:
-  bool hasTag(const string &t) const {return tag == t;}
   
+  void initRecorder(Recorder *rec);
+  Recorder &getRecorder();
+  string dbPress(const string &id, int extra);
+  string dbPress(const string &id, const char *extra);
+  
+  string dbSelect(const string &id, int data);
+  void dbInput(const string &id, const string &test);
+  void dbCheck(const string &id, bool state);
+  string dbClick(const string &id, int extra);
+  void dbDblClick(const string &id, int data);
+
+  // Add the next answer for a dialog popup
+  void dbPushDialogAnswer(const string &answer);
+  mutable list<string> cmdAnswers;
+
+  int dbGetStringCount(const string &str, bool subString) const;
+
+  // Ensure list of stored answers is empty
+  void clearDialogAnswers(bool checkEmpty);
+
+  void internalSelect(ListBoxInfo &bi);
+
+  bool isTest() const {return isTestMode;}
+  const string &getTag() const {return tag;}
+  bool hasTag(const string &t) const {return tag == t;}
   const wstring &toWide(const string &input) const;
 
   const string &toUTF8(const string &input) const;
@@ -288,7 +318,7 @@ public:
   void storeAutoPos(double pos);
   int getAutoScrollDir() const {return (autoSpeed > 0 ? 1:-1);}
   int setHighContrastMaxWidth();
-
+  void hideBackground(bool hide) {hideBG = hide;}
   HWND getToolbarWindow() const;
   bool hasToolbar() const;
   void activateToolbar(bool active);
@@ -316,7 +346,8 @@ public:
 
   void tableCB(ButtonInfo &bu, Table *t);
 
-  void *getExtra(const char *id) const;
+  char *getExtra(const char *id) const;
+  int getExtraInt(const char *id) const;
 
   void enableTables();
   void disableTables();
@@ -325,6 +356,10 @@ public:
 
   bool writeHTML(const wstring &file, const string &title, int refreshTimeOut) const;
   bool writeTableHTML(const wstring &file, const string &title, int refreshTimeOut) const;
+  bool writeTableHTML(ostream &fout, 
+                      const string &title,
+                      bool simpleFormat,
+                      int refreshTimeOut) const;
 
   void print(pEvent oe, Table *t=0, bool printMeOSHeader=true, bool noMargin=false);
   void print(PrinterObject &po, pEvent oe, bool printMeOSHeader=true, bool noMargin=false);
@@ -334,10 +369,10 @@ public:
   void setSelection(const string &id, const set<int> &selection);
   void getSelection(const string &id, set<int> &selection);
 
-  HWND getTarget(){return hWndTarget;}
-  HWND getMain(){return hWndAppMain;}
+  HWND getTarget() const {return hWndTarget;}
+  HWND getMain() const {return hWndAppMain;}
 
-  string browseForFolder(const string &FolderStart);
+  string browseForFolder(const string &folderStart, const char *descr);
   void scrollToBottom();
   void scrollTo(int x, int y);
   void setOffset(int x, int y, bool update);
@@ -363,8 +398,11 @@ public:
   bool clipOffset(int PageX, int PageY, int &MaxOffsetX, int &MaxOffsetY);
   RectangleInfo &addRectangle(RECT &rc, GDICOLOR Color = GDICOLOR(-1),
                               bool DrawBorder = true, bool addFirst = false);
+  
+  RectangleInfo &getRectangle(const char *id);
+  
   DWORD makeEvent(const string &id, const string &origin,
-                  DWORD data, void *extra, bool flushEvent);
+                  DWORD data, int extraData, bool flushEvent);
 
   void unregisterEvent(const string &id);
   EventInfo &registerEvent(const string &id, GUICALLBACK cb);
@@ -457,14 +495,13 @@ public:
   bool getData(const string &id, DWORD &data) const;
   bool hasData(const char *id) const;
 
-  
+  int getItemDataByName(const char *id, const char *name) const;
   bool selectItemByData(const char *id, int data);
   void removeSelected(const char *id);
 
   bool selectItemByData(const string &id, int data) {
     return selectItemByData(id.c_str(), data);
   }
-
 
   enum AskAnswer {AnswerNo = 0, AnswerYes = 1, AnswerCancel = 2};
   bool ask(const string &s);
@@ -485,7 +522,13 @@ public:
   bool updatePos(int x, int y, int width, int height);
   void adjustDimension(int width, int height);
 
-  bool getSelectedItem(string id, ListBoxInfo *lbi);
+  /** Return a selected item*/
+  bool getSelectedItem(const string &id, ListBoxInfo &lbi);
+
+  /** Return the selected data in first, second indicates if data was available*/
+  pair<int, bool> getSelectedItem(const string &id);
+  pair<int, bool> getSelectedItem(const char *id);
+
   bool addItem(const string &id, const string &text, size_t data = 0);
   bool addItem(const string &id, const vector< pair<string, size_t> > &items);
   void filterOnData(const string &id, const stdext::hash_set<int> &filter);
@@ -506,6 +549,8 @@ public:
   // Insert text and notify "focusList"
   bool insertText(const string &id, const string &text);
 
+  void copyToClipboard(const string &html, bool convertToUTF8,
+                       const string &txt) const;
 
   BaseInfo *setTextTranslate(const char *id, const string &text, bool update=false);
   BaseInfo *setTextTranslate(const char *id, const char *text, bool update=false);
@@ -532,17 +577,17 @@ public:
 
   void scaleSize(double scale);
 
-  ButtonInfo &addButton(const string &id, const string &text, GUICALLBACK cb, const string &tooltip="");
+  ButtonInfo &addButton(const string &id, const string &text, GUICALLBACK cb = 0, const string &tooltip="");
 
   ButtonInfo &addButton(int x, int y, const string &id, const string &text,
-                        GUICALLBACK cb, const string &tooltop="");
+                        GUICALLBACK cb = 0, const string &tooltop="");
   ButtonInfo &addButton(int x, int y, int w, const string &id, const string &text,
                         GUICALLBACK cb, const string &tooltop, bool AbsPos, bool hasState);
 
   ButtonInfo &addCheckbox(const string &id, const string &text, GUICALLBACK cb=0, bool Checked=true, const string &Help="");
   ButtonInfo &addCheckbox(int x, int y, const string &id, const string &text, GUICALLBACK cb=0, bool Checked=true, const string &Help="", bool AbsPos=false);
   bool isChecked(const string &id);
-  void check(const string &id, bool State);
+  void check(const string &id, bool state, bool keepOriginalState = false);
 
   bool isInputChanged(const string &exclude);
 
@@ -565,8 +610,8 @@ public:
 
   ListBoxInfo &addCombo(const string &id, int width, int height, GUICALLBACK cb=0, const string &Explanation="", const string &tooltip="");
   ListBoxInfo &addCombo(int x, int y, const string &id, int width, int height, GUICALLBACK cb=0, const string &Explanation="", const string &tooltip="");
-  // Grows a listbox, selection, combo in X-direction to fit current contents
-  void autoGrow(const char *id);
+  // Grows a listbox, selection, combo in X-direction to fit current contents. Returns true if changed.
+  bool autoGrow(const char *id);
 
   void setListDescription(const string &desc);
 
@@ -597,6 +642,7 @@ public:
 
   friend int TablesCB(gdioutput *gdi, int type, void *data);
   friend class Table;
+  friend gdioutput *createExtraWindow(const string &tag, const string &title, int max_x, int max_y);
 
   gdioutput(const string &tag, double _scale, FontEncoding encoding);
   gdioutput(double _scale,  FontEncoding encoding, HWND hWndTarget, const PrinterObject &defprn);

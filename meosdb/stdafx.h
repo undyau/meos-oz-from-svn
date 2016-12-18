@@ -23,7 +23,6 @@ bool GetUserFile(char *file, const char *in);
 
 // TODO: reference additional headers your program requires here
 
-const extern string _NoClub;
 const extern string _EmptyString;
 const extern string _VacantName;
 const extern string _UnkownName;

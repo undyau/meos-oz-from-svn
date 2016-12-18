@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -34,6 +34,7 @@
 #include "meosexception.h"
 #include <cassert>
 #include "gdioutput.h"
+#include <algorithm>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -172,7 +173,9 @@ vector<string> oCourse::getCourseReadable(int limit) const
 {
   vector<string> res;
 
-  string str="S-";
+  string str;
+  if (!useFirstAsStart())
+    str = lang.tl("Start").substr(0, 1);
   int m;
 
   vector<pControl> rg;
@@ -182,7 +185,9 @@ vector<string> oCourse::getCourseReadable(int limit) const
     if (Controls[m]->isRogaining(rogaining))
       rg.push_back(Controls[m]);
     else {
-      str += Controls[m]->getLongString() + "-";
+      if (!str.empty())
+        str += "-";
+      str += Controls[m]->getLongString();
       needFinish = true;
     }
     if (str.length() >= size_t(limit)) {
@@ -191,9 +196,11 @@ vector<string> oCourse::getCourseReadable(int limit) const
     }
   }
 
-  if (needFinish)
-    str += "M";
-
+  if (needFinish && !useLastAsFinish()) {
+    if (!str.empty())
+      str += "-";
+    str += lang.tl("Mål").substr(0,1);
+  }
   if (!str.empty()) {
     if (str.length()<5 && !res.empty())
       res.back().append(str);
@@ -984,6 +991,8 @@ pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const 
   vector< vector<pControl> > loopKeys;
   if (!constructLoopKeys(cc, loopKeys, ccIndex))
     return pCourse(this);
+  
+  bool firstAsStart = ccIndex[0] == 0;
 
   vector< vector<int> > punchSequence;
 
@@ -997,13 +1006,62 @@ pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const 
       continue; // Start, Finish etc.
     if (code == cc && !punchSequence.back().empty())
       punchSequence.push_back(vector<int>());
-    else
-      punchSequence.back().push_back(code);
+    else {
+      if (code != cc)
+        punchSequence.back().push_back(code);
+    }
+  }
+
+  
+  map<int, vector< pair<int,int> > > preferences;
+  for (size_t k = 0; k < punchSequence.size(); k++) {
+    for (size_t j = 0; j < loopKeys.size(); j++) {
+      int v = matchLoopKey(punchSequence[k], loopKeys[j]);
+      if (v < 1000)
+        preferences[v].push_back(make_pair(k, j));
+    }
   }
 
   vector<int> assignedKeys(loopKeys.size(), -1);
+  vector<int> usedPunches(punchSequence.size());
+  int assigned = 0;
+  for (map<int, vector< pair<int,int> > >::iterator it = preferences.begin(); it != preferences.end(); ++it) {
+    vector< pair<int,int> > &bestMatches = it->second;
+    map<int, vector<int> > sortedBestMatches;
+    vector< pair<int, int> > sortKey(loopKeys.size());
+    for (size_t j = 0; j < bestMatches.size(); j++) {
+      int loopIndex = bestMatches[j].second;
+      sortKey[loopIndex].second = loopIndex;
+      ++sortKey[loopIndex].first;
+      sortedBestMatches[loopIndex].push_back(bestMatches[j].first);
+    }
 
-  for (size_t k = 0; k < punchSequence.size(); k++) {
+    sort(sortKey.begin(), sortKey.end());
+
+    for (size_t j = 0; j < sortKey.size(); j++) {
+      if (sortKey[j].first == 0)
+        continue;
+      int loopIndex = sortKey[j].second;
+      if (assignedKeys[loopIndex] != -1)
+        continue;
+      vector<int> &bm = sortedBestMatches[loopIndex];
+      for (size_t k = 0; k < bm.size(); k++) {
+        if (usedPunches[bm[k]] == 0) {
+          usedPunches[bm[k]] = 1;
+          assignedKeys[loopIndex] = bm[k];
+          assigned++;
+          break;
+        }
+      }
+      if (assigned == assignedKeys.size())
+        break;
+    }
+    if (assigned == assignedKeys.size())
+      break;
+  }
+
+  
+  /*for (size_t k = 0; k < punchSequence.size(); k++) {
     bool done = false;
     for (size_t j = 0; j < loopKeys.size(); j++) {
       if (assignedKeys[j] == -1 && matchLoopKey(punchSequence[k], loopKeys[j])) {
@@ -1034,7 +1092,7 @@ pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const 
          }
       }
     }
-  }
+  }*/
 
   //set<int> loops;
   //for (size_t k = 0; k < ccIndex.size(); k++)
@@ -1073,14 +1131,17 @@ pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const 
   tmpCourse.tMapToOriginalOrder.clear();
   tmpCourse.tMapToOriginalOrder.reserve(nControls+1);
 
-  if (useFirstAsStart()) {
+  if (firstAsStart) {
     tmpCourse.tMapToOriginalOrder.push_back(0);
     tmpCourse.Controls[tmpCourse.nControls++] = Controls[0];
     if (0 < legLengths.size())
       tmpCourse.legLengths.push_back(legLengths[0]);
   }
 
-  int endIx = useLastAsFinish() ? nControls - 1 : nControls;
+
+  bool lastAsFinish = useLastAsFinish() || Controls[nControls-1]->getId() == cc;
+
+  int endIx = lastAsFinish ? nControls - 1 : nControls;
 
   for (size_t k = 0; k< loopOrder.size(); k++) {
     int start = ccIndex[loopOrder[k]];
@@ -1101,7 +1162,7 @@ pCourse oCourse::getAdapetedCourse(const oCard &card, oCourse &tmpCourse) const 
     }
   }
 
-  if (useLastAsFinish()) {
+  if (lastAsFinish) {
     //tmpCourse.tMapToOriginalOrder.push_back(nControls - 1);
     tmpCourse.tMapToOriginalOrder.push_back(nControls);
     tmpCourse.Controls[tmpCourse.nControls++] = Controls[nControls - 1];
@@ -1133,7 +1194,7 @@ int oCourse::getAdaptionId() const {
   return key;
 }
 
-bool oCourse::matchLoopKey(const vector<int> &punches, const vector<pControl> &key) {
+int oCourse::matchLoopKey(const vector<int> &punches, const vector<pControl> &key) {
   size_t ix = -1;
   for (size_t k = 0; k < key.size(); k++) {
     int code = key[k]->getFirstNumber();
@@ -1144,14 +1205,34 @@ bool oCourse::matchLoopKey(const vector<int> &punches, const vector<pControl> &k
       }
     }
     if (code != -1)
-      return false;
+      return 1000;
   }
-  return true;
+  return ix;
 }
 
 bool oCourse::constructLoopKeys(int cc, vector< vector<pControl> > &loopKeys, vector<int> &ccIndex) const {
-  int startIx = useFirstAsStart() ? 1 : 0;
-  int endIx = useLastAsFinish() ? nControls : nControls-1;
+  bool firstAsStart = useFirstAsStart();
+  if (firstAsStart) { // Only if it is a unique control
+    for (int k = 1; k < nControls; k++) {
+      if (Controls[k] == Controls[0]) {
+        firstAsStart = false;
+        break;
+      }
+    }
+  }
+
+  bool lastAsFinish = useLastAsFinish();
+  if (lastAsFinish) { // Only if it is a unique control
+    for (int k = 0; k < nControls - 1; k++) {
+      if (Controls[k] == Controls[nControls-1]) {
+        lastAsFinish = false;
+        break;
+      }
+    }
+  }
+
+  int startIx = firstAsStart ? 1 : 0;
+  int endIx = lastAsFinish ? nControls : nControls-1;
 
   ccIndex.push_back(startIx-1);
   for (int k = startIx; k < endIx; k++) {

@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,10 +17,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "tabbase.h"
+
+class SpeakerMonitor;
 
 class spkClassSelection {
   // The currently selected leg
@@ -87,6 +89,10 @@ private:
   // Runner Id:s to set priority for
   vector<int> runnersToSet;
 
+  SpeakerMonitor *speakerMonitor;
+
+  SpeakerMonitor *getSpeakerMonitor();
+
 public:
 
   bool onClear(gdioutput &gdi);
@@ -96,11 +102,14 @@ public:
   void updateTimeLine(gdioutput &gdi);
 
   //Clear selection data
-  void clear();
+  void clearCompetitionData();
 
   int processButton(gdioutput &gdi, const ButtonInfo &bu);
   int processListBox(gdioutput &gdi, const ListBoxInfo &bu);
   int handleEvent(gdioutput &gdi, const EventInfo &ei);
+  
+  const char * getTypeStr() const {return "TSpeakerTab";}
+  TabType getType() const {return TSpeakerTab;}
 
   bool loadPage(gdioutput &gdi);
   TabSpeaker(oEvent *oe);

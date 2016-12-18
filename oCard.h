@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -96,7 +96,7 @@ public:
   /** Returns the number of real control punches on the course. */
   int getNumControlPunches(int startPunchType, int finishPunchType) const;
   
-  bool setPunchTime(const pPunch punch, string time);
+  bool setPunchTime(const pPunch punch, const string &time);
   bool isCardRead(const SICard &card) const;
   void setReadId(const SICard &card);
   // Get SI-Card from oCard (just punches)
@@ -105,7 +105,7 @@ public:
   void deletePunch(pPunch pp);
   void insertPunchAfter(int pos, int type, int time);
 
-  bool fillPunches(gdioutput &gdi, string name, oCourse *crs);
+  bool fillPunches(gdioutput &gdi, const string &name, oCourse *crs);
 
   void addPunch(int type, int time, int matchControlId);
   oPunch *getPunchByType(int type) const;
@@ -119,10 +119,13 @@ public:
   // Return split time to previous matched control
   string getRogainingSplit(int ix, int startTime) const;
 
+  /** Adapt the 24-hours based time to a start time that may br larger that 24-hour after zero time. */
+  void adaptTimes(int startTime);
+
   int getCardNo() const {return cardNo;}
   const string &getCardNoString() const;
   void setCardNo(int c);
-  void importPunches(string s);
+  void importPunches(const string &s);
   string getPunchString();
 
   void Set(const xmlobject &xo);

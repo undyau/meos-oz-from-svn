@@ -315,6 +315,7 @@
     <ClCompile Include="oTeamEvent.cpp" />
     <ClCompile Include="parser.cpp" />
     <ClCompile Include="pdfwriter.cpp" />
+    <ClCompile Include="prefseditor.cpp" />
     <ClCompile Include="printer.cpp" />
     <ClCompile Include="progress.cpp" />
     <ClCompile Include="random.cpp">
@@ -322,8 +323,10 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='test|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <ClCompile Include="recorder.cpp" />
     <ClCompile Include="RunnerDB.cpp" />
     <ClCompile Include="socket.cpp" />
+    <ClCompile Include="speakermonitor.cpp" />
     <ClCompile Include="SportIdent.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -351,6 +354,8 @@
     <ClCompile Include="TabSI.cpp" />
     <ClCompile Include="TabSpeaker.cpp" />
     <ClCompile Include="TabTeam.cpp" />
+    <ClCompile Include="testmeos.cpp" />
+    <ClCompile Include="tests.cpp" />
     <ClCompile Include="TimeStamp.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -372,6 +377,7 @@
     <ClInclude Include="gdiimpl.h" />
     <ClInclude Include="gdistructures.h" />
     <ClInclude Include="generalresult.h" />
+    <ClInclude Include="guihandler.h" />
     <ClInclude Include="infoserver.h" />
     <ClInclude Include="inthashmap.h" />
     <ClInclude Include="intkeymap.hpp" />
@@ -392,8 +398,12 @@
     <ClInclude Include="onlineresults.h" />
     <ClInclude Include="parser.h" />
     <ClInclude Include="pdfwriter.h" />
+    <ClInclude Include="prefseditor.h" />
     <ClInclude Include="Printer.h" />
+    <ClInclude Include="recorder.h" />
     <ClInclude Include="socket.h" />
+    <ClInclude Include="speakermonitor.h" />
+    <ClInclude Include="testmeos.h" />
     <ClInclude Include="toolbar.h" />
     <ClInclude Include="csvparser.h" />
     <ClInclude Include="download.h" />

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -186,6 +186,9 @@ int TabCompetition::newGuideCB(gdioutput &gdi, int type, void *data)
       oe->getMeOSFeatures().useFeature(MeOSFeatures::RunnerDb, true, *oe);
       oe->getMeOSFeatures().useFeature(MeOSFeatures::Relay, true, *oe);
 
+      if (oe->hasMultiRunner())
+        oe->getMeOSFeatures().useFeature(MeOSFeatures::MultipleRaces, true, *oe);
+
       gdi.clearPage(true);
       gdi.fillRight();
       gdi.addString("", fontMediumPlus, "Skapar tävling...");
@@ -201,13 +204,13 @@ int TabCompetition::newGuideCB(gdioutput &gdi, int type, void *data)
       int t,d;
       SYSTEMTIME st;
       if (ii.id == "FirstStart") {
-        t = convertAbsoluteTimeHMS(ii.text);
-        d = convertDateYMS(gdi.getText("Date"), st);
+        t = convertAbsoluteTimeHMS(ii.text, -1);
+        d = convertDateYMS(gdi.getText("Date"), st, true);
         ii.setBgColor(t == -1 ? colorLightRed: colorDefault);
       }
       else {
-        t = convertAbsoluteTimeHMS(gdi.getText("FirstStart"));
-        d = convertDateYMS(ii.text, st);
+        t = convertAbsoluteTimeHMS(gdi.getText("FirstStart"), -1);
+        d = convertDateYMS(ii.text, st, true);
         ii.setBgColor(d <= 0 ? colorLightRed: colorDefault);
       }
 
@@ -287,7 +290,7 @@ void TabCompetition::newCompetitionGuide(gdioutput &gdi, int step) {
     gdi.popX();
     gdi.dropLine(2);
     gdi.fillDown();
-
+    gdi.scrollToBottom();
     gdi.refresh();
   }
   else if (step == 2) {
@@ -310,6 +313,12 @@ void TabCompetition::newCompetitionGuide(gdioutput &gdi, int step) {
     gdi.addButton("FAll", "Alla funktioner", NewGuideCB);
     gdi.addButton("FSelect", "Välj från lista...", NewGuideCB);
     gdi.addButton("Cancel", "Avbryt", NewGuideCB).setCancel();
+
+    if (oe->hasTeam()) {
+      gdi.disableInput("FIndividual");
+      gdi.disableInput("FForked");
+      gdi.disableInput("FBasic");
+    }
 
     gdi.popX();
     gdi.fillDown();
@@ -373,7 +382,7 @@ void TabCompetition::createCompetition(gdioutput &gdi) {
   oe->setName(name);
   oe->setDate(date);
 
-  int t = convertAbsoluteTimeHMS(start);
+  int t = convertAbsoluteTimeHMS(start, -1);
   if (t > 0 && t < 3600*24) {
     t = max(0, t-3600);
     oe->setZeroTime(formatTimeHMS(t));

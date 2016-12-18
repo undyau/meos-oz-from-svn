@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -498,7 +498,7 @@ int oControl::getRogainingPoints() const
 string oControl::getRogainingPointsS() const
 {
   int pt = getRogainingPoints();
-  return pt > 0 ? itos(pt) : "";
+  return pt != 0 ? itos(pt) : "";
 }
 
 void oControl::setTimeAdjust(int v)
@@ -540,8 +540,6 @@ void oControl::setMinTime(const string &s)
 
 void oControl::setRogainingPoints(int v)
 {
-  if (v<0)
-    v = 0;
   getDI().setInt("Rogaining", v);
 }
 

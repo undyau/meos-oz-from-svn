@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,10 +27,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
+#include <map>
 #include "xmlparser.h"
 #include "oBase.h"
 class oEvent;
@@ -51,11 +52,12 @@ class oClub : public oBase
 protected:
 
   struct InvoiceLine {
-    InvoiceLine() : fee(0), rent(0), paid(0) {}
+    InvoiceLine() : fee(0), rent(0), paid(0), payMode(0) {}
     vector< pair<int, pair<bool, string> > > xposAndString;
     int fee;
     int rent;
     int paid;
+    int payMode;
     void addString(int xpos, const string &str, bool right = false) {
       xposAndString.push_back(make_pair(xpos, make_pair(right, str)));
     }
@@ -103,17 +105,34 @@ protected:
     int total_fee_amount;
     int total_rent_amount;
     int total_paid_amount;
+    map<int, int> paidPerMode;
     int lh;//lineheight
     InvoiceData(int lh_) {
-      memset(this, 0, sizeof(InvoiceData));
+      yp = 0;
+      xs = 0;
+      adrPos = 0;
+      clsPos = 0;
+      multiDay = 0;
+      cardPos = 0;
+      feePos = 0;
+      paidPos = 0;
+      resPos = 0;
+      total_fee_amount = 0;
+      total_rent_amount = 0;
+      total_paid_amount = 0;
+      paidPerMode.clear();
       lh = lh_;
     }
   };
 
   void addInvoiceLine(gdioutput &gdi, const InvoiceLine &lines, InvoiceData &data) const;
 
-  void addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData &data, list<InvoiceLine> &lines) const;
-  void addTeamInvoiceLine(const pTeam r, const InvoiceData &data, list<InvoiceLine> &lines) const;
+  void addRunnerInvoiceLine(const pRunner r, bool inTeam, 
+                            const map<int, string> &definedPayModes,
+                            const InvoiceData &data, list<InvoiceLine> &lines) const;
+  void addTeamInvoiceLine(const pTeam r, 
+                          const map<int, string> &definedPayModes, 
+                          const InvoiceData &data, list<InvoiceLine> &lines) const;
 
   /** Get internal data buffers for DI */
   oDataContainer &getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const;
@@ -127,6 +146,9 @@ public:
 
   static int getFirstInvoiceNumber(oEvent &oe);
 
+  static void definedPayModes(oEvent &oe, map<int, string> &definedPayModes);
+
+
   /** Remove all clubs from a competion (and all belong to club relations)*/
   static void clearClubs(oEvent &oe);
 
@@ -138,8 +160,10 @@ public:
 
   void updateFromDB();
 
-  bool operator<(const oClub &c) {return name<c.name;}
-  void generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid);
+  bool operator<(const oClub &c) const;
+  void generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid, 
+                       const map<int, string> &definedPayModes, 
+                       map<int, int> &paidPerMode);
 
   string getInfo() const {return "Klubb " + name;}
   bool sameClub(const oClub &c);

@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "tabbase.h"
@@ -68,7 +68,19 @@ private:
   pRunner findRunner(const string &name, int cardNo) const;
   vector<TeamLineup> teamLineup;
 
+  // Returns true if the warning concerns the same team
+  bool warnDuplicateCard(gdioutput &gdi, string id, int cno, pRunner r, vector<pRunner> &allRCache);
+
+  void switchRunners(pTeam team, int leg, pRunner r, pRunner oldR);
+
+
+protected:
+  void clearCompetitionData();
+
 public:
+
+  const char * getTypeStr() const {return "TTeamTab";}
+  TabType getType() const {return TTeamTab;}
 
   int teamCB(gdioutput &gdi, int type, void *data);
 

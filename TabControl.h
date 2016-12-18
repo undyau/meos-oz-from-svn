@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -31,10 +31,18 @@ class TabControl :
   bool tableMode;
   int controlId;
   void save(gdioutput &gdi);
+
+
+protected:
+  void clearCompetitionData();
+
 public:
   void visitorTable(Table &table) const;
   void courseTable(Table &table) const;
   void selectControl(gdioutput &gdi,  pControl pc);
+  
+  const char * getTypeStr() const {return "TControlTab";}
+  TabType getType() const {return TControlTab;}
 
   bool loadPage(gdioutput &gdi);
   TabControl(oEvent *oe);

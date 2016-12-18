@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -582,8 +582,8 @@ string RunnerDB::getDataDate() const
 
 void RunnerDB::setDataDate(const string &date)
 {
-   int d = convertDateYMS(date.substr(0, 10));
-   int t = date.length()>11 ? convertAbsoluteTimeHMS(date.substr(11)) : 0;
+   int d = convertDateYMS(date.substr(0, 10), false);
+   int t = date.length()>11 ? convertAbsoluteTimeHMS(date.substr(11), -1) : 0;
 
    if (d<=0)
      throw std::exception("Felaktigt datumformat");
@@ -898,17 +898,15 @@ void RunnerDB::hasEnteredCompetition(__int64 extId) {
     setupIdHash();
     int value;
     if (idhash.lookup(int(extId), value)) {
-      runnerTable->reloadRow(value + 1);
+      try {
+        runnerTable->reloadRow(value + 1);
+      }
+      catch (const std::exception &) {
+        // Ignore any problems with the table.
+      }
     }
   }
 }
-
-void RunnerDB::hasEnteredCompetitionIx(int index) {
-  if (runnerTable != 0) {
-    runnerTable->reloadRow(index + 1);
-  }
-}
-
 
 void RunnerDB::refreshTables() {
   if (runnerTable)

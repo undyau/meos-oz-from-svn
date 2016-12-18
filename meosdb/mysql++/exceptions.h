@@ -33,8 +33,6 @@
 
 #include "connection.h"
 
-#include <exception>
-#include <string>
 
 namespace mysqlpp {
 

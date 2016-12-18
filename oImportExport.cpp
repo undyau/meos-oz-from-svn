@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -109,6 +109,7 @@ string &getFirst(string &inout, int maxNames) {
 bool oEvent::exportOECSV(const char *file, bool byClass)
 {
   csvparser csv;
+  oClass::initClassId(*this);
 
   if (!csv.openOutput(file))
     return false;
@@ -1638,8 +1639,8 @@ bool oEvent::addXMLRank(const xmlobject &xrank)
   if (rank)
     DI.setInt("Rank", rank.getObjectInt("RankPosition"));
 
-  if (vrank)
-    DI.setInt("VacRank", vrank.getObjectInt("RankPosition"));
+//  if (vrank)
+//    DI.setInt("VacRank", vrank.getObjectInt("RankPosition"));
 
   r->synchronize();
 
@@ -2393,11 +2394,12 @@ void oEvent::exportTeamSplits(xmlparser &xml, const set<int> &classes, bool oldS
 void oEvent::exportIOFSplits(IOFVersion version, const char *file,
                              bool oldStylePatrolExport, bool useUTC,
                              const set<int> &classes, int leg,
-                             bool teamsAsIndividual, bool unrollLoops) {
+                             bool teamsAsIndividual, bool unrollLoops,
+                             bool includeStageInfo) {
   xmlparser xml(gdibase.getEncoding() == ANSI ? 0 : &gdibase);
 
   xml.openOutput(file, false);
-
+  oClass::initClassId(*this);
   reEvaluateAll(set<int>(), true);
   if (version != IOF20)
     calculateResults(RTClassCourseResult);
@@ -2410,23 +2412,25 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file,
     exportIOFResults(xml, true, classes, leg, oldStylePatrolExport);
   else {
     IOF30Interface writer(this);
-    writer.writeResultList(xml, classes, leg, useUTC, teamsAsIndividual, unrollLoops);
+    writer.writeResultList(xml, classes, leg, useUTC, 
+                           teamsAsIndividual, unrollLoops, includeStageInfo);
   }
 
   xml.closeOut();
 }
 
 void oEvent::exportIOFStartlist(IOFVersion version, const char *file, bool useUTC,
-                                const set<int> &classes, bool teamsAsIndividual) {
+                                const set<int> &classes, bool teamsAsIndividual, bool includeStageInfo) {
   xmlparser xml(gdibase.getEncoding() == ANSI ? 0 : &gdibase);
-
+  
+  oClass::initClassId(*this);
   xml.openOutput(file, false);
 
   if (version == IOF20)
     exportIOFStartlist(xml);
   else {
     IOF30Interface writer(this);
-    writer.writeStartList(xml, classes, useUTC, teamsAsIndividual);
+    writer.writeStartList(xml, classes, useUTC, teamsAsIndividual, includeStageInfo);
   }
   xml.closeOut();
 }

@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -189,6 +189,7 @@ protected:
   // For sub split times
   int tLegLeaderTime;
   mutable int tNoTiming;
+  mutable int tIgnoreStartPunch;
 
   // Sort classes for this index
   int tSortIndex;
@@ -258,6 +259,19 @@ protected:
   static long long setupForkKey(const vector<int> indices, const vector< vector< vector<int> > > &courseKeys, vector<int> &ws);
 
 public:
+
+  static void initClassId(oEvent &oe);
+
+  // Draw data
+  int getDrawFirstStart() const;
+  void setDrawFirstStart(int st);
+  int getDrawInterval() const;
+  void setDrawInterval(int st);
+  int getDrawVacant() const;
+  void setDrawVacant(int st);
+  int getDrawNumReserved() const;
+  void setDrawNumReserved(int st);
+
   /** Return an actual linear index for this class. */
   int getLinearIndex(int index, bool isLinear) const;
 
@@ -266,16 +280,16 @@ public:
   void mergeClass(int classIdSec);
   
   void drawSeeded(ClassSeedMethod seed, int leg, int firstStart, int interval, const vector<int> &groups,
-                  bool noClubNb, bool reverse, bool pairwise);
-
+                  bool noClubNb, bool reverse, int pairSize);
+  /** Returns true if the class is setup so that changeing one runner can effect all others. (Pursuit)*/
+  bool hasClassGlobalDependance() const;
   // Autoassign new bibs
   static void extractBibPatterns(oEvent &oe, map<int, pair<string, int> > &patterns);
   pair<int, string> getNextBib(map<int, pair<string, int> > &patterns); // Version that calculates next free bib from cached data (fast, no gap usage)
   pair<int, string> oClass::getNextBib(); // Version that calculates next free bib (slow, but reuses gaps)
 
   bool usesCourse(const oCourse &crs) const;
-  pCourse getCourse(int leg, int startNo) const;
-
+  
   /** Returns an (overestimate) of the actual number of forks.*/
   int getNumForks() const;
 
@@ -387,6 +401,12 @@ public:
   //Get the number of parallel runners on a given leg (before and after)
   int getNumParallel(int leg) const;
 
+  // Get the linear leg number of the next (non-parallel with this) leg
+  int getNextBaseLeg(int leg) const;
+
+  // Get the linear leg number of the preceeding leg
+  int getPreceedingLeg(int leg) const;
+
   /// Get a string 1, 2a, etc describing the number of the leg
   string getLegNumber(int leg) const;
 
@@ -396,7 +416,7 @@ public:
 
   // Return the minimal number of runners in team
   int getNumDistinctRunnersMinimal() const;
-  void setStartType(int leg, StartTypes st);
+  void setStartType(int leg, StartTypes st, bool noThrow);
   void setLegType(int leg, LegTypes lt);
 
   bool setStartData(int leg, const string &s);
@@ -407,6 +427,9 @@ public:
 
   void setNoTiming(bool noResult);
   bool getNoTiming() const;
+
+  void setIgnoreStartPunch(bool ignoreStartPunch);
+  bool ignoreStartPunch() const;
 
   void setFreeStart(bool freeStart);
   bool hasFreeStart() const;
@@ -449,7 +472,7 @@ public:
 
   // Get total number of runners running this class.
   // Use checkFirstLeg to only check the number of runners running leg 1.
-  int getNumRunners(bool checkFirstLeg) const;
+  int getNumRunners(bool checkFirstLeg, bool noCountVacant, bool noCountNotCompeting) const;
 
   //Get remaining maps for class (or int::minvalue)
   int getNumRemainingMaps(bool recalculate) const;

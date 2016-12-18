@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -51,7 +51,10 @@ const int textCenter=512;
 const int timerCanBeNegative=1024;
 const int breakLines=2048;
 const int fullTimeHMS = 4096;
-const int timeWithTenth = 8192;
+const int timeWithTenth = 1<<13;
+const int timeSeconds = 1<<14;
+const int timerIgnoreSign = 1<<15;
+const int Capitalize = 1<<16;
 
 enum GDICOLOR {colorRed = RGB(128,0,0),
               colorGreen = RGB(0,128,0),

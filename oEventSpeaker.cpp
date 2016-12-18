@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -413,33 +413,8 @@ void renderRowSpeakerList(const oSpeakerObject &r, const oSpeakerObject *next_r,
     row.back().color = colorDarkRed;
     row.push_back(SpeakerString());
   }
-  /*
-  char bf[16];
+
   int ownerId = r.owner ? r.owner->getId(): 0;
-
-  if (type==1) {
-    gdi.addString("D" + itos(ownerId), y, x+dx[6], 0, "[Flytta ner]", 0, MovePriorityCB).setExtra(r.owner);
-  }
-  else if (type==2) {
-    gdi.addString("U" + itos(ownerId), y, x+dx[6], 0, "[Bevaka]", 0, MovePriorityCB).setExtra(r.owner);
-    gdi.addString("D" + itos(ownerId), y, x+dx[7], 0, "[Flytta ner]", 0, MovePriorityCB).setExtra(r.owner);
-  }
-  else if (type==3) {
-    if (r.status<=StatusOK){
-
-      if (r.priority<0){
-        sprintf_s(bf, "M%d", ownerId);
-        gdi.addString(bf, y, x+dx[6], 0, "[Återställ]", 0, MovePriorityCB).setExtra(r.owner);
-      }
-      else{
-        sprintf_s(bf, "U%d", ownerId);
-        gdi.addString(bf, y, x+dx[6], 0, "[Bevaka]", 0, MovePriorityCB).setExtra(r.owner);
-      }
-    }
-  }
-  */
-
-    int ownerId = r.owner ? r.owner->getId(): 0;
   if (type==1) {
     row.push_back(SpeakerString(normalText, lang.tl("[Bort]")));
     row.back().color = colorRed;
@@ -472,7 +447,7 @@ void renderRowSpeakerList(gdioutput &gdi, int type, const oSpeakerObject &r, int
                           const vector<SpeakerString> &row, const vector<int> &pos) {
   int lh=gdi.getLineHeight();
   bool highlight = false;
-  if (r.timeSinceChange < 10 && r.timeSinceChange>=0) {
+  if (r.timeSinceChange < 20 && r.timeSinceChange>=0) {
     RECT rc;
     rc.left = x+pos[1] - 4;
     rc.right=x+pos.back()+gdi.scaleLength(60);
@@ -508,41 +483,6 @@ void renderRowSpeakerList(gdioutput &gdi, int type, const oSpeakerObject &r, int
                    row[k].timeout != NOTIMEOUT ? SpeakerCB : 0, row[k].timeout);
     }
   }
-  /*
-  char bf[16];
-  int ownerId = r.owner ? r.owner->getId(): 0;
-  int last = pos.size() -1;
-  if (type==1) {
-    TextInfo &ti = gdi.addString("D" + itos(ownerId), y, x+pos[last-1], 0, "[Bort]", 0, MovePriorityCB);
-    if (!highlight)
-      ti.setColor(colorRed);
-    ti.setExtra(r.owner);
-  }
-  else if (type==2) {
-    TextInfo &ti = gdi.addString("U" + itos(ownerId), y, x+pos[last-1], 0, "[Bevaka]", 0, MovePriorityCB);
-    if (!highlight)
-      ti.setColor(colorGreen);
-    ti.setExtra(r.owner);
-
-    TextInfo &di = gdi.addString("D" + itos(ownerId), y, x+pos[last], 0, "[Bort]", 0, MovePriorityCB);
-    if (!highlight)
-      di.setColor(colorRed);
-    di.setExtra(r.owner);
-
-  }
-  else if (type==3) {
-    if (r.status<=StatusOK){
-
-      if (r.priority<0){
-        sprintf_s(bf, "M%d", ownerId);
-        gdi.addString(bf, y, x+pos[last-1], 0, "[Återställ]", 0, MovePriorityCB).setExtra(r.owner);
-      }
-      else{
-        sprintf_s(bf, "U%d", ownerId);
-        gdi.addString(bf, y, x+pos[last-1], 0, "[Bevaka]", 0, MovePriorityCB).setExtra(r.owner);
-      }
-    }
-  }*/
 }
 
 void oEvent::calculateResults(list<oSpeakerObject> &rl)
@@ -742,10 +682,10 @@ void oEvent::speakerList(gdioutput &gdi, int ClassId, int leg, int ControlId,
           factor = 7;
         else if (len <10)
           factor = 5.8;
-        dx_new[j] = max(28, max<int>(dx_new[j], int(len * factor)+10));
+        dx_new[j] = max(28, max<int>(dx_new[j], int(len * factor)+15));
       }
       else if (row[j].hasTimer) {
-        dx_new[j] = max<int>(dx_new[j], 50);
+        dx_new[j] = max<int>(dx_new[j], 60);
       }
     }
   }
@@ -1211,21 +1151,32 @@ int oEvent::setupTimeLineEvents(int classId, int currentTime)
   return nextKnownEvent;
 }
 
-void getTimeAfterDetail(string &detail, int timeAfter, int deltaTime, bool wasAfter)
-{
+string getTimeDesc(int t1, int t2);
+
+
+void getTimeAfterDetail(string &detail, int timeAfter, int deltaTime, bool wasAfter) {
+  string aTimeS = getTimeDesc(timeAfter, 0);
   if (timeAfter > 0) {
-    string aTimeS = timeAfter >= 60 ? formatTime(timeAfter) : itos(timeAfter) + "s.";
     if (!wasAfter || deltaTime == 0)
-      detail = "Tid efter: X#" + aTimeS;
+      detail = "är X efter#" + aTimeS;
     else {
-      int ad = abs(deltaTime);
-      string deltaS = ad >= 60 ? getTimeMS(ad) : itos(ad) + "s.";
+      string deltaS = getTimeDesc(deltaTime, 0);
       if (deltaTime > 0)
-        detail = "Tid efter: X; har tappat Y#" +
-                  aTimeS + "#" + deltaS;
+        detail = "är X efter; har tappat Y#" + aTimeS + "#" + deltaS;
       else
-        detail = "Tid efter: X; har tagit in Y#" +
-                  aTimeS + "#" + deltaS;
+        detail = "är X efter; har tagit in Y#" + aTimeS + "#" + deltaS;
+    }
+  }
+  else if (timeAfter < 0) {
+
+    if (wasAfter && deltaTime != 0) {
+      string deltaS = getTimeDesc(deltaTime, 0);
+      if (deltaTime > 0)
+        detail = "leder med X; har tappat Y.#" + aTimeS + "#" + deltaS;
+      else if (deltaTime < 0)
+        detail = "leder med X; sprang Y snabbare än de jagande.#" + aTimeS + "#" + deltaS;
+      else
+        detail = "leder med X#" + aTimeS;
     }
   }
 }
@@ -1681,5 +1632,243 @@ void oEvent::classChanged(pClass cls, bool punchOnly) {
   if (timelineClasses.count(cls->getId()) == 1) {
     modifiedClasses.insert(cls->getId());
     timeLineEvents.clear();
+  }
+}
+
+static bool orderByTime(const oEvent::ResultEvent &a, const oEvent::ResultEvent &b) {
+  if (a.classId() != b.classId())
+    return a.classId() < b.classId(); // Sort first by class.
+  return a.time < b.time;
+}
+
+struct LegSetupInfo {
+  int baseLeg;
+  int parCount;
+  bool optional;
+
+  LegSetupInfo():baseLeg(-1), parCount(0), optional(false) {}
+  LegSetupInfo(int bl, bool opt):baseLeg(bl), parCount(0), optional(opt) {}
+
+};
+
+struct TeamLegControl {
+  int teamId;
+  int leg;
+  int control;
+
+  TeamLegControl() : teamId(0), leg(0), control(0) {}
+  
+  TeamLegControl(int id, int leg, int ctrl) : teamId(id), leg(leg), control(ctrl) {}
+
+  bool operator<(const TeamLegControl &tlc) const {
+    if (teamId != tlc.teamId)
+      return teamId < tlc.teamId;
+    else if (leg != tlc.leg)
+      return leg < tlc.leg;
+    else
+      return control < tlc.control;
+  }
+};
+
+void oEvent::getResultEvents(const set<int> &classFilter, const set<int> &punchFilter, vector<ResultEvent> &results) const {
+  results.clear();
+
+  vector<RunnerStatus> teamLegStatusOK;
+  teamLegStatusOK.reserve(Teams.size() * 5);
+  map<int, int> teamStatusPos;
+  for (oTeamList::const_iterator it = Teams.begin(); it != Teams.end(); ++it) {
+    if (!classFilter.count(it->getClassId()))
+      continue;
+
+    int base = teamLegStatusOK.size();
+    teamStatusPos[it->getId()] = base;
+    int nr = it->getNumRunners();
+    bool ok = it->getStatus() == StatusOK || it->getStatus() == StatusUnknown;
+    for(int k = 0; k < nr; k++) {
+      pRunner r = it->getRunner(k);
+      if (r && r->getStatus() != StatusUnknown && r->getStatus() != StatusOK)
+        ok = false;
+
+      teamLegStatusOK.push_back(ok ? StatusOK : StatusUnknown);
+    }
+    if (!ok) { // A more careful analysis
+      for(int k = 0; k < nr; k++) {
+        teamLegStatusOK[base + k] = it->getLegStatus(k, true);
+      }
+    }
+  }
+
+  for (oRunnerList::const_iterator it = Runners.begin(); it != Runners.end(); ++it) {
+    const oRunner &r = *it;
+    if (r.isRemoved() || !classFilter.count(r.getClassId()))
+      continue;
+    if (r.prelStatusOK() || r.getStatus() != StatusUnknown) {
+      RunnerStatus stat = r.prelStatusOK() ? StatusOK : r.getStatus();
+      results.push_back(ResultEvent(pRunner(&r), r.getFinishTime(), oPunch::PunchFinish, stat));
+    }
+    pCard card = r.getCard();
+    
+    RunnerStatus punchStatus = StatusOK;
+    if (r.tInTeam && r.tLeg > 0) {
+      map<int, int>::iterator res = teamStatusPos.find(r.tInTeam->getId());
+      if (res != teamStatusPos.end()) {
+        RunnerStatus prevStat = teamLegStatusOK[res->second + r.tLeg - 1];
+        if (prevStat != StatusOK && prevStat != StatusUnknown) {
+          results.back().status = StatusNotCompetiting;
+          punchStatus = StatusNotCompetiting;
+        }
+      }
+    }
+
+    if (card) {
+      oPunchList::const_iterator it;
+      map<int,int> dupCount;
+      for (it = card->punches.begin(); it != card->punches.end(); ++it) {
+        if  (punchFilter.count(it->tMatchControlId)) {
+          int dupC = ++dupCount[it->tMatchControlId];
+          int courseControlId = oControl::getCourseControlIdFromIdIndex(it->tMatchControlId, dupC-1);
+          results.push_back(ResultEvent(pRunner(&r), it->getAdjustedTime(), courseControlId, punchStatus));
+        }
+      }
+    }
+  }
+
+  for (oFreePunchList::const_iterator it = punches.begin(); it != punches.end(); ++it) {
+    const oFreePunch &fp = *it;
+    if (fp.isRemoved() || fp.tRunnerId == 0 || fp.Type == oPunch::PunchCheck || fp.Type == oPunch::PunchStart)
+      continue;
+
+    pRunner r = getRunner(fp.tRunnerId, 0);
+    if (r == 0 || !classFilter.count(r->getClassId()) || r->getCard())
+      continue;
+
+    int courseControlId = oFreePunch::getControlIdFromHash(fp.iHashType, true);
+    int ctrl = oControl::getIdIndexFromCourseControlId(courseControlId).first;
+
+    if (!punchFilter.count(ctrl))
+      continue;
+
+    results.push_back(ResultEvent(r, fp.Time, courseControlId, StatusOK));
+
+    if (r->tInTeam && r->tLeg > 0) {
+      map<int, int>::iterator res = teamStatusPos.find(r->tInTeam->getId());
+      if (res != teamStatusPos.end()) {
+        RunnerStatus prevStat = teamLegStatusOK[res->second + r->tLeg - 1];
+        if (prevStat != StatusOK && prevStat != StatusUnknown) {
+          results.back().status = StatusNotCompetiting; 
+        }
+      }
+    }
+  }
+
+  for (map<pair<int,int>, oFreePunch>::const_iterator it = advanceInformationPunches.begin(); 
+                                                      it != advanceInformationPunches.end(); ++it) {
+    const oFreePunch &fp = it->second;
+    if (fp.isRemoved() || fp.tRunnerId == 0 || fp.Type == oPunch::PunchCheck || fp.Type == oPunch::PunchStart)
+      continue;
+    pRunner r = getRunner(fp.tRunnerId, 0);
+    if (r == 0 || !classFilter.count(r->getClassId()))
+      continue;
+    int courseControlId = oFreePunch::getControlIdFromHash(fp.iHashType, true);
+    int ctrl = oControl::getIdIndexFromCourseControlId(courseControlId).first;
+    if (!punchFilter.count(ctrl))
+      continue;
+
+    results.push_back(ResultEvent(r, fp.Time, courseControlId, StatusOK));
+
+    if (r->tInTeam && r->tLeg > 0) {
+      map<int, int>::iterator res = teamStatusPos.find(r->tInTeam->getId());
+      if (res != teamStatusPos.end()) {
+        RunnerStatus prevStat = teamLegStatusOK[res->second + r->tLeg - 1];
+        if (prevStat != StatusOK && prevStat != StatusUnknown) {
+          results.back().status = StatusNotCompetiting; 
+        }
+      }
+    }
+  }
+
+  map< int, vector<LegSetupInfo> > parLegSetup;
+  for (oClassList::const_iterator it = Classes.begin(); it != Classes.end(); ++it) {
+    if (!classFilter.count(it->getId()))
+      continue;
+
+    int ns = it->getNumStages();
+    if (ns == 1)
+      continue;
+    
+    int baseLeg = 0;
+    for (int i = 0; i < ns; i++) {
+      bool optional = it->legInfo[i].isOptional();
+      bool par = it->legInfo[i].isParallel(); 
+      if (optional || par) {
+        vector<LegSetupInfo> &ls = parLegSetup[it->getId()];
+        ls.resize(ns, LegSetupInfo());
+        ls[i] = LegSetupInfo(baseLeg, optional);
+        if (i > 0)
+          ls[i-1] = ls[i];
+      }
+      else {
+        baseLeg = i;
+      }
+    }
+  }
+
+  if (parLegSetup.empty()) 
+    return;
+
+  for (map< int, vector<LegSetupInfo> >::iterator it = parLegSetup.begin();
+       it != parLegSetup.end(); ++it) {
+    vector<LegSetupInfo> &setup = it->second;
+    size_t sx = -1;
+    for (size_t k = 0; k < setup.size(); k++) {
+      if (setup[k].baseLeg == -1) {
+        if (sx != -1) {
+          int count = k - sx;
+          while (sx < k) {
+            setup[sx++].parCount = count;
+          }
+        }
+        sx = -1;
+      }
+      else if (sx == -1) {
+        sx = k;
+      }
+    }
+
+    if (sx != -1) {
+      int count = setup.size() - sx;
+      while (sx < setup.size()) {
+        setup[sx++].parCount = count;
+      }
+    }
+  }
+
+  sort(results.begin(), results.end(), orderByTime);
+  map<TeamLegControl, int> countTeamLeg;
+
+  for (size_t k = 0; k < results.size(); k++) {
+    int clsId = results[k].classId();
+    map< int, vector<LegSetupInfo> >::iterator res = parLegSetup.find(clsId);
+    if (res == parLegSetup.end())
+      continue;
+    const vector<LegSetupInfo> &setup = res->second;
+    int leg = results[k].r->getLegNumber();
+    if (setup[leg].baseLeg == -1) {
+      results[k].legNumber = leg;
+      continue;
+    }
+    if (results[k].status != StatusOK)
+      continue;
+    results[k].legNumber = setup[leg].baseLeg;
+    int teamId = results[k].r->getTeam()->getId();
+    int val = ++countTeamLeg[TeamLegControl(teamId, setup[leg].baseLeg, results[k].control)];
+
+    if (setup[leg].optional) {
+      results[k].partialCount = val - 1;
+    }
+    else {
+      const int numpar = setup[leg].parCount; // XXX Count legs
+      results[k].partialCount = numpar - val;
+    }
   }
 }

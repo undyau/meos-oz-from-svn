@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -47,6 +47,7 @@ enum EPostType
   lClassName,
   lClassStartName,
   lClassStartTime,
+  lClassStartTimeRange,
   lClassLength,
   lClassResultFraction,
   lCourseLength,
@@ -83,6 +84,8 @@ enum EPostType
   lRunnerMissedTime,
   lRunnerPlace,
   lRunnerStart,
+  lRunnerStartCond,
+  lRunnerStartZero,
   lRunnerClub,
   lRunnerCard,
   lRunnerBib,
@@ -93,12 +96,14 @@ enum EPostType
   lRunnerRogainingPointTotal,
   lRunnerRogainingPointReduction,
   lRunnerRogainingPointOvertime,
+  lRunnerRogainingPointGross,
   lRunnerTimeAdjustment,
   lRunnerPointAdjustment,
 
   lRunnerUMMasterPoint,
   lRunnerTimePlaceFixed,
   lRunnerLegNumberAlpha,
+  lRunnerLegNumber,
 
   lRunnerBirthYear,
   lRunnerAge,
@@ -109,6 +114,8 @@ enum EPostType
 
   lTeamName,
   lTeamStart,
+  lTeamStartCond,
+  lTeamStartZero,
   lTeamTimeStatus,
   lTeamTimeAfter,
   lTeamPlace,
@@ -425,7 +432,7 @@ public:
 
 
   bool needPunchCheck() const {return needPunches;}
-  void setCallback(GUICALLBACK cb) {lp.cb=cb;}
+  void setCallback(GUICALLBACK cb);
   int getLegNumberCoded() const {return lp.getLegNumberCoded();}
 
 
@@ -462,7 +469,8 @@ public:
   friend class MetaList;
   friend class MetaListContainer;
 
-  int getMaxCharWidth(const oEvent *oe, 
+  int getMaxCharWidth(const oEvent *oe,
+                      const set<int> &clsSel,
                       const vector< pair<EPostType, string> > &typeFormats,
                       gdiFonts font,
                       const char *fontFace = 0,
@@ -471,6 +479,7 @@ public:
 
 
   int getMaxCharWidth(const oEvent *oe, 
+                      const set<int> &clsSel,
                       EPostType type, 
                       string formats,
                       gdiFonts font,
@@ -478,7 +487,7 @@ public:
                       bool large = false, 
                       int minSize = 0) {
     vector< pair<EPostType, string> > typeFormats(1, make_pair(type, formats));
-    return getMaxCharWidth(oe, typeFormats, font, fontFace, largeSize, minSize);
+    return getMaxCharWidth(oe, clsSel, typeFormats, font, fontFace, largeSize, minSize);
   }
 
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ void TabClub::readFeeFilter(gdioutput &gdi) {
   onlyNoFee = gdi.isChecked("OnlyNoFee");
 
   ListBoxInfo lbi;
-  gdi.getSelectedItem("ClassType", &lbi);
+  gdi.getSelectedItem("ClassType", lbi);
 
   if (lbi.data == -5)
     typeS = "*";
@@ -129,7 +129,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="Invoice") {
       ListBoxInfo lbi;
-      gdi.getSelectedItem("Clubs", &lbi);
+      gdi.getSelectedItem("Clubs", lbi);
       pClub pc=oe->getClub(lbi.data);
       if (pc) {
         gdi.clearPage(true);
@@ -138,7 +138,12 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
         oe->calculateResults(oEvent::RTClassResult);
         oe->sortRunners(ClassStartTime);
         int pay, paid;
-        pc->generateInvoice(gdi, pay, paid);
+        {
+          map<int, int> ppm;
+          map<int, string> dpm;
+          oClub::definedPayModes(*oe, dpm);
+          pc->generateInvoice(gdi, pay, paid, dpm, ppm);
+        }
         gdi.addButton(gdi.getWidth()+20, 15, gdi.scaleLength(120),
                       "Cancel", "Återgå", ClubsCB, "", true, false);
         gdi.addButton(gdi.getWidth()+20, 45,  gdi.scaleLength(120),
@@ -177,10 +182,10 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="DoAllInvoice") {
       ListBoxInfo lbi;
-      gdi.getSelectedItem("Type", &lbi);
+      gdi.getSelectedItem("Type", lbi);
       string path;
       if (lbi.data > 10)
-        path = gdi.browseForFolder(path);
+        path = gdi.browseForFolder(path, 0);
       gdi.clearPage(false);
 
       oe->printInvoices(gdi, oEvent::InvoicePrintType(lbi.data), path, false);
@@ -229,9 +234,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.refresh();
     }
     else if (bi.id=="Update") {
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Clubs", &lbi);
-      pClub pc=oe->getClub(lbi.data);
+      pClub pc=oe->getClub(gdi.getSelectedItem("Clubs").first);
       if (pc) {
         pc->updateFromDB();
         pc->synchronize();
@@ -251,10 +254,8 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
       gdi.refresh();
     }
     else if (bi.id=="Merge") {
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Clubs", &lbi);
-      ClubId = lbi.data;
-      pClub pc=oe->getClub(lbi.data);
+      ClubId = gdi.getSelectedItem("Clubs").first;
+      pClub pc = oe->getClub(ClubId);
       if (pc) {
         gdi.clearPage(false);
         gdi.addString("", boldText, "Slå ihop klubb");
@@ -284,9 +285,7 @@ int TabClub::clubCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="DoMerge") {
       pClub pc1 = oe->getClub(ClubId);
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("NewClub", &lbi);
-      pClub pc2 = oe->getClub(lbi.data);
+      pClub pc2 = oe->getClub(gdi.getSelectedItem("NewClub").first);
 
       if (pc1==pc2)
         throw std::exception("En klubb kan inte slås ihop med sig själv.");
@@ -781,4 +780,7 @@ void TabClub::importAcceptedInvoice(gdioutput &gdi, const string &file) {
   }
   gdi.fillDown();
   gdi.dropLine();
+}
+
+void TabClub::clearCompetitionData() {
 }

@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "tabbase.h"
@@ -84,12 +84,22 @@ private:
   bool canSetFinish(pRunner r) const;
 
   void warnDuplicateCard(gdioutput &gdi, int cno, pRunner r);
+  pRunner warnDuplicateCard(int cno, pRunner r);
 
   int numShorteningLevels() const;
 
   void updateNumShort(gdioutput &gdi, pCourse crs, pRunner r);
 
+  static void autoGrowCourse(gdioutput &gdi);
+
+protected:
+  void clearCompetitionData();
+
 public:
+  
+  const char * getTypeStr() const {return "TRunnerTab";}
+  TabType getType() const {return TRunnerTab;}
+
   void showInForestList(gdioutput &gdi);
 
   bool loadPage(gdioutput &gdi);

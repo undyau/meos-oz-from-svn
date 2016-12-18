@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 const BYTE STX=0x02;
@@ -90,6 +90,9 @@ struct SICard
 
   unsigned calculateHash() const;
   bool isManualInput() const {return runnerId != 0;}
+
+  string serializePunches() const;
+  void deserializePunches(const string &arg);
 };
 
 
@@ -152,7 +155,8 @@ protected:
   void GetSI9DataExt(HANDLE hComm);
 
   void AnalyseSI5Time(BYTE *data, DWORD &time, DWORD &control);
-  void AnalysePunch(BYTE *data, DWORD &time, DWORD &control);
+  bool AnalysePunch(BYTE *data, DWORD &time, DWORD &control);
+  void AnalyseTPunch(BYTE *data, DWORD &time, DWORD &control);
 
   //Card read waiting to be processed.
   list<SICard> ReadCards;
@@ -176,7 +180,7 @@ public:
 
   void StartMonitorThread(const char *com);
   bool GetCard(SICard &sic);
-  void AddCard(SICard &sic);
+  void addCard(const SICard &sic);
   void AddPunch(DWORD Time, int Station, int Card, int Mode=0);
 
 

@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -70,6 +70,7 @@ class MeOSFeatures;
 class GeneralResult;
 class DynamicResult;
 struct SpeakerString;
+struct ClassDrawSpecification;
 
 struct oCounter {
   int level1;
@@ -89,7 +90,7 @@ struct GeneralResultCtr {
 
   mutable GeneralResult *ptr;
 
-  GeneralResultCtr(const char *tag, const char *name, GeneralResult *ptr);
+  GeneralResultCtr(const char *tag, const string &name, GeneralResult *ptr);
   GeneralResultCtr(string &file, DynamicResult *ptr);
   GeneralResultCtr() : ptr(0) {}
 
@@ -167,6 +168,7 @@ struct CompetitionInfo {
   string lastNormalEntryDate;
   int ServerPort;
   int numConnected; // Number of connected entities
+  int backupId; // Used to identify backups
   bool operator<(const CompetitionInfo &ci)
   {
     if (Date != ci.Date)
@@ -179,6 +181,7 @@ struct CompetitionInfo {
 struct BackupInfo : public CompetitionInfo {
   int type;
   string fileName;
+  size_t fileSize;
   bool operator<(const BackupInfo &ci);
 };
 
@@ -208,9 +211,18 @@ struct TimeRunner;
 
 struct PrintPostInfo;
 
+enum PropertyType {
+  String,
+  Integer,
+  Boolean
+};
+
 class oEvent : public oBase
 {
   friend class oSSSQuickStart;   //Trying to minimise code chanes to oEvent, but this is a bit ugly
+  oDataDefiner *firstStartDefiner;
+  oDataDefiner *intervalDefiner;
+
 protected:
   // Revision number for data modified on this client.
   unsigned long dataRevision;
@@ -467,6 +479,9 @@ public:
 
   void pushDirectChange();
 
+  void getPayModes(vector< pair<string, size_t> > &modes);
+  void setPayMode(int id, const string &mode);
+
   bool hasDirectSocket() const {return directSocket != 0;}
   DirectSocket &getDirectSocket();
 
@@ -528,12 +543,12 @@ public:
 
 
   // Show an warning dialog if database is not sane
-  void sanityCheck(gdioutput &gdi, bool expectResult);
+  void sanityCheck(gdioutput &gdi, bool expectResult, int checkOnlyClass = -1);
 
   // Automatic draw of all classes
   void automaticDrawAll(gdioutput &gdi, const string &firstStart,
                         const string &minIntervall, const string &vacances,
-                        bool lateBefore, bool softMethod, bool pairwise);
+                        bool lateBefore, bool softMethod, int pairSize);
 
   // Restore a backup by renamning the file to .meos
   void restoreBackup();
@@ -616,6 +631,8 @@ public:
   void setProperty(const char *name, const string &prop);
   void setPropertyEncrypt(const char *name, const string &prop);
 
+  void listProperties(bool userProps, vector< pair<string, PropertyType> > &propNames) const;
+
   // Get classes that have not yet been drawn.
   // someMissing (true = all classes where some runner has no start time)
   //            (false = all classeds where no runner has a start time)
@@ -648,9 +665,11 @@ public:
   void generatePreReport(gdioutput &gdi);
 
   void generateList(gdioutput &gdi, bool reEvaluate, const oListInfo &li, bool updateScrollBars);
+  
   void generateListInfo(oListParam &par, int lineHeight, oListInfo &li);
+  void generateListInfo(vector<oListParam> &par, int lineHeight, oListInfo &li);
   void generateListInfo(EStdListType lt, const gdioutput &gdi, int classId, oListInfo &li);
-  void generateListInfoAux(oListParam &par, int lineHeight, oListInfo &li);
+  void generateListInfoAux(oListParam &par, int lineHeight, oListInfo &li, const string &name);
 
   /** Format a string for a list. Returns true of output is not empty*/
   const string &formatListString(const oPrintPost &pp, const oListParam &par,
@@ -700,11 +719,43 @@ public:
   pFreePunch addFreePunch(int time, int type, int card, bool updateRunner);
   pFreePunch addFreePunch(oFreePunch &fp);
 
+  bool useLongTimes() const;
+  void useLongTimes(bool use);
+
+  /** Use the current computer time to convert the specified time to a long time, if long times are used. */
+  int convertToFullTime(int inTime);
+
   /** Internal version of start order optimizer */
   void optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, DrawInfo &drawInfo,
                           vector<ClassInfo> &cInfo, int useNControls, int alteration);
 
+  struct ResultEvent {
+    ResultEvent() {}
+    ResultEvent(pRunner r, int time, int control, RunnerStatus status):
+        r(r), time(time), control(control), status(status), 
+        resultScore(0), place(-1), runTime(0), partialCount(0), legNumber(short(r->tLeg)) {}
+    
+    pRunner r;
+    int time;
+    int control;
+    RunnerStatus status;
 
+    int localIndex;
+    int resultScore;
+    int runTime;
+    unsigned short place;
+    /* By default zero. Used for parallel results etc.
+      -1 : Ignore
+      1,2,3 (how many runners are missing on the leg)
+    */
+    short partialCount;
+    short legNumber;
+
+    inline int classId() const {return r->getClassId();}
+    inline int leg() const {return legNumber;}
+  };
+
+  void getResultEvents(const set<int> &classFilter, const set<int> &controlFilter, vector<ResultEvent> &results) const;
 protected:
   // Returns hash key for punch based on control id, and leg. Class is marked as changed if oldHashKey != newHashKey.
   int getControlIdFromPunch(int time, int type, int card,
@@ -717,6 +768,7 @@ protected:
   int tClubDataRevision;
   bool readOnly;
 	virtual void writeExtraXml(xmlparser &xml){};
+  mutable int tLongTimesCached;
 	virtual void readExtraXml(const xmlparser &xml) {};
 
   map<pair<int, int>, oFreePunch> advanceInformationPunches;
@@ -807,11 +859,13 @@ public:
                        const set<int> &classes,
                        int leg,
                        bool teamsAsIndividual,
-                       bool unrollLoops);
+                       bool unrollLoops,
+                       bool includeStageData);
 
   void exportIOFStartlist(IOFVersion version, const char *file,
                           bool useUTC, const set<int> &classes,
-                          bool teamsAsIndividual);
+                          bool teamsAsIndividual,
+                          bool includeStageInfo);
 
   bool exportOECSV(const char *file, bool byClass = true);
   bool save();
@@ -819,11 +873,14 @@ public:
   void newCompetition(const string &Name);
   void clearListedCmp();
   bool enumerateCompetitions(const char *path, const char *extension);
-  bool enumerateBackups(const char *path);
-  bool listBackups(gdioutput &gdi, GUICALLBACK cb);
 
   bool fillCompetitions(gdioutput &gdi, const string &name,
                         int type, const string &select = "");
+
+  bool enumerateBackups(const char *path);
+  bool listBackups(gdioutput &gdi, GUICALLBACK cb);
+  const BackupInfo &getBackup(int id) const;
+  void deleteBackups(const BackupInfo &bu);
 
   // Check if competition is empty
   bool empty() const;
@@ -910,16 +967,18 @@ public:
   /** Optimize the start order based on drawInfo. Result in cInfo */
   void optimizeStartOrder(gdioutput &gdi, DrawInfo &drawInfo, vector<ClassInfo> &cInfo);
 
+  void loadDrawSettings(const set<int> &classes, DrawInfo &drawInfo, vector<ClassInfo> &cInfo) const;
+
   enum DrawType {
     drawAll, remainingBefore, remainingAfter,
   };
 
   void drawRemaining(bool useSOFTMethod, bool placeAfter);
-  void drawList(int ClassID, int leg, int FirstStart, int Interval,
-                int Vacances, bool useSOFTMethod, bool pairwise, DrawType drawType);
+  void drawList(const vector<ClassDrawSpecification> &spec,
+                bool useSOFTMethod, int pairSize, DrawType drawType);
   void drawListClumped(int classID, int firstStart, int interval, int vacances);
   void drawPersuitList(int classId, int firstTime, int restartTime,
-                       int ropeTime, int interval, bool pairwise,
+                       int ropeTime, int interval, int pairSize,
                        bool reverse, double scale);
 
   string getAutoTeamName() const;
@@ -958,6 +1017,14 @@ public:
   pRunner getRunnerByCardNo(int cardNo, int time,
                             bool onlyRunnerWithNoCard = false,
                             bool ignoreRunnersWithNoStart = false) const;
+  /** Get all competitors for a cardNo.
+      @param cardNo card number to look for.
+      @param ignoreRunnersWithNoStart If true, skip runners with status DNS
+      @param skipDuplicates if true, only return the main instance of each runner (if several races)
+      @param out runners using the card
+   */
+  void getRunnersByCardNo(int cardNo, bool ignoreRunnersWithNoStart, 
+                          bool skipDuplicates, vector<pRunner> &out) const;
   /** Finds a runner by start number (linear search). If several runners has same bib/number try to get the right one:
        findWithoutCardNo false : find first that has not finished
        findWithoutCardNo true : find first with no card.
@@ -1119,7 +1186,7 @@ public:
 	void calculateCourseRogainingResults(); // implemented in oExtendedEvent.cpp
 
   GeneralResult &getGeneralResult(const string &tag, string &sourceFileOut) const;
-  void getGeneralResults(bool onlyEditable, vector< pair<string, string> > &tagNameList, bool includeDateInName) const;
+  void getGeneralResults(bool onlyEditable, vector< pair<int, pair<string, string> > > &tagNameList, bool includeDateInName) const;
   void loadGeneralResults(bool forceReload) const;
 
   void getPredefinedClassTypes(map<string, ClassMetaType> &types) const;
@@ -1167,8 +1234,11 @@ public:
   int getStageNumber() const;
   void setStageNumber(int num);
 
-  /**Return false if card is not used*/
-  bool checkCardUsed(gdioutput &gdi, int CardNo);
+  /** Check that all necessary features are present, (fix by adding features)*/
+  void checkNecessaryFeatures();
+
+  /** Show dialog and return false if card is not used. */
+  bool checkCardUsed(gdioutput &gdi, oRunner &runnerToAssignCard, int CardNo);
 
   void analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns,
                   vector<pRunner> &known, vector<pRunner> &unknown);
@@ -1201,6 +1271,8 @@ public:
   friend class oListInfo;
   friend class MeosSQL;
   friend class MySQLReconnect;
+
+  friend class TestMeOS;
 };
 
 #endif // !defined(AFX_OEVENT_H__CDA15578_CB62_4EAD_96B9_3037355F5D48__INCLUDED_)

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -54,7 +54,7 @@ DrawInfo::DrawInfo() {
   firstStart = 3600;
   maxCommonControl = 3;
   allowNeighbourSameCourse = true;
-
+  coursesTogether = false;
   // Statistics output from optimize start order
   numDistinctInit = -1;
   numRunnerSameInitMax = -1;
@@ -334,6 +334,85 @@ int optimalLayout(int interval, vector< pair<int, int> > &classes) {
   return last;
 }
 
+void oEvent::loadDrawSettings(const set<int> &classes, DrawInfo &drawInfo, vector<ClassInfo> &cInfo) const {
+  drawInfo.firstStart = 3600 * 22;
+  drawInfo.minClassInterval = 3600;
+  drawInfo.maxClassInterval = 1;
+  drawInfo.minVacancy = 10;
+  drawInfo.maxVacancy = 1;
+  set<int> reducedStart;
+  for (set<int>::const_iterator it = classes.begin(); it != classes.end(); ++it) {
+    pClass pc = oe->getClass(*it);
+    if (pc) {
+      int fs = pc->getDrawFirstStart();
+      int iv = pc->getDrawInterval();
+      if (iv > 0 && fs > 0) {
+        drawInfo.firstStart = min(drawInfo.firstStart, fs);
+        drawInfo.minClassInterval = min(drawInfo.minClassInterval, iv);
+        drawInfo.maxClassInterval = max(drawInfo.maxClassInterval, iv);
+        drawInfo.minVacancy = min(drawInfo.minVacancy, pc->getDrawVacant());
+        drawInfo.maxVacancy = max(drawInfo.maxVacancy, pc->getDrawVacant());
+        reducedStart.insert(fs%iv);
+      }
+    }
+  }
+
+  drawInfo.baseInterval = drawInfo.minClassInterval;
+  int lastStart = -1;
+  for (set<int>::iterator it = reducedStart.begin(); it != reducedStart.end(); ++it) {
+    if (lastStart == -1)
+      lastStart = *it;
+    else {
+      drawInfo.baseInterval = min(drawInfo.baseInterval, *it-lastStart);
+      lastStart = *it;
+    }
+  }
+
+  map<int, int> runnerPerGroup;
+  map<int, int> runnerPerCourse;
+
+  cInfo.clear();
+  cInfo.resize(classes.size());
+  int i = 0;
+  for (set<int>::const_iterator it = classes.begin(); it != classes.end(); ++it) {
+    pClass pc = oe->getClass(*it);
+    if (pc) {
+      int fs = pc->getDrawFirstStart();
+      int iv = pc->getDrawInterval();
+      if (iv <= 0)
+        iv = drawInfo.minClassInterval;
+      if (fs <= 0)
+        fs = drawInfo.firstStart; //Fallback
+      
+      cInfo[i].pc = pc;
+      cInfo[i].classId = *it;
+      cInfo[i].courseId = pc->getCourseId();
+      cInfo[i].firstStart = fs;
+      cInfo[i].unique = pc->getCourseId();
+      if (cInfo[i].unique == 0)
+        cInfo[i].unique = pc->getId() * 10000;
+      cInfo[i].firstStart = (fs - drawInfo.firstStart) / drawInfo.baseInterval;
+      cInfo[i].interval = iv / drawInfo.baseInterval;
+      cInfo[i].nVacant = pc->getDrawVacant();
+      cInfo[i].nExtra = pc->getDrawNumReserved();
+      
+      cInfo[i].nRunners = pc->getNumRunners(true, true, true) + cInfo[i].nVacant;
+
+      if (cInfo[i].nRunners>0) {
+        runnerPerGroup[cInfo[i].unique] += cInfo[i].nRunners;
+        runnerPerCourse[cInfo[i].courseId] += cInfo[i].nRunners;
+      }
+      drawInfo.classes[*it] = cInfo[i];
+      i++;
+    }
+  }
+
+  for (size_t k = 0; k<cInfo.size(); k++) {
+    cInfo[k].nRunnersGroup = runnerPerGroup[cInfo[k].unique];
+    cInfo[k].nRunnersCourse = runnerPerCourse[cInfo[k].courseId];
+  }
+}
+
 void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, DrawInfo &di,
                                 vector<ClassInfo> &cInfo, int useNControls, int alteration)
 {
@@ -379,7 +458,7 @@ void oEvent::optimizeStartOrder(vector< vector<pair<int, int> > > &StartField, D
     if (!drawClass)
       continue;
 
-    int nr = c_it->getNumRunners(true);
+    int nr = c_it->getNumRunners(true, true, true);
     if (ci.nVacant == -1 || !ci.nVacantSpecified) {
       // Auto initialize
       int nVacancies = int(nr * di.vacancyFactor + 0.5);
@@ -581,47 +660,61 @@ void oEvent::drawRemaining(bool useSOFTMethod, bool placeAfter)
   DrawType drawType = placeAfter ? remainingAfter : remainingBefore;
 
   for (oClassList::iterator it = Classes.begin(); it !=  Classes.end(); ++it) {
-    drawList(it->getId(), 0, 0, 0, 0, useSOFTMethod, false, drawType);
+    vector<ClassDrawSpecification> spec;
+    spec.push_back(ClassDrawSpecification(it->getId(), 0, 0, 0, 0));
+
+    drawList(spec, useSOFTMethod, 1, drawType);
   }
 }
 
-void oEvent::drawList(int ClassID, int leg, int FirstStart,
-                      int Interval, int Vacances,
-                      bool useSOFTMethod, bool pairwise, DrawType drawType)
-{
-  autoSynchronizeLists(false);
+void oEvent::drawList(const vector<ClassDrawSpecification> &spec, 
+                      bool useSOFTMethod, int pairSize, DrawType drawType) {
 
+  autoSynchronizeLists(false);
+  assert(pairSize > 0);
   oRunnerList::iterator it;
 
   int VacantClubId=getVacantClub();
+  map<int, int> clsId2Ix;
+  set<int> clsIdClearVac;
 
-  pClass pc=getClass(ClassID);
+  const bool multiDay = hasPrevStage();
 
-  if (!pc)
-    throw std::exception("Klass saknas");
+  for (size_t k = 0; k < spec.size(); k++) {
+    pClass pc = getClass(spec[k].classID);
 
-  if (Vacances>0 && pc->getClassType()==oClassRelay)
-    throw std::exception("Vakanser stöds ej i stafett.");
+    if (!pc)
+      throw std::exception("Klass saknas");
 
-  if (Vacances>0 && leg>0)
-    throw std::exception("Det går endast att sätta in vakanser på sträcka 1.");
+    if (spec[k].vacances>0 && pc->getClassType()==oClassRelay)
+      throw std::exception("Vakanser stöds ej i stafett.");
 
-  if (size_t(leg) < pc->legInfo.size()) {
-    pc->legInfo[leg].startMethod = STDrawn; //Automatically change start method
+    if (spec[k].vacances>0 && spec[k].leg>0)
+      throw std::exception("Det går endast att sätta in vakanser på sträcka 1.");
+
+    if (size_t(spec[k].leg) < pc->legInfo.size()) {
+      pc->legInfo[spec[k].leg].startMethod = STDrawn; //Automatically change start method
+    }
+    clsId2Ix[spec[k].classID] = k;
+    if (!multiDay && spec[k].leg == 0)
+      clsIdClearVac.insert(spec[k].classID);
   }
 
   vector<pRunner> runners;
   runners.reserve(Runners.size());
 
   if (drawType == drawAll) {
-    const bool multiDay = hasPrevStage();
-
-    if (leg==0 && !multiDay) {
+    
+    if (!clsIdClearVac.empty()) {
       //Only remove vacances on leg 0.
       vector<int> toRemove;
       //Remove old vacances
       for (it=Runners.begin(); it != Runners.end(); ++it) {
-        if (it->Class && it->Class->Id==ClassID) {
+        if (clsIdClearVac.count(it->getClassId())) {
+          if (it->isRemoved())
+            continue;
+          if (it->tInTeam)
+            continue; // Cannot remove team runners
           if (it->getClubId()==VacantClubId) {
             toRemove.push_back(it->getId());
           }
@@ -630,36 +723,55 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
 
       removeRunner(toRemove);
       toRemove.clear();
-
-      while (Vacances>0) {
-        oe->addRunnerVacant(ClassID);
-        Vacances--;
+      //loop over specs, check clsIdClearVac...
+      
+      for (size_t k = 0; k < spec.size(); k++) {
+        if (!clsIdClearVac.count(spec[k].classID))
+          continue;
+        for (int i = 0; i < spec[k].vacances; i++) {
+          oe->addRunnerVacant(spec[k].classID);
+        }
       }
     }
 
-    for (it=Runners.begin(); it != Runners.end(); ++it)
-      if (!it->isRemoved() && it->Class && it->Class->Id==ClassID && it->legToRun()==leg ) {
-        runners.push_back(&*it);
+    for (it=Runners.begin(); it != Runners.end(); ++it) {
+      if (!it->isRemoved() && clsId2Ix.count(it->getClassId())) {
+        if (it->getStatus() == StatusNotCompetiting)
+          continue;
+        int ix = clsId2Ix[it->getClassId()];
+        if (it->legToRun() == spec[ix].leg ) {
+          runners.push_back(&*it);
+          spec[ix].ntimes++;
+        }
       }
+    }
   }
   else {
     // Find first/last start in class and interval:
-    int first=7*24*3600, last = 0;
+    vector<int> first(spec.size(), 7*24*3600);
+    vector<int> last(spec.size(), 0);
     set<int> cinterval;
     int baseInterval = 10*60;
 
-    for (it=Runners.begin(); it != Runners.end(); ++it)
-      if (!it->isRemoved() && it->getClassId()==ClassID) {
+    for (it=Runners.begin(); it != Runners.end(); ++it) {
+      if (!it->isRemoved() && clsId2Ix.count(it->getClassId())) {
+        if (it->getStatus() == StatusNotCompetiting)
+          continue;
+
         int st = it->getStartTime();
+        int ix = clsId2Ix[it->getClassId()];
+          
         if (st>0) {
-          first = min(first, st);
-          last = max(last, st);
+          first[ix] = min(first[ix], st);
+          last[ix] = max(last[ix], st);
           cinterval.insert(st);
         }
-        else
+        else {
+          spec[ix].ntimes++;
           runners.push_back(&*it);
+        }
       }
-
+    }
 
     // Find start interval
     int t=0;
@@ -669,33 +781,39 @@ void oEvent::drawList(int ClassID, int leg, int FirstStart,
       t = *sit;
     }
 
-    if (drawType == remainingBefore)
-      FirstStart = first - runners.size()*baseInterval;
-    else
-      FirstStart = last + baseInterval;
+    for (size_t k = 0; k < spec.size(); k++) {
+      if (drawType == remainingBefore)
+        spec[k].firstStart = first[k] - runners.size()*baseInterval;
+      else
+        spec[k].firstStart = last[k] + baseInterval;
 
-    Interval = baseInterval;
+      spec[k].interval = baseInterval;
 
-    if (last == 0 || FirstStart<=0 ||  baseInterval == 10*60) {
-      // Fallback if incorrect specification.
-      FirstStart = 3600;
-      Interval = 2*60;
+      if (last[k] == 0 || spec[k].firstStart<=0 ||  baseInterval == 10*60) {
+        // Fallback if incorrect specification.
+        spec[k].firstStart = 3600;
+        spec[k].interval = 2*60;
+      }
     }
-
   }
 
   if (runners.empty())
     return;
 
   vector<int> stimes(runners.size());
-  if (!pairwise) {
-    for(unsigned k=0;k<stimes.size(); k++)
-      stimes[k] = FirstStart+Interval*k;
+  int nr = 0;
+  for (size_t k = 0; k < spec.size(); k++) {
+    for (int i = 0; i < spec[k].ntimes; i++) {
+      int kx = i/pairSize;
+      stimes[nr++] = spec[k].firstStart + spec[k].interval * kx;
+    }
   }
-  else {
-    for(unsigned k=0;k<stimes.size(); k++)
-      stimes[k] = FirstStart+Interval*(k/2);
-  }
+  
+  if (spec.size() > 1)
+    sort(stimes.begin(), stimes.end());
+
+  if (gdibase.isTest())
+    InitRanom(0,0);
 
   if (useSOFTMethod)
     drawSOFTMethod(runners);
@@ -994,7 +1112,7 @@ void oEvent::drawListClumped(int ClassID, int FirstStart, int Interval, int Vaca
 
 void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
                                const string &minIntervall, const string &vacances,
-                               bool lateBefore, bool softMethod, bool pairwise)
+                               bool lateBefore, bool softMethod, int pairSize)
 {
   gdi.refresh();
   const int leg = 0;
@@ -1017,7 +1135,11 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
     gdi.refreshFast();
     gdi.dropLine();
     for (oClassList::iterator it = Classes.begin(); it!=Classes.end(); ++it) {
-      oe->drawList(it->getId(), 0, iFirstStart, 0, 0, false, false, drawAll);
+      if (it->isRemoved())
+        continue;
+      vector<ClassDrawSpecification> spec;
+      spec.push_back(ClassDrawSpecification(it->getId(), 0, iFirstStart, 0, 0));
+      oe->drawList(spec, false, 1, drawAll);
     }
     return;
   }
@@ -1169,10 +1291,12 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
       }
 
       gdi.addString("", 0, "Lottar: X#" + getClass(ci.classId)->getName());
+      vector<ClassDrawSpecification> spec;
+      spec.push_back(ClassDrawSpecification(ci.classId, leg, 
+                                  di.firstStart + di.baseInterval * ci.firstStart, 
+                                  di.baseInterval * ci.interval, ci.nVacant));
 
-      drawList(ci.classId, leg, di.firstStart + di.baseInterval * ci.firstStart,
-               di.baseInterval * ci.interval, ci.nVacant, softMethod, pairwise, oEvent::drawAll);
-
+      drawList(spec, softMethod, pairSize, oEvent::drawAll);
       gdi.scrollToBottom();
       gdi.refreshFast();
       drawn++;
@@ -1188,8 +1312,9 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
 
     gdi.addStringUT(0, lang.tl("Lottar efteranmälda") + ": " + it->getName());
 
-    drawList(it->getId(), leg, 0, 0, softMethod, 0, false,
-              lateBefore ? remainingBefore : remainingAfter);
+    vector<ClassDrawSpecification> spec;
+    spec.push_back(ClassDrawSpecification(it->getId(), leg, 0, 0, 0));
+    drawList(spec, softMethod, 1, lateBefore ? remainingBefore : remainingAfter);
 
     gdi.scrollToBottom();
     gdi.refreshFast();
@@ -1208,7 +1333,8 @@ void oEvent::automaticDrawAll(gdioutput &gdi, const string &firstStart,
 }
 
 void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
-                             int maxTime, int interval, bool pairwise, bool reverse, double scale) {
+                             int maxTime, int interval, 
+                             int pairSize, bool reverse, double scale) {
   if (classId<=0)
     return;
 
@@ -1297,10 +1423,7 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
       if (breakIndex == -1)
         breakIndex = k;
 
-      if (!pairwise)
-        r->setStartTime(restartTime + (k - breakIndex) * interval, true, false);
-      else
-        r->setStartTime(restartTime + ((k - breakIndex)/2) * interval, true, false);
+      r->setStartTime(restartTime + ((k - breakIndex)/pairSize) * interval, true, false);
     }
     else {
       if (breakIndex == -1) {
@@ -1308,14 +1431,8 @@ void oEvent::drawPersuitList(int classId, int firstTime, int restartTime,
         odd = times.size() % 2;
       }
 
-      if (!pairwise)
-        r->setStartTime(restartTime + (breakIndex - k) * interval, true, false);
-      else
-        r->setStartTime(restartTime + ((breakIndex - k + odd)/2) * interval, true, false);
-
+      r->setStartTime(restartTime + ((breakIndex - k + odd)/pairSize) * interval, true, false);
     }
-
     r->synchronize(true);
   }
-
 }

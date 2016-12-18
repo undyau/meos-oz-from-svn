@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "stdafx.h"
@@ -29,7 +29,7 @@
 #include "meosexception.h"
 #include "localizer.h"
 
-GeneralResultCtr::GeneralResultCtr(const char *tagIn, const char *nameIn, GeneralResult *ptrIn) {
+GeneralResultCtr::GeneralResultCtr(const char *tagIn, const string &nameIn, GeneralResult *ptrIn) {
   name = nameIn;
   tag = tagIn;
   ptr = ptrIn;
@@ -95,14 +95,14 @@ int GeneralResult::getListParamTimeToControl() const {
   if (context)
     return context->useControlIdResultTo;
   else
-    throw meosException("Internal error");
+    return 0; // No context in method editor
 }
 
 int GeneralResult::getListParamTimeFromControl() const {
   if (context)
     return context->useControlIdResultFrom;
   else
-    throw meosException("Internal error");
+    return 0; // No context in method editor
 }
 
 struct GRSortInfo {
@@ -218,6 +218,7 @@ template<class T> void GeneralResult::sort(vector<T *> &rt, SortOrder so) const 
 
   if (so == CourseResult)
     ps = CourseWise;
+
   else if (so == SortByName || so == SortByFinishTimeReverse ||
            so == SortByFinishTime || so == SortByStartTime)
     ps = None;
@@ -270,21 +271,32 @@ void GeneralResult::calculateIndividualResults(vector<oRunner *> &runners, oList
   //bool classSort = resType == oListInfo::Global ? false : true;
   vector<GRSortInfo> runnerScore(runners.size());
   for (size_t k = 0; k < runners.size(); k++) {
+    const oRunner *r = runners[k];
     if (resType == oListInfo::Classwise) {
-      runnerScore[k].principalSort = runners[k]->Class ? runners[k]->Class->getSortIndex() * 50000
-                                                       + runners[k]->Class->getId() : 0;
+      runnerScore[k].principalSort = r->Class ? r->Class->getSortIndex() * 50000
+                                     + r->Class->getId() : 0;
     }
     else if (resType == oListInfo::Legwise) {
-      runnerScore[k].principalSort = runners[k]->Class ? runners[k]->Class->getSortIndex() * 50000
-                                                       + runners[k]->Class->getId() : 0;
-      runnerScore[k].principalSort = runnerScore[k].principalSort * 50 + runners[k]->getLegNumber();
+      runnerScore[k].principalSort = r->Class ? r->Class->getSortIndex() * 50000
+                                     + r->Class->getId() : 0;
+
+      int ln = r->getLegNumber();
+      const oTeam *pt = r->getTeam();
+      if (pt) {
+        const oClass *tcls = pt->getClassRef();
+        if (tcls && tcls->getClassType() == oClassRelay) {
+          int dummy;
+          tcls->splitLegNumberParallel(r->getLegNumber(), ln, dummy);
+        }
+      }  
+      runnerScore[k].principalSort = runnerScore[k].principalSort * 50 + ln;
     }
     else
       runnerScore[k].principalSort = 0;
 
     int from = getListParamTimeFromControl();
     if (from <= 0) {
-      runners[k]->tmpResult.startTime =  runners[k]->getStartTime();
+      runners[k]->tmpResult.startTime = r->getStartTime();
     }
     else {
       int rt;
@@ -450,27 +462,82 @@ int ResultAtControl::score(oRunner &runner, RunnerStatus st, int time, int point
     return TK + st;
 }
 
+RunnerStatus TotalResultAtControl::deduceStatus(oRunner &runner) const {
+  RunnerStatus singleStat = ResultAtControl::deduceStatus(runner);
+  if (singleStat != StatusOK)
+    return singleStat;
+  
+  RunnerStatus inputStatus = StatusOK;
+  if (runner.getTeam() && getListParamTimeFromControl() <= 0) {
+    // Only use input time when start time is used
+    const pTeam t = runner.getTeam();
+    if (runner.getLegNumber()>0 && t->getClassRef()) {
+      // Find base leg
+      int legIx = runner.getLegNumber();
+      const pClass cls = t->getClassRef();
+      while (legIx > 0 && (cls->isParallel(legIx) || cls->isOptional(legIx)))
+        legIx--;
+      if (legIx > 0)
+        inputStatus = t->getLegStatus(legIx-1, true);
+    }
+    else {
+      inputStatus = t->getInputStatus();
+    }
+  }
+  else {
+    inputStatus = runner.getInputStatus();
+  }
+
+  return inputStatus; // Single status is OK.
+}
+
+int TotalResultAtControl::deduceTime(oRunner &runner, int startTime) const {
+  int singleTime = ResultAtControl::deduceTime(runner, startTime);
+  
+  if (singleTime == 0)
+    return 0;
+
+  int inputTime = 0;
+  if (runner.getTeam() && getListParamTimeFromControl() <= 0) {
+    // Only use input time when start time is used
+    const pTeam t = runner.getTeam();
+    if (runner.getLegNumber()>0 && t->getClassRef()) {
+      // Find base leg
+      int legIx = runner.getLegNumber();
+      const pClass cls = t->getClassRef();
+      while (legIx > 0 && (cls->isParallel(legIx) || cls->isOptional(legIx)))
+        legIx--;
+      if (legIx > 0)
+        inputTime = t->getLegRunningTime(legIx-1, true);
+    }
+    else {
+      inputTime = t->getInputTime();
+    }
+  }
+  else {
+    inputTime = runner.getInputTime();
+  }
+
+  return singleTime + inputTime;
+}
 
 int TotalResultAtControl::score(oRunner &runner, RunnerStatus st, int time, int points, bool asTeamMember) const {
   if (asTeamMember)
     return runner.getLegNumber();
   const int TK = 3600 * 100;
   RunnerStatus inputStatus = StatusOK;
-  int inputTime = 0;
+
   if (runner.getTeam()) {
     const pTeam t = runner.getTeam();
     if (runner.getLegNumber()>0) { 
       inputStatus = t->getLegStatus(runner.getLegNumber()-1, true);
-      inputTime = t->getLegRunningTime(runner.getLegNumber()-1, true);
     }
     else {
       inputStatus = t->getInputStatus();
-      inputTime = t->getInputTime();
     }
   }
   else {
     inputStatus = runner.getInputStatus();
-    inputTime = runner.getInputTime();
   }
 
   if (st != StatusUnknown)
@@ -483,7 +550,6 @@ int TotalResultAtControl::score(oRunner &runner, RunnerStatus st, int time, int 
     return TK + st;
 }
 
-
 RunnerStatus ResultAtControl::deduceStatus(oRunner &runner) const {
   int fc = getListParamTimeToControl();
   if (fc > 0) {
@@ -492,11 +558,15 @@ RunnerStatus ResultAtControl::deduceStatus(oRunner &runner) const {
     runner.getSplitTime(fc, stat, rt);
     return stat;
   }
-  return runner.getStatus();
+  RunnerStatus st = runner.getStatus();
+  if (st == StatusUnknown && runner.getRunningTime() > 0)
+    return StatusOK;
+  return st;
 }
 
 int ResultAtControl::deduceTime(oRunner &runner, int startTime) const {
   int fc = getListParamTimeToControl();
+
   if (fc > 0) {
     RunnerStatus stat;
     int rt;
@@ -837,6 +907,7 @@ void DynamicResult::declareSymbols(DynamicMethods m, bool clear) const {
   parser.declareSymbol("Points", "Runner/team rogaining points", false);
   parser.declareSymbol("PointReduction", "Automatic rogaining point reduction", false);
   parser.declareSymbol("PointOvertime", "Runner/team rogaining overtime", false);
+  parser.declareSymbol("PointGross", "Rogaining points before automatic reduction", false);
 
   parser.declareSymbol("PointAdjustment", "Runner/team rogaining points adjustment", false);
   parser.declareSymbol("TimeAdjustment", "Runner/team time adjustment", false);
@@ -963,8 +1034,9 @@ void DynamicResult::prepareCommon(oAbstractRunner &runner) const {
   parser.addSymbol("Time", runner.getRunningTime());
   parser.addSymbol("Place", runner.getPlace());
   parser.addSymbol("Points", runner.getRogainingPoints(false));
-  parser.addSymbol("PointReduction", runner.getRogainingPoints(false));
-  parser.addSymbol("PointOvertime", runner.getRogainingPoints(false));
+  parser.addSymbol("PointReduction", runner.getRogainingReduction());
+  parser.addSymbol("PointOvertime", runner.getRogainingOvertime());
+  parser.addSymbol("PointGross", runner.getRogainingPointsGross());
 
   parser.addSymbol("PointAdjustment", runner.getPointAdjustment());
   parser.addSymbol("TimeAdjustment", runner.getTimeAdjustment());

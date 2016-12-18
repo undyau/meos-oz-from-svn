@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -112,7 +112,7 @@ void permute(int *array, int size)
   if (p2>1) permute(&array[p1], p2);
 }
 
-//Truely 32-bit random number
+//Truely 16-bit random number
 unsigned short _rbsource[1024] = {
   30728,  35457,  26975,  19859,  23519,
   5742, 33642,  14368,  7129, 26291,

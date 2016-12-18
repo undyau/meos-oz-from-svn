@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,19 +17,28 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "tabbase.h"
 #include "SportIdent.h"
 #include "Printer.h"
+#include "inthashmap.h"
 
 struct PunchInfo;
 class csvparser;
 
-class TabSI :
-  public TabBase
-{
+class TabSI :  public TabBase {
+  public:
+    enum SIMode {
+    ModeReadOut,
+    ModeAssignCards,
+    ModeCheckCards,
+    ModeEntry,
+    ModeCardData
+  };
+
+private:
   /** Try to automatcally assign a class to runner (if none is given)
       Return true if runner has a class on exist */
   bool autoAssignClass(pRunner r, const SICard &sic);
@@ -58,13 +67,6 @@ class TabSI :
   vector<SICard> cards;
   vector<string> filterDate;
 
-  enum SIMode {
-    ModeReadOut,
-    ModeAssignCards,
-    ModeEntry,
-    ModeCardData
-  };
-
   int runnerMatchedId;
 
   //Interactive card assign
@@ -80,6 +82,33 @@ class TabSI :
   int lastClubId;
   string lastFee;
   int inputId;
+
+  void showCheckCardStatus(gdioutput &gdi, const string &cmd);
+  
+  string getCardInfo(bool param, vector<int> &count) const;
+  // Formatting for card tick off
+  bool checkHeader;
+  int cardPosX;
+  int cardPosY;
+  int cardOffsetX;
+  int cardNumCol;
+  int cardCurrentCol;
+
+  enum CardNumberFlags {
+    // Basic flags
+    CNFChecked = 1,
+    CNFUsed = 2,
+    CNFNotRented = 4,
+
+    // Combinations
+    CNFCheckedAndUsed = 3,
+    CNFCheckedNotRented = 5,
+    CNFRentAndNotRent = 6,
+    CNFCheckedRentAndNotRent = 7,
+  };
+
+  map<int, CardNumberFlags> checkedCardFlags;
+  void checkCard(gdioutput &gdi, const SICard &sic, bool updateAll);
 
   void showReadPunches(gdioutput &gdi, vector<PunchInfo> &punches, set<string> &dates);
   void showReadCards(gdioutput &gdi, vector<SICard> &cards);
@@ -108,12 +137,15 @@ class TabSI :
   // Ask if card is to be overwritten
   bool askOverwriteCard(gdioutput &gdi, pRunner r) const;
 
-  list<SICard> savedCards;
+  list< pair<int, SICard> > savedCards;
+  int savedCardUniqueId;
+  SICard &getCard(int id) const;
+
   void showModeCardData(gdioutput &gdi);
 
-  void printCard(gdioutput &gdi, SICard &c, bool forPrinter) const;
+  void printCard(gdioutput &gdi, int cardId, bool forPrinter) const;
+  void generateSplits(int cardId, gdioutput &gdi);
 
-  void generateSplits(SICard &card, gdioutput &gdi);
   static int analyzePunch(SIPunch &p, int &start, int &accTime, int &days);
 
 
@@ -121,8 +153,22 @@ class TabSI :
 
   int NC;
 
-public:
+  class EditCardData : public GuiHandler {
+    TabSI *tabSI;
+    EditCardData(const EditCardData&);
+    EditCardData &operator=(const EditCardData&);
+  public:
+    EditCardData() : tabSI(0) {}
+    void handle(gdioutput &gdi, BaseInfo &info, GuiEventType type);
+    friend class TabSI;
+  };
+  EditCardData editCardData;
 
+protected:
+  void clearCompetitionData();
+
+public:
+  
   struct StoredStartInfo {
     string storedName;
     string storedCardNo;
@@ -133,17 +179,20 @@ public:
     bool allStages;
     bool rentState;
     bool hasPaid;
+    int payMode;
     DWORD age;
     int storedClassId;
 
     void clear();
     void checkAge();
-    StoredStartInfo() : rentState(false), age(0), storedClassId(0), hasPaid(0), allStages(false) {}
+    StoredStartInfo() : rentState(false), age(0), storedClassId(0), hasPaid(0), payMode(0), allStages(false) {}
   };
 
   StoredStartInfo storedInfo;
+  void generatePayModeWidget(gdioutput &gdi) const;
+  static bool writePayMode(gdioutput &gdi, int amount, oRunner &r);
 
-  static SportIdent &getSI(gdioutput &gdi);
+  static SportIdent &getSI(const gdioutput &gdi);
   void printerSetup(gdioutput &gdi);
 	void labelPrinterSetup(gdioutput &gdi);
 
@@ -160,6 +209,9 @@ public:
   //SICard CSIC;
   SICard activeSIC;
   list<SICard> CardQueue;
+
+  const char * getTypeStr() const {return "TSITab";}
+  TabType getType() const {return TSITab;}
 
   void insertSICard(gdioutput &gdi, SICard &sic);
 

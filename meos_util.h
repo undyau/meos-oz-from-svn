@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -69,8 +69,14 @@ const string &formatTime(int rt);
 const string &formatTimeHMS(int rt);
 string formatTimeIOF(int rt, int zeroTime);
 
-int convertDateYMS(const string &m);
-int convertDateYMS(const string &m, SYSTEMTIME &st);
+int convertDateYMS(const string &m, bool checkValid);
+int convertDateYMS(const string &m, SYSTEMTIME &st, bool checkValid);
+
+// Convert a "general" time string to a MeOS compatible time string
+void processGeneralTime(const string &generalTime, string &meosTime, string &meosDate);
+
+// Format number date 20160421 -> 2016-04-21 (if iso) or according to a custom format otherwise
+string formatDate(int m, bool useIsoFormat);
 
 __int64 SystemTimeToInt64Second(const SYSTEMTIME &st);
 SYSTEMTIME Int64SecondToSystemTime(__int64 time);
@@ -82,8 +88,11 @@ int convertAbsoluteTimeMS(const string &m);
 // Parses a time on format HH:MM:SS+01:00Z or HHMMSS+0100Z (but ignores time zone)
 int convertAbsoluteTimeISO(const string &m);
 
-//Returns a time converted from HH:MM:SS or -1, in seconds
-int convertAbsoluteTimeHMS(const string &m);
+/** Returns a time converted from HH:MM:SS or -1, in seconds
+   @param m time to convert
+   @param daysZeroTime -1 do not support days syntax, positive interpret days w.r.t the specified zero time.
+*/
+int convertAbsoluteTimeHMS(const string &m, int daysZeroTime);
 
 const vector<string> &split(const string &line, const string &separators, vector<string> &split_vector);
 const string &unsplit(const vector<string> &split_vector, const string &separators, string &line);
@@ -189,6 +198,9 @@ string makeValidFileName(const string &input, bool strict);
 /** Initial capital letter. */
 void capitalize(string &str);
 
+/** Initial capital letter for each word. */
+void capitalizeWords(string &str);
+
 string getTimeZoneString(const string &date);
 
 /** Return bias in seconds. UTC = local time + bias. */
@@ -217,3 +229,7 @@ public:
   void unlockFile();
   void lockFile(const string &file);
 };
+
+namespace MeOSUtil {
+  extern int useHourFormat;
+}

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -295,8 +295,9 @@ void Download::postFile(const string &url, const string &file, const string &fil
   HINTERNET hConnect = InternetConnect(hInternet, host, port,
                                        NULL, NULL, INTERNET_SERVICE_HTTP, 0, dw);
   bool success = false;
+  int errorCode = 0;
   try {
-    success = httpSendReqEx(hConnect, path, headers, file, fileOut, pw);
+    success = httpSendReqEx(hConnect, path, headers, file, fileOut, pw, errorCode);
   }
   catch (std::exception &) {
     InternetCloseHandle(hConnect);
@@ -305,9 +306,10 @@ void Download::postFile(const string &url, const string &file, const string &fil
   InternetCloseHandle(hConnect);
 
   if (!success) {
-    DWORD ec = GetLastError();
+    if (errorCode != 0)
+      errorCode = GetLastError();
 
-    string error = ec != 0 ? getErrorMessage(ec) : "";
+    string error = errorCode != 0 ? getErrorMessage(errorCode) : "";
     if (error.empty())
       error = "Ett okänt fel inträffade.";
     throw std::exception(error.c_str());
@@ -316,7 +318,10 @@ void Download::postFile(const string &url, const string &file, const string &fil
 
 bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
                              const vector< pair<string, string> > &headers,
-                             const string &upFile, const string &outFile, ProgressWindow &pw) const {
+                             const string &upFile, const string &outFile, 
+                             ProgressWindow &pw, 
+                             int &errorCode) const {
+  errorCode = 0;
   INTERNET_BUFFERS BufferIn;
   memset(&BufferIn, 0, sizeof(BufferIn));
   BufferIn.dwStructSize = sizeof( INTERNET_BUFFERS );
@@ -359,6 +364,7 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
     DWORD sum = 0;
     do {
       if (!ReadFile (hFile, pBuffer, sizeof(pBuffer), &dwBytesRead, NULL)) {
+        errorCode = GetLastError();
         CloseHandle(hFile);
         InternetCloseHandle(hRequest);
         return false;
@@ -366,6 +372,7 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
 
       if (dwBytesRead > 0) {
         if (!InternetWriteFile(hRequest, pBuffer, dwBytesRead, &dwBytesWritten)) {
+          errorCode = GetLastError();
           CloseHandle(hFile);
           InternetCloseHandle(hRequest);
           return false;
@@ -388,6 +395,7 @@ bool Download::httpSendReqEx(HINTERNET hConnect, const string &dest,
 
     if (!HttpEndRequest(hRequest, NULL, 0, 0)) {
       DWORD error = GetLastError();
+      errorCode = error;
       if (error == ERROR_INTERNET_FORCE_RETRY)
         retry--;
       else if (error == ERROR_INTERNET_TIMEOUT) {

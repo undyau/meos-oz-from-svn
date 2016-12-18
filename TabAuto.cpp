@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -45,6 +45,7 @@
 #include "meosexception.h"
 
 static TabAuto *tabAuto = 0;
+int AutoMachine::uniqueId = 1;
 
 extern HWND hWndMain;
 extern HWND hWndWorkspace;
@@ -53,6 +54,12 @@ TabAuto::TabAuto(oEvent *poe):TabBase(poe)
 {
   synchronize=false;
   synchronizePunches=false;
+}
+
+AutoMachine *AutoMachine::getMachine(int id) {
+  if (tabAuto)
+    return tabAuto->getMachine(id);
+  throw meosException("Internal error");
 }
 
 AutoMachine* AutoMachine::construct(Machines ms) {
@@ -69,11 +76,23 @@ AutoMachine* AutoMachine::construct(Machines ms) {
     return new OnlineInput();
   case mOnlineResults:
     return new OnlineResults();
+  case mSaveBackup:
+    return new SaveMachine();
   }
   throw meosException("Invalid machine");
 }
 
-
+AutoMachine *TabAuto::getMachine(int id) {
+  if (id == 0)
+    return 0;
+  list<AutoMachine *>::iterator it;
+  for (it=machines.begin(); it!=machines.end(); ++it) {
+    if (*it != 0 && (*it)->getId() == id) {
+      return *it;
+    }
+  }
+  throw meosException("Service X not found.#" + itos(id));
+}
 
 TabAuto::~TabAuto(void)
 {
@@ -188,30 +207,7 @@ void TabAuto::timerCallback(gdioutput &gdi)
   DWORD d=0;
   if (reload && !editMode && gdi.getData("AutoPage", d) && d)
     loadPage(gdi);
-  /*if (printResultIntervalSec>0) {
-
-    if (tc>printResultTimeOut) {
-
-      gdioutput gdi;
-      //gdi.Init(hWndWorkspace, hWndMain, 0);
-      gdi.ClearPage();
-
-      oe->GenerateResultlistPrint(gdi);
-
-      HDC hDC=GetDC(hWndWorkspace);
-      RECT rc;
-      rc.right=1000;
-      rc.left=0;
-      rc.bottom=1000;
-      rc.top=0;
-      gdi.Draw(hDC, rc);
-
-      ReleaseDC(hWndWorkspace, hDC);
-
-      setTimer(printResultTimeOut, printResultIntervalSec);
-    }
-  }*/
-}
+ }
 
 void TabAuto::setTimer(AutoMachine *am)
 {
@@ -239,13 +235,28 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
     if (nRunner>0 &&
       gdi.ask("Vill du dumpa aktuellt tävling och skapa en testtävling?")) {
-      oe->generateTestCompetition(nClass, nRunner,
-        gdi.isChecked("UseRelay"));
+      oe->generateTestCompetition(nClass, nRunner, gdi.isChecked("UseRelay"));
+      gdi.getTabs().get(TCmpTab)->loadPage(gdi);
+      return 0;
     }
 #endif
   }
-  if (bu.id=="Result") {
-    PrintResultMachine *sm=dynamic_cast<PrintResultMachine*>((AutoMachine*)bu.getExtra());
+  else if (bu.id == "BrowseFolder") {
+    const char *edit = bu.getExtra();
+    string currentPath = gdi.getText(edit);
+    string newPath = gdi.browseForFolder(currentPath, 0);
+    if (!newPath.empty())
+      gdi.setText(edit, newPath);
+  }
+  else if (bu.id == "StartBackup") {
+    SaveMachine *sm=dynamic_cast<SaveMachine*>(getMachine(bu.getExtraInt()));
+    if (sm) 
+      sm->saveSettings(gdi);
+    updateSyncInfo();
+    loadPage(gdi);
+  }
+  else if (bu.id=="Result") {
+    PrintResultMachine *sm=dynamic_cast<PrintResultMachine*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mPrintResultsMachine);
   }
   else if (bu.id == "BrowseFile") {
@@ -279,24 +290,28 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     gdi.setInputStatus("PrinterSetup", stat);
   }
   else if (bu.id=="Splits") {
-    SplitsMachine *sm=dynamic_cast<SplitsMachine*>((AutoMachine*)bu.getExtra());
+    SplitsMachine *sm=dynamic_cast<SplitsMachine*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mSplitsMachine);
   }
   else if (bu.id=="Prewarning") {
-    PrewarningMachine *sm=dynamic_cast<PrewarningMachine*>((AutoMachine*)bu.getExtra());
+    PrewarningMachine *sm=dynamic_cast<PrewarningMachine*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mPrewarningMachine);
   }
   else if (bu.id=="Punches") {
-    PunchMachine *sm=dynamic_cast<PunchMachine*>((AutoMachine*)bu.getExtra());
+    PunchMachine *sm=dynamic_cast<PunchMachine*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mPunchMachine);
   }
   else if (bu.id=="OnlineResults") {
-    OnlineResults *sm=dynamic_cast<OnlineResults*>((AutoMachine*)bu.getExtra());
+    OnlineResults *sm=dynamic_cast<OnlineResults*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mOnlineResults);
   }
   else if (bu.id=="OnlineInput") {
-    OnlineInput *sm=dynamic_cast<OnlineInput*>((AutoMachine*)bu.getExtra());
+    OnlineInput *sm=dynamic_cast<OnlineInput*>(getMachine(bu.getExtraInt()));
     settings(gdi, sm, mOnlineInput);
+  }
+  else if (bu.id=="SaveBackup") {
+    SaveMachine *sm=dynamic_cast<SaveMachine*>(getMachine(bu.getExtraInt()));
+    settings(gdi, sm, mSaveBackup);
   }
   else if (bu.id=="StartResult") {
 #ifndef MEOSDB
@@ -307,7 +322,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
       gdi.alert("Intervallet måste anges på formen MM:SS.");
     }
     else {
-      PrintResultMachine *prm=dynamic_cast<PrintResultMachine*>((AutoMachine*)bu.getExtra());
+      PrintResultMachine *prm=dynamic_cast<PrintResultMachine*>(getMachine(bu.getExtraInt()));
 
       if (prm) {
         prm->interval = t;
@@ -321,16 +336,16 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
           gdi.getSelection("Classes", prm->classesToPrint);
 
           ListBoxInfo lbi;
-          if (gdi.getSelectedItem("ListType", &lbi)) {
+          if (gdi.getSelectedItem("ListType", lbi)) {
             oListParam par;
             par.selection=prm->classesToPrint;
             par.listCode = EStdListType(lbi.data);
             par.pageBreak = gdi.isChecked("PageBreak");
             par.showInterTimes = gdi.isChecked("ShowInterResults");
             par.splitAnalysis = gdi.isChecked("SplitAnalysis");
-            gdi.getSelectedItem("LegNumber", &lbi);
-            if (signed(lbi.data)>=0)
-              par.setLegNumberCoded(lbi.data);
+            int legNr = gdi.getSelectedItem("LegNumber").first;
+            if (legNr >= 0)
+              par.setLegNumberCoded(legNr);
             else
               par.setLegNumberCoded(0);
 
@@ -350,20 +365,24 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 #endif
   }
   else if (bu.id=="StartSplits") {
-    int iv=gdi.getTextNo("Interval");
+    
+    string ivt = gdi.getText("Interval");
+    
+    int iv = gdi.getTextNo("Interval");
     const string &file=gdi.getText("FileName");
 
+    if (!ivt.empty() && (iv < 1 || iv > 7200)) {
+      throw meosException("Ogiltigt antal sekunder: X#" + gdi.getText("Interval"));
+    }
+
     if (file.empty()) {
-      gdi.alert("Filnamnet får inte vara tomt");
-      return false;
+      throw meosException("Filnamnet får inte vara tomt");
     }
 
     //Try exporting.
-#ifndef MEOSDB
-    oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, set<int>(), -1, false, true);
-#endif
-
-    SplitsMachine *sm=dynamic_cast<SplitsMachine*>((AutoMachine*)bu.getExtra());
+    oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false,
+                        set<int>(), -1, false, true, true);
+    SplitsMachine *sm=dynamic_cast<SplitsMachine*>(getMachine(bu.getExtraInt()));
 
     if (sm) {
       sm->interval=iv;
@@ -376,7 +395,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     loadPage(gdi);
   }
   else if (bu.id=="Save") { // General save
-    AutoMachine *sm=static_cast<AutoMachine*>(bu.getExtra());
+    AutoMachine *sm=getMachine(bu.getExtraInt());
     if (sm) {
       sm->save(*oe, gdi);
       setTimer(sm);
@@ -385,7 +404,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     loadPage(gdi);
   }
   else if (bu.id=="StartPrewarning") {
-    PrewarningMachine *pwm=dynamic_cast<PrewarningMachine*>((AutoMachine*)bu.getExtra());
+    PrewarningMachine *pwm=dynamic_cast<PrewarningMachine*>(getMachine(bu.getExtraInt()));
 
     if (pwm) {
       pwm->waveFolder=gdi.getText("WaveFolder");
@@ -409,13 +428,13 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
   else if (bu.id=="StartPunch") {
 
     string minute=gdi.getText("Interval");
-    int t=convertAbsoluteTimeMS(minute);
+    int t=atoi(minute.c_str());
 
     if (t<1 || t>7200) {
-      gdi.alert("Intervallet måste anges på formen MM:SS");
+      throw meosException("Ogiltigt antal sekunder: X#" + minute);
     }
     else {
-      PunchMachine *pm=dynamic_cast<PunchMachine*>((AutoMachine*)bu.getExtra());
+      PunchMachine *pm=dynamic_cast<PunchMachine*>(getMachine(bu.getExtraInt()));
 
       if (pm) {
         pm->interval=t;
@@ -430,15 +449,15 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
     loadPage(gdi);
   }
   else if (bu.id == "Stop") {
-    if (bu.getExtra())
-      stopMachine(static_cast<AutoMachine*>(bu.getExtra()));
+    if (bu.getExtraInt())
+      stopMachine(getMachine(bu.getExtraInt()));
 
-    updateSyncInfo();
+    updateSyncInfo(); 
     loadPage(gdi);
   }
   else if (bu.id == "PrinterSetup") {
     PrintResultMachine *prm =
-          dynamic_cast<PrintResultMachine*>((AutoMachine*)bu.getExtra());
+          dynamic_cast<PrintResultMachine*>(getMachine(bu.getExtraInt()));
 
     if (prm) {
       gdi.printSetup(prm->po);
@@ -446,7 +465,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
   }
   else if (bu.id == "PrintNow") {
      PrintResultMachine *prm =
-          dynamic_cast<PrintResultMachine*>((AutoMachine*)bu.getExtra());
+          dynamic_cast<PrintResultMachine*>(getMachine(bu.getExtraInt()));
 
      if (prm) {
        prm->process(gdi, oe, SyncNone);
@@ -455,26 +474,24 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
      }
   }
   else if (bu.id == "SelectAll") {
-    const char *ctrl=
-      static_cast<const char *>(bu.getExtra());
+    const char *ctrl = bu.getExtra();
     set<int> lst;
     lst.insert(-1);
     gdi.setSelection(ctrl, lst);
   }
   else if (bu.id == "SelectNone") {
-    const char *ctrl=
-      static_cast<const char *>(bu.getExtra());
+    const char *ctrl= bu.getExtra();
     set<int> lst;
     gdi.setSelection(ctrl, lst);
   }
   else if (bu.id == "TestVoice") {
-    PrewarningMachine *pwm=dynamic_cast<PrewarningMachine*>((AutoMachine*)bu.getExtra());
+    PrewarningMachine *pwm=dynamic_cast<PrewarningMachine*>(getMachine(bu.getExtraInt()));
 
     if (pwm)
       oe->tryPrewarningSounds(pwm->waveFolder, rand()%400+1);
   }
   else if ( bu.id == "WaveBrowse") {
-    string wf=gdi.browseForFolder(gdi.getText("WaveFolder"));
+    string wf=gdi.browseForFolder(gdi.getText("WaveFolder"), 0);
 
     if (wf.length()>0)
       gdi.setText("WaveFolder", wf);
@@ -547,6 +564,7 @@ void TabAuto::killMachines()
     delete machines.back();
     machines.pop_back();
   }
+  AutoMachine::resetGlobalId();
 }
 
 bool TabAuto::loadPage(gdioutput &gdi)
@@ -554,6 +572,7 @@ bool TabAuto::loadPage(gdioutput &gdi)
   oe->checkDB();
   tabAuto=this;
   editMode=false;
+  gdi.selectTab(tabId);
   DWORD isAP = 0;
   gdi.getData("AutoPage", isAP);
   int storedOY = 0;
@@ -583,6 +602,9 @@ bool TabAuto::loadPage(gdioutput &gdi)
   gdi.addButton("Splits", "Sträcktider (WinSplits)", AutomaticCB, "Spara sträcktider till en fil för automatisk synkronisering med WinSplits");
   gdi.addButton("Prewarning", "Förvarningsröst", AutomaticCB, "tooltip:voice");
   gdi.addButton("Punches", "Stämplingstest", AutomaticCB, "Simulera inläsning av stämplar");
+  gdi.popX();
+  gdi.dropLine(2.5);
+  gdi.addButton("SaveBackup", "Säkerhetskopiering", AutomaticCB);
 
   gdi.fillDown();
   gdi.dropLine(3);
@@ -638,8 +660,8 @@ void AutoMachine::startCancelInterval(gdioutput &gdi, char *startCommand, bool c
   else if (type == IntervalSecond)
     gdi.addInput("Interval", interval, 7, 0, "Tidsintervall (sekunder):");
   gdi.dropLine(1);
-  gdi.addButton(startCommand, "Starta automaten", AutomaticCB).setExtra(this);
-  gdi.addButton(created ? "Stop":"Cancel", "Avbryt", AutomaticCB).setExtra(this);
+  gdi.addButton(startCommand, "Starta automaten", AutomaticCB).setExtra(getId());
+  gdi.addButton(created ? "Stop":"Cancel", "Avbryt", AutomaticCB).setExtra(getId());
 
   gdi.popX();
   gdi.fillDown();
@@ -668,7 +690,7 @@ void PrintResultMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
   gdi.fillRight();
   gdi.addCheckbox("DoPrint", "Skriv ut", AutomaticCB, doPrint);
   gdi.dropLine(-0.5);
-  gdi.addButton("PrinterSetup", "Skrivare...", AutomaticCB, "Välj skrivare...").setExtra(this);
+  gdi.addButton("PrinterSetup", "Skrivare...", AutomaticCB, "Välj skrivare...").setExtra(getId());
 
   gdi.dropLine(4);
   gdi.popX();
@@ -811,17 +833,17 @@ void PrintResultMachine::status(gdioutput &gdi)
   gdi.popX();
   if (interval>0){
     gdi.addString("", 0, "Automatisk utskrift / export: ");
-    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerCanBeNegative, (GetTickCount()-timeout)/1000);
+    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerIgnoreSign, (GetTickCount()-timeout)/1000);
   }
   else {
 
   }
   gdi.popX();
   gdi.dropLine(2);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
-  gdi.addButton("PrintNow", "Exportera nu", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
+  gdi.addButton("PrintNow", "Exportera nu", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("Result", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("Result", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
@@ -883,17 +905,17 @@ void PrewarningMachine::status(gdioutput &gdi)
 
   gdi.popX();
   gdi.dropLine(0.3);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
-  gdi.addButton("TestVoice", "Testa rösten", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
+  gdi.addButton("TestVoice", "Testa rösten", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("Prewarning", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("Prewarning", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
 void PunchMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
   settingsTitle(gdi, "Test av stämplingsinläsningar");
-  string time=created ? "0:10" : getTimeMS(interval);
-  startCancelInterval(gdi, "StartPunch", created, IntervalMinute, time);
+  string time=created ? "10" : itos(interval);
+  startCancelInterval(gdi, "StartPunch", created, IntervalSecond, time);
 
   gdi.addString("", 10, "help:simulate");
 
@@ -924,16 +946,17 @@ void PunchMachine::status(gdioutput &gdi)
   gdi.pushX();
   if (interval>0){
     gdi.addString("", 0, "Stämplar om: ");
-    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerCanBeNegative, (GetTickCount()-timeout)/1000);
+    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerIgnoreSign|timeSeconds, (GetTickCount()-timeout)/1000);
+    gdi.addString("", 0, "(sekunder)");
   }
   else {
 
   }
   gdi.popX();
   gdi.dropLine(2);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("Punches", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("Punches", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
@@ -944,7 +967,7 @@ void PunchMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
   oe->generateTestCard(sic);
   SportIdent &si = TabSI::getSI(gdi);
   if (!sic.empty()) {
-    if (!radio) si.AddCard(sic);
+    if (!radio) si.addCard(sic);
   }
   else gdi.addInfoBox("", "Failed to generate card.", interval*2);
 
@@ -955,7 +978,7 @@ void PunchMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
       sic.PunchOnly=true;
       sic.nPunch=1;
       sic.Punch[0].Code=radio;
-      si.AddCard(sic);
+      si.addCard(sic);
     }
   }
 #endif
@@ -971,6 +994,10 @@ void SplitsMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
   settingsTitle(gdi, "Sträcktider / WinSplits");
   startCancelInterval(gdi, "StartSplits", created, IntervalSecond, time);
 
+  gdi.addString("",  0, "Intervall (sekunder). Lämna blankt för att uppdatera när "
+                                        "tävlingsdata ändras.");
+  gdi.dropLine();
+
   gdi.addString("", 10, "help:winsplits_auto");
 
 
@@ -982,9 +1009,7 @@ void SplitsMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
   gdi.popX();
   gdi.dropLine(2);
-  gdi.addString("",  0, "Intervall (sekunder). Lämna blankt för att uppdatera när "
-                                        "tävlingsdata ändras.");
-
+  
 }
 
 void SplitsMachine::status(gdioutput &gdi)
@@ -999,7 +1024,7 @@ void SplitsMachine::status(gdioutput &gdi)
       gdi.popX();
       gdi.dropLine(1);
       gdi.addString("", 0, "Skriver sträcktider om: ");
-      gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerCanBeNegative, (GetTickCount()-timeout)/1000);
+      gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerIgnoreSign|timeSeconds, (GetTickCount()-timeout)/1000);
       gdi.addString("", 0, "(sekunder)");
     }
     else {
@@ -1010,18 +1035,99 @@ void SplitsMachine::status(gdioutput &gdi)
     gdi.popX();
   }
   gdi.dropLine(2);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("Splits", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("Splits", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
 void SplitsMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 {
-#ifndef MEOSDB
   if ((interval>0 && ast==SyncTimer) || (interval==0 && ast==SyncDataUp)) {
     if (!file.empty())
-      oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, classes, leg, false, true);
+      oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, classes,
+                          leg, false, true, true);
   }
-#endif
+}
+
+void SaveMachine::status(gdioutput &gdi) {
+  gdi.addString("", 1, name);
+  if (!baseFile.empty()) {
+    gdi.fillRight();
+    gdi.pushX();
+    gdi.addString("", 0, "Destination: X#" + baseFile);
+
+    if (interval>0){
+      gdi.popX();
+      gdi.dropLine(1);
+      gdi.addString("", 0, "Säkerhetskopierar om: ");
+      gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerIgnoreSign, (GetTickCount()-timeout)/1000);
+    }
+    
+    gdi.popX();
+  }
+  gdi.dropLine(2);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
+  gdi.fillDown();
+  gdi.addButton("SaveBackup", "Inställningar...", AutomaticCB).setExtra(getId());
+  gdi.popX();
+}
+
+void SaveMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
+  if (interval>0 && ast==SyncTimer) {
+    if (!baseFile.empty()) {
+      string file = baseFile + "meos_backup_" + oe->getDate() + "_" + itos(saveIter++) + ".xml";
+      oe->autoSynchronizeLists(true);
+      oe->save(file);
+    }
+  }
+}
+
+void SaveMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
+  settingsTitle(gdi, "Säkerhetskopiering");
+  string time=created ? "10:00" : getTimeMS(interval);
+  startCancelInterval(gdi, "StartBackup", created, IntervalMinute, time);
+
+  int cx = gdi.getCX();
+  gdi.addInput("BaseFile", baseFile, 32, 0, "Mapp:");
+  gdi.dropLine(0.7);
+  gdi.addButton("BrowseFolder", "Bläddra...", AutomaticCB).setExtra("BaseFile");
+  gdi.setCX(cx);
+}
+
+void SaveMachine::saveSettings(gdioutput &gdi) {
+  
+  string minute=gdi.getText("Interval");
+  int t=convertAbsoluteTimeMS(minute);
+
+  if (t<2 || t>7200) {
+    throw meosException("Intervallet måste anges på formen MM:SS.");
+  }
+  string f = gdi.getText("BaseFile");
+  if (f.empty()) {
+    throw meosException("Filnamnet får inte vara tomt");
+  }
+
+  if (*f.rbegin() != '\\' && *f.rbegin() != '/')
+    f += "\\";
+
+  string sample = f + "sample.txt";
+  ofstream fout(sample.c_str(), ios_base::trunc|ios_base::out);
+  bool bad = false;
+  if (fout.bad()) 
+    bad = true;
+  else {
+    fout << "foo" << endl;
+    fout.close();
+    bad = fout.bad();
+    remove(sample.c_str());
+  }
+  if (bad)
+    throw meosException("Ogiltig destination X#" + f);
+
+  baseFile = f;
+  interval = t;
+}
+
+void TabAuto::clearCompetitionData() {
 }

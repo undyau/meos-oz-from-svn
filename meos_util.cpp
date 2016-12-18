@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -29,6 +29,10 @@
 #include "meosexception.h"
 
 StringCache globalStringCache;
+
+namespace MeOSUtil {
+  int useHourFormat = true;
+}
 
 DWORD mainThreadId = -1;
 StringCache &StringCache::getInstance() {
@@ -176,9 +180,20 @@ string convertSystemDate(const SYSTEMTIME &st)
   return bf;
 }
 
+string formatDate(int m, bool useIsoFormat) {
+  char bf[24];
+  if (m > 0 && m < 30000101) {
+    sprintf_s(bf, 24, "%d-%02d-%02d", m/(100*100), (m/100)%100, m%100);
+  }
+  else {
+    bf[0] = '-';
+    bf[1] = 0;
+  }
+  return bf;
+}
+
 //Absolute time string to SYSTEM TIME
-int convertDateYMS(const string &m, SYSTEMTIME &st)
-{
+int convertDateYMS(const string &m, SYSTEMTIME &st, bool checkValid) {
   memset(&st, 0, sizeof(st));
 
   if (m.length()==0)
@@ -194,7 +209,7 @@ int convertDateYMS(const string &m, SYSTEMTIME &st)
   }
 
   int year=atoi(m.c_str());
-  if (year<1000 || year>3000)
+  if (year<1900 || year>3000)
     return -1;
 
   int month=0;
@@ -205,15 +220,21 @@ int convertDateYMS(const string &m, SYSTEMTIME &st)
     string mtext=m.substr(kp+1);
     month=atoi(mtext.c_str());
 
-    if (month<1 || month>12)
-      month=0;
+    if (month<1 || month>12) {
+      if (checkValid)
+        return -1;
+      month = 1;
+    }
 
     kp=mtext.find_last_of('-');
 
     if (kp!=string::npos) {
       day=atoi(mtext.substr(kp+1).c_str());
-      if (day<1 || day>31)
-        day=0;
+      if (day<1 || day>31) {
+        if (checkValid)
+          return -1;
+        day = 1;
+      }
     }
   }
   st.wYear = year;
@@ -222,17 +243,16 @@ int convertDateYMS(const string &m, SYSTEMTIME &st)
 
 
   int t = year*100*100+month*100+day;
-  if (t<0) return 0;
+  if (t<0) return -1;
 
   return t;
 }
 
-
 //Absolute time string to absolute time int
-int convertDateYMS(const string &m)
+int convertDateYMS(const string &m, bool checkValid)
 {
   SYSTEMTIME st;
-  return convertDateYMS(m, st);
+  return convertDateYMS(m, st, checkValid);
 }
 
 
@@ -241,28 +261,31 @@ bool myIsSpace(BYTE b) {
 }
 
 //Absolute time string to absolute time int
-int convertAbsoluteTimeHMS(const string &m)
-{
+int convertAbsoluteTimeHMS(const string &m, int daysZeroTime) {
   int len = m.length();
 
   if (len==0 || m[0]=='-')
     return -1;
 
   // Support for notation 2D 14:30:00 or 2T14:30:00 for several days
-  int tpart = m.find_first_of("T");
-  if (tpart == m.npos)
-    tpart = m.find_first_of("D");
-  if (tpart == m.npos)
-    tpart = m.find_first_of("d");
-  if (tpart == m.npos)
-    tpart = m.find_first_of("t");
-
-  if (tpart != m.npos) {
-    tpart = convertAbsoluteTimeHMS(m.substr(tpart+1));
+  int tix = -1;
+  for (size_t k = 0; k < m.length(); k++) {
+    int c = m[k];
+    if (c =='D' || c =='d' || c =='T' || c =='t') {
+      tix = k;
+      break;
+    }
+  }
+  if (tix != -1) {
+    if (daysZeroTime < 0)
+      return -1; // Not supported
+    int tpart = convertAbsoluteTimeHMS(m.substr(tix+1), -1);
     if (tpart != -1) {
       int days = atoi(m.c_str());
       if (days <= 0)
         return -1;
+      if (tpart < daysZeroTime)
+        days--;
       return days * 3600 * 24 + tpart;
     }
     return -1;
@@ -280,7 +303,7 @@ int convertAbsoluteTimeHMS(const string &m)
   }
 
   if (plusIndex>0) {
-    int t = convertAbsoluteTimeHMS(m.substr(plusIndex+1));
+    int t = convertAbsoluteTimeHMS(m.substr(plusIndex+1), -1);
     int d = atoi(m.c_str());
 
     if (d>0 && t>=0)
@@ -430,13 +453,14 @@ int convertAbsoluteTimeMS(const string &m)
 const string &getTimeMS(int m) {
   char bf[32];
   int am = abs(m);
-  if (am < 3600)
+  if (am < 3600 || !MeOSUtil::useHourFormat)
     sprintf_s(bf, "-%02d:%02d", am/60, am%60);
   else if (am < 3600*48)
     sprintf_s(bf, "-%02d:%02d:%02d", am/3600, (am/60)%60, am%60);
   else {
     m = 0;
-    sprintf_s(bf, "-");
+    bf[0] = BYTE(0x96);
+    bf[1] = 0;
   }
   string &res = StringCache::getInstance().get();
   if (m<0)
@@ -449,9 +473,9 @@ const string &getTimeMS(int m) {
 
 const string &formatTime(int rt) {
   string &res = StringCache::getInstance().get();
-  if (rt>0 && rt<3600*72) {
+  if (rt>0 && rt<3600*999) {
     char bf[16];
-    if (rt>=3600)
+    if (rt>=3600 && MeOSUtil::useHourFormat)
       sprintf_s(bf, 16, "%d:%02d:%02d", rt/3600,(rt/60)%60, rt%60);
     else
       sprintf_s(bf, 16, "%d:%02d", (rt/60), rt%60);
@@ -693,27 +717,55 @@ const string &decodeXML(const string &in)
 
   static string out;
   out.clear();
-  for (int k=0;k<len ;k++) {
-    if (bf[k]=='&') {
-      if ( memcmp(&bf[k], "&amp;", 5)==0 )
-        out+="&", k+=4;
-      else if  ( memcmp(&bf[k], "&lt;", 4)==0 )
-        out+="<", k+=3;
-      else if  ( memcmp(&bf[k], "&gt;", 4)==0 )
-        out+=">", k+=3;
-      else if  ( memcmp(&bf[k], "&quot;", 6)==0 )
-        out+="\"", k+=5;
-      else if  ( memcmp(&bf[k], "&#10;", 5)==0 )
-        out+="\n", k+=4;
-      else if  ( memcmp(&bf[k], "&#13;", 5)==0 )
-        out+="\r", k+=4;
+
+  if (len < 50) {
+    for (int k=0;k<len ;k++) {
+      if (bf[k]=='&') {
+        if ( memcmp(&bf[k], "&amp;", 5)==0 )
+          out+="&", k+=4;
+        else if  ( memcmp(&bf[k], "&lt;", 4)==0 )
+          out+="<", k+=3;
+        else if  ( memcmp(&bf[k], "&gt;", 4)==0 )
+          out+=">", k+=3;
+        else if  ( memcmp(&bf[k], "&quot;", 6)==0 )
+          out+="\"", k+=5;
+        else if  ( memcmp(&bf[k], "&#10;", 5)==0 )
+          out+="\n", k+=4;
+        else if  ( memcmp(&bf[k], "&#13;", 5)==0 )
+          out+="\r", k+=4;
+        else
+          out+=bf[k];
+      }
       else
         out+=bf[k];
     }
-    else
-      out+=bf[k];
   }
-
+  else {
+    ostringstream str;
+    for (int k=0;k<len ;k++) {
+      if (bf[k]=='&') {
+        if ( memcmp(&bf[k], "&amp;", 5)==0 )
+          str << '&', k+=4;
+        else if  ( memcmp(&bf[k], "&lt;", 4)==0 )
+          str << '<', k+=3;
+        else if  ( memcmp(&bf[k], "&gt;", 4)==0 )
+          str << '>', k+=3;
+        else if  ( memcmp(&bf[k], "&quot;", 6)==0 )
+          str << '\"', k+=5;
+        else if  ( memcmp(&bf[k], "&nbsp;", 6)==0 )
+          str << ' ', k+=5;
+        else if  ( memcmp(&bf[k], "&#10;", 5)==0 )
+          str << '\n', k+=4;
+        else if  ( memcmp(&bf[k], "&#13;", 5)==0 )
+          str << '\r', k+=4;
+        else
+          str << bf[k];
+      }
+      else
+        str << bf[k];
+    }
+    out = str.str();
+  }
   return out;
 }
 
@@ -970,7 +1022,7 @@ int getNumberSuffix(const string &str)
 {
   int pos = str.length();
 
-  while (pos>1 && (isspace(str[pos-1]) || isdigit(str[pos-1]))) {
+  while (pos>1 && (str[pos-1] & (~127)) == 0  && (isspace(str[pos-1]) || isdigit(str[pos-1]))) {
     pos--;
   }
 
@@ -986,8 +1038,8 @@ int extractAnyNumber(const string &str, string &prefix, string &suffix)
     if (isdigit(ptr[k])) {
       prefix = str.substr(0, k);
       int num = atoi(str.c_str() + k);
-      while(k<str.length() && isdigit(str[++k]));
-      suffix = str.substr(k);
+      while(k<str.length() && (str[++k] & 128) == 0 && isdigit(str[k]));
+        suffix = str.substr(k);
 
       return num;
     }
@@ -1422,7 +1474,7 @@ int getTimeZoneInfo(const string &date) {
   strcpy_s(lastDate, 16, date.c_str());
 //  TIME_ZONE_INFORMATION tzi;
   SYSTEMTIME st;
-  convertDateYMS(date, st);
+  convertDateYMS(date, st, false);
   st.wHour = 12;
   SYSTEMTIME utc;
   TzSpecificLocalTimeToSystemTime(0, &st, &utc);
@@ -1540,7 +1592,34 @@ string getFamilyName(const string &name) {
     return trim(name.substr(sp));
 }
 
+static bool noCapitalize(const string &str, size_t pos) {
+  string word;
+  while (pos < str.length() && !myIsSpace(str[pos])) {
+    word.push_back(str[pos++]);
+  }
 
+  if (word == "of" || word == "for" || word == "at" || word == "by")
+    return true;
+
+  if (word == "and" || word == "or" || word == "from" || word == "as" || word == "in")
+    return true;
+
+  if (word == "with")
+    return true;
+
+
+  return false;
+}
+
+void capitalizeWords(string &str) {
+  bool init = true;
+  for (size_t i = 0; i < str.length(); i++) {
+    unsigned char c = str[i];
+    if (init && c >= 'a' && c <= 'z' && !noCapitalize(str, i))
+      str[i] = c + ('A' - 'a');
+    init = isspace(c) != 0;
+  }
+}
 
 void MeOSFileLock::unlockFile() {
   if (lockedFile != INVALID_HANDLE_VALUE)
@@ -1564,4 +1643,132 @@ void MeOSFileLock::lockFile(const string &file) {
       throw meosException("open_error#" + file + "#" + buff);
     }
   }
+}
+
+void processGeneralTime(const string &generalTime, string &meosTime, string &meosDate) {
+  vector<string> parts;
+  split(generalTime, ":-,. /\t", parts);
+  
+  // Indices into parts
+  int year = -2;
+  int month = -2;
+  int day = -2;
+
+  int hour = -2;
+  int minute = -2;
+  int second = -2;
+  int subsecond = -2;
+  
+  int found = 0, base = -1, iter = 0;
+  bool pm = strstr(generalTime.c_str(), "PM") != 0 || 
+            strstr(generalTime.c_str(), "pm") != 0;
+          
+  while (iter < 2 && second==-2) {
+    if (base == found)
+      iter++;
+
+    base = found;
+    for (size_t k = 0; k < parts.size(); k++) {
+      if (parts[k].empty())
+        continue;
+      int number = atoi(parts[k].c_str());
+      if (number == 0 && parts[k][0] != '0')
+        number = -1; // Not a number
+
+      if (iter == 0) {
+        // Date
+        if (number > 1900 && number < 3000 && year < 0) {
+          found++;
+          year = k;
+        }
+        else if (number > 1 && number <= 12 && month < 0 && (year == k+1 || year == k-1) ) {
+          month = k;
+          found++;
+        }
+        else if (number > 1 && number <=31 && day < 0 && (month == k+1 || month == k-1)) {
+          day = k;
+          found++;
+          iter++;
+          break;
+        }
+        else if (number > 1011900 && number < 30000101 && year < 0 && month < 0 && day < 0) {
+          day = k; //Date with format 20160906 or 06092016
+          month = k;
+          year = k;
+          found++;
+          break;
+        }
+      }
+      else if (iter == 1) {
+        
+        // Time
+        if (number >= 0 && number <= 24 && year != k && day != k && month != k && hour < 0) {
+          hour = k;
+          found++;
+        }
+        else if (number >= 0 && number <= 59 && minute < 0 && hour == k-1) {
+          minute = k;
+          found++;
+        }
+        else if (number >= 0 && number <= 59 && second < 0 && minute == k-1) {
+          second = k;
+          found++;
+        }
+        else if (number >= 0 && number < 1000 && subsecond < 0 && second == k-1 && k != year) {
+          subsecond = k;
+          found++;
+          iter++;
+          break;
+        }
+      }
+    }
+  }
+
+  if (second >= 0 && minute >= 0 && hour>= 0) {
+    if (!pm)
+      meosTime = parts[hour] + ":" + parts[minute] + ":" + parts[second];
+    else {
+      int rawHour = atoi(parts[hour].c_str());
+      if (rawHour < 12)
+        rawHour+=12;
+      meosTime = itos(rawHour) + ":" + parts[minute] + ":" + parts[second];
+    }
+  }
+
+  if (year >= 0 && month >= 0 && day >= 0) {
+    int y = -1, m = -1, d = -1;
+    if (year != month) {
+      y = atoi(parts[year].c_str());
+      m = atoi(parts[month].c_str());
+      d = atoi(parts[day].c_str());
+
+      //meosDate = parts[year] + "-" + parts[month] + "-" + parts[day];
+    } 
+    else {
+      int td = atoi(parts[year].c_str());
+      int y1 = td / 10000;
+      int m1 = (td / 100) % 100;
+      int d1 = td % 100;
+      bool ok = y1 > 2000 && y1 < 3000 && m1>=1 && m1<=12 && d1 >= 1 && d1 <= 31;
+      if (!ok) {
+        y1 = td % 10000;
+        m1 = (td / 10000) % 100;
+        d1 = (td / 1000000);
+
+        ok = y1 > 2000 && y1 < 3000 && m1>=1 && m1<=12 && d1 >= 1 && d1 <= 31;
+      }
+      if (ok) {
+        y = y1;
+        m = m1;
+        d = d1;
+      }
+        meosDate = itos(y1) + "-" + itos(m1) + "-" + itos(d1);
+    }
+    if (y > 0) {
+      char bf[24];
+      sprintf_s(bf, 24, "%d-%02d-%02d", y, m, d);
+      meosDate = bf;
+    }
+  }
+
 }

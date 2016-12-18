@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,9 +18,37 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
+
+struct ClassDrawSpecification {
+  int classID; 
+  int leg;
+  mutable int firstStart;
+  mutable int interval;
+  int vacances;
+  mutable int ntimes;
+
+  ClassDrawSpecification() : ntimes(0) {}
+  ClassDrawSpecification(int classID, int leg, int firstStart, int interval, int vacances) :
+                         classID(classID), leg(leg), firstStart(firstStart), 
+                         interval(interval), vacances(vacances), ntimes(0) {}
+};
+
+enum DrawMethod {
+  NOMethod = -1,
+
+  DMRandom = 1,
+  DMSOFT = 2,
+  DMClumped = 3,
+  DMSimultaneous = 4,
+  DMSeeded = 5,
+
+  DMPursuit = 11,
+  DMReversePursuit = 12
+};
+
 
 /** Struct with info to draw a class */
 struct ClassInfo {
@@ -81,6 +109,7 @@ struct DrawInfo {
   int firstStart;
   int maxCommonControl;
   bool allowNeighbourSameCourse;
+  bool coursesTogether;
   // Statistics output from optimize start order
   int numDistinctInit;
   int numRunnerSameInitMax;

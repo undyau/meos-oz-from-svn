@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -595,10 +595,10 @@ bool oDataContainer::saveDataFields(oBase *ob, gdioutput &gdi) {
         no = ob->getEvent()->interpretCurrency(gdi.getText(Id.c_str()));
       }
       else if (di.SubType == oISDate) {
-        no = convertDateYMS(gdi.getText(Id.c_str()));
+        no = convertDateYMS(gdi.getText(Id.c_str()), true);
       }
       else if (di.SubType == oISTime) {
-        no = convertAbsoluteTimeHMS(gdi.getText(Id.c_str()));
+        no = convertAbsoluteTimeHMS(gdi.getText(Id.c_str()), -1);
       }
       else if (di.SubType == oISDecimal) {
         string str = gdi.getText(Id.c_str());
@@ -1126,10 +1126,10 @@ bool oDataContainer::inputData(oBase *ob, int id,
           no = ob->getEvent()->interpretCurrency(input);
         }
         else if (di.SubType == oISDate) {
-          no = convertDateYMS(input);
+          no = convertDateYMS(input, true);
         }
         else if (di.SubType == oISTime) {
-          no = convertAbsoluteTimeHMS(input);
+          no = convertAbsoluteTimeHMS(input, -1);
         }
         else if (di.SubType == oISDecimal) {
           string str = input;

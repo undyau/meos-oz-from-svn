@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -35,6 +35,7 @@
 #include "localizer.h"
 #include "meos_util.h"
 #include "oPunch.h"
+#include <algorithm>
 
 #include <iostream>
 //////////////////////////////////////////////////////////////////////
@@ -813,7 +814,7 @@ int SportIdent::MonitorTCPSI(WORD port, int localZeroTime)
                 else
                   card.Punch[card.nPunch++] = punches[k];
               }
-              AddCard(card);
+              addCard(card);
             }
           }
           else
@@ -1109,7 +1110,7 @@ void SportIdent::GetSI5DataExt(HANDLE hComm)
         BYTE *Card5Data=bf+5;
         SICard card;
         GetCard5Data(Card5Data, card);
-        AddCard(card);
+        addCard(card);
       }
     }
     //Sleep(1000);
@@ -1181,7 +1182,7 @@ void SportIdent::GetSI6DataExt(HANDLE hComm)
 
   SICard card;
   GetCard6Data(b, card);
-  AddCard(card);
+  addCard(card);
 }
 
 void SportIdent::GetSI9DataExt(HANDLE hComm)
@@ -1260,7 +1261,7 @@ void SportIdent::GetSI9DataExt(HANDLE hComm)
 
   SICard card;
   if (GetCard9Data(b, card))
-	AddCard(card);
+    addCard(card);
 }
 
 bool SportIdent::ReadSI6Block(HANDLE hComm, BYTE *data)
@@ -1360,7 +1361,7 @@ void SportIdent::GetSI6Data(HANDLE hComm)
   SICard card;
   GetCard6Data(b, card);
 
-  AddCard(card);
+  addCard(card);
 }
 
 void SportIdent::GetSI5Data(HANDLE hComm)
@@ -1410,7 +1411,7 @@ void SportIdent::GetSI5Data(HANDLE hComm)
         SICard card;
         GetCard5Data(bf, card);
 
-        AddCard(card);
+        addCard(card);
       }
     }
   }
@@ -1537,6 +1538,13 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
       AnalysePunch(44*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
     }
   }
+  else if (series == 6) {
+	  // tCard (Pavel Kazakov)
+    card.nPunch=min(int(data[22]), 25);
+    for(unsigned k=0;k<card.nPunch;k++) {
+      AnalyseTPunch(14*4 + data + 8*k, card.Punch[k].Time, card.Punch[k].Code);
+    }
+  }
   else if (series == 15) {
     // Card 10, 11, SIAC
     card.nPunch=min(int(data[22]), 128);
@@ -1548,6 +1556,28 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
     return false;
 
   return true;
+}
+
+// Method by Pavel Kazakov.
+void SportIdent::AnalyseTPunch(BYTE *data, DWORD &time, DWORD &control) {
+  if (*LPDWORD(data)!=0xEEEEEEEE) {
+    BYTE cn=data[0];
+    BYTE dt1=data[3];
+    BYTE dt0=data[4];
+    BYTE pth=data[5];
+    BYTE ptl=data[6];
+
+//    BYTE year = (dt1 >> 2) & 0x0F;
+//    BYTE month = ((dt1 & 0x03) << 2) + (dt0 >> 6);
+//    BYTE day = (dt0 >> 1) & 0x1F;
+
+    control=cn;
+    time=MAKEWORD(ptl, pth)+3600*12*(dt0&0x1);
+  }
+  else {
+    control=-1;
+    time=0;
+  }
 }
 
 bool SportIdent::GetCard6Data(BYTE *data, SICard &card)
@@ -1600,12 +1630,22 @@ bool SportIdent::GetCard6Data(BYTE *data, SICard &card)
     AnalysePunch(data+4*k, card.Punch[k].Time, card.Punch[k].Code);
   }
 
+  // Check for extra punches, SI6-bug
+  for (unsigned k = card.nPunch; k < 192; k++) {
+    if (!AnalysePunch(data+4*k, card.Punch[k].Time, card.Punch[k].Code)) {
+      break;
+    }
+    else {
+      card.nPunch++; // Extra punch
+      card.Punch[k].Code += 1000; // Mark as special
+    }
+  }
+
   return true;
 }
 
-void SportIdent::AnalysePunch(BYTE *data, DWORD &time, DWORD &control)
-{
-  if (*LPDWORD(data)!=0xEEEEEEEE)
+bool SportIdent::AnalysePunch(BYTE *data, DWORD &time, DWORD &control) {
+  if (*LPDWORD(data)!=0xEEEEEEEE && *LPDWORD(data)!=0x0)
   {
     BYTE ptd=data[0];
     BYTE cn=data[1];
@@ -1614,11 +1654,13 @@ void SportIdent::AnalysePunch(BYTE *data, DWORD &time, DWORD &control)
 
     control=cn+256*((ptd>>6)&0x3);
     time=MAKEWORD(ptl, pth)+3600*12*(ptd&0x1);
+    return true;
   }
   else
   {
     control=-1;
     time=0;
+    return false;
   }
 }
 
@@ -1745,7 +1787,7 @@ void SportIdent::EnumrateSerialPorts(list<int> &ports)
 
 
 
-void SportIdent::AddCard(SICard &sic)
+void SportIdent::addCard(const SICard &sic)
 {
   EnterCriticalSection(&SyncObj);
   try {
@@ -1809,7 +1851,7 @@ void SportIdent::AddPunch(DWORD Time, int Station, int Card, int Mode)
   }
   sic.PunchOnly=true;
 
-  AddCard(sic);
+  addCard(sic);
 }
 
 
@@ -2160,4 +2202,61 @@ unsigned SICard::calculateHash() const {
   }
   h += StartPunch.Time;
   return h;
+}
+
+string SICard::serializePunches() const {
+  string ser;
+  if (CheckPunch.Code != -1)
+    ser += "C-" + itos(CheckPunch.Time);
+  
+  if (StartPunch.Code != -1) {
+    if (!ser.empty()) ser += ";";
+    ser += "S-" + itos(StartPunch.Time);
+  }
+  for (DWORD i = 0; i < nPunch; i++) {
+    if (!ser.empty()) ser += ";";
+    ser += itos(Punch[i].Code) + "-" + itos(Punch[i].Time);
+  }
+
+  if (FinishPunch.Code != -1) {
+    if (!ser.empty()) ser += ";";
+    ser += "F-" + itos(FinishPunch.Time);
+  }
+  return ser;
+}
+
+void SICard::deserializePunches(const string &arg) {
+  FinishPunch.Code = -1;
+  StartPunch.Code = -1;
+  CheckPunch.Code = -1;
+  vector<string> out;
+  split(arg, ";", out);
+  nPunch = 0;
+  for (size_t k = 0; k< out.size(); k++) {
+    vector<string> mark;
+    split(out[k], "-", mark);
+    if (mark.size() != 2)
+      throw std::exception("Invalid string");
+    DWORD *tp = 0;
+    if (mark[0] == "F") {
+      FinishPunch.Code = 1;
+      tp = &FinishPunch.Time;
+    }
+    else if (mark[0] == "S") {
+      StartPunch.Code = 1;
+      tp = &StartPunch.Time;
+    }
+    else if (mark[0] == "C") {
+      CheckPunch.Code = 1;
+      tp = &CheckPunch.Time;
+    }
+    else {
+      Punch[nPunch].Code = atoi(mark[0].c_str());
+      tp = &Punch[nPunch++].Time;
+    }
+
+    *tp = atoi(mark[1].c_str());
+  }
+  if (out.size() == 1)
+    PunchOnly = true;
 }

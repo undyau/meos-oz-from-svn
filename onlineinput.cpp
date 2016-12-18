@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -52,9 +52,8 @@ static int OnlineCB(gdioutput *gdi, int type, void *data) {
     case GUI_BUTTON: {
       //Make a copy
       ButtonInfo bu=*static_cast<ButtonInfo *>(data);
-      OnlineInput *ores = (OnlineInput *)bu.getExtra();
-
-      return ores->processButton(*gdi, bu);
+      OnlineInput &ores = dynamic_cast<OnlineInput &>(*AutoMachine::getMachine(bu.getExtraInt()));
+      return ores.processButton(*gdi, bu);
     }
     case GUI_LISTBOX:{
     }
@@ -71,7 +70,7 @@ int OnlineInput::processButton(gdioutput &gdi, ButtonInfo &bi) {
     if (ctrl<10)
       throw meosException("Ogiltig kontrollkod");
     ListBoxInfo lbi;
-    if (!gdi.getSelectedItem("Function", &lbi))
+    if (!gdi.getSelectedItem("Function", lbi))
       throw meosException("Ogiltig funktion");
     specialPunches[ctrl] = (oPunch::SpecialPunch)lbi.data;
     fillMappings(gdi);
@@ -130,8 +129,8 @@ void OnlineInput::settings(gdioutput &gdi, oEvent &oe, bool created) {
   startCancelInterval(gdi, "Save", created, IntervalSecond, time);
 
   gdi.addInput("URL", url, 40, 0, "URL:", "Till exempel X#http://www.input.org/online.php");
-  gdi.addCheckbox("UseROC", "Använd ROC-protokoll", OnlineCB, useROCProtocol).setExtra(this);
-  gdi.addCheckbox("UseUnitId", "Använd enhets-id istället för tävlings-id", OnlineCB, useROCProtocol & useUnitId).setExtra(this);
+  gdi.addCheckbox("UseROC", "Använd ROC-protokoll", OnlineCB, useROCProtocol).setExtra(getId());
+  gdi.addCheckbox("UseUnitId", "Använd enhets-id istället för tävlings-id", OnlineCB, useROCProtocol & useUnitId).setExtra(getId());
   gdi.setInputStatus("UseUnitId", useROCProtocol);
   gdi.addInput("CmpID", itos(cmpId), 10, 0, "Tävlingens ID-nummer:");
 
@@ -146,12 +145,12 @@ void OnlineInput::settings(gdioutput &gdi, oEvent &oe, bool created) {
   gdi.addItem("Function", lang.tl("Start"), oPunch::PunchStart);
   gdi.addItem("Function", lang.tl("Check"), oPunch::PunchCheck);
   gdi.dropLine();
-  gdi.addButton("SaveMapping", "Lägg till", OnlineCB).setExtra(this);
+  gdi.addButton("SaveMapping", "Lägg till", OnlineCB).setExtra(getId());
   gdi.popX();
   gdi.dropLine(2);
   gdi.addListBox("Mappings", 150, 100, 0, "Definierade mappningar:", "", true);
   gdi.dropLine();
-  gdi.addButton("RemoveMapping", "Ta bort", OnlineCB).setExtra(this);
+  gdi.addButton("RemoveMapping", "Ta bort", OnlineCB).setExtra(getId());
   fillMappings(gdi);
 
   gdi.setCY(gdi.getHeight());
@@ -201,9 +200,9 @@ void OnlineInput::status(gdioutput &gdi)
 
   gdi.fillRight();
   gdi.dropLine(1);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("OnlineInput", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("OnlineInput", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
@@ -223,8 +222,10 @@ void OnlineInput::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
         q = "?unitId=" + unitId + "&lastId=" + itos(lastImportedId) + "&date=" + oe->getDate() +"&time=" + oe->getZeroTime();
     }
     else {
-      key.push_back(make_pair<string, string>("competition", itos(cmpId)));
-      key.push_back(make_pair<string, string>("lastid", itos(lastImportedId)));
+      pair<string, string> mk1("competition", itos(cmpId));
+      key.push_back(mk1);
+	  pair<string, string> mk2("lastid", itos(lastImportedId));
+      key.push_back(mk2);
     }
     string result = getTempFile();
     dwl.downloadFile(url + q, result, key);
@@ -328,6 +329,9 @@ void OnlineInput::processPunches(oEvent &oe, list< vector<string> > &rocData) {
       string timeS = line[3].substr(11);
       int time = oe.getRelativeTime(timeS);
 
+      if (specialPunches.count(code))
+        code = specialPunches[code];
+
       pRunner r = oe.getRunnerByCardNo(card, time);
 
       string rname;
@@ -370,7 +374,7 @@ void OnlineInput::processCards(gdioutput &gdi, oEvent &oe, const xmlList &cards)
       sic.Punch[j].Time = punches[j].getObjectInt("time") / 10;
     }
     sic.nPunch = punches.size();
-    TabSI::getSI(gdi).AddCard(sic);
+    TabSI::getSI(gdi).addCard(sic);
   }
 }
 

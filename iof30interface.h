@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -59,6 +59,8 @@ class IOF30Interface {
   bool teamsAsIndividual;
   // Unroll course loops
   bool unrollLoops;
+  // Include data on stage number
+  bool includeStageRaceInfo;
   void operator=(const IOF30Interface &);
 
   struct LegInfo {
@@ -131,7 +133,8 @@ class IOF30Interface {
   void readEvent(gdioutput &gdi, const xmlobject &xo,
                  map<int, vector<LegInfo> > &teamClassConfig);
   pRunner readPersonEntry(gdioutput &gdi, xmlobject &xo, pTeam team,
-                          const map<int, vector<LegInfo> > &teamClassConfig);
+                          const map<int, vector<LegInfo> > &teamClassConfig,
+                          map<int, vector< pair<int, int> > > &personId2TeamLeg);
   pRunner readPerson(gdioutput &gdi, const xmlobject &xo);
   pClub readOrganization(gdioutput &gdi, const xmlobject &xo, bool saveToDB);
   pClass readClass(const xmlobject &xo,
@@ -139,7 +142,8 @@ class IOF30Interface {
 
   pTeam readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
                       map<int, pair<string, int> > &bibPatterns,
-                      const map<int, vector<LegInfo> > &teamClassConfig);
+                      const map<int, vector<LegInfo> > &teamClassConfig,
+                      map<int, vector< pair<int, int> > > &personId2TeamLeg);
 
   pRunner readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo, pTeam team,
                           const map<int, vector<LegInfo> > &teamClassConfig);
@@ -248,7 +252,9 @@ class IOF30Interface {
                          const map<int, string> &ctrlId2ExportId);
 
 public:
-  IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false), teamsAsIndividual(false), entrySourceId(1) {cachedStageNumber = -1;}
+  IOF30Interface(oEvent *oe_) : oe(*oe_), useGMT(false), teamsAsIndividual(false), 
+                                entrySourceId(1), unrollLoops(true), 
+                                includeStageRaceInfo(true) {cachedStageNumber = -1;}
   virtual ~IOF30Interface() {}
 
   void readEventList(gdioutput &gdi, xmlobject &xo);
@@ -266,9 +272,11 @@ public:
   void readCourseData(gdioutput &gdi, const xmlobject &xo, bool updateClasses, int &courseCount, int &entFail);
 
   void writeResultList(xmlparser &xml, const set<int> &classes, int leg,
-                       bool useUTC, bool teamsAsIndividual, bool unrollLoops);
+                       bool useUTC, bool teamsAsIndividual, 
+                       bool unrollLoops, bool includeStageInfo);
 
-  void writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC, bool teamsAsIndividual);
+  void writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC, 
+                      bool teamsAsIndividual, bool includeStageInfo);
 
   void writeEvent(xmlparser &xml);
 

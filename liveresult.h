@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,20 +17,27 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "oListInfo.h"
+#include "guihandler.h"
 
 class gdioutput;
 
-class LiveResult {
+class LiveResult : public GuiHandler {
   oEvent *oe;
   oListInfo li;
   bool active;
   unsigned int lastTime;
   map< pair<int, int>, int > processedPunches;
-  pRunner rToWatch;
+  vector<int> rToWatch;
+  vector<int> watchedR;// Backlog
+  
+  map<int, int> runner2ScreenPos;
+  int screenSize;
+  bool isDuel;
+
   string baseFont;
   void showDefaultView(gdioutput &gdi);
   map<int, pair<int, int> > startFinishTime;
@@ -40,7 +47,7 @@ class LiveResult {
   double timerScale;
   struct Result {
     int place;
-    pRunner r;
+    int runnerId;
     int time;
     bool operator<(const Result &b) const {
       return time < b.time;
@@ -55,6 +62,7 @@ public:
   LiveResult(oEvent *oe);
   ~LiveResult() {}
 
+  void handle(gdioutput &gdi, BaseInfo &info, GuiEventType type);
+    
   void showTimer(gdioutput &gdi, const oListInfo &li);
-  void timerEvent(gdioutput &gdi, int type, BaseInfo &bi);
 };

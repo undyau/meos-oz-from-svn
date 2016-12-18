@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "stdafx.h"
@@ -158,7 +158,7 @@ void MethodEditor::show(gdioutput &gdi) {
 }
 
 bool MethodEditor::checkTag(const string &tag, bool throwError) const {
-  vector< pair<string, string> > tagNameList;
+  vector< pair<int, pair<string, string> > > tagNameList;
   oe->getGeneralResults(false, tagNameList, false);
   for (size_t k = 0; k < tag.length(); k++) {
     char c = tag[k];
@@ -178,7 +178,7 @@ bool MethodEditor::checkTag(const string &tag, bool throwError) const {
       return false;
   }
   for (size_t k = 0; k < tagNameList.size(); k++) {
-    if (_strcmpi(tagNameList[k].first.c_str(), tag.c_str()) == 0) {
+    if (_strcmpi(tagNameList[k].second.first.c_str(), tag.c_str()) == 0) {
       if (throwError)
         throw meosException("The tag X is in use.#" + tag);
       else
@@ -189,11 +189,11 @@ bool MethodEditor::checkTag(const string &tag, bool throwError) const {
 }
 
 string MethodEditor::uniqueTag(const string &tag) const {
-  vector< pair<string, string> > tagNameList;
+  vector< pair<int, pair<string, string> > > tagNameList;
   oe->getGeneralResults(false, tagNameList, false);
   set<string> tags;
   for (size_t k = 0; k < tagNameList.size(); k++)
-    tags.insert(tagNameList[k].first);
+    tags.insert(tagNameList[k].second.first);
 
   int a = GetRandomNumber(65536);
   srand(GetTickCount());
@@ -371,20 +371,20 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
       gdi.pushX();
       vector< pair<string, size_t> > lists;
       //oe->getListContainer().getLists(lists);
-      vector< pair<string, string> > tagNameList;
+      vector< pair<int, pair<string, string> > > tagNameList;
       oe->getGeneralResults(true, tagNameList, true);
       for (size_t k = 0; k < tagNameList.size(); k++) {
-        string tag = tagNameList[k].first;
+        string tag = tagNameList[k].second.first;
         string utag = DynamicResult::undecorateTag(tag);
         vector<int> listIx;
         oe->getListContainer().getListsByResultModule(tag, listIx);
-        string n = tagNameList[k].second + " (" + utag + ")";
+        string n = tagNameList[k].second.second + " (" + utag + ")";
         
         if (listIx.size() > 0) {
           n += " *";
         }
 
-        lists.push_back(make_pair(n, k));
+        lists.push_back(make_pair(n, tagNameList[k].first));
       }
       sort(lists.begin(), lists.end());
       gdi.fillRight();
@@ -399,7 +399,8 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
     
       if (!lists.empty()) {
         string srcFile;
-        bool ro = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList[lists.front().second].first, srcFile)).isReadOnly();
+        
+        bool ro = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList.front().second.first, srcFile)).isReadOnly();
         gdi.setInputStatus("DoOpen", !ro);
       }
       else {
@@ -414,12 +415,20 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
     else if (bi.id == "DoOpen" || bi.id == "DoOpenCopy") {
       ListBoxInfo lbi;
       DynamicResult *dr = 0;
-      if (gdi.getSelectedItem("OpenList", &lbi)) {
-        vector< pair<string, string> > tagNameList;
+      if (gdi.getSelectedItem("OpenList", lbi)) {
+        vector< pair<int, pair<string, string> > > tagNameList;
         oe->getGeneralResults(true, tagNameList, false);
-        if (lbi.data < tagNameList.size()) {
+        size_t ix = -1;
+        for (size_t k = 0; k < tagNameList.size(); k++) {
+          if (tagNameList[k].first == lbi.data) {
+            ix = k;
+            break;
+          }
+        }
+
+        if (ix < tagNameList.size()) {
           string srcFile;
-          DynamicResult &drIn = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList[lbi.data].first, srcFile));
+          DynamicResult &drIn = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList[ix].second.first, srcFile));
           wasLoadedBuiltIn = drIn.isReadOnly();
           dr = new DynamicResult(drIn);
           if (bi.id == "DoOpenCopy") {
@@ -429,7 +438,6 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
           }
           else
             setCurrentResult(dr, srcFile);
-
         }
 
         if (bi.id == "DoOpen")
@@ -757,11 +765,18 @@ int MethodEditor::methodCb(gdioutput &gdi, int type, BaseInfo &data) {
       gdi.setText("SymbInfo", name + ":"  + lang.tl(desc) +".", true);
     }
     else if (lbi.id == "OpenList") {
-      vector< pair<string, string> > tagNameList;
+      vector< pair<int, pair<string, string> > > tagNameList;
       oe->getGeneralResults(true, tagNameList, false);
+      size_t ix = -1;
+      for (size_t k = 0; k < tagNameList.size(); k++) {
+        if (tagNameList[k].first == lbi.data) {
+          ix = k;
+          break;
+        }
+      }
       string srcFile;
-      if (lbi.data < tagNameList.size()) {
-        bool ro = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList[lbi.data].first, srcFile)).isReadOnly();
+      if (ix < tagNameList.size()) {
+        bool ro = dynamic_cast<DynamicResult &>(oe->getGeneralResult(tagNameList[ix].second.first, srcFile)).isReadOnly();
         gdi.setInputStatus("DoOpen", !ro);
       }
       else
@@ -877,7 +892,7 @@ void MethodEditor::checkChangedSave(gdioutput &gdi) {
     gdi.getText("Source");
     if (dynamic_cast<InputInfo &>(gdi.getBaseInfo("Source")).changed() &&
         gdi.ask("Save changes in rule code?")) {      
-      DynamicResult::DynamicMethods dm = DynamicResult::DynamicMethods((int)gdi.getExtra("SaveSource"));
+      DynamicResult::DynamicMethods dm = DynamicResult::DynamicMethods(gdi.getExtraInt("SaveSource"));
       string src = gdi.getText("Source");
       currentResult->setMethodSource(dm, src);
       gdi.setText("Source", src);

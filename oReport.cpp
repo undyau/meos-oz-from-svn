@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -26,6 +26,7 @@
 #include <set>
 #include <cassert>
 #include <algorithm>
+#include <deque>
 
 #include "oEvent.h"
 #include "gdioutput.h"
@@ -324,8 +325,7 @@ void oEvent::getDistricts(vector<string> &districts)
 }
 
 
-void oEvent::generatePreReport(gdioutput &gdi)
-{
+void oEvent::generatePreReport(gdioutput &gdi) {
   CurrentSortOrder=SortByName;
   Runners.sort();
 
@@ -400,26 +400,52 @@ void oEvent::generatePreReport(gdioutput &gdi)
       no_course.push_back(&*r_it);
   }
 
-  list<pRunner> si_duplicate;
+  deque<pRunner> si_duplicate;
 
   if (Runners.size()>1){
     Runners.sort(oRunner::CompareSINumber);
+    map<int, vector<pRunner> > initDup;
 
     r_it=Runners.begin();
     while (++r_it != Runners.end()){
       oRunnerList::iterator r_it2=r_it;
       r_it2--;
+      int cno = r_it->getCardNo();
+      if (cno && r_it2->getCardNo() == cno){
+        vector<pRunner> &sid = initDup[cno];
+        if (sid.empty() || sid.back()->getId()!=r_it2->getId())
+          sid.push_back(&*r_it2);
 
-      if (r_it2->getCardNo() && r_it2->getCardNo()==r_it->getCardNo()){
-
-        if (si_duplicate.size()==0 || si_duplicate.back()->getId()!=r_it2->getId())
-          si_duplicate.push_back(&*r_it2);
-
-        si_duplicate.push_back(&*r_it);
+        sid.push_back(&*r_it);
       }
     }
-  }
 
+    for(map<int, vector<pRunner> >::const_iterator it = initDup.begin(); it != initDup.end(); ++it) {
+      const vector<pRunner> &eq = it->second;
+      vector<char> added(eq.size());
+      for (size_t k = 0; k < eq.size(); k++) {
+        if (added[k])
+          continue;
+
+        for (size_t j = 0; j < eq.size(); j++) {
+          if (j == k)
+            continue;
+          if (!eq[k]->canShareCard(eq[j], eq[k]->getCardNo())) {
+            if (!added[k]) {
+              si_duplicate.push_back(eq[k]);
+              added[k] = 1;
+            }
+            if (!added[j]) {
+              si_duplicate.push_back(eq[j]);
+              added[j] = 1;
+            }
+          }
+        }
+      }
+    }
+
+  }
+  
   const string Ellipsis="[ ... ]";
 
   sprintf_s(bf, lang.tl("Löpare utan klass: %d.").c_str(), no_class.size());
@@ -429,8 +455,10 @@ void oEvent::generatePreReport(gdioutput &gdi)
   while(!no_class.empty() && ++i<20){
     pRunner r=no_class.front();
     no_class.pop_front();
-    sprintf_s(bf, "%s (%s)", r->getName().c_str(), r->getClub().c_str());
-    gdi.addStringUT(0, bf);
+    string name = r->getName();
+    if (!r->getClub().empty())
+      name += " ("+r->getClub()+")";
+    gdi.addStringUT(0, name);
   }
   if (!no_class.empty()) gdi.addStringUT(1, Ellipsis);
 
@@ -442,8 +470,10 @@ void oEvent::generatePreReport(gdioutput &gdi)
   while(!no_course.empty() && ++i<20){
     pRunner r=no_course.front();
     no_course.pop_front();
-    sprintf_s(bf, "%s: %s (%s)", r->getClass().c_str(), r->getName().c_str(), r->getClub().c_str());
-    gdi.addStringUT(0, bf);
+    string name = r->getClass() + ": " + r->getName();
+    if (!r->getClub().empty())
+      name += " ("+r->getClub()+")";
+    gdi.addStringUT(0, name);
   }
   if (!no_course.empty()) gdi.addStringUT(1, Ellipsis);
 
@@ -470,8 +500,11 @@ void oEvent::generatePreReport(gdioutput &gdi)
   while(!no_start.empty() && ++i<20){
     pRunner r=no_start.front();
     no_start.pop_front();
-    sprintf_s(bf, "%s: %s (%s)", r->getClass().c_str(), r->getName().c_str(), r->getClub().c_str());
-    gdi.addStringUT(0, bf);
+    string name = r->getClass() + ": " + r->getName();
+    if (!r->getClub().empty())
+      name += " ("+r->getClub()+")";
+    
+    gdi.addStringUT(0, name);
   }
   if (!no_start.empty()) gdi.addStringUT(1, Ellipsis);
 
@@ -483,8 +516,11 @@ void oEvent::generatePreReport(gdioutput &gdi)
   while(!no_card.empty() && ++i<20){
     pRunner r=no_card.front();
     no_card.pop_front();
-    sprintf_s(bf, "%s: %s (%s)", r->getClass().c_str(), r->getName().c_str(), r->getClub().c_str());
-    gdi.addStringUT(0, bf);
+    string name = r->getClass() + ": " + r->getName();
+    if (!r->getClub().empty())
+      name += " ("+r->getClub()+")";
+    
+    gdi.addStringUT(0, name);
   }
   if (!no_card.empty()) gdi.addStringUT(1, Ellipsis);
 
@@ -494,22 +530,56 @@ void oEvent::generatePreReport(gdioutput &gdi)
   gdi.addStringUT(1, bf);
   i=0;
 
-  while(!si_duplicate.empty() && ++i<20){
+  while(!si_duplicate.empty() && ++i<50){
     pRunner r=si_duplicate.front();
     si_duplicate.pop_front();
-    sprintf_s(bf, "%s: %s (%s) SI=%d", r->getClass().c_str(),
-              r->getName().c_str(), r->getClub().c_str(), r->getCardNo());
-    gdi.addStringUT(0, bf);
+    string name = r->getClass() + " / " + r->getName();
+    if (!r->getClub().empty())
+      name += " ("+r->getClub()+")";
+    name += ": " + itos(r->getCardNo());
+    gdi.addStringUT(0, name);
   }
   if (!si_duplicate.empty()) gdi.addStringUT(1, Ellipsis);
 
+  if (useLongTimes()) { // Warn SICard5 + long times
+    bool header = false;
+
+    i = 0;
+    for (r_it = Runners.begin(); r_it != Runners.end(); ++r_it) {
+      pRunner r = &(*r_it);
+      if (r_it->isRemoved())
+        continue;
+      if (r_it->getCardNo() > 0 && r_it->getCardNo() < 300000) {
+        if (!header) {
+          gdi.dropLine();
+          sprintf_s(bf, lang.tl("Gamla brickor utan stöd för långa tider").c_str(), si_duplicate.size());
+          gdi.addStringUT(1, bf);
+          header = true;
+        }
+        
+        string name = r->getClass() + " / " + r->getName();
+        if (!r->getClub().empty())
+          name += " ("+r->getClub()+")";
+        name += ": " + itos(r->getCardNo());
+        gdi.addStringUT(0, name);
+
+        if (++i > 5) {
+          gdi.addStringUT(1, Ellipsis);
+          break;
+        }
+      }
+    }
+  }
+
+  // Clear markers
+  for (r_it=Runners.begin(); r_it != Runners.end(); ++r_it)
+    r_it->_objectmarker=0;
 
   //List all competitors not in a team.
   if (oe->hasTeam()) {
-    for (r_it=Runners.begin(); r_it != Runners.end(); ++r_it)
-      r_it->_objectmarker=0;
-
-    for (t_it=Teams.begin(); t_it != Teams.end(); ++t_it){
+    for (t_it=Teams.begin(); t_it != Teams.end(); ++t_it) {
+      if (t_it->isRemoved())
+        continue;
       pClass pc=getClass(t_it->getClassId());
 
       if (pc){
@@ -525,8 +595,11 @@ void oEvent::generatePreReport(gdioutput &gdi)
     bool any = false;
     for (r_it=Runners.begin(); r_it != Runners.end(); ++r_it){
       if (r_it->_objectmarker>1){
-        sprintf_s(bf, "%s: %s (%s)", r_it->getClass().c_str(), r_it->getName().c_str(), r_it->getClub().c_str());
-        gdi.addStringUT(0, bf);
+        string name = r_it->getClass() + ": " + r_it->getName();
+        if (!r_it->getClub().empty())
+          name += " ("+r_it->getClub()+")";
+    
+        gdi.addStringUT(0, name);
         any = true;
       }
     }
@@ -540,10 +613,15 @@ void oEvent::generatePreReport(gdioutput &gdi)
 
   y=gdi.getCY();
   int tab[5]={0, 100, 350, 420, 550};
-  for (r_it=Runners.begin(); r_it != Runners.end(); ++r_it){
+  for (r_it=Runners.begin(); r_it != Runners.end(); ++r_it) {
+    if (r_it->isRemoved())
+      continue;
     if (r_it->_objectmarker==0){ //Only consider runners not in a team.
       gdi.addStringUT(y, x+tab[0], 0, r_it->getClass(), tab[1]-tab[0]);
-      gdi.addStringUT(y, x+tab[1], 0, r_it->getName()+" ("+r_it->getClub()+")", tab[2]-tab[1]);
+      string name = r_it->getName();
+      if (!r_it->getClub().empty())
+        name += " ("+r_it->getClub()+")";
+      gdi.addStringUT(y, x+tab[1], 0, name, tab[2]-tab[1]);
       gdi.addStringUT(y, x+tab[2], 0, itos(r_it->getCardNo()), tab[3]-tab[2]);
       gdi.addStringUT(y, x+tab[3], 0, r_it->getCourseName(), tab[4]-tab[3]);
       y+=lh;

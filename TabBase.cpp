@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -54,6 +54,8 @@ FixedTabs::FixedTabs() {
  }
 
 FixedTabs::~FixedTabs() {
+  tabs.clear();
+
   delete runnerTab;
   runnerTab = 0;
 
@@ -91,66 +93,88 @@ FixedTabs::~FixedTabs() {
 TabBase *FixedTabs::get(const TabType tab) {
   switch(tab) {
     case TCmpTab:
-      if (!cmpTab)
+      if (!cmpTab) {
         cmpTab = new TabCompetition(gEvent);
+        tabs.push_back(cmpTab);
+      }
       return cmpTab;
     break;
     case TRunnerTab:
-      if (!runnerTab)
+      if (!runnerTab) {
         runnerTab = new TabRunner(gEvent);
+        tabs.push_back(runnerTab);
+      }
       return runnerTab;
     break;
     case TTeamTab:
-      if (!teamTab)
+      if (!teamTab) {
         teamTab = new TabTeam(gEvent);
+        tabs.push_back(teamTab);
+      }
       return teamTab;
     break;
 
     case TListTab:
-      if (!listTab)
+      if (!listTab) {
         listTab = new TabList(gEvent);
+        tabs.push_back(listTab);
+      }
       return listTab;
     break;
 
     case TClassTab:
-      if (!classTab)
+      if (!classTab) {
         classTab = new TabClass(gEvent);
+        tabs.push_back(classTab);
+      }
       return classTab;
     break;
 
     case TCourseTab:
-      if (!courseTab)
+      if (!courseTab) {
         courseTab = new TabCourse(gEvent);
+        tabs.push_back(courseTab);
+      }
       return courseTab;
     break;
 
     case TControlTab:
-      if (!controlTab)
+      if (!controlTab) {
         controlTab = new TabControl(gEvent);
+        tabs.push_back(controlTab);
+      }
       return controlTab;
     break;
 
     case TClubTab:
-      if (!clubTab)
+      if (!clubTab) {
         clubTab = new TabClub(gEvent);
+        tabs.push_back(clubTab);
+      }
       return clubTab;
     break;
 
     case TSpeakerTab:
-      if (!speakerTab)
+      if (!speakerTab) {
         speakerTab = new TabSpeaker(gEvent);
+        tabs.push_back(speakerTab);
+      }
       return speakerTab;
     break;
 
     case TSITab:
-      if (!siTab)
+      if (!siTab) {
         siTab = new TabSI(gEvent);
+        tabs.push_back(siTab);
+      }
       return siTab;
     break;
 
     case TAutoTab:
-      if (!autoTab)
+      if (!autoTab) {
         autoTab = new TabAuto(gEvent);
+        tabs.push_back(autoTab);
+      }
       return autoTab;
     break;
 
@@ -159,6 +183,11 @@ TabBase *FixedTabs::get(const TabType tab) {
   }
 
   return 0;
+}
+
+void FixedTabs::clearCompetitionData() {
+  for (size_t k = 0; k < tabs.size(); k++)
+    tabs[k]->clearCompetitionData();
 }
 
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -382,40 +382,6 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
             skip.insert(mp.type);
         }
 
-        if (mp.type == lTeamStart || mp.type == lRunnerStart ||
-             mp.type == lClassStartTime) {
-          bool hasIndStart = false;
-          vector<int> classes(par.selection.begin(), par.selection.end());
-
-          if (par.selection.empty()) {
-            vector<pClass> cls;
-            oe->getClasses(cls, false);
-            for (size_t k = 0; k < cls.size(); k++)
-              classes.push_back(cls[k]->getId());
-          }
-
-          for (vector<int>::const_iterator it = classes.begin(); it != classes.end(); ++it) {
-            pClass pc = oe->getClass(*it);
-            if (pc) {
-              int first, last;
-              pc->getStartRange(par.getLegNumber(pc), first, last);
-              if (last != first) {
-                hasIndStart = true;
-                break;
-              }
-            }
-          }
-
-          if (mp.type == lClassStartTime) {
-            if (hasIndStart)
-              skip.insert(mp.type);
-          }
-          else {
-            if (!hasIndStart)
-              skip.insert(mp.type);
-          }
-        }
-
         int width = 0;
         if (skip.count(mp.type) == 0 && (k==0 || !mp.mergeWithPrevious)) {
           gdiFonts font = defaultFont;
@@ -431,7 +397,7 @@ void MetaList::interpret(oEvent *oe, const gdioutput &gdi, const oListParam &par
             kk++;
           }
           
-          width = li.getMaxCharWidth(oe, typeFormats, font,
+          width = li.getMaxCharWidth(oe, par.selection, typeFormats, font,
                                      oPrintPost::encodeFont(fontFaces[i].font, 
                                      fontFaces[i].scale).c_str(), 
                                      large, max(mp.blockWidth, extraMinWidth));
@@ -1170,6 +1136,12 @@ void MetaList::load(const xmlobject &xDef) {
           break;
         }
 
+        if (mp.type == lRunnerGeneralPlace || mp.type == lRunnerGeneralTimeStatus ||
+          mp.type == lRunnerGeneralTimeAfter) {
+          hasResults_ = true;
+          break;
+        }
+
         if (mp.type == lRunnerRogainingPoint || mp.type == lRunnerRogainingPointTotal ||
                 mp.type == lTeamRogainingPoint || mp.type == lTeamRogainingPointTotal ||
                 mp.type == lTeamTime || mp.type == lTeamStatus || mp.type == lTeamTotalTime ||
@@ -1564,6 +1536,7 @@ void MetaList::initSymbols() {
     typeToSymbol[lClassName] = "ClassName";
     typeToSymbol[lClassStartName] = "ClassStartName";
     typeToSymbol[lClassStartTime] = "StartTimeForClass";
+    typeToSymbol[lClassStartTimeRange] = "StartTimeForClassRange";
     typeToSymbol[lClassLength] = "ClassLength";
     typeToSymbol[lClassResultFraction] = "ClassResultFraction";
     typeToSymbol[lCourseLength] = "CourseLength";
@@ -1590,6 +1563,8 @@ void MetaList::initSymbols() {
     typeToSymbol[lRunnerPlace] = "RunnerPlace";
     typeToSymbol[lRunnerClassCoursePlace] = "RunnerClassCoursePlace";
     typeToSymbol[lRunnerStart] = "RunnerStart";
+    typeToSymbol[lRunnerStartCond] = "RunnerStartCond";
+    typeToSymbol[lRunnerStartZero] = "RunnerStartZero";
     typeToSymbol[lRunnerClub] = "RunnerClub";
     typeToSymbol[lRunnerCard] = "RunnerCard";
     typeToSymbol[lRunnerBib] = "RunnerBib";
@@ -1602,10 +1577,12 @@ void MetaList::initSymbols() {
     typeToSymbol[lRunnerRogainingPointOvertime] = "RunnerRogainingOvertime";
     typeToSymbol[lRunnerTimeAdjustment] = "RunnerTimeAdjustment";
     typeToSymbol[lRunnerPointAdjustment] = "RunnerPointAdjustment";
+    typeToSymbol[lRunnerRogainingPointGross] = "RunnerRogainingPointGross";
   
     typeToSymbol[lRunnerUMMasterPoint] = "RunnerUMMasterPoint";
     typeToSymbol[lRunnerTimePlaceFixed] = "RunnerTimePlaceFixed";
     typeToSymbol[lRunnerLegNumberAlpha] = "RunnerLegNumberAlpha";
+    typeToSymbol[lRunnerLegNumber] = "RunnerLegNumber";
 
     typeToSymbol[lResultModuleTime] = "ResultModuleTime";
     typeToSymbol[lResultModuleNumber] = "ResultModuleNumber";
@@ -1621,6 +1598,9 @@ void MetaList::initSymbols() {
 
     typeToSymbol[lTeamName] = "TeamName";
     typeToSymbol[lTeamStart] = "TeamStart";
+    typeToSymbol[lTeamStartCond] = "TeamStartCond";
+    typeToSymbol[lTeamStartZero] = "TeamStartZero";
+
     typeToSymbol[lTeamTimeStatus] = "TeamTimeStatus";
     typeToSymbol[lTeamTimeAfter] = "TeamTimeAfter";
     typeToSymbol[lTeamPlace] = "TeamPlace";
@@ -1731,6 +1711,7 @@ void MetaList::initSymbols() {
     orderToSymbol[SortByStartTime] = "StartTime";
     orderToSymbol[ClassPoints] = "ClassPoints";
     orderToSymbol[ClassTotalResult] = "ClassTotalResult";
+    orderToSymbol[ClassTeamLegResult] = "ClassTeamLegResult";
     orderToSymbol[CourseResult] = "CourseResult";
     orderToSymbol[ClassTeamLeg] = "ClassTeamLeg";
     orderToSymbol[Custom] = "CustomSort";
@@ -2063,7 +2044,7 @@ void MetaListContainer::setupListInfo(int firstIndex,
       oListInfo &li = listMap[listIx];
       li.Name = lang.tl(ml.getListName());
       li.listType = ml.getListType();
-      li.supportClasses = true;
+      li.supportClasses = ml.supportClasses();
       li.supportLegs = ml.getListType() == oListInfo::EBaseTypeTeam;
       li.supportParameter = !ml.getResultModule().empty();
       li.supportLarge = true;
@@ -2287,20 +2268,20 @@ void MetaList::setSubFilters(const vector<bool> &filters) {
 
 void MetaList::getResultModule(const oEvent &oe, vector< pair<string, size_t> > &modules, int &currentModule) const {
   modules.clear();
-  vector< pair<string, string> > mol;
+  vector< pair<int, pair<string, string> > > mol;
   oe.getGeneralResults(false, mol, true);
   modules.push_back(make_pair(lang.tl("Standard"), 0));
   currentModule = 0;
 
   for (size_t k = 0; k < mol.size(); k++) {
-    modules.push_back(make_pair(mol[k].second, k+100));
-    if (resultModule == mol[k].first)
-      currentModule = k + 100;
+    modules.push_back(make_pair(mol[k].second.second, mol[k].first));
+    if (resultModule == mol[k].second.first)
+      currentModule = mol[k].first;
   }
 }
 
 MetaList &MetaList::setResultModule(const oEvent &oe, int moduleIx) {
-  vector< pair<string, string> > mol;
+  vector< pair<int, pair<string, string> > > mol;
   oe.getGeneralResults(false, mol, false);
   if (moduleIx == 0) {
     //resultModule = "";
@@ -2309,8 +2290,8 @@ MetaList &MetaList::setResultModule(const oEvent &oe, int moduleIx) {
   }
   else {
     for (size_t k = 0; k < mol.size(); k++) {
-      if (moduleIx == k + 100) {
-        retagResultModule(mol[k].first, false);
+      if (moduleIx == mol[k].first) {
+        retagResultModule(mol[k].second.first, false);
         return *this;
       }
     }
@@ -2461,11 +2442,11 @@ void MetaListContainer::enumerateLists(vector< pair<string, pair<string, string>
 
 int MetaList::getResultModuleIndex(oEvent *oe, oListInfo &li, const MetaListPost &lp) const {
   if (resultToIndex.empty()) {
-    vector< pair<string, string> > tagNameList;
+    vector< pair<int, pair<string, string> > > tagNameList;
     oe->getGeneralResults(false, tagNameList, false);
     resultToIndex[""] = -1;
     for (size_t k = 0; k < tagNameList.size(); k++) {
-      resultToIndex[tagNameList[k].first] = k;
+      resultToIndex[tagNameList[k].second.first] = k;
     }
   }
 
@@ -2508,4 +2489,11 @@ oListInfo::ResultType MetaList::getResultType() const {
     return oListInfo::Legwise;
 
   return oListInfo::Classwise;
+}
+
+bool MetaList::supportClasses() const {
+  if (listType == oListInfo::EBaseTypeControl)
+    return false;
+  else
+    return true;
 }

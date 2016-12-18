@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -192,7 +192,7 @@ pClub oEvent::getClubCreate(int Id, const string &CreateName)
   }
   if (CreateName.empty()) {
     //Not found. Auto add...
-		return getClubCreate(Id, lang.tl("Klubblös"));
+    return getClubCreate(Id, lang.tl("Klubblös"));
   }
   else	{
     oClubList::iterator it;
@@ -479,10 +479,15 @@ void oClub::addInvoiceLine(gdioutput &gdi, const InvoiceLine &line, InvoiceData 
   data.total_fee_amount += line.fee;
   data.total_rent_amount += line.rent;
   data.total_paid_amount += line.paid;
+  if (line.paid > 0)
+    data.paidPerMode[line.payMode] += line.paid;
   yp += data.lh;
 }
 
-void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData &data, list<InvoiceLine> &lines) const {
+void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam,
+                                 const map<int, string> &definedPayModes, 
+                                 const InvoiceData &data, 
+                                 list<InvoiceLine> &lines) const {
   int xs = data.xs;
   lines.push_back(InvoiceLine());
   InvoiceLine &line = lines.back();
@@ -532,27 +537,34 @@ void oClub::addRunnerInvoiceLine(const pRunner r, bool inTeam, const InvoiceData
   int fee = r->getDCI().getInt("Fee");
   int card = r->getDCI().getInt("CardFee");
   int paid = r->getDCI().getInt("Paid");
-
+  int pm = r->getPaymentMode();
+  
+  /*string payMode = "";
+  map<int, string>::const_iterator res = definedPayModes.find(pm);
+  if (res != definedPayModes.end())
+    payMode = ", " + res->second;
+  */
   if (r->getClassRef() && r->getClassRef()->getClassStatus() == oClass::InvalidRefund) {
     fee = 0;
     card = 0;
   }
 
-  if (!inTeam || fee>0)
+  if (fee>0)
     line.addString(xs+data.feePos, oe->formatCurrency(fee), true);
   if (card > 0)
     line.addString(xs+data.cardPos, oe->formatCurrency(card), true);
-  if (!inTeam || paid>0)
+  if (paid>0)
     line.addString(xs+data.paidPos, oe->formatCurrency(paid), true);
   line.fee= fee;
   if (card > 0)
     line.rent = card;
   line.paid = paid;
-
+  line.payMode = pm;
   line.addString(xs+data.resPos, ts);
 }
 
-void oClub::addTeamInvoiceLine(const pTeam t, const InvoiceData &data, list<InvoiceLine> &lines) const {
+void oClub::addTeamInvoiceLine(const pTeam t, const map<int, string> &definedPayModes, 
+                               const InvoiceData &data, list<InvoiceLine> &lines) const {
   lines.push_back(InvoiceLine());
   InvoiceLine &line = lines.back();
 
@@ -587,17 +599,20 @@ void oClub::addTeamInvoiceLine(const pTeam t, const InvoiceData &data, list<Invo
   line.addString(xs+data.paidPos, oe->formatCurrency(paid), true);
   line.fee = fee;
   line.paid = paid;
+  line.payMode = t->getPaymentMode();
   line.addString(xs+data.resPos, ts);
 
   for (int j = 0; j < t->getNumRunners(); j++) {
     pRunner r = t->getRunner(j);
     if (r && r->getClubId() == t->getClubId()) {
-      addRunnerInvoiceLine(r, true, data, lines);
+      addRunnerInvoiceLine(r, true, definedPayModes, data, lines);
     }
   }
 }
 
-void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
+void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid,
+                            const map<int, string> &definedPayModes, 
+                            map<int, int> &paidPerMode) {
   string account = oe->getDI().getString("Account");
   string pdate = oe->getDI().getDate("PaymentDue");
   int pdateI = oe->getDI().getInt("PaymentDue");
@@ -715,11 +730,11 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
     if (team && team->getDCI().getInt("Fee") > 0
       && team->getClubId() == runners[k]->getClubId())
       continue; // Show this line under the team.
-    addRunnerInvoiceLine(runners[k], false, data, lines);
+    addRunnerInvoiceLine(runners[k], false, definedPayModes, data, lines);
   }
 
   for (size_t k=0;k<teams.size(); k++) {
-    addTeamInvoiceLine(teams[k], data, lines);
+    addTeamInvoiceLine(teams[k], definedPayModes, data, lines);
   }
 
   for (list<InvoiceLine>::iterator it = lines.begin(); it != lines.end(); ++it) {
@@ -734,7 +749,9 @@ void oClub::generateInvoice(gdioutput &gdi, int &toPay, int &hasPaid) {
   yp+=lh*2;
   toPay = data.total_fee_amount+data.total_rent_amount-data.total_paid_amount;
   hasPaid = data.total_paid_amount;
-
+  for (map<int,int>::iterator it = data.paidPerMode.begin(); it != data.paidPerMode.end(); ++it) {
+    paidPerMode[it->first] += it->second;
+  }
   gdi.addString("", yp, xs, boldText, "Att betala: X#" + oe->formatCurrency(toPay));
 
   gdi.updatePos(gdi.scaleLength(710),0,0,0);
@@ -780,8 +797,23 @@ void oEvent::getClubTeams(int clubId, vector<pTeam> &teams) const
   }
 }
 
+void oClub::definedPayModes(oEvent &oe, map<int, string> &definedPayModes) {
+  vector< pair<string, size_t> > modes;
+  oe.getPayModes(modes);
+  if (modes.size() > 1) {
+    for (size_t k = 0; k < modes.size(); k++) {
+      definedPayModes[modes[k].second] = modes[k].first;
+    }
+  }
+}
+
 void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
                            const string &basePath, bool onlySummary) {
+
+  map<int, string> definedPayModes;
+  oClub::definedPayModes(*this, definedPayModes);
+  map<int, int> paidPerMode;
+
   oClub::assignInvoiceNumber(*this, false);
   oClubList::iterator it;
   oe->calculateTeamResults(false);
@@ -826,7 +858,7 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
             continue;
         }
 
-        it->generateInvoice(gdi, pay, paid);
+        it->generateInvoice(gdi, pay, paid, definedPayModes, paidPerMode);
 
         if (type == IPTElectronincHTML && pay > 0) {
           fout << it->getId() << ";" << it->getName() << ";" <<
@@ -857,7 +889,7 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
         if (type == IPTNoMailPrint && hasEmail)
           continue;
 
-        it->generateInvoice(gdi, pay, paid);
+        it->generateInvoice(gdi, pay, paid, definedPayModes, paidPerMode);
         clubId.insert(it->getId());
         fees.push_back(pay);
         vpaid.push_back(paid);
@@ -897,9 +929,22 @@ void oEvent::printInvoices(gdioutput &gdi, InvoicePrintType type,
       yp+=gdi.getLineHeight();
     }
   }
-
+  
+  yp+=gdi.getLineHeight();
+  gdi.fillDown();
   gdi.addStringUT(yp, 550, boldText|textRight, lang.tl("Totalt faktureras: ") + oe->formatCurrency(sum));
   gdi.addStringUT(yp+gdi.getLineHeight(), 550, boldText|textRight, lang.tl("Totalt kontant: ") + oe->formatCurrency(psum));
+  gdi.dropLine(0.5);
+  if (definedPayModes.size() > 1) {
+    vector< pair<string, size_t> > modes;
+    oe->getPayModes(modes);
+    for (k = 0; k < int(modes.size()); k++) {
+      int ppm = paidPerMode[k]; 
+      if (ppm > 0) {
+        gdi.addStringUT(gdi.getCY(), 550, normalText|textRight, modes[k].first + ": " + oe->formatCurrency(ppm));
+      }
+    }
+  }
 }
 
 void oClub::updateFromDB()
@@ -1098,4 +1143,10 @@ int oClub::getFirstInvoiceNumber(oEvent &oe) {
 void oClub::changedObject() {
   if (oe)
     oe->globalModification = true;
+}
+
+bool oClub::operator<(const oClub &c) const {
+  return CompareString(LOCALE_USER_DEFAULT, 0,
+                      name.c_str(), name.length(),
+                      c.name.c_str(), c.name.length()) == CSTR_LESS_THAN;
 }

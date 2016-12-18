@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -36,19 +36,39 @@ typedef oTeam * pTeam;
 class gdioutput;
 class oEvent;
 
+enum TabType {
+  TRunnerTab,
+  TTeamTab,
+  TClassTab,
+  TCourseTab,
+  TControlTab,
+  TSITab,
+  TListTab,
+  TCmpTab,
+  TSpeakerTab,
+  TClubTab,
+  TAutoTab,
+};
+
 class TabBase
 {
 protected:
   oEvent *oe;
   int tabId;
+  virtual void clearCompetitionData() = 0;
+
 public:
   oEvent *getEvent() const {return oe;}
   int getTabId() const {return tabId;}
   virtual bool loadPage(gdioutput &gdi) = 0;
 
+  virtual TabType getType() const = 0;
+  virtual const char *getTypeStr() const = 0;
+  
   TabBase(oEvent *poe) : oe(poe), tabId(0) {}
   virtual ~TabBase()=0  {}
   friend class TabObject;
+  friend class FixedTabs;
 };
 
 
@@ -67,7 +87,7 @@ public:
   void setPage(TabBase *tb){delete tab; tab=tb;}
 
   const type_info &getType() const {return typeid(*tab);}
-
+  const TabBase &getTab() const {return *tab;}
   TabObject(const TabObject &t)
   {
     if (&t!=this) {
@@ -107,20 +127,6 @@ class TabCompetition;
 class TabSpeaker;
 class TabAuto;
 
-enum TabType {
-  TRunnerTab,
-  TTeamTab,
-  TClassTab,
-  TCourseTab,
-  TControlTab,
-  TSITab,
-  TListTab,
-  TCmpTab,
-  TSpeakerTab,
-  TClubTab,
-  TAutoTab,
-};
-
 class FixedTabs {
   oEvent *oe;
   TabRunner *runnerTab;
@@ -134,32 +140,17 @@ class FixedTabs {
   TabSpeaker *speakerTab;
   TabClub *clubTab;
   TabAuto *autoTab;
+
+  vector<TabBase *> tabs;
 public:
 
-  bool hasSpeaker() const {return speakerTab != 0;}
-  bool hasClass() const {return classTab != 0;}
-
   TabBase *get(TabType tag);
+  const vector<TabBase *> &getActiveTabs() const {return tabs;}
+  // Clean up competition specific data from user interface
+  void clearCompetitionData();
+
 
   FixedTabs();
   ~FixedTabs();
 };
 
-/*
-namespace FixedTabs {
-  extern TabRunner *runnerTab;
-  extern TabTeam *teamTab;
-
-  extern TabClass *classTab;
-  extern TabCourse *courseTab;
-  extern TabControl *controlTab;
-
-  extern TabClub *clubTab;
-
-  extern TabSI *siTab;
-  extern TabList *listTab;
-  extern TabCompetition *cmpTab;
-
-  extern TabSpeaker *speakerTab;
-}
-*/

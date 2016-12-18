@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -123,7 +123,7 @@ int oPunch::getAdjustedTime() const
     return Time+tTimeAdjust;
   else return -1;
 }
-void oPunch::setTime(string t)
+void oPunch::setTime(const string &t)
 {
   int tt = oe->getRelativeTime(t)-tTimeAdjust;
   if (tt < 0)

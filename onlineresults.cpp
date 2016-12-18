@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -49,9 +49,9 @@ static int OnlineCB(gdioutput *gdi, int type, void *data) {
     case GUI_BUTTON: {
       //Make a copy
       ButtonInfo bu=*static_cast<ButtonInfo *>(data);
-      OnlineResults *ores = (OnlineResults *)bu.getExtra();
+      OnlineResults &ores = dynamic_cast<OnlineResults &>(*AutoMachine::getMachine(bu.getExtraInt()));
 
-      return ores->processButton(*gdi, bu);
+      return ores.processButton(*gdi, bu);
     }
     case GUI_LISTBOX:{
     }
@@ -72,7 +72,7 @@ int OnlineResults::processButton(gdioutput &gdi, ButtonInfo &bi) {
     enableFile(gdi, gdi.isChecked(bi.id));
   else if (bi.id == "BrowseFolder") {
     string res = gdi.getText("FolderName");
-    res = gdi.browseForFolder(res);
+    res = gdi.browseForFolder(res, 0);
     if (!res.empty())
       gdi.setText("FolderName", res, true);
   }
@@ -123,7 +123,7 @@ void OnlineResults::settings(gdioutput &gdi, oEvent &oe, bool created) {
   int cx = gdi.getCX();
   gdi.fillRight();
 
-  gdi.addCheckbox("ToURL", "Skicka till webben", OnlineCB, sendToURL).setExtra(this);
+  gdi.addCheckbox("ToURL", "Skicka till webben", OnlineCB, sendToURL).setExtra(getId());
 
   gdi.addString("", 0, "URL:");
   gdi.pushX();
@@ -139,12 +139,12 @@ void OnlineResults::settings(gdioutput &gdi, oEvent &oe, bool created) {
   gdi.dropLine(5);
   gdi.fillRight();
 
-  gdi.addCheckbox("ToFile", "Spara på disk", OnlineCB, sendToFile).setExtra(this);
+  gdi.addCheckbox("ToFile", "Spara på disk", OnlineCB, sendToFile).setExtra(getId());
 
   gdi.addString("", 0, "Mapp:");
   gdi.pushX();
   gdi.addInput("FolderName", file, 30);
-  gdi.addButton("BrowseFolder", "Bläddra...", OnlineCB).setExtra(this);
+  gdi.addButton("BrowseFolder", "Bläddra...", OnlineCB).setExtra(getId());
   gdi.dropLine(2.5);
   gdi.popX();
 
@@ -239,7 +239,7 @@ void OnlineResults::save(oEvent &oe, gdioutput &gdi) {
   zipFile = gdi.isChecked("Zip");
 
   ListBoxInfo lbi;
-  gdi.getSelectedItem("Format", &lbi);
+  gdi.getSelectedItem("Format", lbi);
   dataType = lbi.data;
 
   gdi.getSelection("Classes", classes);
@@ -306,17 +306,16 @@ void OnlineResults::status(gdioutput &gdi)
 
   if (sendToFile || sendToURL) {
     gdi.addString("", 0, "Exporterar om: ");
-    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerCanBeNegative, (GetTickCount()-timeout)/1000);
-    gdi.addString("", 0, "(sekunder)");
+    gdi.addTimer(gdi.getCY(),  gdi.getCX(), timerIgnoreSign, (GetTickCount()-timeout)/1000);
     gdi.addString("", 0, "Antal skickade uppdateringar X (Y kb)#" +
                           itos(exportCounter-1) + "#" + itos(bytesExported/1024));
   }
   gdi.popX();
 
   gdi.dropLine(2);
-  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(this);
+  gdi.addButton("Stop", "Stoppa automaten", AutomaticCB).setExtra(getId());
   gdi.fillDown();
-  gdi.addButton("OnlineResults", "Inställningar...", AutomaticCB).setExtra(this);
+  gdi.addButton("OnlineResults", "Inställningar...", AutomaticCB).setExtra(getId());
   gdi.popX();
 }
 
@@ -344,9 +343,11 @@ void OnlineResults::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
   else {
     t = getTempFile();
     if (dataType == 2)
-      oe->exportIOFSplits(oEvent::IOF20, t.c_str(), false, false, classes, -1, false, true);
+      oe->exportIOFSplits(oEvent::IOF20, t.c_str(), false, false,
+                          classes, -1, false, true, true);
     else if (dataType == 3)
-      oe->exportIOFSplits(oEvent::IOF30, t.c_str(), false, false, classes, -1, false, true);
+      oe->exportIOFSplits(oEvent::IOF30, t.c_str(), false, false, 
+                          classes, -1, false, true, true);
     else
       throw meosException("Internal error");
   }
@@ -391,8 +392,10 @@ void OnlineResults::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
         dwl.initInternet();
         ProgressWindow pw(0);
         vector<pair<string,string> > key;
-        key.push_back(make_pair<string, string>("competition", itos(cmpId)));
-        key.push_back(make_pair<string, string>("pwd", passwd));
+		pair<string, string> mk1("competition", itos(cmpId));
+        key.push_back(mk1);
+		pair<string, string> mk2("pwd", passwd);
+        key.push_back(mk2);
 
         bool moreToWrite = true;
         string tmp;

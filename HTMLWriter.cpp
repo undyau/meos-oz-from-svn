@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -34,7 +34,7 @@
 double getLocalScale(const string &fontName, string &faceName);
 string getMeosCompectVersion();
 
-static void generateStyles(ofstream &fout, bool withTbl, const list<TextInfo> &TL,
+static void generateStyles(ostream &fout, bool withTbl, const list<TextInfo> &TL,
                            map< pair<gdiFonts, string>, pair<string, string> > &styles) {
   fout << "<style type=\"text/css\">\n";
   fout << "body {background-color: rgb(250,250,255)}\n";
@@ -291,12 +291,21 @@ bool sortTL_X(const TextInfo *a, const TextInfo *b)
 }
 
 
-bool gdioutput::writeTableHTML(const wstring &file, const string &title, int refreshTimeOut) const
+bool gdioutput::writeTableHTML(const wstring &file, 
+                               const string &title, int refreshTimeOut) const
 {
   ofstream fout(file.c_str());
 
   if (fout.bad())
     return false;
+
+  return writeTableHTML(fout, title, false, refreshTimeOut);
+}
+
+bool gdioutput::writeTableHTML(ostream &fout, 
+                               const string &title,
+                               bool simpleFormat,
+                               int refreshTimeOut) const {
 
   fout << "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" <<
           "          \"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
@@ -400,6 +409,8 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title, int ref
     if (h == minHeight)
       numMin++;
   }
+  if (numMin == 0)
+    numMin = 1;
 
   int hdrLimit = (rows.size() / numMin) <= 4 ?  int(minHeight * 1.2) : int(minHeight * 1.5);
   for (size_t gCount = 1; gCount + 1 < rows.size(); gCount++) {
@@ -425,7 +436,9 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title, int ref
     vector<const TextInfo *>::iterator rit;
     fout << "<tr>" << endl;
 
-    if (type == 1) {
+    if (simpleFormat) {
+    }
+    else if (type == 1) {
       lineclass = " class=\"freeheader\"";
       linecounter = 0;
     }
@@ -483,133 +496,27 @@ bool gdioutput::writeTableHTML(const wstring &file, const string &title, int ref
 
       fout << starttag << toUTF8(html_table_code(row[k]->text)) << endtag << "</td>" << endl;
 
- /*     pair<gdiFonts, string> key(font, row[k]->font);
-
-      if (styles.count(key)) {
-        string extra;
-        switch (font) {
-          case boldText:
-          case boldLarge:
-          case boldHuge:
-          case boldSmall:
-            extra = "b";
-            break;
-          case italicSmall:
-          case italicText:
-          case italicMediumPlus:
-            extra = "i";
-            break;
-        }
-        const pair<string, string> &style = styles[key];
-        fout << "<" << style.first;
-        if (!style.second.empty())
-          fout << " class=\"" << style.second << "\"";
-        fout << ">";
-
-        if (!extra.empty())
-          fout << "<" << extra << ">";
-
-        fout << html_table_code(row[k]->text);
-
-        if (!extra.empty())
-          fout << "</" << extra << ">";
-
-        fout << "</" << style.first << ">";
-      }
-      else if (row[k]->getGdiFont() == boldText)
-        fout << "<b>" << html_table_code(row[k]->text) << "</b></td>";
-      else if (row[k]->getGdiFont() == normalText)
-        fout << html_table_code(row[k]->text) << "</td>";
-      else if (row[k]->getGdiFont() == italicSmall)
-        fout << "<i>" << html_table_code(row[k]->text) << "</i></td>";
-      else {
-        string element;
-        switch( row[k]->getGdiFont() )
-        {
-          case boldHuge:
-            element="h1";
-            break;
-          case boldLarge:
-            element="h2";
-            break;
-          case fontLarge:
-            element="h2";
-            break;
-          case fontMedium:
-            element="h3";
-            break;
-        }
-        assert(element.size()>0);
-        if (element.size()>0) {
-          fout << "<" << element << ">";
-          fout << html_table_code(row[k]->text) << "</" << element << "></td>";
-        }
-        else {
-          fout << html_table_code(row[k]->text) << "</td>";
-        }
-      }*/
     }
     fout << "</tr>\n";
 
     row.clear();
-/*
-    string element="p";
-
-    switch(it->format)
-    {
-    case boldHuge:
-      element="h1";
-      break;
-    case boldLarge:
-      element="h2";
-      break;
-    case fontLarge:
-      element="h2";
-      break;
-    case fontMedium:
-      element="h3";
-      break;
-    case fontSmall:
-      element="p";
-      break;
-    }
-
-    if (it->format!=1 && it->format!=boldSmall) {
-      if (it->format & textRight)
-        fout << "<" << element << " style=\"position:absolute;right:"
-            << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
-      else
-        fout << "<" << element << " style=\"position:absolute;left:"
-            << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
-
-    }
-    else {
-      if (it->format & textRight)
-        fout << "<" << element << " style=\"font-weight:bold;position:absolute;right:"
-              << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
-      else
-        fout << "<" << element << " style=\"font-weight:bold;position:absolute;left:"
-              << it->xp << "px;top:" <<  int(1.1*it->yp) << "px\">";
-    }
-    fout << it->text;
-    fout << "</" << element << ">\n";
-    ++it;*/
   }
 
   fout << "</table>\n";
 
-  fout << "<br><p>";
-  char bf1[256];
-  char bf2[256];
-  GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
-  GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
-  string meos = getMeosCompectVersion();
-  fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS "
-       << meos << "</i></a>: " << bf1 << " "<< bf2 << "\n";
-  fout << "</p><br>\n";
-
+  if (!simpleFormat) {
+    fout << "<br><p>";
+    char bf1[256];
+    char bf2[256];
+    GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
+    GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
+    string meos = getMeosCompectVersion();
+    fout << toUTF8(lang.tl("Skapad av ")) + "<a href=\"http://www.melin.nu/meos\" target=\"_blank\"><i>MeOS "
+         << meos << "</i></a>: " << bf1 << " "<< bf2 << "\n";
+    fout << "</p><br>\n";
+  }
   fout << "</body>\n";
   fout << "</html>\n";
 
-  return false;
+  return true;
 }

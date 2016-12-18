@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -32,15 +32,19 @@
 #include <cassert>
 #include "gdiconstants.h"
 #include "meosexception.h"
+#include "recorder.h"
 
 extern HINSTANCE hInst;
 const char *tId="_TABLE_SEL";
 
 const Table *TableSortIndex::table = 0;
 
+int Table::uniqueId = 1;
+
 Table::Table(oEvent *oe_, int rowH,
              const string &name, const string &iName)
 {
+  id = uniqueId++;
   commandLock = false;
   oe=oe_;
   tableName=name;
@@ -282,10 +286,13 @@ void Table::filter(int col, const string &filt, bool forceFilter)
 bool Table::compareRow(int indexA, int indexB) const {
   const TableRow &a = Data[indexA];
   const TableRow &b = Data[indexB];
-  if (a.intKey != b.intKey)
+  if (a.intKey != b.intKey && a.intKey != 0xFEFEFEFE && b.intKey != 0xFEFEFEFE)
     return a.intKey < b.intKey;
   else
-    return Data[indexA].key < Data[indexB].key;
+    return CompareString( LOCALE_USER_DEFAULT, 0, Data[indexA].key.c_str(), Data[indexA].key.length(),
+                                                  Data[indexB].key.c_str(), Data[indexB].key.length()) == CSTR_LESS_THAN;
+    //return Data[indexA].key < Data[indexB].key;
+    //return Data[indexA].key < Data[indexB].key;
 }
 
 void Table::sort(int col)
@@ -390,10 +397,16 @@ void Table::sort(int col)
           CharUpperBuff(LPSTR(strBuff), key.size());
 
           int &intKey = Data[sortIndex[k].index].intKey;
-          intKey = unsigned(strBuff[0])<<16;
-          if (key.length() > 1) {
-            intKey |= unsigned(strBuff[1])<<8;
-            intKey |= unsigned(strBuff[2]);
+          
+          if ( ((strBuff[0]|strBuff[1]) & 128) == 0) {
+            intKey = unsigned(strBuff[0])<<16;
+            if (key.length() > 1) {
+              intKey |= unsigned(strBuff[1])<<8;
+              intKey |= unsigned(strBuff[2]);
+            }
+          }
+          else {
+            intKey = 0xFEFEFEFE;
           }
         }
       }
@@ -693,8 +706,7 @@ int tblSelectionCB(gdioutput *gdi, int type, void *data)
 {
   if (type == GUI_LISTBOX) {
     ListBoxInfo lbi = *static_cast<ListBoxInfo *>(data);
-    //TableCell &cell = *static_cast<TableCell *>(lbi.getExtra());
-    Table &t = *static_cast<Table *>(lbi.getExtra());
+    Table &t = gdi->getTable();
     t.selection(*gdi, lbi.text, lbi.data);
   }
   return 0;
@@ -828,6 +840,7 @@ bool Table::destroyEditControl(gdioutput &gdi) {
 }
 
 bool Table::mouseLeftDown(gdioutput &gdi, int x, int y) {
+  partialCell = true;
   clearCellSelection(&gdi);
 
   if (!destroyEditControl(gdi))
@@ -892,7 +905,7 @@ bool Table::editCell(gdioutput &gdi, int row, int col) {
 
   if (cell.type == cellAction) {
     ReleaseCapture();
-    gdi.makeEvent("CellAction", internalName, cell.id, cell.owner, false);
+    gdi.makeEvent("CellAction", internalName, cell.id, cell.owner ? cell.owner->getId() : 0, false);
     return true;
   }
 
@@ -922,12 +935,12 @@ bool Table::editCell(gdioutput &gdi, int row, int col) {
     if (cell.type == cellSelection) {
       gdi.addSelection(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId,
               max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10,
-              tblSelectionCB).setExtra(this);
+              tblSelectionCB).setExtra(id);
     }
     else {
       gdi.addCombo(rc.left+gdi.OffsetX, rc.top+gdi.OffsetY, tId,
               max<int>(int((rc.right-rc.left+1)/gdi.scale), width), (rc.bottom-rc.top)*10,
-              tblSelectionCB).setExtra(this);
+              tblSelectionCB).setExtra(id);
     }
     gdi.addItem(tId, out);
     gdi.selectItemByData(tId, selected);
@@ -1566,6 +1579,23 @@ bool Table::tabFocus(gdioutput &gdi, int direction)
   return false;
 }
 
+void Table::setTableText(gdioutput &gdi, int editRow, int editCol, const string &bf) {
+  if (size_t(editRow) >= Data.size() || size_t(editCol) >= Data[editRow].cells.size())
+    throw std::exception("Index out of bounds");
+
+  string output;
+  TableCell &cell=Data[editRow].cells[editCol];
+  cell.owner->inputData(cell.id, bf, 0, output, false);
+  cell.contents=output;
+  if (hEdit != 0)
+    DestroyWindow(hEdit);
+  hEdit=0;
+  reloadRow(Data[editRow].id);
+  RECT rc;
+  getRowRect(editRow, rc);
+  InvalidateRect(gdi.getTarget(), &rc, false);
+}
+
 bool Table::enter(gdioutput &gdi)
 {
   if (hEdit) {
@@ -1574,19 +1604,13 @@ bool Table::enter(gdioutput &gdi)
       GetWindowText(hEdit, bf, 1024);
 
       if (editRow>=2) {
-        TableCell &cell=Data[editRow].cells[editCol];
-        string output;
-
-        //try
+        
         {
-          cell.owner->inputData(cell.id, bf, 0, output, false);
-          cell.contents=output;
-          DestroyWindow(hEdit);
-          hEdit=0;
-          reloadRow(Data[editRow].id);
-          RECT rc;
-          getRowRect(editRow, rc);
-          InvalidateRect(gdi.getTarget(), &rc, false);
+          string cmd;
+          if (gdi.getRecorder().recording())
+            cmd = "setTableText(" + itos(editRow) + ", " + itos(editCol) + ", \"" + string(bf) + "\");"; 
+          setTableText(gdi, editRow, editCol, bf);
+          gdi.getRecorder().record(cmd);
           return true;
         }/*
         catch(const std::exception &ex) {
@@ -1606,9 +1630,9 @@ bool Table::enter(gdioutput &gdi)
   }
   else if (gdi.hasField(tId)) {
     ListBoxInfo lbi;
-    gdi.getSelectedItem(tId, &lbi);
+    gdi.getSelectedItem(tId, lbi);
 
-    if (lbi.IsCombo) {
+    if (lbi.isCombo()) {
       if (size_t(selectionRow) < Data.size() && size_t(selectionCol) < Titles.size()) {
         selection(gdi, lbi.text, lbi.data);
       }
@@ -1875,8 +1899,10 @@ void Table::exportClipboard(gdioutput &gdi)
 
   getExportData(min(col1, col2), max(col1, col2),
                 min(row1, row2), max(row1, row2), str, txt);
+  
+  gdi.copyToClipboard(str, true, txt);
 
-  if (OpenClipboard(gdi.getHWND()) != false) {
+  /*if (OpenClipboard(gdi.getHWND()) != false) {
 
     EmptyClipboard();
 
@@ -1906,13 +1932,6 @@ void Table::exportClipboard(gdioutput &gdi)
     sprintf_s(head, cbd, 1,0,0,0);
 
     int offset=strlen(head);
-      /*
-    char *start=FindMemEx("<!--StartFragment-->", HTML, len);
-    char *end=FindMemEx("<!--EndFragment-->", HTML, len) - strlen("<!--StartFragment-->");
-
-    DWORD ho_start=start-HTML+offset;
-    DWORD ho_end=end-HTML+offset;
-    */
     //Fill header with relevant information
     int ho_start = offset;
     int ho_end = offset + len;
@@ -1941,7 +1960,7 @@ void Table::exportClipboard(gdioutput &gdi)
 
     delete[] bf;
     CloseClipboard();
-  }
+  }*/
 }
 
 
@@ -2095,8 +2114,8 @@ void Table::importClipboard(gdioutput &gdi)
       int dx,dy;
       getDimension(gdi, dx, dy, true);
       gdi.scrollTo(0, dy + table_yp + gdi.OffsetY);
-      gdi.refresh();
     }
+    gdi.refresh();
   }
 }
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -130,7 +130,7 @@ bool InfoCompetition::synchronize(oEvent &oe, const set<int> &includeCls) {
         map<int, InfoRadioControl>::iterator res = controls.find(id);
         if (res == controls.end())
           res = controls.insert(make_pair(id, InfoRadioControl(id))).first;
-        if (res->second.synchronize(*ctrl[k]))
+        if (res->second.synchronize(*ctrl[k], ids.size() > 1 ? j+1 : 0))
           needCommit(res->second);
       }
     }
@@ -252,8 +252,10 @@ void InfoCompetition::needCommit(InfoBase &obj) {
   toCommit.push_back(&obj);
 }
 
-bool InfoRadioControl::synchronize(oControl &c) {
-  const string &n = c.hasName() ? c.getName() : c.getString();
+bool InfoRadioControl::synchronize(oControl &c, int number) {
+  string n = c.hasName() ? c.getName() : c.getString();
+  if (number > 0)
+    n = n + "-" + itos(number);
   if (n == name)
     return false;
   else {
@@ -289,7 +291,7 @@ bool InfoClass::synchronize(oClass &c) {
           pc->getControls(ctrl);
           for (size_t j = 0; j < ctrl.size(); j++) {
             if (ctrl[j]->isValidRadio()) {
-              rc.back().push_back(ctrl[j]->getId());
+              rc.back().push_back(pc->getCourseControlId(j));
             }
           }
         }

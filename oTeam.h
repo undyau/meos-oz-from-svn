@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 #include "oBase.h"
@@ -44,7 +44,9 @@ public:
 
 private:
   int getLegRunningTimeUnadjusted(int leg, bool multidayTotal) const;
-
+  /** Return the total time the team has been resting (pursuit start etc.) up to the specified leg */
+  int getLegRestingTime(int leg) const;
+  
   void speakerLegInfo(int leg, int specifiedLeg, int courseControlId,
                       int &missingLeg, int &totalLeg,
                       RunnerStatus &status, int &runningTime) const;
@@ -149,7 +151,8 @@ public:
   int getRogainingPoints(bool multidayTotal) const;
   int getRogainingReduction() const;
   int getRogainingOvertime() const;
-
+  int getRogainingPointsGross() const;
+  
   void fillSpeakerObject(int leg, int courseControlId, int previousControlCourseId,
                           bool totalResult, oSpeakerObject &spk) const;
 

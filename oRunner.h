@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -142,6 +142,11 @@ protected:
 
   void changedObject();
 public:
+  /** Call this method after doing something to just this
+      runner/team that changed the time/status etc, that effects
+      the result. May make a global evaluation of the class.
+      Never call "for each" runner. */
+  void hasManuallyUpdatedTimeStatus();
 
   /** Returs true if the class is a patrol class */
   bool isPatrolMember() const {
@@ -158,7 +163,10 @@ public:
 
   /** Returns number of shortenings taken. */
   virtual int getNumShortening() const = 0;
-  
+
+  int getPaymentMode() const;
+  void setPaymentMode(int mode);
+
   enum TransferFlags {
     FlagTransferNew = 1,
     FlagUpdateCard = 2,
@@ -272,7 +280,8 @@ public:
   virtual int getRogainingPoints(bool multidayTotal) const = 0;
   virtual int getRogainingReduction() const = 0;
   virtual int getRogainingOvertime() const = 0;
-
+  virtual int getRogainingPointsGross() const = 0;
+  
   virtual const string &getStartTimeS() const;
   virtual const string &getStartTimeCompact() const;
   virtual const string &getFinishTimeS() const;
@@ -404,7 +413,7 @@ protected:
   map<int, int> priority;
   int cPriority;
 
-  static const int dataSize = 128;
+  static const int dataSize = 192;
   int getDISize() const {return dataSize;}
 
   BYTE oData[dataSize];
@@ -455,6 +464,7 @@ protected:
   // Rogainig results. Control and punch time
   vector< pair<pControl, int> > tRogaining;
   int tRogainingPoints;
+  int tRogainingPointsGross;
   int tReduction;
   int tRogainingOvertime;
   string tProblemDescription;
@@ -482,7 +492,10 @@ protected:
   mutable int tAdaptedCourseRevision;
 
 public:
-  
+  /** Returns true if this runner can use the specified card, 
+   or false if it conflicts with the card of the other runner. */
+  bool canShareCard(const pRunner other, int newCardNumber) const;
+
   void markClassChanged(int controlId);
 
   int getRanking() const;
@@ -535,7 +548,7 @@ public:
 
 
   // Get the complete name, including team and club.
-  string getCompleteIdentification() const;
+  string getCompleteIdentification(bool includeExtra = true) const;
 
   /// Get total status for this running (including team/earlier races)
   RunnerStatus getTotalStatus() const;
@@ -544,6 +557,7 @@ public:
   pRunner getMatchedRunner(const SICard &sic) const;
 
   int getRogainingPoints(bool multidayTotal) const;
+  int getRogainingPointsGross() const;
   int getRogainingReduction() const;
   int getRogainingOvertime() const;
 

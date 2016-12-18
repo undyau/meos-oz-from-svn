@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -42,18 +42,25 @@ enum Machines {
   mPrewarningMachine,
   mOnlineResults,
   mOnlineInput,
+  mSaveBackup,
 };
 
 class AutoMachine
 {
+private:
+  int myid;
+  static int uniqueId;
 protected:
   bool editMode;
 
   void settingsTitle(gdioutput &gdi, char *title);
   enum IntervalType {IntervalNone, IntervalMinute, IntervalSecond};
   void startCancelInterval(gdioutput &gdi, char *startCommand, bool created, IntervalType type, const string &interval);
-
+  
 public:
+  static AutoMachine *getMachine(int id);
+  static void resetGlobalId() {uniqueId = 1;}
+  int getId() const {return myid;}
   static AutoMachine* construct(Machines);
   void setEditMode(bool em) {editMode = em;}
   string name;
@@ -68,7 +75,7 @@ public:
   virtual void status(gdioutput &gdi) = 0;
   virtual bool stop() {return true;}
   virtual AutoMachine *clone() const = 0;
-  AutoMachine(const string &s) : name(s), interval(0), timeout(0),
+  AutoMachine(const string &s) : myid(uniqueId++), name(s), interval(0), timeout(0),
             synchronize(false), synchronizePunches(false), editMode(false) {}
   virtual ~AutoMachine() = 0 {}
 };
@@ -129,6 +136,27 @@ public:
     htmlRefresh = v;
   }
   friend class TabAuto;
+};
+
+class SaveMachine :
+  public AutoMachine
+{
+protected:
+  string baseFile;
+  int saveIter;
+public:
+  SaveMachine *clone() const {
+    SaveMachine *prm = new SaveMachine(*this);
+    return prm;
+  }
+
+  void status(gdioutput &gdi);
+  void process(gdioutput &gdi, oEvent *oe, AutoSyncType ast);
+  void settings(gdioutput &gdi, oEvent &oe, bool created);
+  void saveSettings(gdioutput &gdi);
+
+  SaveMachine():AutoMachine("Säkerhetskopiera") , saveIter(0) {
+  }
 };
 
 
@@ -221,9 +249,13 @@ private:
 
   void settings(gdioutput &gdi, AutoMachine *sm, Machines type);
 
+protected:
+  void clearCompetitionData();
+
 public:
 
-  AutoMachine *getMachine(const string &name);
+  AutoMachine *getMachine(int id);
+  //AutoMachine *getMachine(const string &name);
   bool stopMachine(AutoMachine *am);
   void killMachines();
   void addMachine(const AutoMachine &am) {
@@ -235,6 +267,10 @@ public:
   int processListBox(gdioutput &gdi, const ListBoxInfo &bu);
 
   bool loadPage(gdioutput &gdi);
+
+  const char * getTypeStr() const {return "TAutoTab";}
+  TabType getType() const {return TAutoTab;}
+
   TabAuto(oEvent *poe);
   ~TabAuto(void);
 

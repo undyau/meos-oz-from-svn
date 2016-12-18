@@ -861,6 +861,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\prefseditor.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\prefseditor.h"
+				>
+			</File>
+			<File
 				RelativePath=".\printer.cpp"
 				>
 			</File>
@@ -897,11 +905,23 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\recorder.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\RunnerDB.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\socket.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\speakermonitor.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\speakermonitor.h"
 				>
 			</File>
 			<File
@@ -1021,6 +1041,14 @@
 			</File>
 			<File
 				RelativePath=".\TabTeam.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\testmeos.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\tests.cpp"
 				>
 			</File>
 			<File

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -38,6 +38,9 @@
 #include "oListInfo.h"
 
 #include "TabSpeaker.h"
+#include "TabList.h"
+#include "speakermonitor.h"
+
 #include <cassert>
 
 //Base position for speaker buttons
@@ -52,19 +55,14 @@ TabSpeaker::TabSpeaker(oEvent *poe):TabBase(poe)
   lastClassToWatch = 0;
   watchLevel = oTimeLine::PMedium;
   watchNumber = 5;
+  speakerMonitor = 0;
 }
 
 TabSpeaker::~TabSpeaker()
 {
+  delete speakerMonitor;
 }
 
-void clearSpeakerData(gdioutput &gdi)
-{
-  if (gdi.getTabs().hasSpeaker()) {
-    TabSpeaker &ts = dynamic_cast<TabSpeaker &>(*gdi.getTabs().get(TSpeakerTab));
-    ts.clear();
-  }
-}
 
 int tabSpeakerCB(gdioutput *gdi, int type, void *data)
 {
@@ -187,12 +185,53 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
     savePriorityClass(gdi);
     loadPage(gdi);
   }
+  else if (bu.id == "LiveResult") {
+    gdioutput *gdi_new = createExtraWindow(uniqueTag("list"), MakeDash("MeOS - Live"), gdi.getWidth() + 64 + gdi.scaleLength(120));
+       
+    gdi_new->clearPage(false);
+    gdi_new->addString("", boldLarge, "Liveresultat");
+    gdi_new->addString("", 10, "help:liveresultat");
+    gdi_new->dropLine();
+    gdi_new->pushY();
+    gdi_new->pushX();
+
+    TabList::makeClassSelection(*gdi_new);
+    oe->fillClasses(*gdi_new, "ListSelection", oEvent::extraNone, oEvent::filterNone);
+    
+    gdi_new->popY();
+    gdi_new->setCX(gdi_new->getCX() + gdi_new->scaleLength(280));
+    gdi_new->fillRight();
+    gdi_new->pushX();
+    TabList::makeFromTo(*gdi_new);
+    TabList::enableFromTo(*oe, *gdi_new, true, true);
+
+    gdi_new->fillRight();
+    gdi.dropLine();
+    gdi_new->addButton("StartLive", "Starta", tabSpeakerCB).setDefault();
+    gdi_new->addButton("CancelClose", "Avbryt", tabSpeakerCB).setCancel();
+
+    gdi_new->refresh();
+  }
+  else if (bu.id == "StartLive") {
+    TabList &ts = dynamic_cast<TabList &>(*gdi.getTabs().get(TListTab));
+        
+    oListInfo li;
+    oListParam &par = li.getParam();;
+    par.useControlIdResultTo = gdi.getSelectedItem("ResultSpecialTo").first;
+    par.useControlIdResultFrom = gdi.getSelectedItem("ResultSpecialFrom").first;
+    gdi.getSelection("ListSelection", par.selection);
+    
+    gdi.clearPage(false);
+    gdi.setFullScreen(true);
+    gdi.hideBackground(true);
+    ts.liveResult(gdi, li);
+  }
   else if (bu.id == "Events") {
     gdi.restore("classes");
-
+    /*
     shownEvents.clear();
     events.clear();
-
+    */
     drawTimeLine(gdi);
   }
   else if (bu.id == "Window") {
@@ -211,6 +250,9 @@ int TabSpeaker::processButton(gdioutput &gdi, const ButtonInfo &bu)
   }
   else if (bu.id=="Cancel") {
     loadPage(gdi);
+  }
+  else if (bu.id=="CancelClose") {
+    gdi.closeWindow();
   }
   else if (bu.id=="OK") {
     gdi.getSelection("Classes", classesToWatch);
@@ -323,6 +365,53 @@ void TabSpeaker::updateTimeLine(gdioutput &gdi) {
   gdi.popX(); gdi.popY();
   gdi.SetOffsetY(storedY);
 
+  SpeakerMonitor &sm = *getSpeakerMonitor();
+  int limit = 1000;
+  switch (watchLevel) {
+  case oTimeLine::PHigh:
+    limit = 3;
+    break;
+  case oTimeLine::PMedium:
+    limit = 10;
+    break;
+  }
+
+  sm.setLimits(limit, watchNumber);
+  sm.setClassFilter(classesToWatch, controlsToWatch);
+  sm.show(gdi);
+
+  if (refresh)
+    gdi.refreshSmartFromSnapshot(false);
+  else {
+    if (storedHeight == gdi.getHeight())
+      gdi.refreshFast();
+    else
+      gdi.refresh();
+  }
+}
+
+/*
+void TabSpeaker::updateTimeLine(gdioutput &gdi) {
+  int storedY = gdi.GetOffsetY();
+  int storedHeight = gdi.getHeight();
+  bool refresh = gdi.hasData("TimeLineLoaded");
+
+  if (refresh)
+    gdi.takeShownStringsSnapshot();
+
+  gdi.restoreNoUpdate("TimeLine");
+  gdi.setRestorePoint("TimeLine");
+  gdi.setData("TimeLineLoaded", 1);
+
+  gdi.registerEvent("DataUpdate", tabSpeakerCB);
+  gdi.setData("DataSync", 1);
+  gdi.setData("PunchSync", 1);
+
+  gdi.pushX(); gdi.pushY();
+  gdi.updatePos(0,0,0, storedHeight);
+  gdi.popX(); gdi.popY();
+  gdi.SetOffsetY(storedY);
+
   int nextEvent = oe->getTimeLineEvents(classesToWatch, events, shownEvents, 0);
 
   oe->updateComputerTime();
@@ -338,7 +427,7 @@ void TabSpeaker::updateTimeLine(gdioutput &gdi) {
   bool showClass = classesToWatch.size()>1;
 
   oListInfo li;
-  const int classWidth = gdi.scaleLength(li.getMaxCharWidth(oe, lClassName, "", normalText, false));
+  const int classWidth = gdi.scaleLength(li.getMaxCharWidth(oe, classesToWatch, lClassName, "", normalText, false));
   const int timeWidth = gdi.scaleLength(60);
   const int totWidth = gdi.scaleLength(450);
   const int extraWidth = gdi.scaleLength(200);
@@ -469,7 +558,7 @@ void TabSpeaker::updateTimeLine(gdioutput &gdi) {
       gdi.refresh();
   }
 }
-
+*/
 void TabSpeaker::splitAnalysis(gdioutput &gdi, int xp, int yp, pRunner r)
 {
   if (!r)
@@ -556,12 +645,12 @@ void TabSpeaker::generateControlList(gdioutput &gdi, int classId)
     if (!keepLegs) {
       gdi.setData("CurrentY", cy);
       gdi.addSelection(cx, cy+2, "Leg", int(bw/gdi.getScale())-5, 100, tabSpeakerCB);
+      if (leg == 0 && stages[0].first != 0) {
+        leg = stages[0].first;
+        selectedControl[pc->getId()].setLeg(selectedControl[pc->getId()].isTotal(), leg);
+      }
 
       if (stages.size() > 1) {
-        if (leg == 0 && stages[0].first != 0) {
-           leg = stages[0].first;
-           selectedControl[pc->getId()].setLeg(selectedControl[pc->getId()].isTotal(), leg);
-        }
         for (size_t k=0; k<stages.size(); k++) {
           gdi.addItem("Leg", lang.tl("Sträcka X#" + itos(stages[k].second)), stages[k].first);
         }
@@ -775,6 +864,13 @@ bool TabSpeaker::loadPage(gdioutput &gdi)
     cy += gdi.getButtonHeight()+4;
   } else db += bw;
 
+  gdi.addButton(cx+db, cy, bw-2, "LiveResult", "Liveresultat", tabSpeakerCB, "Visa rullande tider mellan kontroller i helskärmsläge", false, false);
+  if (++cb>nbtn) {
+    cb = 1, cx = basex, db = 0;
+    cy += gdi.getButtonHeight()+4;
+  } else db += bw;
+
+
   if (!ownWindow) {
     gdi.addButton(cx+db, cy, bw-2, "Priority", "Prioritering", tabSpeakerCB, "Välj löpare att prioritera bevakning för", false, false);
     if (++cb>nbtn) {
@@ -794,7 +890,7 @@ bool TabSpeaker::loadPage(gdioutput &gdi)
   return true;
 }
 
-void TabSpeaker::clear()
+void TabSpeaker::clearCompetitionData()
 {
   controlsToWatch.clear();
   classesToWatch.clear();
@@ -808,6 +904,9 @@ void TabSpeaker::clear()
 
   shownEvents.clear();
   events.clear();
+
+  delete speakerMonitor;
+  speakerMonitor = 0;
 }
 
 void TabSpeaker::manualTimePage(gdioutput &gdi) const
@@ -940,4 +1039,10 @@ bool TabSpeaker::onClear(gdioutput &gdi) {
     savePriorityClass(gdi);
 
   return true;
+}
+SpeakerMonitor *TabSpeaker::getSpeakerMonitor() {
+  if (speakerMonitor == 0)
+    speakerMonitor = new SpeakerMonitor(*oe);
+
+  return speakerMonitor;
 }

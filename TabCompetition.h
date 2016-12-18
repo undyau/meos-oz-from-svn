@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,13 +17,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
 #include "tabbase.h"
 
 #include "oFreeImport.h"
+
+class PrefsEditor;
 
 class TabCompetition :
   public TabBase
@@ -42,6 +44,7 @@ class TabCompetition :
 
   // Events from Eventor
   vector<CompetitionInfo> events;
+  list<PrefsEditor> prefsEditor;
 
   oFreeImport fi;
   string entryText;
@@ -75,6 +78,9 @@ class TabCompetition :
   void getEventorCompetitions(gdioutput &gdi,
                               const string &fromDate,
                               vector<CompetitionInfo> &events) const;
+
+  void saveSettings(gdioutput &gdi);
+  void loadSettings(gdioutput &gdi);
 
   void getEventorCmpData(gdioutput &gdi, int id,
                          const string &eventFile,
@@ -118,7 +124,15 @@ class TabCompetition :
 
   void entryChoice(gdioutput &gdi);
   void createCompetition(gdioutput &gdi);
+
+  void listBackups(gdioutput &gdi);
+protected:
+  void clearCompetitionData();
+
 public:
+  const char * getTypeStr() const {return "TCmpTab";}
+  TabType getType() const {return TCmpTab;}
+
   void saveMeosFeatures(gdioutput &gdi, bool write);
   void updateFeatureStatus(gdioutput &gdi);
 

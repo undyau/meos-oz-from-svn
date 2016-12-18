@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -42,18 +42,23 @@
 #include "gdifonts.h"
 #include "oEventDraw.h"
 #include "MeOSFeatures.h"
-#include "oExtendedEvent.h"
 
 extern pEvent gEvent;
 const char *visualDrawWindow = "visualdraw";
 
 TabClass::TabClass(oEvent *poe):TabBase(poe)
 {
-  clear();
+  handleCloseWindow.tabClass = this;
+  clearCompetitionData();
 }
 
-void TabClass::clear() {
+void TabClass::clearCompetitionData() {
   pSettings.clear();
+  pSavedDepth = 3600;
+  pFirstRestart = 3600;
+  pTimeScaling = 1.0;
+  pInterval = 120;
+
   currentStage = -1;
   EditChanged = false;
   ClassId=0;
@@ -64,6 +69,18 @@ void TabClass::clear() {
   storedPredefined = oEvent::PredefinedTypes(-1);
   cInfoCache.clear();
   hasWarnedDirect = false;
+
+  lastSeedMethod = -1;
+  lastSeedPreventClubNb = true;
+  lastSeedReverse = false;
+  lastSeedGroups = "1";
+  lastPairSize = 1;
+  lastFirstStart = "";
+  lastInterval = "2:00";
+  lastNumVac = "0";
+  lastHandleBibs = false;
+  lastScaleFactor = "1.0";
+  lastMaxAfter = "60:00";
 
   gdioutput *gdi = getExtraWindow(visualDrawWindow, false);
   if (gdi) {
@@ -80,23 +97,13 @@ bool ClassInfoSortStart(ClassInfo &ci1, ClassInfo &ci2)
   return ci1.firstStart>ci2.firstStart;
 }
 
-void clearClassData(gdioutput &gdi)
-{
-  if (gdi.getTabs().hasClass()) {
-    TabClass &tc = dynamic_cast<TabClass &>(*gdi.getTabs().get(TClassTab));
-    tc.clear();
-  }
-}
-
-int closeWindowEvent(gdioutput *gdi, int type, void *data) {
-  EventInfo ei = *(EventInfo *)(data);
-  if (ei.id ==  "CloseWindow") {
-    TabClass *tc = (TabClass *)ei.getExtra();
-    if (tc) {
-      tc->closeWindow(*gdi);
+void TabClass::HandleCloseWindow::handle(gdioutput &gdi, BaseInfo &info, GuiEventType type) {
+  if (type == GUI_EVENT) {
+    EventInfo &ei = dynamic_cast<EventInfo &>(info);
+    if (ei.id ==  "CloseWindow") {
+      tabClass->closeWindow(gdi);   
     }
   }
-  return 0;
 }
 
 void TabClass::closeWindow(gdioutput &gdi) {
@@ -105,7 +112,6 @@ void TabClass::closeWindow(gdioutput &gdi) {
 int ClassesCB(gdioutput *gdi, int type, void *data)
 {
   TabClass &tc = dynamic_cast<TabClass &>(*gdi->getTabs().get(TClassTab));
-
   return tc.classCB(*gdi, type, data);
 }
 
@@ -114,6 +120,30 @@ int MultiCB(gdioutput *gdi, int type, void *data)
   TabClass &tc = dynamic_cast<TabClass &>(*gdi->getTabs().get(TClassTab));
   return tc.multiCB(*gdi, type, data);
 }
+
+int DrawClassesCB(gdioutput *gdi, int type, void *data)
+{
+  TabClass &tc = dynamic_cast<TabClass &>(*gdi->getTabs().get(TClassTab));
+  
+  if (type == GUI_LISTBOX) {
+    tc.enableLoadSettings(*gdi);
+  }
+  else if (type == GUI_INPUT || type == GUI_INPUTCHANGE) {
+    InputInfo &ii = *(InputInfo *)data;
+    if (ii.id.length() > 1) {
+      int id = atoi(ii.id.substr(1).c_str());
+      if (id > 0 && ii.changed()) {
+        string key = "C" + itos(id);
+        TextInfo &ti = dynamic_cast<TextInfo&>(gdi->getBaseInfo(key.c_str()));
+        ti.setColor(colorRed);
+        gdi->enableInput("DrawAdjust");
+        gdi->refreshFast();
+      }
+    }
+  }
+  return 0;
+}
+
 
 int TabClass::multiCB(gdioutput &gdi, int type, void *data)
 {
@@ -135,6 +165,8 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "DefineForking") {
       if (!checkClassSelected(gdi))
         return false;
+      save(gdi, true);
+      EditChanged=true;
       defineForking(gdi, true);
       return true;
     }
@@ -161,6 +193,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
       gdi.alert("Created X distinct forkings using Y courses.#" +
                  itos(res.first) + "#" + itos(res.second));
       loadPage(gdi);
+      EditChanged=true;
     }
     else if (bi.id == "AssignCourses") {
       set<int> selectedCourses, selectedLegs;
@@ -316,9 +349,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
       int total, finished, dns;
       oe->getNumClassRunners(pc->getId(), 0, total, finished, dns);
 
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Predefined", &lbi);
-      oEvent::PredefinedTypes newType = oEvent::PredefinedTypes(lbi.data);
+      oEvent::PredefinedTypes newType = oEvent::PredefinedTypes(gdi.getSelectedItem("Predefined").first);
       int nstages = gdi.getTextNo("NStage");
 
       if (finished > 0) {
@@ -353,7 +384,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
         storedNStage = gdi.getText("NStage");
       else {
         storedNStage = "";
-        if (lbi.data != oEvent::PNoMulti)
+        if (newType != oEvent::PNoMulti)
           nstages = 1; //Fixed by type
       }
 
@@ -404,7 +435,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
 
       if (currentStage>=0){
         ListBoxInfo lbi;
-        if (gdi.getSelectedItem("MCourses", &lbi)) {
+        if (gdi.getSelectedItem("MCourses", lbi)) {
           int courseid=lbi.data;
 
           pc->addStageCourse(currentStage, courseid);
@@ -414,6 +445,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
           oe->checkOrderIdMultipleCourses(cid);
         }
       }
+      EditChanged=true;
     }
     else if (bi.id=="MRemove"){
       if (!checkClassSelected(gdi))
@@ -428,15 +460,15 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
 
       if (currentStage>=0){
         ListBoxInfo lbi;
-        if (gdi.getSelectedItem("StageCourses", &lbi)) {
+        if (gdi.getSelectedItem("StageCourses", lbi)) {
           int courseid=lbi.data;
-
           pc->removeStageCourse(currentStage, courseid, lbi.index);
           pc->synchronize();
           pc->fillStageCourses(gdi, currentStage, "StageCourses");
         }
       }
     }
+    EditChanged=true;
   }
   else if (type==GUI_LISTBOX) {
     ListBoxInfo bi=*(ListBoxInfo *)data;
@@ -472,7 +504,7 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
       pClass pc=oe->getClass(ClassId);
       if (!pc)
         return false;
-      pc->setStartType(i, st);
+      pc->setStartType(i, st, true);
       char legno[10];
       sprintf_s(legno, "%d", i);
       updateStartData(gdi, pc, i, true, false);
@@ -507,8 +539,9 @@ int TabClass::multiCB(gdioutput &gdi, int type, void *data)
         gdi.setText("StartTime", storedStart);
       }
     }
-    else if (bi.id=="Courses")
+    else if (bi.id=="Courses") {
       EditChanged=true;
+    }
   }
   else if (type==GUI_INPUTCHANGE){
     InputInfo ii=*(InputInfo *)data;
@@ -606,18 +639,57 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       gdi.scrollToBottom();
       gdi.refresh();
     }
+    else if (bi.id=="SaveDrawSettings") {
+      readClassSettings(gdi);
+      for(size_t k=0; k<cInfo.size(); k++) {
+        const ClassInfo &ci = cInfo[k];
+        if (ci.pc) {
+          // Save settings with class
+          ci.pc->synchronize(false);
+          ci.pc->setDrawFirstStart(drawInfo.firstStart + drawInfo.baseInterval * ci.firstStart);
+          ci.pc->setDrawInterval(ci.interval * drawInfo.baseInterval);
+          ci.pc->setDrawVacant(ci.nVacant);
+          ci.pc->setDrawNumReserved(ci.nExtra);
+          ci.pc->synchronize(true);
+        }
+      }
+    }
     else if (bi.id=="DoDrawAll") {
       readClassSettings(gdi);
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Method", &lbi);
-      bool soft = lbi.data == TabClass::DMSOFT;
-      bool pairwise = gdi.isChecked("Pairwise");
+      int method = gdi.getSelectedItem("Method").first;
+      bool soft = method == DMSOFT;
+      int pairSize = gdi.getSelectedItem("PairSize").first;
+      
+      bool drawCoursebased = drawInfo.coursesTogether;
 
+      map<int, vector<ClassDrawSpecification> > specs;
       for(size_t k=0; k<cInfo.size(); k++) {
         const ClassInfo &ci=cInfo[k];
-        oe->drawList(ci.classId, 0, drawInfo.firstStart + drawInfo.baseInterval * ci.firstStart,
-          drawInfo.baseInterval * ci.interval, ci.nVacant, soft, pairwise, oEvent::drawAll);
+        if (ci.pc) {
+          // Save settings with class
+          ci.pc->synchronize(false);
+          ci.pc->setDrawFirstStart(drawInfo.firstStart + drawInfo.baseInterval * ci.firstStart);
+          ci.pc->setDrawInterval(ci.interval * drawInfo.baseInterval);
+          ci.pc->setDrawVacant(ci.nVacant);
+          ci.pc->setDrawNumReserved(ci.nExtra);
+          ci.pc->synchronize(true);
+        }
+        ClassDrawSpecification cds(ci.classId, 0, drawInfo.firstStart + drawInfo.baseInterval * ci.firstStart,
+                                   drawInfo.baseInterval * ci.interval, ci.nVacant);
+        if (drawCoursebased) {
+          pCourse pCrs = oe->getClass(ci.classId)->getCourse();
+          int id = pCrs ? pCrs->getId() : 101010101 + ci.classId;
+          specs[id].push_back(cds);
+        }
+        else
+          specs[ci.classId].push_back(cds);
       }
+
+      for (map<int, vector<ClassDrawSpecification> >::iterator it = specs.begin();
+           it != specs.end(); ++it) {
+        oe->drawList(it->second, soft, pairSize, oEvent::drawAll);
+      }
+
       oe->addAutoBib();
 
       gdi.clearPage(false);
@@ -643,11 +715,13 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       set<int> lst;
       oe->getAllClasses(lst);
       gdi.setSelection("Classes", lst);
+      enableLoadSettings(gdi);
     }
     else if (bi.id == "SelectUndrawn") {
       set<int> lst;
       oe->getNotDrawnClasses(lst, false);
       gdi.setSelection("Classes", lst);
+      enableLoadSettings(gdi);
     }
     else if (bi.id == "SelectStart") {
       int id = bi.getExtraInt();
@@ -665,6 +739,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         }
         gdi.setSelection("Classes", lst);
       }
+      enableLoadSettings(gdi);
     }
     else if (bi.id == "QuickSettings") {
       save(gdi, false);
@@ -691,9 +766,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       gdi.addSelection("Method", 200, 200, 0, "Metod:");
       gdi.addItem("Method", lang.tl("Lottning"), DMRandom);
       gdi.addItem("Method", lang.tl("SOFT-lottning"), DMSOFT);
-      gdi.addItem("Method", lang.tl("MEOS-OZ Random Fill"), 99);
       gdi.selectItemByData("Method", getDefaultMethod(false));
-      gdi.selectItemByData("Method", 99);
 
       gdi.fillDown();
       gdi.addCheckbox("LateBefore", "Efteranmälda före ordinarie");
@@ -728,15 +801,21 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         gdi.setInputStatus("First" + itos(k), select);
       }
     }
-    else if (bi.id == "DoPursuit" || bi.id=="CancelPursuit") {
+    else if (bi.id == "DoPursuit" || bi.id=="CancelPursuit" || bi.id == "SavePursuit") {
       bool cancel = bi.id=="CancelPursuit";
+      
       int maxAfter = convertAbsoluteTimeMS(gdi.getText("MaxAfter"));
       int deltaRestart = convertAbsoluteTimeMS(gdi.getText("TimeRestart"));
       int interval = convertAbsoluteTimeMS(gdi.getText("Interval"));
 
       double scale = atof(gdi.getText("ScaleFactor").c_str());
       bool reverse = bi.getExtraInt() == 2;
-      bool pairwise = gdi.isChecked("Pairwise");
+      int pairSize = gdi.getSelectedItem("PairSize").first;
+      
+      pSavedDepth = maxAfter;
+      pFirstRestart = deltaRestart;
+      pTimeScaling = scale;
+      pInterval = interval;
 
       oListParam par;
 
@@ -757,12 +836,22 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
             st->second.use = checked;
           }
 
+          if (checked) {
+            pClass pc = oe->getClass(id);
+            if (pc)
+              pc->setDrawFirstStart(first);
+          }
+
           if (!cancel && checked) {
             oe->drawPersuitList(id, first, first + deltaRestart, maxAfter,
-                                interval, pairwise, reverse, scale);
+                                interval, pairSize, reverse, scale);
             par.selection.insert(id);
           }
         }
+      }
+
+      if (bi.id == "SavePursuit") {
+         return 0;
       }
 
       if (cancel) {
@@ -791,18 +880,18 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       string firstStart = gdi.getText("FirstStart");
       string minInterval = gdi.getText("MinInterval");
       string vacances = gdi.getText("Vacances");
-      bool lateBefore = false;//gdi.isChecked("LateBefore");
-      bool pairwise = gdi.isChecked("Pairwise");
+      bool lateBefore = false;
+      //bool pairwise = gdi.isChecked("Pairwise");
+      int pairSize = 1;
+      if (gdi.hasField("PairSize")) {
+        pairSize = gdi.getSelectedItem("PairSize").first;
+      }
 
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Method", &lbi);
-      bool useSoft = lbi.data == DMSOFT;
+      int method = gdi.getSelectedItem("Method").first;
+      bool useSoft = method == DMSOFT;
       gdi.clearPage(true);
-      if (lbi.data == 99) // Custom MEOS-OZ draw
-        static_cast<oExtendedEvent*>(oe)->simpleDrawRemaining(gdi, firstStart, minInterval, vacances);
-      else
-        oe->automaticDrawAll(gdi, firstStart, minInterval, vacances, 
-                            lateBefore, useSoft, pairwise);
+      oe->automaticDrawAll(gdi, firstStart, minInterval, vacances,
+                            lateBefore, useSoft, pairSize);
       oe->addAutoBib();
       gdi.scrollToBottom();
       gdi.addButton("Cancel", "Återgå", ClassesCB);
@@ -811,9 +900,11 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       set<int> lst;
       oe->getNotDrawnClasses(lst, true);
       gdi.setSelection("Classes", lst);
+      enableLoadSettings(gdi);
     }
     else if (bi.id == "SelectNone") {
       gdi.setSelection("Classes", set<int>());
+      enableLoadSettings(gdi);
     }
     else if (bi.id == "Simultaneous") {
       string firstStart;// = oe->getAbsTime(3600);
@@ -825,7 +916,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       int by = 0;
       int bx = gdi.getCX();
 
-      showClassSelection(gdi, bx, by);
+      showClassSelection(gdi, bx, by, 0);
 
       gdi.pushX();
       gdi.addInput("FirstStart", firstStart, 10, 0, "Starttid:");
@@ -856,12 +947,14 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       classCB(gdi, type, &bi);
     }
     else if (bi.id == "DrawAll") {
-      int origin = int(bi.getExtra());
+      int origin = bi.getExtraInt();
       string firstStart = oe->getAbsTime(3600);
       string minInterval = "2:00";
       string vacances = "5%";
       int maxNumControl = 1;
-      bool pairwise = false;
+      int pairSize = 1;
+
+      //bool pairwise = false;
       int by = 0;
       int bx = gdi.getCX();
       if (origin!=13) {
@@ -875,7 +968,10 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
           firstStart = gdi.getText("FirstStart");
           minInterval = gdi.getText("MinInterval");
           vacances = gdi.getText("Vacances");
-          pairwise = gdi.isChecked("Pairwise");
+          //pairwise = gdi.isChecked("Pairwise");
+          if (gdi.hasField("PairSize")) {
+            pairSize = gdi.getSelectedItem("PairSize").first;
+          }
         }
 
         gdi.clearPage(false);
@@ -883,7 +979,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         gdi.addString("", boldLarge, "Lotta flera klasser");
         gdi.dropLine(0.5);
 
-        showClassSelection(gdi, bx, by);
+        showClassSelection(gdi, bx, by, DrawClassesCB);
         vector<pClass> cls;
         oe->getClasses(cls, false);
         set<int> clsId;
@@ -904,7 +1000,6 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
 
         gdi.addInput("FirstStart", firstStart, 10, 0, "Första start:");
         gdi.addInput("nFields", "10", 10, 0, "Max parallellt startande:");
-
         gdi.popX();
         gdi.dropLine(3);
 
@@ -923,13 +1018,15 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         gdi.popX();
         gdi.dropLine(4);
         gdi.addCheckbox("AllowNeighbours", "Tillåt samma bana inom basintervall", 0, true);
+        gdi.addCheckbox("CoursesTogether", "Lotta klasser med samma bana gemensamt", 0, false);
+        
         gdi.popX();
         gdi.dropLine(2);
         gdi.addString("", 1, "Startintervall");
         gdi.dropLine(1.4);
         gdi.popX();
         gdi.fillRight();
-        gdi.addInput("BaseInterval", "2:00", 10, 0, "Basintervall (min):");
+        gdi.addInput("BaseInterval", "1:00", 10, 0, "Basintervall (min):");
         gdi.addInput("MinInterval", minInterval, 10, 0, "Minsta intervall i klass:");
         gdi.addInput("MaxInterval", minInterval, 10, 0, "Största intervall i klass:");
 
@@ -966,12 +1063,15 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       rcPrepare.top = gdi.getCY();
       gdi.setCX(gdi.getCX() + gdi.getLineHeight());
       gdi.dropLine();
-      gdi.addString("", 1, "Förbered lottning");
-      gdi.dropLine(1.5);
+      gdi.addString("", fontMediumPlus, "Förbered lottning");
+      gdi.dropLine(2.5);
       gdi.popX();
       gdi.setCX(gdi.getCX() + gdi.getLineHeight());
       gdi.addButton("PrepareDrawAll", "Fördela starttider...", ClassesCB).isEdit(true).setDefault();
       gdi.addButton("EraseStartAll", "Radera starttider...", ClassesCB).isEdit(true).setExtra(0);
+      gdi.addButton("LoadSettings", "Hämta inställningar från föregående lottning", ClassesCB).isEdit(true);
+      enableLoadSettings(gdi);
+
       gdi.dropLine(3);
       rcPrepare.bottom = gdi.getCY();
       rcPrepare.right = gdi.getWidth();
@@ -1021,8 +1121,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       set<int> classes;
       gdi.getSelection("Classes", classes);
       if (classes.empty()) {
-        gdi.alert("Ingen klass vald.");
-        return 0;
+        throw meosException("Ingen klass vald.");
       }
       gdi.restore("ReadyToDistribute");
       drawInfo.classes.clear();
@@ -1037,22 +1136,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
           drawInfo.classes[*it] = ClassInfo(oe->getClass(*it));
       }
 
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("MaxCommonControl", &lbi);
-      drawInfo.maxCommonControl = lbi.data;
-
-      drawInfo.maxVacancy=gdi.getTextNo("VacancesMax");
-      drawInfo.minVacancy=gdi.getTextNo("VacancesMin");
-      drawInfo.vacancyFactor = 0.01*atof(gdi.getText("Vacances").c_str());
-      drawInfo.extraFactor = 0.01*atof(gdi.getText("Extra").c_str());
-
-      drawInfo.baseInterval=convertAbsoluteTimeMS(gdi.getText("BaseInterval"));
-      drawInfo.allowNeighbourSameCourse = gdi.isChecked("AllowNeighbours");
-      drawInfo.minClassInterval=convertAbsoluteTimeMS(gdi.getText("MinInterval"));
-      drawInfo.maxClassInterval=convertAbsoluteTimeMS(gdi.getText("MaxInterval"));
-      drawInfo.nFields=gdi.getTextNo("nFields");
-      drawInfo.firstStart=oe->getRelativeTime(gdi.getText("FirstStart"));
-
+      readDrawInfo(gdi, drawInfo);
       if (drawInfo.baseInterval <= 0 || drawInfo.baseInterval == NOTIME)
         throw meosException("Ogiltigt basintervall.");
       if (drawInfo.minClassInterval <= 0 || drawInfo.minClassInterval == NOTIME)
@@ -1080,7 +1164,79 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
 
       showClassSettings(gdi);
     }
+    else if (bi.id == "LoadSettings") {
+      set<int> classes;
+      gdi.getSelection("Classes", classes);
+      if (classes.empty()) {
+        throw meosException("Ingen klass vald.");
+      }
+      gdi.restore("ReadyToDistribute");
+      oe->loadDrawSettings(classes, drawInfo, cInfo);
+
+      /*
+      drawInfo.firstStart = 3600 * 22;
+      drawInfo.minClassInterval = 3600;
+      drawInfo.maxClassInterval = 1;
+      drawInfo.minVacancy = 10;
+
+      set<int> reducedStart;
+      for (set<int>::iterator it = classes.begin(); it != classes.end(); ++it) {
+        pClass pc = oe->getClass(*it);
+        if (pc) {
+          int fs = pc->getDrawFirstStart();
+          int iv = pc->getDrawInterval();
+          if (iv > 0 && fs > 0) {
+            drawInfo.firstStart = min(drawInfo.firstStart, fs);
+            drawInfo.minClassInterval = min(drawInfo.minClassInterval, iv);
+            drawInfo.maxClassInterval = max(drawInfo.maxClassInterval, iv);
+            drawInfo.minVacancy = min(drawInfo.minVacancy, pc->getDrawVacant());
+            drawInfo.maxVacancy = max(drawInfo.maxVacancy, pc->getDrawVacant());
+            reducedStart.insert(fs%iv);
+          }
+        }
+      }
+
+      drawInfo.baseInterval = drawInfo.minClassInterval;
+      int lastStart = -1;
+      for (set<int>::iterator it = reducedStart.begin(); it != reducedStart.end(); ++it) {
+        if (lastStart == -1)
+          lastStart = *it;
+        else {
+          drawInfo.baseInterval = min(drawInfo.baseInterval, *it-lastStart);
+          lastStart = *it;
+        }
+      }
+
+      cInfo.clear();
+      cInfo.resize(classes.size());
+      int i = 0;
+      for (set<int>::iterator it = classes.begin(); it != classes.end(); ++it) {
+        pClass pc = oe->getClass(*it);
+        if (pc) {
+          int fs = pc->getDrawFirstStart();
+          int iv = pc->getDrawInterval();
+          cInfo[i].pc = pc;
+          cInfo[i].classId = *it;
+          cInfo[i].courseId = pc->getCourseId();
+          cInfo[i].firstStart = fs;
+          cInfo[i].unique = pc->getCourseId();
+          if (cInfo[i].unique == 0)
+            cInfo[i].unique = pc->getId() * 10000;
+          cInfo[i].firstStart = (fs - drawInfo.firstStart) / drawInfo.baseInterval;
+          cInfo[i].interval = iv / drawInfo.baseInterval;
+          cInfo[i].nVacant = pc->getDrawVacant();
+          i++;
+        }
+      }
+      */
+      writeDrawInfo(gdi, drawInfo);
+      gdi.enableEditControls(false);
+
+      showClassSettings(gdi);
+    }
     else if (bi.id == "VisualizeDraw") {
+      readClassSettings(gdi);
+
       gdioutput *gdi_new = getExtraWindow(visualDrawWindow, true);
       if (!gdi_new)
         gdi_new = createExtraWindow(visualDrawWindow, MakeDash("MeOS - " + lang.tl("Visualisera startfältet")),  gdi.scaleLength(1000));
@@ -1093,7 +1249,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       visualizeField(*gdi_new);
       gdi_new->dropLine();
       gdi_new->addButton("CloseWindow", "Stäng", ClassesCB);
-      gdi_new->registerEvent("CloseWindow", closeWindowEvent).setExtra(this);
+      gdi_new->registerEvent("CloseWindow", 0).setHandler(&handleCloseWindow);
       gdi_new->refresh();
     }
     else if (bi.id == "EraseStartAll") {
@@ -1114,7 +1270,9 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       }
 
       for (set<int>::const_iterator it = classes.begin(); it != classes.end(); ++it) {
-        oe->drawList(*it, 0, 0, 0, 0, false, false, oEvent::drawAll);
+        vector<ClassDrawSpecification> spec;
+        spec.push_back(ClassDrawSpecification(*it, 0, 0, 0, 0));
+        oe->drawList(spec, false, 1, oEvent::drawAll);
       }
 
       if (bi.getExtraInt() == 1)
@@ -1146,10 +1304,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         return false;
 
       DWORD cid=ClassId;
-
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Method", &lbi);
-      TabClass::DrawMethod method = TabClass::DrawMethod(lbi.data);
+      DrawMethod method = DrawMethod(gdi.getSelectedItem("Method").first);
 
       int interval = 0;
       if (gdi.hasField("Interval"))
@@ -1161,9 +1316,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
 
       int leg = 0;
       if (gdi.hasField("Leg")) {
-        ListBoxInfo legInfo;
-        gdi.getSelectedItem("Leg", &legInfo);
-        leg = legInfo.data;
+        leg = gdi.getSelectedItem("Leg").first;
       }
 
       string bib;
@@ -1186,10 +1339,14 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       else if (bi.id=="DoDrawBefore")
         type = oEvent::remainingBefore;
 
-      bool pairwise = false;
+      //bool pairwise = false;
 
-      if (gdi.hasField("Pairwise"))
-        pairwise = gdi.isChecked("Pairwise");
+//      if (gdi.hasField("Pairwise"))
+ //       pairwise = gdi.isChecked("Pairwise");
+      int pairSize = 1;
+      if (gdi.hasField("PairSize")) {
+        pairSize = gdi.getSelectedItem("PairSize").first;
+      }
 
       int maxTime = 0, restartTime = 0;
       double scaleFactor = 1.0;
@@ -1203,31 +1360,41 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       if (gdi.hasField("ScaleFactor"))
         scaleFactor = atof(gdi.getText("ScaleFactor").c_str());
 
-      if (method == DMRandom || method == DMSOFT)
-        oe->drawList(cid, leg, t, interval, vacanses, method == DMSOFT, pairwise, type);
+      if (method == DMRandom || method == DMSOFT) {
+        vector<ClassDrawSpecification> spec;
+        spec.push_back(ClassDrawSpecification(cid, leg, t, interval, vacanses));
+    
+        oe->drawList(spec, method == DMSOFT, pairSize, type);
+      }
       else if (method == DMClumped)
         oe->drawListClumped(cid, t, interval, vacanses);
       else if (method == DMPursuit || method == DMReversePursuit) {
         oe->drawPersuitList(cid, t, restartTime, maxTime,
-          interval, pairwise, method == DMReversePursuit, scaleFactor);
+                            interval, pairSize, 
+                            method == DMReversePursuit, 
+                            scaleFactor);
       }
       else if (method == DMSimultaneous) {
         simultaneous(cid, time);
       }
       else if (method == DMSeeded) {
         ListBoxInfo seedMethod;
-        gdi.getSelectedItem("SeedMethod", &seedMethod);
+        gdi.getSelectedItem("SeedMethod", seedMethod);
         string seedGroups = gdi.getText("SeedGroups");
         vector<string> out;
         split(seedGroups, " ,;", out);
-        vector<int> sg(out.size());
-        bool invalid = sg.size() == 0;
-        for (size_t k = 0; k < sg.size(); k++) {
-          sg[k] = atoi(out[k].c_str());
-          if (sg[k] <= 0)
+        vector<int> sg;
+        bool invalid = false;
+        for (size_t k = 0; k < out.size(); k++) {
+          if (trim(out[k]).empty())
+            continue;
+          int val = atoi(trim(out[k]).c_str()); 
+          if (val <= 0)
             invalid = true;
+
+          sg.push_back(val); 
         }        
-        if (invalid)
+        if (invalid || sg.empty())
           throw meosException("Ogiltig storlek på seedningsgrupper X.#" + seedGroups);
 
         bool noClubNb = gdi.isChecked("PreventClubNb");
@@ -1238,7 +1405,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
           throw meosException("Class not found");
 
         pc->drawSeeded(ClassSeedMethod(seedMethod.data), leg, t, interval,
-                                       sg, noClubNb, reverse, pairwise); 
+                                       sg, noClubNb, reverse, pairSize); 
       }
       else
         throw std::exception("Not implemented");
@@ -1276,12 +1443,12 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
 
       int leg = 0;
       if (gdi.hasField("Leg")) {
-        ListBoxInfo legInfo;
-        gdi.getSelectedItem("Leg", &legInfo);
-        leg = legInfo.data;
+        leg = gdi.getSelectedItem("Leg").first;
       }
-
-      oe->drawList(ClassId, leg, 0, 0, 0, false, false, oEvent::drawAll);
+      vector<ClassDrawSpecification> spec;
+      spec.push_back(ClassDrawSpecification(ClassId, leg, 0, 0, 0));
+    
+      oe->drawList(spec, false, 1, oEvent::drawAll);
       loadPage(gdi);
     }
     else if (bi.id=="Draw") {
@@ -1328,14 +1495,14 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id == "HandleMultiDay") {
       ListBoxInfo lbi;
-      gdi.getSelectedItem("Method", &lbi);
+      gdi.getSelectedItem("Method", lbi);
 
       pClass pc=oe->getClass(ClassId);
       if (!pc)
         throw std::exception("Class not found");
 
-      if (gdi.isChecked(bi.id) && (lastDrawMethod == TabClass::DMReversePursuit ||
-        lastDrawMethod == TabClass::DMPursuit)) {
+      if (gdi.isChecked(bi.id) && (lastDrawMethod == DMReversePursuit ||
+                                   lastDrawMethod == DMPursuit)) {
         drawDialog(gdi, getDefaultMethod(false), *pc);
       }
       else
@@ -1424,12 +1591,11 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       DWORD cid=ClassId;
       pClass pc = oe->getClass(cid);
 
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("BibSettings", &lbi);
-      AutoBibType bt = AutoBibType(lbi.data);
+      AutoBibType bt = AutoBibType(gdi.getSelectedItem("BibSettings").first);
 
-      if (gdi.getSelectedItem("TeamBib", &lbi)) {
-        pc->setBibMode(BibMode(lbi.data));
+      pair<int, bool> teamBib = gdi.getSelectedItem("TeamBib");
+      if (teamBib.second) {
+        pc->setBibMode(BibMode(teamBib.first));
       }
 
       pc->getDI().setString("Bib", getBibCode(bt, gdi.getText("Bib")));
@@ -1504,12 +1670,9 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         throw std::exception("Class not found");
 
       ListBoxInfo lbi;
-      gdi.getSelectedItem("Type", &lbi);
+      gdi.getSelectedItem("Type", lbi);
 
-      ListBoxInfo lbinumber;
-      gdi.getSelectedItem("SplitInput", &lbinumber);
-
-      int number = lbinumber.data;
+      int number = gdi.getSelectedItem("SplitInput").first;
       vector<int> parts(number);
       for (int k = 0; k < number; k++) {
         string id = "CLS" + itos(k);
@@ -1586,14 +1749,12 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
       if (!pc)
         throw std::exception("Class not found");
 
-      ListBoxInfo lbi;
-      gdi.getSelectedItem("Class", &lbi);
-      pClass mergeClass = oe->getClass(lbi.data);
+      pClass mergeClass = oe->getClass(gdi.getSelectedItem("Class").first);
 
       if (!mergeClass)
         throw std::exception("Ingen klass vald.");
 
-      if (lbi.data==ClassId)
+      if (mergeClass->getId() == ClassId)
         throw std::exception("En klass kan inte slås ihop med sig själv.");
 
       if (gdi.ask("Vill du flytta löpare från X till Y och ta bort Z?#"
@@ -1612,7 +1773,7 @@ int TabClass::classCB(gdioutput &gdi, int type, void *data)
         throw std::exception("Class not found");
 
       ListBoxInfo lbi;
-      gdi.getSelectedItem("Class", &lbi);
+      gdi.getSelectedItem("Class", lbi);
 
       if (signed(lbi.data)<=0)
         throw std::exception("Ingen klass vald.");
@@ -1902,23 +2063,24 @@ void TabClass::showClassSettings(gdioutput &gdi)
   gdi.pushX();
   for (size_t k=0;k<cInfo.size();k++) {
     const ClassInfo &ci = cInfo[k];
-    char bf[256];
+    char bf1[128];
+    char bf2[128];
     int laststart = ci.firstStart + (ci.nRunners-1) * ci.interval;
     string first=oe->getAbsTime(ci.firstStart*drawInfo.baseInterval+drawInfo.firstStart);
     string last=oe->getAbsTime((laststart)*drawInfo.baseInterval+drawInfo.firstStart);
     pClass pc=oe->getClass(ci.classId);
-    sprintf_s(bf, 256, "%s, %d platser. Start %d-[%d]-%d (%s-%s)",
-      pc ? pc->getName().c_str():"", ci.nRunners,
-      ci.firstStart, ci.interval, laststart, first.c_str(), last.c_str());
+    sprintf_s(bf1, "%s, %d", pc ? pc->getName().c_str(): "-", ci.nRunners);
+    sprintf_s(bf2, "%d-[%d]-%d (%s-%s)", ci.firstStart, ci.interval, laststart, first.c_str(), last.c_str());
 
     gdi.fillRight();
-    gdi.addStringUT(0, bf);
-    y = gdi.getCY();
+    
     int id = ci.classId;
-    gdi.addInput(xp+300, y, "S"+itos(id), first, 7);
-    gdi.addInput(xp+300+width, y, "I"+itos(id), formatTime(ci.interval*drawInfo.baseInterval), 7);
-    gdi.addInput(xp+300+width*2, y, "V"+itos(id), itos(ci.nVacant), 7);
-    gdi.addInput(xp+300+width*3, y, "R"+itos(id), itos(ci.nExtra), 7);
+    gdi.addString("C" + itos(id), 0, "X platser. Startar Y#" + string(bf1) + "#" + bf2);
+    y = gdi.getCY();
+    gdi.addInput(xp+300, y, "S"+itos(id), first, 7, DrawClassesCB);
+    gdi.addInput(xp+300+width, y, "I"+itos(id), formatTime(ci.interval*drawInfo.baseInterval), 7, DrawClassesCB);
+    gdi.addInput(xp+300+width*2, y, "V"+itos(id), itos(ci.nVacant), 7, DrawClassesCB);
+    gdi.addInput(xp+300+width*3, y, "R"+itos(id), itos(ci.nExtra), 7, DrawClassesCB);
 
     if (k%5 == 4)
       gdi.dropLine(1);
@@ -1929,36 +2091,66 @@ void TabClass::showClassSettings(gdioutput &gdi)
   }
 
   gdi.dropLine();
+  gdi.pushX();
+
+  gdi.fillRight();
+ 
   gdi.addButton("VisualizeDraw", "Visualisera startfältet...", ClassesCB);
-  gdi.dropLine();
+ 
+  gdi.addButton("SaveDrawSettings", "Spara starttider", ClassesCB, 
+    "Spara inmatade tider i tävlingen utan att tilldela starttider.");
+
+  gdi.addButton("DrawAllAdjust", "Ändra inställningar", ClassesCB,
+        "Ändra grundläggande inställningar och gör en ny fördelning").setExtra(13);
+ 
+  if (!cInfo.empty()) {
+    gdi.addButton("DrawAdjust", "Uppdatera fördelning", ClassesCB,
+      "Uppdatera fördelningen av starttider med hänsyn till manuella ändringar ovan");
+       gdi.disableInput("DrawAdjust");
+  }
+  gdi.popX();
+  gdi.dropLine(3);
 
   gdi.fillRight();
 
   if (!cInfo.empty()) {
     gdi.pushX();
 
+    RECT rc;
+    rc.left = gdi.getCX();
+    rc.top = gdi.getCY();
+    rc.bottom = rc.top + gdi.getButtonHeight() + gdi.scaleLength(22) + gdi.getLineHeight();
+    gdi.setCX(rc.left + gdi.scaleLength(10));
+    gdi.setCY(rc.top + gdi.scaleLength(10));
+    
     gdi.addSelection("Method", 200, 200, 0, "Metod:");
     gdi.addItem("Method", lang.tl("Lottning"), DMRandom);
     gdi.addItem("Method", lang.tl("SOFT-lottning"), DMSOFT);
 
     gdi.selectItemByData("Method", getDefaultMethod(false));
+
+    gdi.addSelection("PairSize", 150, 200, 0, "Tillämpa parstart:");
+    gdi.addItem("PairSize", getPairOptions());
+    gdi.selectItemByData("PairSize", 1);
+
     gdi.dropLine(0.9);
 
     gdi.addButton("DoDrawAll", "Utför lottning", ClassesCB);
-    gdi.addButton("DrawAdjust", "Uppdatera fördelning", ClassesCB,
-        "Uppdatera fördelningen av starttider med hänsyn till manuella ändringar ovan");
+    
+    rc.right = gdi.getCX() + gdi.scaleLength(5);
+    gdi.addRectangle(rc, colorLightGreen);
+    gdi.setCX(rc.right + gdi.scaleLength(10));
   }
-  gdi.addButton("DrawAllAdjust", "Ändra inställningar", ClassesCB,
-      "Ändra grundläggande inställningar och gör en ny fördelning").setExtra(13);
 
   gdi.addButton("Cancel", "Avbryt", ClassesCB);
 
   gdi.fillDown();
   gdi.dropLine(2);
   gdi.popX();
-  if (!cInfo.empty())
-    gdi.addCheckbox("Pairwise", "Tillämpa parstart", 0, false);
 
+ 
+  gdi.fillDown();
+  gdi.popX();
   gdi.scrollToBottom();
   gdi.updateScrollbars();
   gdi.refresh();
@@ -1980,6 +2172,8 @@ void TabClass::selectClass(gdioutput &gdi, int cid)
 
     if (gdi.hasField("FreeStart"))
       gdi.check("FreeStart", false);
+    if (gdi.hasField("IgnoreStart"))
+      gdi.check("IgnoreStart", false);
 
     if (gdi.hasField("DirectResult"))
       gdi.check("DirectResult", false);
@@ -2028,6 +2222,9 @@ void TabClass::selectClass(gdioutput &gdi, int cid)
 
   if (gdi.hasField("FreeStart"))
     gdi.check("FreeStart", pc->hasFreeStart());
+
+  if (gdi.hasField("IgnoreStart"))
+    gdi.check("IgnoreStart", pc->ignoreStartPunch());
 
   if (gdi.hasField("DirectResult"))
     gdi.check("DirectResult", pc->hasDirectResult());
@@ -2160,7 +2357,7 @@ void TabClass::multiCourse(gdioutput &gdi, int nLeg) {
     pClass pc = oe->getClass(ClassId);
     if (pc) {
       pc->setNumStages(1);
-      pc->setStartType(0, STDrawn);
+      pc->setStartType(0, STDrawn, false);
       pc->forceShowMultiDialog(true);
       selectClass(gdi, ClassId);
       return;
@@ -2387,10 +2584,8 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
   if (gdi.hasField("StartBlock"))
     pc->setBlock(gdi.getTextNo("StartBlock"));
 
-  ListBoxInfo lbi;
   if (gdi.hasField("Status")) {
-    gdi.getSelectedItem("Status", &lbi);
-    pc->getDI().setEnum("Status", lbi.data);
+    pc->getDI().setEnum("Status", gdi.getSelectedItem("Status").first);
   }
 
   if (gdi.hasField("CoursePool"))
@@ -2405,6 +2600,9 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
   if (gdi.hasField("FreeStart"))
     pc->setFreeStart(gdi.isChecked("FreeStart"));
 
+  if (gdi.hasField("IgnoreStart"))
+    pc->setIgnoreStartPunch(gdi.isChecked("IgnoreStart"));
+
   if (gdi.hasField("DirectResult")) {
     bool withDirect = gdi.isChecked("DirectResult");
 
@@ -2417,30 +2615,31 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
 
     pc->setDirectResult(withDirect);
   }
-  gdi.getSelectedItem("Courses", &lbi);
 
-  if (lbi.data==0) {
+  int crs = gdi.getSelectedItem("Courses").first;
+
+  if (crs==0) {
     //Skapa ny bana...
     pCourse pcourse=oe->addCourse("Bana "+name);
     pc->setCourse(pcourse);
     pc->synchronize();
     return;
   }
-  else if (lbi.data==-2)
+  else if (crs==-2)
     pc->setCourse(0);
-  else if (signed(lbi.data)>0)
-    pc->setCourse(oe->getCourse(lbi.data));
+  else if (crs > 0)
+    pc->setCourse(oe->getCourse(crs));
 
   if (pc->hasMultiCourse()) {
 
     if (gdi.hasData("SimpleMulti")) {
       bool sim = gdi.isChecked("CommonStart");
       if (sim) {
-        pc->setStartType(0, STTime);
+        pc->setStartType(0, STTime, true);
         pc->setStartData(0, gdi.getText("CommonStartTime"));
       }
       else {
-        pc->setStartType(0, STDrawn);
+        pc->setStartType(0, STDrawn, true);
       }
     }
     else {
@@ -2453,16 +2652,12 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
         if (!gdi.hasField(string("LegType")+legno))
           continue;
 
-        ListBoxInfo lbi;
-        gdi.getSelectedItem(string("LegType")+legno, &lbi);
-        pc->setLegType(k, LegTypes(lbi.data));
+        pc->setLegType(k, LegTypes(gdi.getSelectedItem(string("LegType")+legno).first));
 
-        gdi.getSelectedItem(string("StartType")+legno, &lbi);
-        pc->setStartType(k, StartTypes(lbi.data));
+        pc->setStartType(k, StartTypes(gdi.getSelectedItem(string("StartType")+legno).first), true);
 
         if (pc->getStartType(k) == STChange) {
-          gdi.getSelectedItem(string("StartData")+legno, &lbi);
-          int val = lbi.data;
+          int val = gdi.getSelectedItem(string("StartData")+legno).first;
           if (val <= -10)
             pc->setStartData(k, val + 10);
           else
@@ -2484,12 +2679,12 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
 
         key = string("MultiR")+legno;
         if (gdi.hasField(key)) {
-          gdi.getSelectedItem(key, &lbi);
-
-          if (pc->getLegRunner(k) != lbi.data)
+          int mr = gdi.getSelectedItem(key).first; 
+          
+          if (pc->getLegRunner(k) != mr)
             needAdjust = true;
 
-          pc->setLegRunner(k, lbi.data);
+          pc->setLegRunner(k, mr);
         }
       }
 
@@ -2518,7 +2713,7 @@ void TabClass::save(gdioutput &gdi, bool skipReload)
     vector<int> b;
     vector<string> s;
     oe->getStartBlocks(b, s);
-    oe->sanityCheck(gdi, false);
+    oe->sanityCheck(gdi, false, pc->getId());
   }
 }
 
@@ -2534,6 +2729,7 @@ struct ButtonData {
 bool TabClass::loadPage(gdioutput &gdi)
 {
   oe->checkDB();
+  oe->checkNecessaryFeatures();
   gdi.selectTab(tabId);
   gdi.clearPage(false);
   int xp=gdi.getCX();
@@ -2567,7 +2763,7 @@ bool TabClass::loadPage(gdioutput &gdi)
   gdi.addString("", boldLarge, "Klasser");
 
   gdi.fillDown();
-  gdi.addListBox("Classes", 200, 420, ClassesCB, "").isEdit(false).ignore(true);
+  gdi.addListBox("Classes", 200, showAdvanced ? 512 : 420, ClassesCB, "").isEdit(false).ignore(true);
   gdi.setTabStops("Classes", 185);
   oe->fillClasses(gdi, "Classes", oEvent::extraDrawn, oEvent::filterNone);
 
@@ -2633,7 +2829,11 @@ bool TabClass::loadPage(gdioutput &gdi)
     gdi.dropLine(2);
     gdi.popX();
     gdi.addCheckbox("FreeStart", "Fri starttid", 0, false, "Klassen lottas inte, startstämpling");
+    gdi.addCheckbox("IgnoreStart", "Ignorera startstämpling", 0, false, "Uppdatera inte starttiden vid startstämpling");
 
+    gdi.dropLine(2);
+    gdi.popX();
+    
     gdi.addCheckbox("DirectResult", "Resultat vid målstämpling", 0, false,
                     "help:DirectResult");
 
@@ -2819,44 +3019,47 @@ void TabClass::prepareForDrawing(gdioutput &gdi) {
 
   gdi.dropLine();
   gdi.fillRight();
-  gdi.addButton("SaveCS", "Spara", classSettingsCB).setExtra(LPVOID(oe));
+  gdi.addButton("SaveCS", "Spara", classSettingsCB);
   gdi.addButton("Cancel", "Avbryt", ClassesCB);
 
   gdi.refresh();
 }
 
-void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oClass &pc) {
-  if(method == TabClass::DMSOFT || method == TabClass::DMRandom)
-    oe->setProperty("DefaultDrawMethod", method);
+void TabClass::drawDialog(gdioutput &gdi, DrawMethod method, const oClass &pc) {
+  oe->setProperty("DefaultDrawMethod", method);
 
   if (lastDrawMethod == method)
     return;
 
-  if (lastDrawMethod == TabClass::DMPursuit && method == TabClass::DMReversePursuit)
+  if (lastDrawMethod == DMPursuit && method == DMReversePursuit)
     return;
-  if (lastDrawMethod == TabClass::DMReversePursuit && method == TabClass::DMPursuit)
+  if (lastDrawMethod == DMReversePursuit && method == DMPursuit)
     return;
 
-  if (lastDrawMethod == TabClass::DMRandom && method == TabClass::DMSOFT)
+  if (lastDrawMethod == DMRandom && method == DMSOFT)
     return;
-  if (lastDrawMethod == TabClass::DMSOFT && method == TabClass::DMRandom)
+  if (lastDrawMethod == DMSOFT && method == DMRandom)
     return;
 
   int firstStart = 3600,
       interval = 120,
-      vac = 0;
+      vac = atoi(lastNumVac.c_str());
 
-  bool pairWise = false;
+  int pairSize = lastPairSize;
 
   if (gdi.hasField("FirstStart"))
     firstStart = oe->getRelativeTime(gdi.getText("FirstStart"));
+  else if (!lastFirstStart.empty())
+    firstStart = oe->getRelativeTime(lastFirstStart);
 
   if (gdi.hasField("Interval"))
     interval = convertAbsoluteTimeMS(gdi.getText("Interval"));
+  else if (!lastInterval.empty())
+    interval = convertAbsoluteTimeMS(lastInterval);
 
-  if (gdi.hasField("Pairwise"))
-    pairWise = gdi.isChecked("Pairwise");
-
+  if (gdi.hasField("PairSize")) {
+    pairSize = gdi.getSelectedItem("PairSize").first;
+  }
   gdi.restore("MultiDayDraw", false);
 
   const bool multiDay = oe->hasPrevStage();
@@ -2866,17 +3069,25 @@ void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oCl
     gdi.dropLine(1);
     gdi.pushX();
     gdi.fillRight();
-    gdi.addSelection("SeedMethod", 120, 100, 0, "Seedningskälla:");
+    ListBoxInfo &seedmethod = gdi.addSelection("SeedMethod", 120, 100, 0, "Seedningskälla:");
     vector< pair<string, size_t> > methods;
     oClass::getSeedingMethods(methods);
     gdi.addItem("SeedMethod", methods);
-    gdi.selectFirstItem("SeedMethod");
-    gdi.addInput("SeedGroups", "1", 32, 0, "Seedningsgrupper:", "Ange en gruppstorlek (som repeteras) eller flera kommaseparaerade gruppstorlekar");
+    if (lastSeedMethod == -1)
+      gdi.selectFirstItem("SeedMethod");
+    else
+      gdi.selectItemByData("SeedMethod", lastSeedMethod);
+    seedmethod.setSynchData(&lastSeedMethod);
+    gdi.addInput("SeedGroups", lastSeedGroups, 32, 0, "Seedningsgrupper:", 
+                 "Ange en gruppstorlek (som repeteras) eller flera kommaseparerade gruppstorlekar").
+                 setSynchData(&lastSeedGroups);
     gdi.fillDown();
     gdi.popX();
     gdi.dropLine(3);
-    gdi.addCheckbox("PreventClubNb", "Hindra att deltagare från samma klubb startar på angränsande tider", 0, false);
-    gdi.addCheckbox("ReverseSeedning", "Låt de bästa start först", 0, false);
+    gdi.addCheckbox("PreventClubNb", "Hindra att deltagare från samma klubb startar på angränsande tider", 
+                    0, lastSeedPreventClubNb).setSynchData(&lastSeedPreventClubNb);
+    gdi.addCheckbox("ReverseSeedning", "Låt de bästa start först", 0, lastSeedReverse).
+                    setSynchData(&lastSeedReverse);
   }
   else {
     gdi.popX();
@@ -2884,26 +3095,27 @@ void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oCl
     gdi.dropLine(1);
   }
 
-  
   if (method == DMRandom || method == DMSOFT || method == DMPursuit
-      || method == DMReversePursuit || method == DMSeeded)
-    gdi.addCheckbox("Pairwise", "Tillämpa parstart", 0, pairWise);
-
+      || method == DMReversePursuit || method == DMSeeded) {
+    gdi.addSelection("PairSize", 150, 200, 0, "Tillämpa parstart:").setSynchData(&lastPairSize);
+    gdi.addItem("PairSize", getPairOptions());
+    gdi.selectItemByData("PairSize", pairSize);
+  }
   gdi.fillRight();
 
-  gdi.addInput("FirstStart", oe->getAbsTime(firstStart), 10, 0, "Första start:");
+  gdi.addInput("FirstStart", oe->getAbsTime(firstStart), 10, 0, "Första start:").setSynchData(&lastFirstStart);
 
   if (method == DMPursuit || method == DMReversePursuit) {
-    gdi.addInput("MaxAfter", "60:00", 10, 0, "Maxtid efter:", "Maximal tid efter ledaren för att delta i jaktstart");
+    gdi.addInput("MaxAfter", lastMaxAfter, 10, 0, "Maxtid efter:", "Maximal tid efter ledaren för att delta i jaktstart").setSynchData(&lastMaxAfter);
     gdi.addInput("TimeRestart", oe->getAbsTime(firstStart + 3600),  8, 0, "Första omstartstid:");
-    gdi.addInput("ScaleFactor", "1.0",  8, 0, "Tidsskalning:");
+    gdi.addInput("ScaleFactor", lastScaleFactor,  8, 0, "Tidsskalning:").setSynchData(&lastScaleFactor);
   }
 
   if (method != DMSimultaneous)
-    gdi.addInput("Interval", formatTime(interval), 10, 0, "Startintervall (min):");
+    gdi.addInput("Interval", formatTime(interval), 10, 0, "Startintervall (min):").setSynchData(&lastInterval);
 
   if (method == DMRandom || method == DMSOFT || method == DMClumped)
-    gdi.addInput("Vacanses", itos(vac), 10, 0, "Antal vakanser:");
+    gdi.addInput("Vacanses", itos(vac), 10, 0, "Antal vakanser:").setSynchData(&lastNumVac);
 
   if ((method == DMRandom || method == DMSOFT || method == DMSeeded) && pc.getNumStages() > 1 && pc.getClassType() != oClassPatrol) {
     gdi.addSelection("Leg", 90, 100, 0, "Sträcka:", "Sträcka att lotta");
@@ -2918,7 +3130,7 @@ void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oCl
     gdi.dropLine(3.5);
 
     gdi.fillRight();
-    gdi.addCheckbox("HandleBibs", "Tilldela nummerlappar:", ClassesCB, false);
+    gdi.addCheckbox("HandleBibs", "Tilldela nummerlappar:", ClassesCB, lastHandleBibs).setSynchData(&lastHandleBibs);
     gdi.dropLine(-0.2);
     gdi.addInput("Bib", "", 10, 0, "", "Mata in första nummerlappsnummer, eller blankt för att ta bort nummerlappar");
     gdi.disableInput("Bib");
@@ -2959,7 +3171,7 @@ void TabClass::drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oCl
   lastDrawMethod = method;
 }
 
-void TabClass::setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMethod defaultMethod) {
+void TabClass::setMultiDayClass(gdioutput &gdi, bool hasMulti, DrawMethod defaultMethod) {
 
   gdi.clearList("Method");
   gdi.addItem("Method", lang.tl("Lottning"), DMRandom);
@@ -2978,9 +3190,8 @@ void TabClass::setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMet
   gdi.selectItemByData("Method", defaultMethod);
 
   if (gdi.hasField("Vacanses")) {
-
-  gdi.setInputStatus("Vacanses", !hasMulti);
-  gdi.setInputStatus("HandleBibs", !hasMulti);
+    gdi.setInputStatus("Vacanses", !hasMulti);
+    gdi.setInputStatus("HandleBibs", !hasMulti);
 
     if (hasMulti) {
       gdi.check("HandleBibs", false);
@@ -2989,8 +3200,8 @@ void TabClass::setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMet
   }
 
   if (gdi.hasField("DoDrawBefore")) {
-  gdi.setInputStatus("DoDrawBefore", !hasMulti);
-  gdi.setInputStatus("DoDrawAfter", !hasMulti);
+    gdi.setInputStatus("DoDrawBefore", !hasMulti);
+    gdi.setInputStatus("DoDrawAfter", !hasMulti);
   }
 }
 
@@ -3007,17 +3218,21 @@ void TabClass::pursuitDialog(gdioutput &gdi) {
 
   gdi.fillRight();
 
-  gdi.addInput("MaxAfter", "60:00", 10, 0, "Maxtid efter:", "Maximal tid efter ledaren för att delta i jaktstart");
-  gdi.addInput("TimeRestart", "+60:00",  8, 0, "Första omstartstid:",  "Ange tiden relativt klassens första start");
-  gdi.addInput("Interval", "2:00",  8, 0, "Startintervall:",  "Ange startintervall för minutstart");
-  gdi.addInput("ScaleFactor", "1.0",  8, 0, "Tidsskalning:");
-
+  gdi.addInput("MaxAfter", formatTime(pSavedDepth), 10, 0, "Maxtid efter:", "Maximal tid efter ledaren för att delta i jaktstart");
+  gdi.addInput("TimeRestart", "+" + formatTime(pFirstRestart),  8, 0, "Första omstartstid:",  "Ange tiden relativt klassens första start");
+  gdi.addInput("Interval", formatTime(pInterval),  8, 0, "Startintervall:",  "Ange startintervall för minutstart");
+  char bf[32];
+  sprintf_s(bf, "%f", pTimeScaling);
+  gdi.addInput("ScaleFactor", bf,  8, 0, "Tidsskalning:");
 
   gdi.dropLine(4);
   gdi.popX();
   gdi.fillDown();
-
-  gdi.addCheckbox("Pairwise", "Tillämpa parstart", 0, false);
+  //xxx 
+  //gdi.addCheckbox("Pairwise", "Tillämpa parstart", 0, false);
+  gdi.addSelection("PairSize", 150, 200, 0, "Tillämpa parstart:");
+  gdi.addItem("PairSize", getPairOptions());
+  gdi.selectItemByData("PairSize", 1);
 
   int cx = gdi.getCX();
   int cy = gdi.getCY();
@@ -3037,8 +3252,11 @@ void TabClass::pursuitDialog(gdioutput &gdi) {
       pSettings.insert(make_pair(cls[k]->getId(), PursuitSettings(*cls[k])));
       st = pSettings.find(cls[k]->getId());
     }
-
+    
     PursuitSettings &ps = st->second;
+    int fs = cls[k]->getDrawFirstStart();
+    if (fs > 0)
+      ps.firstTime = fs;
 
     ButtonInfo &bi = gdi.addCheckbox(cx, cy + len5, "PLUse" + itos(k), "", ClassesCB, ps.use);
     bi.setExtra(cls[k]->getId());
@@ -3058,19 +3276,31 @@ void TabClass::pursuitDialog(gdioutput &gdi) {
   gdi.addButton("SelectAllNoneP", "Välj ingen", ClassesCB).setExtra(0);
   gdi.popX();
   gdi.dropLine(3);
+  RECT rc;
+  rc.left = gdi.getCX();
+  rc.top = gdi.getCY();
+  rc.bottom = rc.top + gdi.getButtonHeight() + gdi.scaleLength(17);
+  gdi.setCX(rc.left + gdi.scaleLength(10));
+  gdi.setCY(rc.top + gdi.scaleLength(10));
   gdi.addButton("DoPursuit", "Jaktstart", ClassesCB).setDefault().setExtra(1);
   gdi.addButton("DoPursuit", "Omvänd jaktstart", ClassesCB).setExtra(2);
+
+  rc.right = gdi.getCX() + gdi.scaleLength(5);
+  gdi.addRectangle(rc, colorLightGreen);
+  gdi.setCX(rc.right + gdi.scaleLength(10));
+
+  gdi.addButton("SavePursuit", "Spara starttider", ClassesCB, "Spara inmatade tider i tävlingen utan att tilldela starttider.");
 
   gdi.addButton("CancelPursuit", "Återgå", ClassesCB).setCancel();
   gdi.refresh();
 }
 
 
-void TabClass::showClassSelection(gdioutput &gdi, int &bx, int &by) const {
+void TabClass::showClassSelection(gdioutput &gdi, int &bx, int &by, GUICALLBACK classesCB) const {
   gdi.pushY();
   int cx = gdi.getCX();
   int width = gdi.scaleLength(230);
-  gdi.addListBox("Classes", 200, 400, 0, "Klasser:", "", true);
+  gdi.addListBox("Classes", 200, 400, classesCB, "Klasser:", "", true);
   gdi.setTabStops("Classes", 185);
   gdi.fillRight();
   gdi.pushX();
@@ -3102,12 +3332,15 @@ void TabClass::showClassSelection(gdioutput &gdi, int &bx, int &by) const {
   if (sstart.size() > 1) {
     gdi.fillRight();
     int cnt = 0;
-    for (map<string, int>::iterator it = sstart.begin(); it != sstart.end(); ++it) {
+    for (map<string, int>::reverse_iterator it = sstart.rbegin(); it != sstart.rend(); ++it) {
       if ((cnt & 1)==0 && cnt>0) {
         gdi.dropLine(2);
         gdi.popX();
       }
-      gdi.addButton("SelectStart", "Välj X#" + it->first, ClassesCB, "").setExtra(it->second);
+      string name = it->first;
+      if (name.empty())
+        name = lang.tl("övriga");
+      gdi.addButton("SelectStart", "Välj X#" + name, ClassesCB, "").isEdit(true).setExtra(it->second);
       cnt++;
     }
     gdi.dropLine(2.5);
@@ -3124,6 +3357,31 @@ void TabClass::showClassSelection(gdioutput &gdi, int &bx, int &by) const {
   gdi.popY();
 }
 
+void TabClass::enableLoadSettings(gdioutput &gdi) {
+  if (!gdi.hasField("LoadSettings"))
+    return;
+  set<int> sel;
+  gdi.getSelection("Classes", sel);
+  bool ok = !sel.empty();
+
+  gdi.setInputStatus("PrepareDrawAll", ok);
+  gdi.setInputStatus("EraseStartAll", ok);
+  ok = false;
+  for (set<int>::iterator it = sel.begin(); it != sel.end(); ++it) {
+    pClass pc = oe->getClass(*it);
+
+    if (pc) {
+      if (pc->getDrawFirstStart() > 0 && pc->getDrawInterval() > 0) {
+        ok = true;
+        break;
+      }
+    }
+  }
+
+  gdi.setInputStatus("LoadSettings", ok);
+}
+
+
 void TabClass::simultaneous(int classId, string time) {
   pClass pc = oe->getClass(classId);
 
@@ -3138,7 +3396,7 @@ void TabClass::simultaneous(int classId, string time) {
       pc->addStageCourse(0, crs->getId());
   }
 
-  pc->setStartType(0, STTime);
+  pc->setStartType(0, STTime, false);
   pc->setStartData(0, time);
   pc->synchronize(true);
   pc->forceShowMultiDialog(false);
@@ -3369,7 +3627,7 @@ void TabClass::getClassSettingsTable(gdioutput &gdi, GUICALLBACK cb) {
     int yp = gdi.getCY();
     string id = itos(it->getId());
     gdi.addStringUT(0, it->getName(), 0);
-    gdi.addInput(a, yp, "Strt"+id, it->getStart(), 7, cb).setExtra(LPVOID(&*it));
+    gdi.addInput(a, yp, "Strt"+id, it->getStart(), 7, cb);
     string blk = it->getBlock()>0 ? itos(it->getBlock()) : "";
     gdi.addInput(b, yp, "Blck"+id, blk, 4);
     gdi.addInput(c, yp, "Sort"+id, itos(it->getDCI().getInt("SortIndex")), 4);
@@ -3457,7 +3715,7 @@ void TabClass::saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee
     if (gdi.hasField("Bib" + id)) {
       ListBoxInfo lbi;
       bool mod = false;
-      if (gdi.getSelectedItem("Bib" + id, &lbi)) {
+      if (gdi.getSelectedItem("Bib" + id, lbi)) {
         mod = it->getDI().setString("Bib", getBibCode(AutoBibType(lbi.data), "1"));
       }
       else {
@@ -3468,7 +3726,7 @@ void TabClass::saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee
 
       if (gdi.hasField("BibTeam" + id)) {
         ListBoxInfo lbi;
-        if (gdi.getSelectedItem("BibTeam" + id, &lbi)) {
+        if (gdi.getSelectedItem("BibTeam" + id, lbi)) {
           if (it->getBibMode() != lbi.data)
             modifiedBib = true;
           it->setBibMode(BibMode(lbi.data));
@@ -3478,7 +3736,7 @@ void TabClass::saveClassSettingsTable(gdioutput &gdi, set<int> &classModifiedFee
 
     int courseId = 0;
     ListBoxInfo lbi;
-    if (gdi.getSelectedItem("Cors"+id, &lbi))
+    if (gdi.getSelectedItem("Cors"+id, lbi))
       courseId = lbi.data;
     bool direct = gdi.isChecked("Dirc"+id);
 
@@ -3512,7 +3770,7 @@ void TabClass::updateStartData(gdioutput &gdi, pClass pc, int leg, bool updateDe
     if (typeid(sdataBase) != typeid(ListBoxInfo)) {
       InputInfo sdII = dynamic_cast<InputInfo &>(sdataBase);
       gdi.removeControl(sdKey);
-      gdi.addSelection(sdII.xp, sdII.yp, sdKey, int(sdII.width), 200, MultiCB);
+      gdi.addSelection(sdII.getX(), sdII.getY(), sdKey, sdII.getWidth(), 200, MultiCB);
       setParallelOptions(sdKey, gdi, pc, leg);
     }
     else if (forceWrite) {
@@ -3524,7 +3782,7 @@ void TabClass::updateStartData(gdioutput &gdi, pClass pc, int leg, bool updateDe
       ListBoxInfo sdLBI = dynamic_cast<ListBoxInfo &>(sdataBase);
       gdi.removeControl(sdKey);
       string val = "-";
-      gdi.addInput(sdLBI.xp, sdLBI.yp, sdKey, pc->getStartDataS(leg), 8, MultiCB);
+      gdi.addInput(sdLBI.getX(), sdLBI.getY(), sdKey, pc->getStartDataS(leg), 8, MultiCB);
     }
     else if (forceWrite) {
       gdi.setText(sdKey, pc->getStartDataS(leg), true);
@@ -3601,7 +3859,7 @@ void TabClass::updateSplitDistribution(gdioutput &gdi, int num, int tot) const {
   gdi.refresh();
 }
 
-TabClass::DrawMethod TabClass::getDefaultMethod(bool allowPursuit) const {
+DrawMethod TabClass::getDefaultMethod(bool allowPursuit) const {
   int dm = oe->getPropertyInt("DefaultDrawMethod", DMSOFT);
   if (!allowPursuit) {
     if (dm == DMRandom)
@@ -3623,4 +3881,50 @@ TabClass::DrawMethod TabClass::getDefaultMethod(bool allowPursuit) const {
         return DMSOFT;
     }
   }
+}
+
+vector< pair<string, size_t> > TabClass::getPairOptions() {
+  vector< pair<string, size_t> > res;
+
+  res.push_back(make_pair(lang.tl("Ingen parstart"), 1));
+  res.push_back(make_pair(lang.tl("Parvis (två och två)"), 2));
+  for (int j = 3; j <= 10; j++) {
+    res.push_back(make_pair(lang.tl("X och Y[N by N]#" + itos(j) + "#" + itos(j)), j));
+  }
+  return res;
+}
+
+void TabClass::readDrawInfo(gdioutput &gdi, DrawInfo &drawInfo) {
+  drawInfo.maxCommonControl = gdi.getSelectedItem("MaxCommonControl").first;
+
+  drawInfo.maxVacancy=gdi.getTextNo("VacancesMax");
+  drawInfo.minVacancy=gdi.getTextNo("VacancesMin");
+  drawInfo.vacancyFactor = 0.01*atof(gdi.getText("Vacances").c_str());
+  drawInfo.extraFactor = 0.01*atof(gdi.getText("Extra").c_str());
+
+  drawInfo.baseInterval=convertAbsoluteTimeMS(gdi.getText("BaseInterval"));
+  drawInfo.allowNeighbourSameCourse = gdi.isChecked("AllowNeighbours");
+  drawInfo.coursesTogether = gdi.isChecked("CoursesTogether");
+  drawInfo.minClassInterval = convertAbsoluteTimeMS(gdi.getText("MinInterval"));
+  drawInfo.maxClassInterval = convertAbsoluteTimeMS(gdi.getText("MaxInterval"));
+  drawInfo.nFields = gdi.getTextNo("nFields");
+  drawInfo.firstStart = oe->getRelativeTime(gdi.getText("FirstStart"));
+}
+
+void TabClass::writeDrawInfo(gdioutput &gdi, const DrawInfo &drawInfo) {
+  gdi.selectItemByData("MaxCommonControl", drawInfo.maxCommonControl);
+
+  gdi.setText("VacancesMax", drawInfo.maxVacancy);
+  gdi.setText("VacancesMin", drawInfo.minVacancy);
+  gdi.setText("Vacances", itos(int(drawInfo.vacancyFactor *100.0)) + "%");
+  gdi.setText("Extra", itos(int(drawInfo.extraFactor * 100.0) ) + "%");
+
+  gdi.setText("BaseInterval", formatTime(drawInfo.baseInterval));
+
+  gdi.check("AllowNeighbours", drawInfo.allowNeighbourSameCourse);
+  gdi.check("CoursesTogether", drawInfo.coursesTogether);
+  gdi.setText("MinInterval", formatTime(drawInfo.minClassInterval));
+  gdi.setText("MaxInterval", formatTime(drawInfo.maxClassInterval));
+  gdi.setText("nFields", drawInfo.nFields);
+  gdi.setText("FirstStart", oe->getAbsTime(drawInfo.firstStart));
 }

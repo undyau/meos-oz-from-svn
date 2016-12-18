@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -330,10 +330,10 @@ bool oEvent::calculateTeamResults(int leg, bool totalMultiday)
     }
 
     if (totalMultiday)
-      it->_places[sleg].totalP = p;
+        it->_places[sleg].totalP = p;
     else
-      it->_places[sleg].p = p;
-  }
+        it->_places[sleg].p = p;
+    }
   return true;
 }
 
@@ -496,16 +496,16 @@ void oEvent::loadGeneralResults(bool forceReload) const {
 }
 
 
-void oEvent::getGeneralResults(bool onlyEditable, vector< pair<string, string> > &tagNameList, bool includeDate) const {
+void oEvent::getGeneralResults(bool onlyEditable, vector< pair<int, pair<string, string> > > &tagNameList, bool includeDate) const {
   tagNameList.clear();
   for (size_t k = 0; k < generalResults.size(); k++) {
     if (!onlyEditable || generalResults[k].isDynamic()) {
-      tagNameList.push_back(make_pair(generalResults[k].tag, generalResults[k].name));
+      tagNameList.push_back(make_pair(100 + k, make_pair(generalResults[k].tag, lang.tl(generalResults[k].name))));
       if (includeDate && generalResults[k].isDynamic()) {
         const DynamicResult &dr = dynamic_cast<const DynamicResult &>(*generalResults[k].ptr);
         const string &date = dr.getTimeStamp();
         if (!date.empty())
-          tagNameList.back().second += " [" + date + "]";
+          tagNameList.back().second.second += " [" + date + "]";
       }
 
     }

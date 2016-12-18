@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -40,6 +40,7 @@
 #include <shlobj.h>
 #include <cassert>
 #include <cmath>
+#include <sstream>
 
 #include "meos_util.h"
 #include "Table.h"
@@ -53,6 +54,7 @@
 #include "toolbar.h"
 #include "gdiimpl.h"
 #include "Printer.h"
+#include "recorder.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -72,12 +74,23 @@
   static int debugDrawColor = 0;
 #endif
 
-InputInfo::InputInfo() : hWnd(0), CallBack(0), ignoreCheck(false),
+  
+GuiHandler &BaseInfo::getHandler() const {
+  if (handler == 0)
+    throw meosException("Handler not definied.");
+  return *handler;
+}
+
+void GuiHandler::handle(gdioutput &gdi, BaseInfo &info, GuiEventType type) {
+  throw meosException("Handler not definied.");
+}
+
+InputInfo::InputInfo() : hWnd(0), callBack(0), ignoreCheck(false),
                 isEditControl(true), bgColor(colorDefault), fgColor(colorDefault),
-                writeLock(false) {}
+                writeLock(false), updateLastData(0) {}
 
 
-EventInfo::EventInfo() : CallBack(0), keyEvent(KC_NONE) {}
+EventInfo::EventInfo() : callBack(0), keyEvent(KC_NONE) {}
 
 /** Return true if rendering text should be skipped for
     this format. */
@@ -89,24 +102,28 @@ bool gdioutput::skipTextRender(int format) {
 
 #ifndef MEOSDB
 
-gdioutput::gdioutput(const string &_tag, double _scale, FontEncoding encoding)
-{
+gdioutput::gdioutput(const string &_tag, double _scale, FontEncoding encoding) :
+  recorder((Recorder *)0, false) {
   tag = _tag;
   fontEncoding = encoding;
   po_default = new PrinterObject();
   tabs = 0;
   hasAnyTimer = false;
   constructor(_scale);
+
+  isTestMode = false;
 }
 
-gdioutput::gdioutput(double _scale, FontEncoding encoding,  HWND hWnd, const PrinterObject &prndef)
-{
+gdioutput::gdioutput(double _scale, FontEncoding encoding,  HWND hWnd, const PrinterObject &prndef) :
+  recorder((Recorder *)0, false) {
   fontEncoding = encoding;
   hasAnyTimer = false;
   po_default = new PrinterObject(prndef);
   tabs = 0;
   setWindow(hWnd);
   constructor(_scale);
+
+  isTestMode = false;
 }
 
 void gdioutput::constructor(double _scale)
@@ -136,7 +153,7 @@ void gdioutput::constructor(double _scale)
   clearPage(true);
   hasCleared = false;
   highContrast = false;
-
+  hideBG = false;
   fullScreen = false;
   lockRefresh = 0;
   autoSpeed = 0;
@@ -355,9 +372,8 @@ gdioutput::~gdioutput()
     tabs = 0;
   }
 
-  //delete pageInfo;
-  //pageInfo = 0;
-
+  initRecorder(0);
+  
   delete po_default;
   po_default = 0;
 }
@@ -424,12 +440,12 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
     DeleteObject(hInfo);
     return;
   }
-
-  Rectangle(hDC, -1, -1, rc.right-OffsetX+1, 10-OffsetY+1);
-  Rectangle(hDC, -1, -1, 11-OffsetX, rc.bottom+1);
-  Rectangle(hDC, MaxX+10-OffsetX, 0, rc.right+1, rc.bottom+1);
-  Rectangle(hDC, 10-OffsetX, MaxY+13-OffsetY, MaxX+11-OffsetX, rc.bottom+1);
-
+  if (!hideBG) {
+    Rectangle(hDC, -1, -1, rc.right-OffsetX+1, 10-OffsetY+1);
+    Rectangle(hDC, -1, -1, 11-OffsetX, rc.bottom+1);
+    Rectangle(hDC, MaxX+10-OffsetX, 0, rc.right+1, rc.bottom+1);
+    Rectangle(hDC, 10-OffsetX, MaxY+13-OffsetY, MaxX+11-OffsetX, rc.bottom+1);
+  }
   if (dbErrorState) {
     SelectObject(hDC, GetStockObject(DC_BRUSH));
     SetDCBrushColor(hDC, RGB(255, 100, 100));
@@ -470,8 +486,7 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
   DWORD c=GetSysColor(COLOR_3DFACE);
   double red = double(GetRValue(c)) *0.9;
   double green = double(GetGValue(c)) * 0.85;
-  double blue = double(GetBValue(c));
-
+  double blue = min(255.0, double(GetBValue(c)) * 1.05);
 
   if (blue<100) {
     //Invert
@@ -486,15 +501,27 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
 
 
   TRIVERTEX vert[2];
-  vert [0] .x      = 10-OffsetX;
-  vert [0] .y      = 10-OffsetY;
+  if (hideBG) {
+    vert [0] .x      = 0;
+    vert [0] .y      = 0;
+  }
+  else {
+    vert [0] .x      = 10-OffsetX;
+    vert [0] .y      = 10-OffsetY;
+  }
   vert [0] .Red    = 0xff00&DWORD(red1*256);
   vert [0] .Green  = 0xff00&DWORD(green1*256);
   vert [0] .Blue   = 0xff00&DWORD(blue1*256);
   vert [0] .Alpha  = 0x0000;
 
-  vert [1] .x      = MaxX+10-OffsetX;
-  vert [1] .y      = MaxY+13-OffsetY;
+  if (hideBG) {
+    vert [1] .x      = rc.right + 1;
+    vert [1] .y      = rc.bottom + 1;
+  }
+  else {
+    vert [1] .x      = MaxX+10-OffsetX;
+    vert [1] .y      = MaxY+13-OffsetY;
+  }
   vert [1] .Red    = 0xff00&DWORD(red*256);
   vert [1] .Green  = 0xff00&DWORD(green*256);
   vert [1] .Blue   = 0xff00&DWORD(blue*256);
@@ -504,20 +531,22 @@ void gdioutput::drawBackground(HDC hDC, RECT &rc)
   gr[0].LowerRight=1;
 
 
-  if (MaxY>600)
+  if (MaxY>max(800, MaxX) || hideBG)
     GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_H);
   else
     GradientFill(hDC,vert, 2, gr, 1,GRADIENT_FILL_RECT_V);
 
-  SelectObject(hDC, GetSysColorBrush(COLOR_3DSHADOW));
+  if (!hideBG) {
+    SelectObject(hDC, GetSysColorBrush(COLOR_3DSHADOW));
 
-  Rectangle(hDC, vert[0].x+3, vert[1].y, vert[1].x+1, vert[1].y+3);
-  Rectangle(hDC, vert[1].x, vert[0].y+3, vert[1].x+3, vert[1].y+3);
+    Rectangle(hDC, vert[0].x+3, vert[1].y, vert[1].x+1, vert[1].y+3);
+    Rectangle(hDC, vert[1].x, vert[0].y+3, vert[1].x+3, vert[1].y+3);
 
-  SelectObject(hDC, GetStockObject(NULL_BRUSH));
-  SelectObject(hDC, GetStockObject(DC_PEN));
-  SetDCPenColor(hDC, RGB(DWORD(red*0.4), DWORD(green*0.4), DWORD(blue*0.4)));
-  Rectangle(hDC, vert[0].x, vert[0].y, vert[1].x, vert[1].y);
+    SelectObject(hDC, GetStockObject(NULL_BRUSH));
+    SelectObject(hDC, GetStockObject(DC_PEN));
+    SetDCPenColor(hDC, RGB(DWORD(red*0.4), DWORD(green*0.4), DWORD(blue*0.4)));
+    Rectangle(hDC, vert[0].x, vert[0].y, vert[1].x, vert[1].y);
+  }
 }
 
 void gdioutput::setDBErrorState(bool state) {
@@ -717,8 +746,10 @@ void CALLBACK gdiTimerProc(HWND hWnd, UINT a, UINT_PTR ptr, DWORD b) {
 }
 
 void gdioutput::timerProc(TimerInfo &timer, DWORD timeout) {
-  if (timer.CallBack)
-    timer.CallBack(this, GUI_TIMER, &timer);
+  if (timer.handler)
+    timer.handler->handle(*this, timer, GUI_TIMER);
+  else if (timer.callBack)
+    timer.callBack(this, GUI_TIMER, &timer);
 
   for (list<TimerInfo>::iterator it = timers.begin(); it != timers.end(); ++it) {
     if (&*it == &timer) {
@@ -806,6 +837,8 @@ TextInfo &gdioutput::addString(const char *id, int yp, int xp, int format, const
   TI.xp=xp;
   TI.yp=yp;
   TI.text=lang.tl(text);
+  if ( (format & Capitalize) == Capitalize && lang.capitalizeWords())
+    capitalizeWords(TI.text);
   TI.id=id;
   TI.xlimit=xlimit;
   TI.callBack=cb;
@@ -882,6 +915,8 @@ ButtonInfo &gdioutput::addButton(int x, int y, const string &id, const string &t
   HDC hDC=GetDC(hWndTarget);
   SelectObject(hDC, getGUIFont());
   string ttext = lang.tl(text);
+  if (lang.capitalizeWords())
+    capitalizeWords(ttext);
   GetTextExtentPoint32(hDC, ttext.c_str(), ttext.length(), &size);
   ReleaseDC(hWndTarget, hDC);
   int width = size.cx+scaleLength(30);
@@ -933,6 +968,8 @@ ButtonInfo &gdioutput::addButton(int x, int y, int w, const string &id,
   int style = hasState ? BS_CHECKBOX|BS_PUSHLIKE : BS_PUSHBUTTON;
   ButtonInfo bi;
   string ttext = lang.tl(text);
+  if (lang.capitalizeWords())
+    capitalizeWords(ttext);
   int height = getButtonHeight();
   if (AbsPos){
     if (ttext.find_first_of('\n') != string::npos) {
@@ -964,7 +1001,7 @@ ButtonInfo &gdioutput::addButton(int x, int y, int w, const string &id,
   bi.width = w;
   bi.text=ttext;
   bi.id=id;
-  bi.CallBack=cb;
+  bi.callBack=cb;
   bi.AbsPos=AbsPos;
 
   if (tooltip.length()>0)
@@ -981,8 +1018,9 @@ static int checkBoxCallback(gdioutput *gdi, int type, void *data) {
   if (type == GUI_LINK) {
     TextInfo *ti = (TextInfo *)data;
     string cid = ti->id.substr(1);
-    gdi->check(cid, !gdi->isChecked(cid));
-    if (((ButtonInfo &)gdi->getBaseInfo(cid.c_str())).CallBack)
+    gdi->check(cid, !gdi->isChecked(cid), true);
+    ButtonInfo &bi = ((ButtonInfo &)gdi->getBaseInfo(cid.c_str()));
+    if (bi.callBack || bi.hasEventHandler())
       gdi->sendCtrlMessage(cid);
     //gdi->getBaseInfo(cid);
   }
@@ -1054,6 +1092,8 @@ ButtonInfo &gdioutput::addCheckbox(int x, int y, const string &id, const string 
   if (Checked)
     SendMessage(bi.hWnd, BM_SETCHECK, BST_CHECKED, 0);
 
+  bi.checked = Checked;
+
   if (!AbsPos)
     updatePos(x, y, size.cx+int(30*scale), size.cy+int(scale * 12)+3);
 
@@ -1067,7 +1107,7 @@ ButtonInfo &gdioutput::addCheckbox(int x, int y, const string &id, const string 
   bi.width = desc.textRect.right - (x-ox);
   bi.text=ttext;
   bi.id=id;
-  bi.CallBack=cb;
+  bi.callBack=cb;
   bi.AbsPos=AbsPos;
   bi.originalState = Checked;
   bi.isEdit(true);
@@ -1088,13 +1128,15 @@ bool gdioutput::isChecked(const string &id)
   return false;
 }
 
-void gdioutput::check(const string &id, bool State)
-{
+void gdioutput::check(const string &id, bool state, bool keepOriginalState){
   list<ButtonInfo>::iterator it;
   for(it=BI.begin(); it != BI.end(); ++it) {
     if (it->id==id){
-      SendMessage(it->hWnd, BM_SETCHECK, State?BST_CHECKED:BST_UNCHECKED, 0);
-      it->originalState = State;
+      SendMessage(it->hWnd, BM_SETCHECK, state ? BST_CHECKED:BST_UNCHECKED, 0);
+      it->checked = state;
+      it->synchData();
+      if (!keepOriginalState)
+        it->originalState = state;
       return;
     }
   }
@@ -1152,8 +1194,9 @@ InputInfo &gdioutput::addInput(int x, int y, const string &id, const string &tex
   ii.height = size.cy+scaleLength(6);
   ii.text = text;
   ii.original = text;
+  ii.focusText = text;
   ii.id=id;
-  ii.CallBack=cb;
+  ii.callBack=cb;
 
   II.push_back(ii);
   iiByHwnd[ii.hWnd] = &II.back();
@@ -1204,8 +1247,9 @@ InputInfo &gdioutput::addInputBox(const string &id, int x, int y, int width, int
   ii.height = height;
   ii.text = text;
   ii.original = text;
+  ii.focusText = text;
   ii.id=id;
-  ii.CallBack=cb;
+  ii.callBack=cb;
 
   II.push_back(ii);
 
@@ -1293,12 +1337,13 @@ ListBoxInfo &gdioutput::addListBox(int x, int y, const string &id, int width, in
   SendMessage(lbi.hWnd, WM_SETFONT, (WPARAM) getGUIFont(), 0);
 
   lbi.IsCombo=false;
+  lbi.multipleSelection = multiple;
   lbi.xp=x;
   lbi.yp=y;
   lbi.width = scale*width;
   lbi.height = scale*height;
   lbi.id=id;
-  lbi.CallBack=cb;
+  lbi.callBack=cb;
   LBI.push_back(lbi);
   lbiByHwnd[lbi.hWnd] = &LBI.back();
   if (Help.length() > 0)
@@ -1386,7 +1431,7 @@ ListBoxInfo &gdioutput::addSelection(int x, int y, const string &id, int width, 
   lbi.width = scale*width;
   lbi.height = scale*height;
   lbi.id=id;
-  lbi.CallBack=cb;
+  lbi.callBack=cb;
 
   LBI.push_back(lbi);
   lbiByHwnd[lbi.hWnd] = &LBI.back();
@@ -1430,7 +1475,7 @@ ListBoxInfo &gdioutput::addCombo(int x, int y, const string &id, int width, int 
   lbi.width = scale*width;
   lbi.height = scale*height;
   lbi.id=id;
-  lbi.CallBack=cb;
+  lbi.callBack=cb;
 
   LBI.push_back(lbi);
   lbiByHwnd[lbi.hWnd] = &LBI.back();
@@ -1450,10 +1495,12 @@ bool gdioutput::addItem(const string &id, const string &text, size_t data)
       if (it->IsCombo) {
         int index=SendMessage(it->hWnd, CB_ADDSTRING, 0, LPARAM(text.c_str()));
         SendMessage(it->hWnd, CB_SETITEMDATA, index, data);
+        it->data2Index[data] = index;
       }
       else {
         int index=SendMessage(it->hWnd, LB_INSERTSTRING, -1, LPARAM(text.c_str()));
         SendMessage(it->hWnd, LB_SETITEMDATA, index, data);
+        it->data2Index[data] = index;
       }
       return true;
     }
@@ -1469,18 +1516,22 @@ bool gdioutput::addItem(const string &id, const vector< pair<string, size_t> > &
       if (it->IsCombo) {
         SendMessage(it->hWnd, CB_RESETCONTENT, 0, 0);
         SendMessage(it->hWnd, CB_INITSTORAGE, items.size(), 48);
+        it->data2Index.clear();
 
         for (size_t k = 0; k<items.size(); k++) {
           int index=SendMessage(it->hWnd, CB_ADDSTRING, 0, LPARAM(items[k].first.c_str()));
           SendMessage(it->hWnd, CB_SETITEMDATA, index, items[k].second);
+          it->data2Index[items[k].second] = index;
         }
       }
       else {
         SendMessage(it->hWnd, LB_RESETCONTENT, 0, 0);
         SendMessage(it->hWnd, LB_INITSTORAGE, items.size(), 48);
+        it->data2Index.clear();
         for (size_t k = 0; k<items.size(); k++) {
           int index=SendMessage(it->hWnd, LB_INSERTSTRING, -1, LPARAM(items[k].first.c_str()));
           SendMessage(it->hWnd, LB_SETITEMDATA, index, items[k].second);
+          it->data2Index[items[k].second] = index;
         }
       }
       return true;
@@ -1528,25 +1579,37 @@ bool gdioutput::clearList(const string &id)
   return false;
 }
 
-bool gdioutput::getSelectedItem(string id, ListBoxInfo *lbi)
-{
-  lbi->data=0;
-  lbi->CallBack=0;
-  lbi->setExtra(0);
-  lbi->hWnd=0;
-  lbi->id.clear();
-  lbi->text.clear();
-  lbi->xp=0;
-  lbi->yp=0;
+bool gdioutput::getSelectedItem(const string &id, ListBoxInfo &lbi) {
+  lbi = ListBoxInfo();
   list<ListBoxInfo>::iterator it;
   for (it=LBI.begin(); it != LBI.end(); ++it) {
     if (it->id==id) {
       bool ret = getSelectedItem(*it);
-      *lbi=*it;
+      it->copyUserData(lbi);
       return ret;
     }
   }
   return false;
+}
+
+pair<int, bool> gdioutput::getSelectedItem(const string &id) {
+  ListBoxInfo lbi;
+  bool ret = getSelectedItem(id, lbi);
+  return make_pair(lbi.data, ret);
+}
+
+pair<int, bool> gdioutput::getSelectedItem(const char *id) {
+  string ids = id;
+  return getSelectedItem(ids);
+}
+
+void ListBoxInfo::copyUserData(ListBoxInfo &dest) const {
+  dest.data = data;
+  dest.text = text;
+  dest.id = id;
+  dest.extra = extra;
+  dest.index = index;
+  dest.IsCombo = IsCombo;
 }
 
 bool gdioutput::getSelectedItem(ListBoxInfo &lbi) {
@@ -1582,15 +1645,36 @@ bool gdioutput::getSelectedItem(ListBoxInfo &lbi) {
   return true;
 }
 
+int gdioutput::getItemDataByName(const char *id, const char *name) const{
+  list<ListBoxInfo>::const_iterator it;
+  for(it = LBI.begin(); it != LBI.end(); ++it){
+    if (it->id==id) {
+      if (it->IsCombo) {
+        int ix = SendMessage(it->hWnd, CB_FINDSTRING, -1, LPARAM(name));
+        if (ix >= 0) {
+          return SendMessage(it->hWnd, CB_GETITEMDATA, ix, 0);
+        }
+        return -1;
+      }
+      else {
+        int ix = SendMessage(it->hWnd, LB_FINDSTRING, -1, LPARAM(name));
+        if (ix >= 0) {
+          return SendMessage(it->hWnd, LB_GETITEMDATA, ix, 0);
+        }
+        return -1;
+      }
+    }
+  }
+  return -1;
+}
+
 bool gdioutput::selectItemByData(const char *id, int data)
 {
   list<ListBoxInfo>::iterator it;
   for(it=LBI.begin(); it != LBI.end(); ++it){
     if (it->id==id) {
       if (it->IsCombo) {
-        int m=0;
-        int ret=0;
-
+        
         if (data==-1) {
           SendMessage(it->hWnd, CB_SETCURSEL, -1, 0);
           it->data = 0;
@@ -1599,28 +1683,27 @@ bool gdioutput::selectItemByData(const char *id, int data)
           it->originalIdx = -1;
           return true;
         }
-        else while(ret!=CB_ERR) {
-          ret = SendMessage(it->hWnd, CB_GETITEMDATA, m, 0);
-
-          if (ret==data) {
-            SendMessage(it->hWnd, CB_SETCURSEL, m, 0);
-            it->data = data;
-            it->originalIdx = data;
-            char bf[1024];
-            if (SendMessage(it->hWnd, CB_GETLBTEXT, m, LPARAM(bf))!=CB_ERR) {
-              it->text = bf;
-              it->original = bf;
+        else {
+          int count = SendMessage(it->hWnd, CB_GETCOUNT, 0, 0);
+          
+          for (int m = 0; m < count; m++) {
+            int ret = SendMessage(it->hWnd, CB_GETITEMDATA, m, 0);
+            if (ret == data) {
+              SendMessage(it->hWnd, CB_SETCURSEL, m, 0);
+              it->data = data;
+              it->originalIdx = data;
+              char bf[1024];
+              if (SendMessage(it->hWnd, CB_GETLBTEXT, m, LPARAM(bf))!=CB_ERR) {
+                it->text = bf;
+                it->original = bf;
+              }
+              return true;
             }
-            return true;
           }
-          else m++;
         }
         return false;
       }
       else {
-        int m=0;
-        int ret=0;
-
         if (data==-1) {
           SendMessage(it->hWnd, LB_SETCURSEL, -1, 0);
           it->data=0;
@@ -1629,21 +1712,23 @@ bool gdioutput::selectItemByData(const char *id, int data)
           it->originalIdx = -1;
           return true;
         }
-        else while (ret!=LB_ERR) {
-          ret=SendMessage(it->hWnd, LB_GETITEMDATA, m, 0);
+        else {
+          int count = SendMessage(it->hWnd, LB_GETCOUNT, 0, 0);
+          for (int m = 0; m < count; m++) {
+            int ret = SendMessage(it->hWnd, LB_GETITEMDATA, m, 0);
 
-          if (ret==data) {
-            SendMessage(it->hWnd, LB_SETCURSEL, m, 0);
-            it->data = data;
-            it->originalIdx = data;
-            char bf[1024];
-            if (SendMessage(it->hWnd, LB_GETTEXT, m, LPARAM(bf))!=LB_ERR) {
-              it->text = bf;
-              it->original = bf;
+            if (ret == data) {
+              SendMessage(it->hWnd, LB_SETCURSEL, m, 0);
+              it->data = data;
+              it->originalIdx = data;
+              char bf[1024];
+              if (SendMessage(it->hWnd, LB_GETTEXT, m, LPARAM(bf)) != LB_ERR) {
+                it->text = bf;
+                it->original = bf;
+              }
+              return true;
             }
-            return true;
           }
-          else m++;
         }
         return false;
       }
@@ -1652,7 +1737,7 @@ bool gdioutput::selectItemByData(const char *id, int data)
   return false;
 }
 
-void gdioutput::autoGrow(const char *id) {
+bool gdioutput::autoGrow(const char *id) {
   list<ListBoxInfo>::iterator it;
   int size = 0;
   TextInfo TI;
@@ -1667,10 +1752,8 @@ void gdioutput::autoGrow(const char *id) {
   for(it=LBI.begin(); it != LBI.end(); ++it){
     if (it->id==id) {
       if (it->IsCombo) {
-        int m=0;
-        int ret=0;
-        while(ret!=CB_ERR) {
-          ret = SendMessage(it->hWnd, CB_GETITEMDATA, m, 0);
+        int count = SendMessage(it->hWnd, CB_GETCOUNT, 0, 0);
+        for (int m = 0; m < count; m++) {
           char bf[1024];
           if (SendMessage(it->hWnd, CB_GETLBTEXT, m, LPARAM(bf))!=CB_ERR) {
             TI.text = bf;
@@ -1679,40 +1762,56 @@ void gdioutput::autoGrow(const char *id) {
           }
           m++;
         }
+        
+        ReleaseDC(hWndTarget, hDC);
 
         size += scaleLength(20);
         if (size > it->width) {
           it->width = size;
-          SetWindowPos(it->hWnd, 0, 0, 0, it->width, it->height, SWP_NOZORDER|SWP_NOCOPYBITS|SWP_NOMOVE);
-          updatePos(it->xp, it->yp, it->width + int(scale*5), it->height);
+          SetWindowPos(it->hWnd, 0, 0, 0, (int)it->width, (int)it->height, SWP_NOZORDER|SWP_NOCOPYBITS|SWP_NOMOVE);
+          updatePos(it->xp, it->yp, (int)it->width + int(scale*5), (int)it->height);
+          return true;
         }
-
+        return false;
       }
       else {
-        int m=0;
-        int ret=0;
-        while (ret!=LB_ERR) {
-          ret=SendMessage(it->hWnd, LB_GETITEMDATA, m, 0);
+        int count = SendMessage(it->hWnd, LB_GETCOUNT, 0, 0);
+        for (int m = 0; m < count; m++) {
           char bf[1024];
-          if (SendMessage(it->hWnd, LB_GETTEXT, m, LPARAM(bf))!=LB_ERR) {
-            TI.text = bf;
+          int len = SendMessage(it->hWnd, LB_GETTEXT, m, LPARAM(bf));
+          if (len!=LB_ERR) {
+            if (it->lastTabStop == 0)
+              TI.text = bf;
+            else {
+              int pos = len;
+              while(pos > 0) {
+                if (bf[pos-1] == '\t') {
+                  break;
+                }
+                pos--;
+              }
+              TI.text = &bf[pos];
+            }
             calcStringSize(TI, hDC);
-            size = max<int>(size, TI.textRect.right - TI.textRect.left);
+            size = max<int>(size, TI.realWidth + it->lastTabStop);
           }
-          m++;
         }
-
+        
+        ReleaseDC(hWndTarget, hDC);
         size += scaleLength(20);
         if (size > it->width) {
           it->width = size;
-          SetWindowPos(it->hWnd, 0, 0, 0, it->width, it->height, SWP_NOZORDER|SWP_NOCOPYBITS|SWP_NOMOVE);
-          updatePos(it->xp, it->yp, it->width+int(scale*5), it->height);
+          SetWindowPos(it->hWnd, 0, 0, 0, (int)it->width, (int)it->height, SWP_NOZORDER|SWP_NOCOPYBITS|SWP_NOMOVE);
+          updatePos(it->xp, it->yp, (int)it->width+int(scale*5), (int)it->height);
+          return true;
         }
+        return false;
       }
     }
   }
 
   ReleaseDC(hWndTarget, hDC);
+  return false;
 }
 
 
@@ -1748,16 +1847,36 @@ void gdioutput::processButtonMessage(ButtonInfo &bi, DWORD wParam)
   WORD hwParam = HIWORD(wParam);
 
   switch (hwParam) {
-    case BN_CLICKED:
-      if (bi.CallBack) {
+    case BN_CLICKED: {
+      string cmd;
+      if (getRecorder().recording()) {
+        if (bi.isExtraString()) {
+          cmd = "press(\"" + bi.id + "\", \""  + bi.getExtra() + "\"); //" + bi.text;
+        }
+        else {
+          int arg = int(bi.extra);
+          if (arg > 1000000 || arg < -1000000 || arg == 0)
+            cmd = "press(\"" + bi.id + "\"); //" + bi.text;
+          else
+            cmd = "press(\"" + bi.id + "\", "  + itos(bi.getExtraInt()) + "); //" + bi.text;
+        }
+      }
+      if (bi.isCheckbox)
+        bi.checked = SendMessage(bi.hWnd, BM_GETCHECK, 0, 0)==BST_CHECKED;
+      bi.synchData();
+      if (bi.callBack || bi.handler) {
         setWaitCursor(true);
-        bi.CallBack(this, GUI_BUTTON, &bi); //it may be destroyed here...
+        if (!bi.handleEvent(*this, GUI_BUTTON) && bi.callBack)
+          bi.callBack(this, GUI_BUTTON, &bi); //it may be destroyed here...
+
         setWaitCursor(false);
       }
+      getRecorder().record(cmd);
       break;
+    }
     case BN_SETFOCUS:
       if (currentFocus.hWnd != bi.hWnd) {
-//        if (currentFocus.wasTabbed)
+//        if (currentF      ocus.wasTabbed)
 //          Button_SetState(currentFocus.hWnd, false);
         currentFocus = bi.hWnd;
       }
@@ -1780,21 +1899,36 @@ void gdioutput::processEditMessage(InputInfo &bi, DWORD wParam)
       if (bi.writeLock)
         return;
       getWindowText(bi.hWnd, bi.text);
-      if (bi.CallBack)
-        bi.CallBack(this, GUI_INPUTCHANGE, &bi); //it may be destroyed here...
+      if (bi.handler)
+        bi.handler->handle(*this, bi, GUI_INPUTCHANGE);
+      else if (bi.callBack)
+        bi.callBack(this, GUI_INPUTCHANGE, &bi); //it may be destroyed here...
+     
       break;
 
-    case EN_KILLFOCUS:
+    case EN_KILLFOCUS: {
+      string old = bi.focusText;
       getWindowText(bi.hWnd, bi.text);
-      if (bi.CallBack)
-        bi.CallBack(this, GUI_INPUT, &bi);
+      bi.synchData();
+      bool equal = old == bi.text;
+      string cmd = "input(\"" + bi.id + "\", \"" + bi.text + "\");";
+      if (bi.handler)
+        bi.handler->handle(*this, bi, GUI_INPUT);
+      else if (bi.callBack)
+        bi.callBack(this, GUI_INPUT, &bi);
+      if (!equal)
+        getRecorder().record(cmd);
       break;
-
+    }
     case EN_SETFOCUS:
       currentFocus = bi.hWnd;
       getWindowText(bi.hWnd, bi.text);
-      if (bi.CallBack)
-        bi.CallBack(this, GUI_FOCUS, &bi);
+      bi.synchData();
+      bi.focusText = bi.text;
+      if (bi.handler)
+        bi.handler->handle(*this, bi, GUI_FOCUS);
+      else if (bi.callBack)
+        bi.callBack(this, GUI_FOCUS, &bi);
       break;
   }
 }
@@ -1810,38 +1944,43 @@ void gdioutput::processComboMessage(ListBoxInfo &bi, DWORD wParam)
       break;
     case CBN_KILLFOCUS:
       lockUpDown = false;
-      if (bi.CallBack) {
-        char bf[1024];
-        index=SendMessage(bi.hWnd, CB_GETCURSEL, 0, 0);
 
-        if (index != CB_ERR) {
-          if (SendMessage(bi.hWnd, CB_GETLBTEXT, index, LPARAM(bf)) != CB_ERR)
-            //if (bi.text != bf) {
-              bi.text = bf;
-              bi.data=SendMessage(bi.hWnd, CB_GETITEMDATA, index, 0);
-              bi.CallBack(this, GUI_COMBO, &bi); //it may be destroyed here...
+      char bf[1024];
+      index=SendMessage(bi.hWnd, CB_GETCURSEL, 0, 0);
 
-            //}
+      if (index != CB_ERR) {
+        if (SendMessage(bi.hWnd, CB_GETLBTEXT, index, LPARAM(bf)) != CB_ERR) {
+          bi.text = bf;
+          bi.data=SendMessage(bi.hWnd, CB_GETITEMDATA, index, 0);
+          if (bi.handler)
+            bi.handler->handle(*this, bi, GUI_COMBO);
+          else if (bi.callBack)
+            bi.callBack(this, GUI_COMBO, &bi); //it may be destroyed here...
         }
-        else {
-          GetWindowText(bi.hWnd, bf, sizeof(bf)-1);
-          //if (bi.text != bf) {
-            bi.data = -1;
-            bi.text = bf;
-            bi.CallBack(this, GUI_COMBO, &bi); //it may be destroyed here...
-          //}
-        }
+      }
+      else {
+        GetWindowText(bi.hWnd, bf, sizeof(bf)-1);
+        bi.data = -1;
+        bi.text = bf;
+        string cmd = "input(\"" + bi.id + "\", \"" + bi.text + "\");";
+        if (bi.handler)
+          bi.handler->handle(*this, bi, GUI_COMBO);
+        else if (bi.callBack)
+          bi.callBack(this, GUI_COMBO, &bi); //it may be destroyed here...
+        getRecorder().record(cmd);
       }
       break;
 
-    case CBN_EDITCHANGE:
+    case CBN_EDITCHANGE: {
       if (bi.writeLock)
         return;
       getWindowText(bi.hWnd, bi.text);
-      if (bi.CallBack)
-        bi.CallBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
+      if (bi.handler)
+        bi.handler->handle(*this, bi, GUI_COMBOCHANGE);
+      else if (bi.callBack)
+        bi.callBack(this, GUI_COMBOCHANGE, &bi); //it may be destroyed here...
       break;
-
+    }
     case CBN_SELCHANGE:
       index=SendMessage(bi.hWnd, CB_GETCURSEL, 0, 0);
 
@@ -1851,24 +1990,9 @@ void gdioutput::processComboMessage(ListBoxInfo &bi, DWORD wParam)
         char bf[1024];
         if (SendMessage(bi.hWnd, CB_GETLBTEXT, index, LPARAM(bf)) != CB_ERR)
           bi.text=bf;
-
-        if (bi.CallBack) {
-          setWaitCursor(true);
-          hasCleared = false;
-          try {
-            bi.writeLock = true;
-            bi.CallBack(this, GUI_LISTBOX, &bi); //it may be destroyed here... Then hasCleared is set.
-          }
-          catch(...) {
-            if (!hasCleared)
-              bi.writeLock = false;
-            setWaitCursor(false);
-            throw;
-          }
-          if (!hasCleared)
-            bi.writeLock = false;
-          setWaitCursor(false);
-        }
+        string cmd = "select(\"" + bi.id + "\", " + itos(bi.data) + ");";
+        internalSelect(bi);
+        getRecorder().record(cmd);
       }
       break;
   }
@@ -1895,10 +2019,12 @@ void gdioutput::keyCommand(KeyCommandCode code) {
     }
 
     for (list<EventInfo>::iterator it = Events.begin(); it != Events.end(); ++it) {
-      if (it->getKeyCommand() == code && it->CallBack) {
+      if (it->getKeyCommand() == code) {
         it->setData("", 0);
         it->setExtra(0);
-        it->CallBack(this, GUI_EVENT, &*it); //it may be destroyed here...
+        if (!it->handleEvent(*this, GUI_EVENT) && it->callBack) {
+          it->callBack(this, GUI_EVENT, &*it); //it may be destroyed here...
+        }
         return;
       }
     }
@@ -1942,16 +2068,30 @@ void gdioutput::processListMessage(ListBoxInfo &bi, DWORD wParam)
         char bf[1024];
         if (SendMessage(bi.hWnd, LB_GETTEXT, index, LPARAM(bf)) != LB_ERR)
           bi.text = bf;
+        
+        string cmd;
+        if (hwParam == LBN_SELCHANGE)
+          cmd = "select(\"" + bi.id + "\", " + itos(bi.data) + ");";
+        else
+          cmd = "dblclick(\"" + bi.id + "\", " + itos(bi.data) + ");";
 
-        if (bi.CallBack) {
+        if (bi.callBack || bi.handler) {
           setWaitCursor(true);
-          if (hwParam == LBN_SELCHANGE)
-            bi.CallBack(this, GUI_LISTBOX, &bi); //it may be destroyed here...
-          else
-            bi.CallBack(this, GUI_LISTBOXSELECT, &bi); //it may be destroyed here...
-
+          if (hwParam == LBN_SELCHANGE) {
+            if (bi.handler)
+              bi.handler->handle(*this, bi, GUI_LISTBOX);
+            else
+              bi.callBack(this, GUI_LISTBOX, &bi); //it may be destroyed here...
+          }
+          else {
+            if (bi.handler)
+              bi.handler->handle(*this, bi, GUI_LISTBOXSELECT);
+            else
+              bi.callBack(this, GUI_LISTBOXSELECT, &bi); //it may be destroyed here...
+          }
           setWaitCursor(false);
         }
+        getRecorder().record(cmd); 
       }
       break;
   }
@@ -2035,7 +2175,7 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
 
 
     while (it != IBox.end()) {
-      if (PtInRect(&it->TextRect, pt) && it->CallBack) {
+      if (PtInRect(&it->TextRect, pt) && (it->callBack || it->hasEventHandler())) {
         SetCursor(LoadCursor(NULL, IDC_HAND));
 
         HDC hDC=GetDC(hWndTarget);
@@ -2080,7 +2220,7 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
 
     for (size_t k=0;k<shownStrings.size();k++) {
       TextInfo &ti = *shownStrings[k];
-      if (!ti.callBack || ti.hasTimer)
+      if ((!ti.callBack && !ti.hasEventHandler()) || ti.hasTimer)
         continue;
 
       if (PtInRect(&ti.textRect, pt)) {
@@ -2138,7 +2278,7 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
     //Handle links
     for (size_t k=0;k<shownStrings.size();k++) {
       TextInfo &ti = *shownStrings[k];
-      if (!ti.callBack)
+      if (!ti.callBack && !ti.hasEventHandler())
         continue;
 
       if (ti.hasCapture) {
@@ -2184,8 +2324,8 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
         it->HasTCapture=false;
 
         if (PtInRect(&it->TextRect, pt)) {
-          if (it->CallBack)
-            it->CallBack(this, GUI_INFOBOX, &*it); //it may be destroyed here...
+          if (!it->handleEvent(*this, GUI_INFOBOX) && it->callBack)
+            it->callBack(this, GUI_INFOBOX, &*it); //it may be destroyed here...
           return 0;
         }
       }
@@ -2195,7 +2335,7 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
     //Handle links
     for (size_t k=0;k<shownStrings.size();k++) {
       TextInfo &ti = *shownStrings[k];
-      if (!ti.callBack)
+      if (!ti.callBack && !ti.hasEventHandler())
         continue;
 
       if (ti.hasCapture){
@@ -2204,9 +2344,16 @@ LRESULT gdioutput::ProcessMsgWrp(UINT iMessage, LPARAM lParam, WPARAM wParam)
 
         if (PtInRect(&ti.textRect, pt)) {
           if (ti.active) {
+            string cmd;
+            if (ti.getExtraInt() != 0)
+              cmd = "click(\"" + ti.id + "\", " + itos(ti.getExtraInt()) + "); //" + ti.text;
+            else
+              cmd = "click(\"" + ti.id + "\"); //" + ti.text;
             ti.active=false;
             RenderString(ti);
-            ti.callBack(this, GUI_LINK, &ti);
+            if (!ti.handleEvent(*this, GUI_LINK))
+              ti.callBack(this, GUI_LINK, &ti);
+            getRecorder().record(cmd);
             return 0;
           }
         }
@@ -2432,19 +2579,25 @@ void gdioutput::doEnter()
   HWND hWnd=GetFocus();
 
   for (list<ButtonInfo>::iterator it=BI.begin(); it!=BI.end(); ++it)
-    if (it->isDefaultButton() && it->CallBack) {
-      it->CallBack(this, GUI_BUTTON, &*it);
+    if (it->isDefaultButton() && (it->callBack || it->handler)) {
+      if (it->handler)
+        it->handleEvent(*this, GUI_BUTTON);
+      else
+        it->callBack(this, GUI_BUTTON, &*it);
       return;
     }
 
   list<InputInfo>::iterator it;
 
   for(it=II.begin(); it != II.end(); ++it)
-    if (it->hWnd==hWnd && it->CallBack){
+    if (it->hWnd==hWnd && (it->callBack || it->handler)){
       char bf[1024];
       GetWindowText(hWnd, bf, 1024);
       it->text=bf;
-      it->CallBack(this, GUI_INPUT, &*it);
+      if (it->handler)
+        it->handleEvent(*this, GUI_INPUT);
+      else
+        it->callBack(this, GUI_INPUT, &*it);
       return;
     }
 }
@@ -2516,15 +2669,18 @@ void gdioutput::doEscape()
     for (tit=Tables.begin(); tit!=Tables.end(); ++tit)
       tit->table->escape(*this);
 
-  for (list<ButtonInfo>::iterator it=BI.begin(); it!=BI.end(); ++it)
-    if (it->isCancelButton() && it->CallBack) {
-      it->CallBack(this, GUI_BUTTON, &*it);
+  for (list<ButtonInfo>::iterator it=BI.begin(); it!=BI.end(); ++it) {
+    if (it->isCancelButton() && (it->callBack || it->handler) ) {
+      if (it->handler)
+        it->handleEvent(*this, GUI_BUTTON);
+      else
+        it->callBack(this, GUI_BUTTON, &*it);
       return;
     }
+  }
 }
 
-void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
-{
+void gdioutput::clearPage(bool autoRefresh, bool keepToolbar) {
   lockUpDown = false;
   hasAnyTimer = false;
   enableTables();
@@ -2565,7 +2721,8 @@ void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
   {
     list<ButtonInfo>::iterator it;
     for(it=BI.begin(); it != BI.end(); ++it) {
-      it->CallBack = 0;
+      it->callBack = 0;
+      it->setHandler(0);
       DestroyWindow(it->hWnd);
     }
     biByHwnd.clear();
@@ -2574,7 +2731,8 @@ void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
   {
     list<InputInfo>::iterator it;
     for(it=II.begin(); it != II.end(); ++it) {
-      it->CallBack = 0;
+      it->callBack = 0;
+      it->setHandler(0);
       DestroyWindow(it->hWnd);
     }
     iiByHwnd.clear();
@@ -2584,7 +2742,8 @@ void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
   {
     list<ListBoxInfo>::iterator it;
     for(it=LBI.begin(); it != LBI.end(); ++it) {
-      it->CallBack = 0;
+      it->callBack = 0;
+      it->setHandler(0);
       DestroyWindow(it->hWnd);
       if (it->writeLock)
         hasCleared = true;
@@ -2630,6 +2789,9 @@ void gdioutput::clearPage(bool autoRefresh, bool keepToolbar)
       postClear(this, GUI_POSTCLEAR, 0);
   }
   catch(const std::exception &ex) {
+    if (isTestMode)
+      throw ex;
+
     string msg(ex.what());
     alert(msg);
   }
@@ -2665,7 +2827,7 @@ BaseInfo &gdioutput::getBaseInfo(const char *id) const {
 
   for(list<ListBoxInfo>::const_iterator it=LBI.begin();
                                   it != LBI.end(); ++it){
-    if (it->id==id && it->IsCombo){
+    if (it->id==id){
       return const_cast<ListBoxInfo &>(*it);
     }
   }
@@ -2812,7 +2974,9 @@ BaseInfo *gdioutput::setText(const char *id, const string &text, bool Update)
       SetWindowText(it->hWnd, text.c_str());
       it->writeLock = oldWR;
       it->text = text;
+      it->synchData();
       it->original = text;
+      it->focusText = text;
       return &*it;
     }
   }
@@ -2869,8 +3033,10 @@ bool gdioutput::insertText(const string &id, const string &text)
       SetWindowText(it->hWnd, text.c_str());
       it->text = text;
 
-      if (it->CallBack)
-        it->CallBack(this, GUI_INPUT, &*it);
+      if (it->handler)
+        it->handleEvent(*this, GUI_INPUT);
+      else if (it->callBack) 
+        it->callBack(this, GUI_INPUT, &*it);
 
       return true;
     }
@@ -3000,6 +3166,16 @@ void gdioutput::adjustDimension(int width, int height)
 
 void gdioutput::alert(const string &msg) const
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans == "ok")
+        return;
+    }
+    throw meosException(msg + "-- ok");
+  }
+
   HWND hFlt = getToolbarWindow();
   if (hasToolbar()) {
     EnableWindow(hFlt, false);
@@ -3022,6 +3198,18 @@ void gdioutput::alert(const string &msg) const
 
 bool gdioutput::ask(const string &s)
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans == "yes")
+        return true;
+      else if (ans == "no")
+        return false;
+    }
+    throw meosException(s + "--yes/no");
+  }
+
   setCommandLock();
   SetForegroundWindow(hWndAppMain);
   bool yes;
@@ -3039,6 +3227,20 @@ bool gdioutput::ask(const string &s)
 
 gdioutput::AskAnswer gdioutput::askCancel(const string &s)
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans == "cancel")
+        return AnswerCancel;
+      else if (ans == "yes")
+        return AnswerYes;
+      else if (ans == "no")
+        return AnswerNo;
+    }
+    throw meosException(s + "--yes/no/cancel");
+  }
+
   setCommandLock();
   SetForegroundWindow(hWndAppMain);
   int a = MessageBoxW(hWndAppMain, toWide(lang.tl(s)).c_str(), L"MeOS", MB_YESNOCANCEL|MB_ICONQUESTION);
@@ -3060,14 +3262,22 @@ void gdioutput::setTabStops(const string &Name, int t1, int t2)
   int baseunitX=LOWORD(bu);
   array[0]=(t1 * 4) / baseunitX ;
   array[1]=(t2 * 4) / baseunitX ;
-
-  if (t2>0) n=2;
+  int lastTabStop = 0;
+  if (t2>0) {
+    n=2;
+    lastTabStop = t2;
+  }
+  else {
+    lastTabStop = t1;
+  }
 
   list<ListBoxInfo>::iterator it;
   for(it=LBI.begin(); it != LBI.end(); ++it){
     if (it->id==Name){
-      if (!it->IsCombo)
+      if (!it->IsCombo) {
         SendMessage(it->hWnd, LB_SETTABSTOPS, n, LPARAM(array));
+        it->lastTabStop = lastTabStop;
+      }
       return;
     }
   }
@@ -3921,7 +4131,7 @@ void gdioutput::addInfoBox(string id, string text, int TimeOut, GUICALLBACK cb)
   InfoBox Box;
 
   Box.id=id;
-  Box.CallBack=cb;
+  Box.callBack=cb;
   Box.text=lang.tl(text);
 
   if (TimeOut>0)
@@ -4089,14 +4299,20 @@ string gdioutput::getTimerText(int zeroTime, int format)
 string gdioutput::getTimerText(TextInfo *tit, DWORD T)
 {
   int rt=(int(T)-int(tit->zeroTime))/1000;
-  int tenth = ((int(T)-int(tit->zeroTime))/100)%10;
+  int tenth = (abs(int(T)-int(tit->zeroTime))/100)%10;
   string text;
 
   int t=abs(rt);
   char bf[16];
 
-  if ((tit->format & timeWithTenth) && rt < 3600) {
-    sprintf_s(bf, 16, "%02d:%02d:%d", t/60, t%60, tenth);
+  if (tit->format & timeSeconds) {
+    if (tit->format & timeWithTenth) 
+      sprintf_s(bf, 16, "%d.%d", t, tenth);
+    else
+      sprintf_s(bf, 16, "%d", t);
+  }
+  else if ((tit->format & timeWithTenth) && rt < 3600) {
+    sprintf_s(bf, 16, "%02d:%02d.%d", t/60, t%60, tenth);
   }
   else if (rt>=3600  || (tit->format&fullTimeHMS))
     sprintf_s(bf, 16, "%02d:%02d:%02d", t/3600, (t/60)%60, t%60);
@@ -4104,11 +4320,17 @@ string gdioutput::getTimerText(TextInfo *tit, DWORD T)
     sprintf_s(bf, 16, "%d:%02d", (t/60), t%60);
 
   if (rt>0 || ((tit->format&fullTimeHMS) && rt>=0) )
-    if (tit->format&timerCanBeNegative) text=string("+")+bf;
-    else				text=bf;
+    if (tit->format&timerCanBeNegative) 
+      text = string("+") + bf;
+    else				
+      text = bf;
   else if (rt<0)
-    if (tit->format&timerCanBeNegative) text=string("-")+bf;
-    else				text="-";
+    if (tit->format&timerCanBeNegative) 
+      text = string("-")+bf;
+    else if (tit->format&timerIgnoreSign) 
+      text = bf;
+    else
+      text="-";
 
   return text;
 }
@@ -4138,7 +4360,7 @@ void gdioutput::CheckInterfaceTimeouts(DWORD T)
         string text = tit->xp > 0 ? getTimerText(&*tit, T) : "";
         if (tit->timeOut && T>DWORD(tit->timeOut)){
           tit->timeOut=0;
-          if (tit->callBack)
+          if (tit->callBack || tit->hasEventHandler())
             timeout.push_back(*tit);
         }
         if (text != tit->text) {
@@ -4179,8 +4401,10 @@ void gdioutput::CheckInterfaceTimeouts(DWORD T)
     }
   }
 
-  for (size_t k = 0; k < timeout.size(); k++)
-    timeout[k].callBack(this, GUI_TIMEOUT, &timeout[k]);
+  for (size_t k = 0; k < timeout.size(); k++) {
+    if (!timeout[k].handleEvent(*this, GUI_TIMEOUT))
+      timeout[k].callBack(this, GUI_TIMEOUT, &timeout[k]);
+  }
 }
 
 bool gdioutput::removeControl(const string &id)
@@ -4309,6 +4533,9 @@ void gdioutput::restoreInternal(const RestoreInfo &ri)
   int lbiRemove=LBI.size()-ri.nLBI;
   while (lbiRemove>0 && LBI.size()>0) {
     ListBoxInfo &lbi=LBI.back();
+    lbi.callBack = 0; // Avoid kill focus event here
+    lbi.setHandler(0);
+
     DestroyWindow(lbi.hWnd);
     if (lbi.writeLock)
       hasCleared = true;
@@ -4340,7 +4567,8 @@ void gdioutput::restoreInternal(const RestoreInfo &ri)
 
   while (iiRemove>0 && II.size()>0) {
     InputInfo &ii=II.back();
-
+    ii.callBack = 0; // Avoid kill focus event here
+    ii.setHandler(0);
     DestroyWindow(ii.hWnd);
     iiByHwnd.erase(ii.hWnd);
     II.pop_back();
@@ -4431,6 +4659,8 @@ bool gdioutput::canClear()
     return onClear(this, GUI_CLEAR, 0)!=0;
   }
   catch(const std::exception &ex) {
+    if (isTestMode)
+      throw ex;
     string msg(ex.what());
     alert(msg);
     return true;
@@ -4440,13 +4670,19 @@ bool gdioutput::canClear()
 int gdioutput::sendCtrlMessage(const string &id)
 {
   for (list<ButtonInfo>::iterator it=BI.begin(); it != BI.end(); ++it) {
-    if (id==it->id && it->CallBack) {
-      return it->CallBack(this, GUI_BUTTON, &*it); //it may be destroyed here...
+    if (id==it->id) {
+      if (it->handler)
+        return it->handleEvent(*this, GUI_BUTTON);
+      else if (it->callBack) 
+        return it->callBack(this, GUI_BUTTON, &*it); //it may be destroyed here...
     }
   }
   for(list<EventInfo>::iterator it=Events.begin(); it != Events.end(); ++it){
-    if (id==it->id && it->CallBack) {
-      return it->CallBack(this, GUI_EVENT, &*it); //it may be destroyed here...
+    if (id==it->id) {
+      if (it->hasEventHandler())
+        return it->handleEvent(*this, GUI_EVENT);
+      else if (it->callBack) 
+        return it->callBack(this, GUI_EVENT, &*it); //it may be destroyed here...
     }
   }
 #ifdef _DEBUG
@@ -4478,20 +4714,20 @@ EventInfo &gdioutput::registerEvent(const string &id, GUICALLBACK cb)
 
   EventInfo ei;
   ei.id=id;
-  ei.CallBack=cb;
+  ei.callBack=cb;
 
   Events.push_front(ei);
   return Events.front();
 }
 
-void flushEvent(const string &id, const string &origin, DWORD data, void *extra);
+void flushEvent(const string &id, const string &origin, DWORD data, int extraData);
 
 DWORD gdioutput::makeEvent(const string &id, const string &origin,
-                           DWORD data, void *extra, bool doflush)
+                           DWORD data, int extraData, bool doflush)
 {
   if (doflush) {
 #ifndef MEOSDB
-    ::flushEvent(id, origin, data, extra);
+    ::flushEvent(id, origin, data, extraData);
 #else
     throw std::exception("internal gdi/database error");
 #endif
@@ -4500,15 +4736,29 @@ DWORD gdioutput::makeEvent(const string &id, const string &origin,
     list<EventInfo>::iterator it;
 
     for(it=Events.begin(); it != Events.end(); ++it){
-      if (id==it->id && it->CallBack){
+      if (id==it->id && (it->callBack || it->hasEventHandler()) ) {
         it->setData(origin, data);
-        if (extra) // This is really bugprone...
-          it->setExtra(extra);
-        return it->CallBack(this, GUI_EVENT, &*it); //it may be destroyed here...
+        if (extraData) {
+          it->setExtra(extraData);
+        }
+        if (it->handleEvent(*this, GUI_EVENT)) {
+          return 1;
+        }
+        else
+          return it->callBack(this, GUI_EVENT, &*it); //it may be destroyed here...
       }
     }
   }
   return -1;
+}
+
+
+RectangleInfo &RectangleInfo::changeDimension(gdioutput &gdi, int dx, int dy) {
+  rc.right += dx;
+  rc.bottom += dy;
+  int ex = gdi.scaleLength(5);
+  gdi.updatePos(rc.left, rc.top, rc.right-rc.left+ex, rc.bottom-rc.top+ex);
+  return *this;
 }
 
 RectangleInfo &gdioutput::addRectangle(RECT &rc, GDICOLOR color, bool drawBorder, bool addFirst) {
@@ -4543,7 +4793,14 @@ RectangleInfo &gdioutput::addRectangle(RECT &rc, GDICOLOR color, bool drawBorder
   }
 }
 
-
+RectangleInfo &gdioutput::getRectangle(const char *id) {
+  for (list<RectangleInfo>::iterator it = Rectangles.begin(); it != Rectangles.end(); ++it) {
+    return *it;
+  }
+  string err = string("Internal Error, identifier not found: X#") + id;
+  throw std::exception(err.c_str());
+}
+  
 void gdioutput::setOffset(int x, int y, bool update)
 {
   int h,w;
@@ -4715,6 +4972,16 @@ bool gdioutput::clipOffset(int PageX, int PageY, int &MaxOffsetX, int &MaxOffset
 string gdioutput::browseForSave(const vector< pair<string, string> > &filter,
                                 const string &defext, int &filterIndex)
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans.substr(0, 1) == "*")
+        return ans.substr(1);
+    }
+    throw meosException("Browse for file");
+  }
+
   InitCommonControls();
 
   char FileName[260];
@@ -4811,6 +5078,16 @@ string gdioutput::browseForSave(const vector< pair<string, string> > &filter,
 string gdioutput::browseForOpen(const vector< pair<string, string> > &filter,
                                 const string &defext)
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans.substr(0, 1) == "*")
+        return ans.substr(1);
+    }
+    throw meosException("Browse for file");
+  }
+
   InitCommonControls();
 
   char FileName[260];
@@ -4863,19 +5140,30 @@ string gdioutput::browseForOpen(const vector< pair<string, string> > &filter,
   return FileName;
 }
 
-string gdioutput::browseForFolder(const string &FolderStart)
+string gdioutput::browseForFolder(const string &folderStart, const char *descr)
 {
+  if (isTestMode) {
+    if (!cmdAnswers.empty()) {
+      string ans = cmdAnswers.front();
+      cmdAnswers.pop_front();
+      if (ans.substr(0, 1) == "*")
+        return ans.substr(1);
+    }
+    throw meosException("Browse for folder");
+  }
+
   CoInitializeEx(0, COINIT_APARTMENTTHREADED);
   BROWSEINFO bi;
 
   char InstPath[260];
-  strcpy_s(InstPath, FolderStart.c_str());
+  strcpy_s(InstPath, folderStart.c_str());
 
   memset(&bi, 0, sizeof(bi) );
 
   bi.hwndOwner=hWndAppMain;
   bi.pszDisplayName=InstPath;
-  bi.lpszTitle="Välj katalog";
+  string title = descr ? lang.tl(descr) : "";
+  bi.lpszTitle = title.c_str();
   bi.ulFlags=BIF_RETURNONLYFSDIRS|BIF_EDITBOX|BIF_NEWDIALOGSTYLE|BIF_EDITBOX;
 
   LPITEMIDLIST  pidl_new;
@@ -5023,7 +5311,8 @@ static int gdiTableCB(gdioutput *gdi, int type, void *data)
 {
   if (type == GUI_BUTTON) {
     ButtonInfo bi = *static_cast<ButtonInfo *>(data);
-    gdi->tableCB(bi, static_cast<Table *>(bi.getExtra()));
+    //gdi->tableCB(bi, static_cast<Table *>(bi.getExtra()));
+    gdi->tableCB(bi, &gdi->getTable());
   }
   return 0;
 }
@@ -5061,9 +5350,9 @@ void gdioutput::tableCB(ButtonInfo &bu, Table *t)
     int xp = scaleLength(220);
     addButton(xp, ybase+btnHeight*0, "tblAll", "Välj allt", gdiTableCB);
     addButton(xp, ybase+btnHeight*1, "tblNone", "Välj inget", gdiTableCB);
-    addButton(xp, ybase+btnHeight*2, "tblAuto", "Välj automatiskt", gdiTableCB).setExtra(t);
+    addButton(xp, ybase+btnHeight*2, "tblAuto", "Välj automatiskt", gdiTableCB).setExtra(t->getTableId());
 
-    addButton(xp, ybase+btnHeight*4, "tblOK", "OK", gdiTableCB).setExtra(t);
+    addButton(xp, ybase+btnHeight*4, "tblOK", "OK", gdiTableCB).setExtra(t->getTableId());
     addButton(xp, ybase+btnHeight*5, "tblCancel", "Avbryt", gdiTableCB);
 
     if (toolbar)
@@ -5172,10 +5461,16 @@ void gdioutput::processToolbarMessage(const string &id, void *data) {
   if (hasCommandLock())
     return;
   string msg;
+  string cmd;
+  if (getRecorder().recording()) { 
+    Table *tbl = (Table *)data;
+    cmd = "tableCmd(\"" + id + "\"); //" + tbl->getTableName();
+  }
   try {
     ButtonInfo bi;
     bi.id = id;
     tableCB(bi, (Table *)data);
+    getRecorder().record(cmd);
   }
   catch(std::exception &ex) {
     msg = ex.what();
@@ -5270,21 +5565,13 @@ void gdioutput::pasteText(const char *id)
   }
 }
 
-void *gdioutput::getExtra(const char *id) const
-{
-  list<InputInfo>::const_iterator it;
-  for (it=II.begin(); it != II.end(); ++it) {
-    if (it->id==id)
-      return it->getExtra();
-  }
-  list<ButtonInfo>::const_iterator bit;
-  for (bit=BI.begin(); bit != BI.end(); ++bit) {
-    if (bit->id==id)
-      return bit->getExtra();
-  }
-  return 0;
+char *gdioutput::getExtra(const char *id) const {
+  return getBaseInfo(id).getExtra();
 }
 
+int gdioutput::getExtraInt(const char *id) const {
+  return getBaseInfo(id).getExtraInt();
+}
 
 bool gdioutput::hasEditControl() const
 {
@@ -5889,3 +6176,369 @@ InputInfo &InputInfo::setFont(gdioutput &gdi, gdiFonts font) {
   SendMessage(hWnd, WM_SETFONT, (WPARAM) gdi.getCurrentFont().getFont(font), 0);
   return *this;
 }
+
+void gdioutput::copyToClipboard(const string &html, bool convertToUTF8, const string &txt) const {
+
+  if (OpenClipboard(getHWND()) != false) {
+    EmptyClipboard();
+
+    string htmlUTF;
+    size_t len = html.length() + 1;
+    const char *output = html.c_str();
+    if (convertToUTF8) {
+      htmlUTF = toUTF8(html);
+      len = htmlUTF.length() + 1;
+      output = htmlUTF.c_str();
+    }
+
+    const char cbd[]=
+      "Version:0.9\n"
+      "StartHTML:%08u\n"
+      "EndHTML:%08u\n"
+      "StartFragment:%08u\n"
+      "EndFragment:%08u\n";
+
+    char head[256];
+    sprintf_s(head, cbd, 1,0,0,0);
+
+    int offset=strlen(head);
+ 
+    //Fill header with relevant information
+    int ho_start = offset;
+    int ho_end = offset + len;
+    sprintf_s(head, cbd, offset,offset+len,ho_start,ho_end);
+
+    HANDLE hMem=GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, offset+len);
+    LPVOID data=GlobalLock(hMem);
+
+    memcpy(LPSTR(data), head, offset);
+    memcpy(LPSTR(data)+offset, output, len);
+    
+    GlobalUnlock(hMem);
+
+    // Text format
+    HANDLE hMemText = 0;
+    HANDLE hMemTextWide = 0;
+
+    if (txt.length() > 0) {
+      hMemText = GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, txt.length()+1);
+      LPVOID dataText=GlobalLock(hMemText);
+      memcpy(LPSTR(dataText), txt.c_str() , txt.length()+1);
+      GlobalUnlock(hMemText);
+    }
+    else {
+      // HTML table to text
+      ostringstream result;
+      bool started = false;
+      bool newline = false;
+      bool dowrite = false;
+      for (size_t k = 0; k + 3 < html.size(); k++) {
+        if (html[k] == '<') {
+          if (html[k+1] == 't') {
+            if (html[k+2] == 'r') {
+              newline = true;
+              if (started)
+               result << "\r\n";
+            }
+            else if (html[k+2] == 'd') {
+              if (!newline)
+                result << "\t";
+              started = true;
+              newline = false;
+              dowrite = true;
+            }
+          }
+          else if (html[k+1] == '/') {
+            if (html[k+2] == 't' && html[k+3] == 'd') {
+              dowrite = false;
+            }
+          }
+          while (k < html.size() && html[k] != '>')
+            k++;
+        }
+        else {
+          if (dowrite)
+            result << html[k];
+        }
+      }
+
+      string atext = decodeXML(result.str());
+/*      result.flush();
+
+      for (size_t k = 0; k < atext.size(); k++) {
+        if (atext[k] == '&') {
+          size_t m = 0;
+          while ((k+m) < atext.size() && atext[k+m] != ';')
+            m++;
+
+          if ((k+m) < atext.size() && atext[k+m] == ';') {
+            string cmd = atext.substr(k, m-k);
+            if (cmd == "nbsp")
+              result << " ";
+            else if (cmd == "amp")
+              result << " ";
+            else if (cmd == "lt")
+              result << "<";
+            else if (cmd == "gt")
+              result << ">";
+            else if (cmd == "quot")
+              result << "\"";
+            
+            k += m;
+          }
+        }
+        else 
+          result << atext[k];
+
+      }
+
+      atext = result.str();
+*/
+      if (atext.size() > 0) {
+        wstring atextw;
+        int osize = atext.size();
+        atextw.resize(osize + 1, 0);
+        size_t siz = atextw.size();
+        MultiByteToWideChar(CP_UTF8, 0, atext.c_str(), -1, &atextw[0], siz * sizeof(wchar_t));
+        hMemTextWide = GlobalAlloc(GMEM_MOVEABLE|GMEM_DDESHARE, siz * sizeof(wchar_t));
+        LPVOID dataText = GlobalLock(hMemTextWide);
+        memcpy(LPSTR(dataText), atextw.c_str(), siz * sizeof(wchar_t));
+        GlobalUnlock(hMemTextWide);
+      }
+    }
+    UINT CF_HTML = RegisterClipboardFormat("HTML format");
+    SetClipboardData(CF_HTML, hMem);
+    
+    if (hMemText != 0)
+      SetClipboardData(CF_TEXT, hMemText);
+    if (hMemTextWide != 0) {
+      SetClipboardData(CF_UNICODETEXT, hMemTextWide);
+    }
+    CloseClipboard();
+  }
+}
+
+Recorder &gdioutput::getRecorder() {
+  if (recorder.first == 0) {
+    recorder.first = new Recorder();
+    recorder.second = true;
+  }
+  return *recorder.first;
+}
+
+void gdioutput::initRecorder(Recorder *rec) {
+  if (recorder.second)
+    delete recorder.first;
+
+  recorder.first = rec;
+  recorder.second = false;
+}
+
+string gdioutput::dbPress(const string &id, int extra) {
+  bool notEnabled = false;
+  for (list<ButtonInfo>::iterator it=BI.begin(); it != BI.end(); ++it) {
+    if (id==it->id && (extra == -65536 || extra == it->getExtraInt())) {
+      
+      if (!IsWindowEnabled(it->hWnd)) {
+        notEnabled = true;
+        continue;
+      }
+        
+      if (it->isCheckbox) {
+        check(id, !isChecked(id));
+      }
+      else if(!it->callBack && !it->handler)
+        throw meosException("Button " + id + " is not active.");
+
+      string val = it->text;
+      if (it->handler)
+        it->handleEvent(*this, GUI_BUTTON);
+      else if (it->callBack)
+        it->callBack(this, GUI_BUTTON, &*it); //it may be destroyed here...
+      return val;
+    }
+  }
+  if (notEnabled)
+    throw meosException("Button " + id + " is not active.");
+      
+  throw meosException("Unknown command " + id + ".");
+}
+
+string gdioutput::dbPress(const string &id, const char *extra) {
+  string eid = extra ? extra : "";
+  for (list<ButtonInfo>::iterator it=BI.begin(); it != BI.end(); ++it) {
+    if (id==it->id && (!extra || (it->isExtraString() && eid == it->getExtra()))) {
+      
+      if (!IsWindowEnabled(it->hWnd))
+        throw meosException("Button " + id + " is not active.");
+      
+      if (it->isCheckbox) {
+        check(id, !isChecked(id));
+      }
+      else if(!it->callBack && !it->handler)
+        throw meosException("Button " + id + " is not active.");
+
+      string val = it->text;
+      if (it->handler)
+        it->handleEvent(*this, GUI_BUTTON);
+      else if (it->callBack)
+        it->callBack(this, GUI_BUTTON, &*it); //it may be destroyed here...
+      return val;
+    }
+  }
+  throw meosException("Unknown command " + id + "/" + eid +".");
+}
+
+
+string gdioutput::dbSelect(const string &id, int data) {
+
+  for (list<ListBoxInfo>::iterator it = LBI.begin(); it != LBI.end(); ++it) {
+    if (id==it->id) {
+      if (!IsWindowEnabled(it->hWnd))
+        throw meosException("Selection " + id + " is not active.");
+      if (it->multipleSelection) {
+        map<int,int>::const_iterator res = it->data2Index.find(data);
+        if (res != it->data2Index.end())
+          SendMessage(it->hWnd, LB_SETSEL, true, res->second);
+        else
+          throw meosException("List " + id + " does not contain value " + itos(data) + ".");
+      }
+      else {
+        if (!selectItemByData(id, data))
+          throw meosException("List " + id + " does not contain value " + itos(data) + ".");
+      }
+      UpdateWindow(it->hWnd);
+      string res = it->text;
+      internalSelect(*it);
+      return res;
+    }
+  }
+  throw meosException("Unknown selection " + id + ".");
+}
+
+void gdioutput::internalSelect(ListBoxInfo &bi) {
+  bi.syncData();
+  if (bi.callBack || bi.handler) {
+    setWaitCursor(true);
+    hasCleared = false;
+    try {
+      bi.writeLock = true;
+      if (bi.handler)
+        bi.handleEvent(*this, GUI_LISTBOX);
+      else
+        bi.callBack(this, GUI_LISTBOX, &bi); //it may be destroyed here... Then hasCleared is set.
+    }
+    catch(...) {
+      if (!hasCleared)
+        bi.writeLock = false;
+      setWaitCursor(false);
+      throw;
+    }
+    if (!hasCleared)
+      bi.writeLock = false;
+    setWaitCursor(false);
+  }
+}
+
+void gdioutput::dbInput(const string &id, const string &text) {
+  for (list<ListBoxInfo>::iterator it = LBI.begin(); it != LBI.end(); ++it) {
+    if (id==it->id) {
+      if (!IsWindowEnabled(it->hWnd) || !it->IsCombo)
+        throw meosException("Selection " + id + " is not active.");
+
+      SendMessage(it->hWnd, CB_SETCURSEL, -1, 0);
+      SetWindowText(it->hWnd, text.c_str());
+      it->text = text;
+      it->data = -1;
+      if (it->handler)
+        it->handleEvent(*this, GUI_COMBO);
+      else if (it->callBack)
+        it->callBack(this, GUI_COMBO, &*it); //it may be destroyed here...
+      return;
+    }
+  }
+
+  for (list<InputInfo>::iterator it = II.begin(); it != II.end(); ++it) {
+    if (id == it->id) {
+      if (!IsWindowEnabled(it->hWnd))
+        throw meosException("Input " + id + " is not active.");
+
+      it->text = text;
+      SetWindowText(it->hWnd, text.c_str());
+      if (it->handler)
+        it->handleEvent(*this, GUI_INPUT);
+      else if (it->callBack)
+        it->callBack(this, GUI_INPUT, &*it);
+      return;
+    }
+  }
+
+  throw meosException("Unknown input " + id + ".");
+}
+
+void gdioutput::dbCheck(const string &id, bool state) {
+
+}
+
+string gdioutput::dbClick(const string &id, int extra) {
+  for (list<TextInfo>::iterator it = TL.begin(); it != TL.end(); ++it) {
+    if (it->id == id && (extra == -65536 || it->getExtraInt() == extra)) {
+      if (it->callBack || it->hasEventHandler()) {
+        string res = it->text;
+        if (!it->handleEvent(*this, GUI_LINK))
+          it->callBack(this, GUI_LINK, &*it);
+        return res;
+      }
+      else
+        throw meosException("Link " + id + " is not active.");
+    }
+  }
+  
+  throw meosException("Unknown link " + id + ".");
+}
+
+void gdioutput::dbDblClick(const string &id, int data) {
+  for (list<ListBoxInfo>::iterator it = LBI.begin(); it != LBI.end(); ++it) {
+    if (id==it->id) {
+      if (!IsWindowEnabled(it->hWnd))
+        throw meosException("Selection " + id + " is not active.");
+      selectItemByData(id, data);
+      if (it->handler)
+        it->handleEvent(*this, GUI_LISTBOXSELECT);
+      else if (it->callBack)
+        it->callBack(this, GUI_LISTBOXSELECT, &*it); //it may be destroyed here...
+      return;
+    }
+  }
+  throw meosException("Unknown selection " + id + ".");
+}
+
+// Add the next answer for a dialog popup
+void gdioutput::dbPushDialogAnswer(const string &answer) {
+  cmdAnswers.push_back(answer);
+}
+
+void gdioutput::clearDialogAnswers(bool checkEmpty) {
+  if (!cmdAnswers.empty()) {
+    string front = cmdAnswers.front();
+    cmdAnswers.clear();
+    if (checkEmpty)
+      throw meosException("Pending answer: X#" + front);
+  }
+}
+
+int gdioutput::dbGetStringCount(const string &str, bool subString) const {
+  int count = 0;
+  for (list<TextInfo>::const_iterator it = TL.begin(); it != TL.end(); ++it) {
+    if (subString == false) {
+      if (it->text == str)
+        count++;
+    }
+    else {
+      if (it->text.find(str) != string::npos)
+        count++;
+    }
+  }
+  return count;
+}
+

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -417,7 +417,7 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PForking:
       cls.setNumStages(1);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STTime);
+      cls.setStartType(0, STTime, false);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
@@ -432,7 +432,7 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PPoolDrawn:
       cls.setNumStages(1);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STDrawn);
+      cls.setStartType(0, STDrawn, false);
       cls.setStartData(0, "-");
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
@@ -446,13 +446,13 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PPatrol:
       cls.setNumStages(2);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STDrawn);
+      cls.setStartType(0, STDrawn, false);
       cls.setStartData(0, "-");
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       cls.setLegType(1, LTParallel);
-      cls.setStartType(1, STDrawn);
+      cls.setStartType(1, STDrawn, false);
       cls.setStartData(1, "-");
       cls.setRestartTime(1, "-");
       cls.setRopeTime(1, "-");
@@ -467,13 +467,13 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PPatrolOptional:
       cls.setNumStages(2);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STDrawn);
+      cls.setStartType(0, STDrawn, false);
       cls.setStartData(0, "-");
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       cls.setLegType(1, LTParallelOptional);
-      cls.setStartType(1, STDrawn);
+      cls.setStartType(1, STDrawn, false);
       cls.setStartData(1, "-");
       cls.setRestartTime(1, "-");
       cls.setRopeTime(1, "-");
@@ -488,13 +488,13 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PPatrolOneSI:
       cls.setNumStages(2);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STDrawn);
+      cls.setStartType(0, STDrawn, false);
       cls.setStartData(0, "-");
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       cls.setLegType(1, LTIgnore);
-      cls.setStartType(1, STDrawn);
+      cls.setStartType(1, STDrawn, false);
       cls.setStartData(1, start);
       cls.setRestartTime(1, "-");
       cls.setRopeTime(1, "-");
@@ -510,14 +510,14 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PRelay:
       cls.setNumStages(nleg);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STTime);
+      cls.setStartType(0, STTime, false);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       for (int k=1;k<nleg;k++) {
         cls.setLegType(k, LTNormal);
-        cls.setStartType(k, STChange);
+        cls.setStartType(k, STChange, false);
         cls.setStartData(k, "-");
         cls.setRestartTime(k, "-");
         cls.setRopeTime(k, "-");
@@ -528,14 +528,14 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
     case PTwinRelay:
       cls.setNumStages(nleg);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STTime);
+      cls.setStartType(0, STTime, false);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       for (int k=1;k<nleg;k++) {
         cls.setLegType(k, LTNormal);
-        cls.setStartType(k, STChange);
+        cls.setStartType(k, STChange, false);
         cls.setStartData(k, "-");
         cls.setRestartTime(k, "-");
         cls.setRopeTime(k, "-");
@@ -552,27 +552,27 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
       int last;
       cls.setNumStages(nleg+(nleg-2)*2);
       cls.setLegType(0, LTNormal);
-      cls.setStartType(0, STTime);
+      cls.setStartType(0, STTime, false);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       last=nleg+(nleg-2)*2-1;
       cls.setLegType(last, LTNormal);
-      cls.setStartType(last, STChange);
+      cls.setStartType(last, STChange, false);
       cls.setStartData(last, "-");
       cls.setRestartTime(last, "-");
       cls.setRopeTime(last, "-");
 
       for (int k=0;k<nleg-2;k++) {
         cls.setLegType(1+k*3, LTNormal);
-        cls.setStartType(1+k*3, STChange);
+        cls.setStartType(1+k*3, STChange, false);
         cls.setStartData(1+k*3, "-");
         cls.setRestartTime(1+k*3, "-");
         cls.setRopeTime(1+k*3, "-");
         for (int j=0;j<2;j++) {
           cls.setLegType(2+k*3+j, LTExtra);
-          cls.setStartType(2+k*3+j, STChange);
+          cls.setStartType(2+k*3+j, STChange, false);
           cls.setStartData(2+k*3+j, "-");
           cls.setRestartTime(2+k*3+j, "-");
           cls.setRopeTime(2+k*3+j, "-");
@@ -581,25 +581,24 @@ void oEvent::setupRelay(oClass &cls, PredefinedTypes type, int nleg, const strin
       cls.setCoursePool(false);
       break;
 
-    case PHunting:
+    case PHunting: {
       cls.setNumStages(2);
       cls.setLegType(0, LTSum);
-      cls.setStartType(0, STDrawn);
+      cls.setStartType(0, STDrawn, false);
       cls.setStartData(0, start);
       cls.setRestartTime(0, "-");
       cls.setRopeTime(0, "-");
 
       cls.setLegType(1, LTSum);
-      cls.setStartType(1, STHunting);
-      int t;
-      t=convertAbsoluteTimeHMS(start)+3600;
+      cls.setStartType(1, STHunting, false); 
+      int t = convertAbsoluteTimeHMS(start, ZeroTime)+3600;
       cls.setStartData(1, formatTimeHMS(t));
       cls.setRestartTime(1, formatTimeHMS(t+1800));
       cls.setRopeTime(1, formatTimeHMS(t+1800));
       cls.setLegRunner(1, 0);
       cls.setCoursePool(false);
       break;
-
+    }
     default:
       throw std::exception("Bad setup number");
   }

@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -40,19 +40,23 @@ class TabClass :
   };
 
   map<int, PursuitSettings> pSettings;
+  int pSavedDepth;
+  int pFirstRestart;
+  double pTimeScaling;
+  int pInterval;
 
-  enum DrawMethod {
-    NOMethod = -1,
 
-    DMRandom = 1,
-    DMSOFT = 2,
-    DMClumped = 3,
-    DMSimultaneous = 4,
-    DMSeeded = 5,
-
-    DMPursuit = 11,
-    DMReversePursuit = 12
+  class HandleCloseWindow : public GuiHandler {
+    TabClass *tabClass;
+    HandleCloseWindow(const HandleCloseWindow&);
+    HandleCloseWindow &operator=(const HandleCloseWindow&);
+  public:
+    HandleCloseWindow() : tabClass(0) {}
+    void handle(gdioutput &gdi, BaseInfo &info, GuiEventType type);
+    friend class TabClass;
   };
+  HandleCloseWindow handleCloseWindow;
+
 
   bool EditChanged;
   int ClassId;
@@ -70,14 +74,26 @@ class TabClass :
   map<int, ClassInfo> cInfoCache;
 
   DrawInfo drawInfo;
-  void setMultiDayClass(gdioutput &gdi, bool hasMulti, TabClass::DrawMethod defaultMethod);
-  void drawDialog(gdioutput &gdi, TabClass::DrawMethod method, const oClass &cls);
+  void setMultiDayClass(gdioutput &gdi, bool hasMulti, DrawMethod defaultMethod);
+  void drawDialog(gdioutput &gdi, DrawMethod method, const oClass &cls);
 
   void pursuitDialog(gdioutput &gdi);
 
   bool hasWarnedDirect;
   bool tableMode;
   DrawMethod lastDrawMethod;
+  int lastSeedMethod;
+  bool lastSeedPreventClubNb;
+  bool lastSeedReverse;
+  string lastSeedGroups;
+  int lastPairSize;
+  string lastFirstStart;
+  string lastInterval;
+  string lastNumVac;
+  string lastScaleFactor;
+  string lastMaxAfter;
+
+  bool lastHandleBibs;
   // Generate a table with class settings
   void showClassSettings(gdioutput &gdi);
 
@@ -89,7 +105,7 @@ class TabClass :
   // Prepare for drawing by declaring starts and blocks
   void prepareForDrawing(gdioutput &gdi);
 
-  void showClassSelection(gdioutput &gdi, int &bx, int &by) const;
+  void showClassSelection(gdioutput &gdi, int &bx, int &by, GUICALLBACK classesCB) const;
 
   // Set simultaneous start in a class
   void simultaneous(int classId, string time);
@@ -114,8 +130,16 @@ class TabClass :
   void updateSplitDistribution(gdioutput &gdi, int numInClass, int tot) const;
 
   DrawMethod getDefaultMethod(bool allowPursuit) const;
+
+  void enableLoadSettings(gdioutput &gdi);
+
+  void readDrawInfo(gdioutput &gdi, DrawInfo &drawInfo);
+  void writeDrawInfo(gdioutput &gdi, const DrawInfo &drawInfo);
+
+  static vector< pair<string, size_t> > getPairOptions();
 public:
-  void clear();
+  
+  void clearCompetitionData();
 
   void closeWindow(gdioutput &gdi);
 
@@ -126,6 +150,11 @@ public:
 
   int classCB(gdioutput &gdi, int type, void *data);
   int multiCB(gdioutput &gdi, int type, void *data);
+
+  const char * getTypeStr() const {return "TClassTab";}
+  TabType getType() const {return TClassTab;}
+
+  friend int DrawClassesCB(gdioutput *gdi, int type, void *data);
 
   TabClass(oEvent *oe);
   ~TabClass(void);

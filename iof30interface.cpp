@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
@@ -744,9 +744,9 @@ void IOF30Interface::readEntryList(gdioutput &gdi, xmlobject &xo, bool removeNon
 
   xmlList pEntries;
   xo.getObjects("PersonEntry", pEntries);
-
+  map<int, vector< pair<int, int> > > personId2TeamLeg;
   for (size_t k = 0; k < pEntries.size(); k++) {
-    if (readPersonEntry(gdi, pEntries[k], 0, teamClassConfig))
+    if (readPersonEntry(gdi, pEntries[k], 0, teamClassConfig, personId2TeamLeg))
       entRead++;
     else
       entFail++;
@@ -782,30 +782,149 @@ void IOF30Interface::readEntryList(gdioutput &gdi, xmlobject &xo, bool removeNon
   setupRelayClasses(teamClassConfig);
 
   for (size_t k = 0; k < pEntries.size(); k++) {
-    if (readTeamEntry(gdi, pEntries[k], bibPatterns, teamClassConfig))
+    if (readTeamEntry(gdi, pEntries[k], bibPatterns, teamClassConfig, personId2TeamLeg))
       entRead++;
     else
       entFail++;
   }
 
+  bool hasMulti = false;
+  for (map<int, vector< pair<int, int> > >::iterator it = personId2TeamLeg.begin();
+                  it != personId2TeamLeg.end(); ++it) {
+    if (it->second.size() > 1) {
+      hasMulti = true;
+      break;
+    }
+  }
+
+  // Analyze equivalences of legs
+  map<int, set< vector<int> > > classLegEqClasses;
+
+  for (map<int, vector< pair<int, int> > >::iterator it = personId2TeamLeg.begin();
+                  it != personId2TeamLeg.end(); ++it) {
+    const vector< pair<int, int> > &teamLeg = it->second;
+    if (teamLeg.empty())
+      continue; // Should not happen
+    int minLeg = teamLeg.front().second;
+    int teamId = teamLeg.front().first;
+    bool inconsistentTeam = false;
+
+    for (size_t i = 1; i < teamLeg.size(); i++) {
+      if (teamLeg[i].first != teamId) {
+        inconsistentTeam = true;
+        break;
+      }
+      if (teamLeg[i].second < minLeg)
+        minLeg = teamLeg[i].second;
+    }
+
+    if (!inconsistentTeam) {
+      pTeam t = oe.getTeam(teamId);
+      if (t) {
+        if (minLeg != teamLeg.front().second) {
+          pRunner r = t->getRunner(teamLeg.front().second);
+          t->setRunner(minLeg, r, true);
+          t->synchronize(true);
+        }
+
+        // If multi, for each class, store how the legs was multiplied
+        if (hasMulti) {
+          vector<int> key(it->second.size());
+          for (size_t j = 0; j < key.size(); j++) 
+            key[j] = it->second[j].second;
+
+          sort(key.begin(), key.end());
+          classLegEqClasses[t->getClassId()].insert(key);
+        }
+      }
+    }
+  }
+
+  for (map<int, set< vector<int> > >::const_iterator it = classLegEqClasses.begin();
+       it != classLegEqClasses.end(); ++it) {
+    const set< vector<int> > &legEq = it->second;
+    pClass cls = oe.getClass(it->first);
+    if (!cls)
+      continue;
+    bool invalid = false;
+    vector<int> specification(cls->getNumStages(), -2);
+    for (set< vector<int> >::const_iterator eqit = legEq.begin(); eqit != legEq.end(); ++eqit) {
+      const vector<int> &eq = *eqit;
+      for (size_t j = 0; j < eq.size(); j++) {
+        size_t ix = eq[j];
+        if (ix >= specification.size()) {
+          invalid = true;
+          break; // Internal error?
+        }
+        if (j == 0) { // Base leg
+          if (specification[ix] >= 0) {
+            invalid = true;
+            break; // Inconsistent specification
+          }
+          else {
+            specification[ix] = -1;
+          }
+        }
+        else { // Duplicated leg
+          if (specification[ix] == -1 || (specification[ix] >= 0 && specification[ix] != eq[0])) {
+            invalid = true;
+            break; // Inconsistent specification
+          }
+          else {
+            specification[ix] = eq[0]; // Specify duplication of base leg
+          }
+        }
+      }
+    }
+    if (invalid)
+      continue;
+
+    vector<pTeam> teams;
+    oe.getTeams(it->first, teams);
+
+    // Check that the guessed specification is compatible with all current teams
+    for (size_t j = 0; j < specification.size(); j++) {
+      if (specification[j] >= 0) {
+        // Check that leg is not occupied
+        for (size_t i = 0; i < teams.size(); i++) {
+          if (teams[i]->getRunner(j) && teams[i]->getRunner(j)->getRaceNo() == 0) {
+            invalid = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (invalid)
+      continue;
+
+    for (size_t j = 0; j < specification.size(); j++) {
+      if (specification[j] >= 0) {
+        cls->setLegRunner(j, specification[j]);
+      }
+    }
+    oe.adjustTeamMultiRunners(cls);
+  }
+
   if (removeNonexiting && entRead > 0) {
     for (size_t k = 0; k < allT.size(); k++) {
-      if (allT[k]->getEntrySource() == entrySourceId && !allR[k]->isEntryTouched()) {
+      if (allT[k]->getEntrySource() == entrySourceId && !allT[k]->isEntryTouched()) {
         oe.removeTeam(allT[k]->getId());
+        gdi.addString("", 0, "Tar bort X#" + allT[k]->getName());
         entRemoved++;
       }
-      else {
+      /*else {
         for (int i = 0; i < allT[k]->getNumRunners(); i++) {
           pRunner r = allT[k]->getRunner(i);
           if (r)
             r->flagEntryTouched(true);
         }
-      }
+      }*/
     }
 
     vector<int> rids;
     for (size_t k = 0; k < allR.size(); k++) {
-      if (allR[k]->getEntrySource() == entrySourceId && !allR[k]->isEntryTouched()) {
+      if (allR[k]->getEntrySource() == entrySourceId && !allR[k]->isEntryTouched() && !allR[k]->getTeam()) {
         entRemoved++;
         gdi.addString("", 0, "Tar bort X#" + allR[k]->getCompleteIdentification());
         rids.push_back(allR[k]->getId());
@@ -1159,7 +1278,8 @@ void IOF30Interface::setupClassConfig(int classId, const xmlobject &xTeam, map<i
 
 pTeam IOF30Interface::readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
                                     map<int, pair<string, int> > &bibPatterns,
-                                    const map<int, vector<LegInfo> > &teamClassConfig) {
+                                    const map<int, vector<LegInfo> > &teamClassConfig,
+                                    map<int, vector< pair<int, int> > > &personId2TeamLeg) {
 
   bool newTeam;
   pTeam t = getCreateTeam(gdi, xTeam, newTeam);
@@ -1211,7 +1331,7 @@ pTeam IOF30Interface::readTeamEntry(gdioutput &gdi, xmlobject &xTeam,
   xTeam.getObjects("TeamEntryPerson", xEntries);
 
   for (size_t k = 0; k<xEntries.size(); k++) {
-    readPersonEntry(gdi, xEntries[k], t, teamClassConfig);
+    readPersonEntry(gdi, xEntries[k], t, teamClassConfig, personId2TeamLeg);
   }
 
   t->synchronize();
@@ -1320,7 +1440,8 @@ int IOF30Interface::getIndexFromLegPos(int leg, int legorder, const vector<LegIn
 }
 
 pRunner IOF30Interface::readPersonEntry(gdioutput &gdi, xmlobject &xo, pTeam team,
-                                        const map<int, vector<LegInfo> > &teamClassConfig) {
+                                        const map<int, vector<LegInfo> > &teamClassConfig,
+                                        map<int, vector< pair<int, int> > > &personId2TeamLeg) {
   xmlobject xPers = xo.getObject("Person");
   // Card
   const int cardNo = xo.getObjectInt("ControlCard");
@@ -1364,9 +1485,17 @@ pRunner IOF30Interface::readPersonEntry(gdioutput &gdi, xmlobject &xo, pTeam tea
     if (res != teamClassConfig.end()) {
       legindex = getIndexFromLegPos(leg, legorder, res->second);
     }
-    team->setRunner(legindex, r, false);
-    if (r->getClubId() == 0)
-      r->setClubId(team->getClubId());
+
+    if (personId2TeamLeg.find(r->getId()) == personId2TeamLeg.end()) {
+      if (team->getClassRef())
+        legindex = team->getClassRef()->getLegRunner(legindex);
+
+      // Ensure unique
+      team->setRunner(legindex, r, false);
+      if (r->getClubId() == 0)
+        r->setClubId(team->getClubId());
+    }
+    personId2TeamLeg[r->getId()].push_back(make_pair(team->getId(), legindex));
   }
 
   // Card
@@ -1445,7 +1574,7 @@ pRunner IOF30Interface::readPersonStart(gdioutput &gdi, pClass pc, xmlobject &xo
           rRace->setClubId(team->getClubId());
 
         if (startTime && pc) {
-          pc->setStartType(legindex, STDrawn);
+          pc->setStartType(legindex, STDrawn, false);
 
         }
       }
@@ -1539,7 +1668,9 @@ pRunner IOF30Interface::readPerson(gdioutput &gdi, const xmlobject &person) {
   oDataInterface DI=r->getDI();
   string tmp;
 
-  r->setSex(interpretSex(person.getObjectString("sex", tmp)));
+  PersonSex s = interpretSex(person.getObjectString("sex", tmp));
+  if (s != sUnknown)
+    r->setSex(s);
   person.getObjectString("BirthDate", tmp);
   if (tmp.length()>=4) {
     tmp = tmp.substr(0, 4);
@@ -1796,8 +1927,11 @@ void IOF30Interface::getAgeLevels(const vector<FeeInfo> &fees, const vector<int>
 int getAgeFromDate(const string &date) {
   int y = getThisYear();
   SYSTEMTIME st;
-  convertDateYMS(date, st);
-  return y - st.wYear;
+  convertDateYMS(date, st, false);
+  if (st.wYear > 1900)
+    return y - st.wYear;
+  else
+    return 0;
 }
 
 void IOF30Interface::FeeInfo::add(IOF30Interface::FeeInfo &fi) {
@@ -1810,7 +1944,7 @@ void IOF30Interface::FeeInfo::add(IOF30Interface::FeeInfo &fi) {
     fi.toTime = fromTime;
     if (!fi.toTime.empty()) {
       SYSTEMTIME st;
-      convertDateYMS(fi.toTime, st);
+      convertDateYMS(fi.toTime, st, false);
       __int64 sec = SystemTimeToInt64Second(st);
       sec -= 3600;
       fi.toTime = convertSystemDate(Int64SecondToSystemTime(sec));
@@ -2015,7 +2149,7 @@ void IOF30Interface::setupRelayClass(pClass pc, const vector<LegInfo> &legs) {
       return; // Do nothing
     
     pc->setNumStages(nStage);
-    pc->setStartType(0, STTime);
+    pc->setStartType(0, STTime, false);
     pc->setStartData(0, oe.getAbsTime(3600));
 
     int ix = 0;
@@ -2027,11 +2161,11 @@ void IOF30Interface::setupRelayClass(pClass pc, const vector<LegInfo> &legs) {
           else
             pc->setLegType(ix, LTExtra);
 
-          pc->setStartType(ix, STChange);
+          pc->setStartType(ix, STChange, false);
         }
         else if (k>0) {
           pc->setLegType(ix, LTNormal);
-          pc->setStartType(ix, STChange);
+          pc->setStartType(ix, STChange, false);
         }
         ix++;
       }
@@ -2096,8 +2230,11 @@ void IOF30Interface::getProps(vector<string> &props) const {
 }
 
 void IOF30Interface::writeResultList(xmlparser &xml, const set<int> &classes,
-                                     int leg,  bool useUTC_, bool teamsAsIndividual_, bool unrollLoops_) {
+                                     int leg,  bool useUTC_, 
+                                     bool teamsAsIndividual_, bool unrollLoops_,
+                                     bool includeStageInfo_) {
   useGMT = useUTC_;
+  includeStageRaceInfo = includeStageInfo_;
   teamsAsIndividual = teamsAsIndividual_;
   unrollLoops = unrollLoops_;
   vector<string> props;
@@ -2219,7 +2356,7 @@ pCourse IOF30Interface::haveSameCourse(const vector<pRunner> &r) const {
 
 void IOF30Interface::writeClass(xmlparser &xml, const oClass &c) {
   xml.startTag("Class");
-  xml.write("Id", c.getId());
+  xml.write("Id", c.getExtIdentifier()); // Need to call initClassId first
   xml.write("Name", c.getName());
 
   oClass::ClassStatus stat = c.getClassStatus();
@@ -2299,14 +2436,15 @@ void IOF30Interface::writePersonResult(xmlparser &xml, const oRunner &r,
         resultHolder = t->getRunner(leg);
     }
 
-    writeResult(xml, r, *resultHolder, includeCourse, r.getNumMulti() > 0 || r.getRaceNo() > 0, teamMember, hasInputTime);
+    writeResult(xml, r, *resultHolder, includeCourse, 
+                includeStageRaceInfo && (r.getNumMulti() > 0 || r.getRaceNo() > 0), teamMember, hasInputTime);
   }
   else {
     if (r.getNumMulti() > 0) {
       for (int k = 0; k <= r.getNumMulti(); k++) {
         const pRunner tr = r.getMultiRunner(k);
         if (tr)
-          writeResult(xml, *tr, *tr, includeCourse, true, teamMember, hasInputTime);
+          writeResult(xml, *tr, *tr, includeCourse, includeStageRaceInfo, teamMember, hasInputTime);
       }
     }
     else
@@ -2328,7 +2466,8 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
     int rn = getStageNumber();
     if (rn == 0)
       rn = 1;
-    rn += rPerson.getRaceNo();
+    if (includeRaceNumber)
+      rn += rPerson.getRaceNo();
     xml.startTag("Result", "raceNumber", itos(rn));
   }
 
@@ -2369,7 +2508,8 @@ void IOF30Interface::writeResult(xmlparser &xml, const oRunner &rPerson, const o
         xml.write("Position", r.getPlace());
       }
       else if (teamMember) {
-        int pos = r.getTeam()->getLegPlace(r.getLegNumber(), false);
+        //int pos = r.getTeam()->getLegPlace(r.getLegNumber(), false);
+        int pos = r.getPlace();
         if (pos > 0 && pos < 50000)
           xml.write("Position", "type", "Leg", itos(pos));
 
@@ -2633,31 +2773,16 @@ void IOF30Interface::writeClub(xmlparser &xml, const oClub &c, bool writeExtende
     int dist = di.getInt("District");
     if (dist > 0)
       xml.write("ParentOrganisationId", dist);
-
-    /*
-    oClubData->addVariableInt("District", oDataContainer::oIS32, "Organisation");
-
-  oClubData->addVariableString("ShortName", 8, "Kortnamn");
-  oClubData->addVariableString("CareOf", 31, "c/o");
-  oClubData->addVariableString("Street", 41, "Gata");
-  oClubData->addVariableString("City", 23, "Stad");
-  oClubData->addVariableString("State", 23, "Region");
-  oClubData->addVariableString("ZIP", 11, "Postkod");
-  oClubData->addVariableString("EMail", 64, "E-post");
-  oClubData->addVariableString("Phone", 32, "Telefon");
-  oClubData->addVariableString("Nationality", 3, "Nationalitet");
-  oClubData->addVariableString("Country", 23, "Land");
-  oClubData->addVariableString("Type", 20, "Typ");
-
-    */
   }
 
   xml.endTag();
 }
 
-void IOF30Interface::writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC_, bool teamsAsIndividual_) {
+void IOF30Interface::writeStartList(xmlparser &xml, const set<int> &classes, bool useUTC_, 
+                                    bool teamsAsIndividual_, bool includeStageInfo_) {
   useGMT = useUTC_;
   teamsAsIndividual = teamsAsIndividual_;
+  includeStageRaceInfo = includeStageInfo_;
   vector<string> props;
   getProps(props);
 
@@ -2771,14 +2896,14 @@ void IOF30Interface::writePersonStart(xmlparser &xml, const oRunner &r, bool inc
     writeClub(xml, *pc, false);
 
   if (teamMember) {
-    writeStart(xml, r, includeCourse, r.getNumMulti() > 0 || r.getRaceNo() > 0, teamMember);
+    writeStart(xml, r, includeCourse, includeStageRaceInfo && (r.getNumMulti() > 0 || r.getRaceNo() > 0), teamMember);
   }
   else {
     if (r.getNumMulti() > 0) {
       for (int k = 0; k <= r.getNumMulti(); k++) {
         const pRunner tr = r.getMultiRunner(k);
         if (tr)
-          writeStart(xml, *tr, includeCourse, true, teamMember);
+          writeStart(xml, *tr, includeCourse, includeStageRaceInfo, teamMember);
       }
     }
     else
@@ -2819,7 +2944,9 @@ void IOF30Interface::writeStart(xmlparser &xml, const oRunner &r,
     int rn = getStageNumber();
     if (rn == 0)
       rn = 1;
-    rn += r.getRaceNo();
+    if (includeStageRaceInfo)
+      rn += r.getRaceNo();
+
     xml.startTag("Start", "raceNumber", itos(rn));
   }
   if (teamMember)

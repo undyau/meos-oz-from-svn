@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2015 Melin Software HB
+    Copyright (C) 2009-2016 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,17 +16,19 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     Melin Software HB - software@melin.nu - www.melin.nu
-    Stigbergsvägen 7, SE-75242 UPPSALA, Sweden
+    Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
 
 ************************************************************************/
 
 
 #include "StdAfx.h"
-#include "MeosSQL.h"
 
 #include <fstream>
 #include <cassert>
 #include <typeinfo>
+
+
+#include "MeosSQL.h"
 
 #include "../oRunner.h"
 #include "../oEvent.h"
@@ -1857,6 +1859,10 @@ OpFailStatus MeosSQL::syncUpdate(oRunner *r, bool forceWriteAll)
       << " MultiR=" << quote << r->codeMultiR()
       << r->getDI().generateSQLSet(forceWriteAll);
 
+  
+  string str = "write runner " + r->Name + ", st = " + itos(r->startTime) + "\n";
+  OutputDebugString(str.c_str());
+
   return syncUpdate(queryset, "oRunner", r);
 }
 
@@ -2043,6 +2049,8 @@ OpFailStatus MeosSQL::syncUpdate(oTeam *t, bool forceWriteAll) {
       << " Status=" << t->status
       << t->getDI().generateSQLSet(forceWriteAll);
 
+  string str = "write team " + t->Name + "\n";
+  OutputDebugString(str.c_str());
   return syncUpdate(queryset, "oTeam", t);
 }
 
