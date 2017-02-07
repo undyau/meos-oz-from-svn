@@ -3704,6 +3704,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
   bool withSpeed = (oe->getDI().getInt("Analysis") & 2) == 0;
   bool withResult = (oe->getDI().getInt("Analysis") & 4) == 0;
   const bool wideFormat = oe->getPropertyInt("WideSplitFormat", 0) == 1;
+
   const int numCol = 4;
 
   if (Class && Class->getNoTiming()) {
@@ -3957,7 +3958,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
       rc.bottom = cy + deltaY;
       rc.left = baseCX + colDeltaX*(i+1) + 28;
       rc.right = rc.left + 3;
-      gdi.addRectangle(rc, colorDarkBlue);
+ //     gdi.addRectangle(rc, colorDarkBlue);  This is making splits tiny !!
     }
     
     if (withAnalysis) {
