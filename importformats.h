@@ -1,5 +1,4 @@
 #pragma once
-
 /************************************************************************
     MeOS - Orienteering Software
     Copyright (C) 2009-2017 Melin Software HB
@@ -22,29 +21,46 @@
 
 ************************************************************************/
 
-class gdioutput;
 class oEvent;
-class BaseInfo;
 
-#include <vector>
-enum GDICOLOR;
-enum PropertyType;
-#include "guihandler.h"
-
-class PrefsEditor : public GuiHandler {
-private:
-  oEvent *oe;
-
-  int userCB(gdioutput &gdi, int type, const BaseInfo &data);
-
-  string codeValue(const string &in, PropertyType p) const;
-  GDICOLOR selectColor(const string &val, PropertyType p) const;
-
+/** Support for context specific interpretation of import/export data*/
+class ImportFormats {
 public:
-  void handle(gdioutput &gdi, BaseInfo &info, GuiEventType type);
+  enum ImportFormatOptions {
+    Default,
+    FrenchFederationMapping
+  };
 
-  PrefsEditor(oEvent *oe);
-  virtual ~PrefsEditor();
+  static void getImportFormats(vector< pair<string, size_t> > &formats);
 
-  void showPrefs(gdioutput &gdi);
+  static int getDefault(oEvent &oe);
+
+  enum ExportFormats {
+    IOF30 = 1,
+    IOF203 = 2,
+    OE = 3,
+    OE_FRANCE = 4,
+    HTML = 5
+  };
+
+  static void getExportFormats(vector< pair<string, size_t> > &types, bool exportFilter);
+
+  static void getExportFilters(bool exportFilters, vector< pair<string, string> > &ext);
+
+  static ExportFormats getDefaultExportFormat(oEvent &oe);
+
+  static ExportFormats setExportFormat(oEvent &oe, int raw);
+
+  ImportFormats(int opt) : option((ImportFormatOptions)opt) {}
+
+  ImportFormatOptions getOption() const {
+    return option;
+  }
+
+  static void getOECSVLanguage(vector< pair<string, size_t> > &typeLanguages); 
+  
+  static int getDefaultCSVLanguage(oEvent &oe);
+
+  private:
+    ImportFormatOptions option;
 };

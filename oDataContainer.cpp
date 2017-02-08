@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -562,7 +562,9 @@ void oDataContainer::fillDataFields(const oBase *ob, gdioutput &gdi) const
       else {
         __int64 nr;
         memcpy(&nr, vd, sizeof(__int64));
-        gdi.setText(Id.c_str(), itos(nr));
+        char bf[16];
+        oBase::converExtIdentifierString(nr, bf);
+        gdi.setText(Id.c_str(), bf);
       }
     }
     else if (di.Type==oDTString){
@@ -1070,7 +1072,9 @@ int oDataContainer::fillTableCol(const oBase &owner, Table &table, bool canEdit)
       else {
         __int64 nr;
         memcpy(&nr, vd, sizeof(__int64));
-        table.set(di.tableIndex, ob, 1000+di.tableIndex, itos(nr), canEdit);
+        char bf[16];
+        oBase::converExtIdentifierString(nr, bf);
+        table.set(di.tableIndex, ob, 1000+di.tableIndex, bf, canEdit);
       }
     }
     else if (di.Type==oDTString) {
@@ -1143,9 +1147,11 @@ bool oDataContainer::inputData(oBase *ob, int id,
           no = int(di.decimalScale * val);
         }
         else if (di.SubType == oIS64) {
-          __int64 no64 = _atoi64(input.c_str());
+          //__int64 no64 = _atoi64(input.c_str());
           __int64 k64;
           memcpy(&k64, vd, sizeof(__int64));
+          __int64 no64 = oBase::converExtIdentifierString(input);
+
           memcpy(vd, &no64, sizeof(__int64));
           __int64 out64 = no64;
           if (k64 != no64) {
@@ -1155,7 +1161,11 @@ bool oDataContainer::inputData(oBase *ob, int id,
 
             memcpy(&out64, vd, sizeof(__int64));
           }
-          output = itos(out64);
+          //output = itos(out64);
+          char outbf[16];
+          oBase::converExtIdentifierString(out64, outbf);
+          output = outbf;
+
           return k64 != no64;
         }
         else

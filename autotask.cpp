@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "oEvent.h"
 #include "autotask.h"
 #include "TabAuto.h"
+#include "TabSI.h"
 #include "meos_util.h"
 #include "socket.h"
 
@@ -95,6 +96,7 @@ void AutoTask::setTimers() {
 
 void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
   TabAuto *tabAuto = dynamic_cast<TabAuto *>(gdi.getTabs().get(TAutoTab));
+  TabSI *tabSI = dynamic_cast<TabSI *>(gdi.getTabs().get(TSITab));
 
   if (lock)
     return;
@@ -110,6 +112,9 @@ void AutoTask::interfaceTimeout(const vector<gdioutput *> &windows) {
 
     if (tabAuto)
       tabAuto->timerCallback(gdi);
+
+    if (tabSI)
+      while(tabSI->checkpPrintQueue(gdi));
   }
   catch(std::exception &ex) {
     msg=ex.what();

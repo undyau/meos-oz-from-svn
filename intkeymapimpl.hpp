@@ -25,9 +25,9 @@
 #include "stdafx.h"
 #include "intkeymap.hpp"
 
-const int NoKey = -1013;
 
-template <class T> intkeymap<T>::intkeymap()  {
+
+template <class T, class KEY> intkeymap<T, KEY>::intkeymap()  {
   siz = 17;
   allocFactor = 1.5;
   keys = new keypair[siz];
@@ -42,7 +42,7 @@ template <class T> intkeymap<T>::intkeymap()  {
   clear();
 }
 
-template <class T> intkeymap<T>::intkeymap(int _size)
+template <class T, class KEY> intkeymap<T, KEY>::intkeymap(int _size)
 {
   allocFactor = 1.3;
   siz = optsize(_size);
@@ -58,7 +58,7 @@ template <class T> intkeymap<T>::intkeymap(int _size)
   clear();
 }
 
-template <class T> intkeymap<T>::intkeymap(const intkeymap &co)
+template <class T, class KEY> intkeymap<T, KEY>::intkeymap(const intkeymap &co)
 {
   allocFactor =  co.allocFactor;
   siz = co.siz;
@@ -77,19 +77,19 @@ template <class T> intkeymap<T>::intkeymap(const intkeymap &co)
   next = 0;
 
   if (co.next) {
-    next = new intkeymap<T>(*co.next);
+    next = new intkeymap<T, KEY>(*co.next);
     next->parent = this;
   }
 }
 
-template <class T> intkeymap<T>::~intkeymap()
+template <class T, class KEY> intkeymap<T, KEY>::~intkeymap()
 {
   delete[] keys;
   if (next)
     delete next;
 }
 
-template <class T> void intkeymap<T>::clear()
+template <class T, class KEY> void intkeymap<T, KEY>::clear()
 {
   for (unsigned k=0;k<siz;k++)
     keys[k].key = NoKey;
@@ -99,7 +99,7 @@ template <class T> void intkeymap<T>::clear()
   next = 0;
 }
 
-template <class T> void intkeymap<T>::insert(int key, const T &value)
+template <class T, class KEY> void intkeymap<T, KEY>::insert(KEY key, const T &value)
 {
   if (key == NoKey) {
     noValue = value;
@@ -148,7 +148,7 @@ template <class T> void intkeymap<T>::insert(int key, const T &value)
     return;
   }
   else if (level < 3) {
-    next = new intkeymap<T>(siz/2);
+    next = new intkeymap<T, KEY>(siz/2);
     next->level = level + 1;
     next->parent = this;
     next->insert(key, value);
@@ -158,7 +158,7 @@ template <class T> void intkeymap<T>::insert(int key, const T &value)
   rehash(0, key, value);
 }
 
-template <class T> T &intkeymap<T>::get(int key)
+template <class T, class KEY> T &intkeymap<T, KEY>::get(KEY key)
 {
   keypair *ptr = (keypair *)lookup(key);
   if (ptr)
@@ -204,7 +204,7 @@ template <class T> T &intkeymap<T>::get(int key)
     return next->get(key);
   }
   else if (level < 3) {
-    next = new intkeymap<T>(siz/2);
+    next = new intkeymap<T, KEY>(siz/2);
     next->level = level + 1;
     next->parent = this;
     return next->get(key);
@@ -214,7 +214,7 @@ template <class T> T &intkeymap<T>::get(int key)
 }
 
 
-template <class T> void intkeymap<T>::remove(int key)
+template <class T, class KEY> void intkeymap<T, KEY>::remove(KEY key)
 {
   unsigned hk = unsigned(key) % siz;
   if (keys[hk].key == key) {
@@ -243,16 +243,16 @@ template <class T> void intkeymap<T>::remove(int key)
   }
 }
 
-template <class T> T &intkeymap<T>::rehash(int _siz, int key, const T &value)
+template <class T, class KEY> T &intkeymap<T, KEY>::rehash(int _siz, KEY key, const T &value)
 {
   if (parent)
     return parent->rehash(_siz+used, key, value);
   else {
-    intkeymap<T> nm(int((_siz+used)*allocFactor));
+    intkeymap<T, KEY> nm(int((_siz+used)*allocFactor));
     if (key != NoKey)
       nm.insert(key, value);
 
-    intkeymap<T> *tmap = this;
+    intkeymap<T, KEY> *tmap = this;
     while (tmap) {
       int tsize = tmap->siz;
       keypair *tkeys = tmap->keys;
@@ -290,7 +290,7 @@ template <class T> T &intkeymap<T>::rehash(int _siz, int key, const T &value)
   }
 }
 
-template <class T> bool intkeymap<T>::lookup(int key, T &value) const
+template <class T, class KEY> bool intkeymap<T, KEY>::lookup(KEY key, T &value) const
 {
   keypair *ptr = (keypair *)lookup(key);
   if (ptr) {
@@ -301,36 +301,9 @@ template <class T> bool intkeymap<T>::lookup(int key, T &value) const
     value = T();
     return false;
   }
-  /*if (key == NoKey) {
-    value = noValue;
-    return noValue != dummy;
-  }
-
-  unsigned hk = unsigned(key) % siz;
-  if (keys[hk].key == key) {
-    value = keys[hk].value;
-    return true;
-  }
-
-  hk = unsigned(key + hash1) % siz;
-  if (keys[hk].key == key) {
-    value = keys[hk].value;
-    return true;
-  }
-
-  hk = unsigned(key + hash2) % siz;
-  if (keys[hk].key == key) {
-    value = keys[hk].value;
-    return true;
-  }
-
-  if (next)
-    return next->lookup(key, value);
-  else
-    return false;*/
 }
 
-template <class T> void *intkeymap<T>::lookup(int key) const
+template <class T, class KEY> void *intkeymap<T, KEY>::lookup(KEY key) const
 {
   if (key == NoKey) {
     return 0;
@@ -357,7 +330,7 @@ template <class T> void *intkeymap<T>::lookup(int key) const
     return 0;
 }
 
-template <class T> int intkeymap<T>::optsize(int a) {
+template <class T, class KEY> int intkeymap<T, KEY>::optsize(int a) {
   if (a<5)
     a = 5;
 
@@ -380,7 +353,7 @@ template <class T> int intkeymap<T>::optsize(int a) {
   }
 }
 
-template <class T> int intkeymap<T>::size() const
+template <class T, class KEY> int intkeymap<T, KEY>::size() const
 {
   if (next)
     return used + next->size();
@@ -388,12 +361,12 @@ template <class T> int intkeymap<T>::size() const
     return used;
 }
 
-template <class T> bool intkeymap<T>::empty() const
+template <class T, class KEY> bool intkeymap<T, KEY>::empty() const
 {
   return used==0 && (next==0 || next->empty());
 }
 
-template <class T> void intkeymap<T>::resize(int size)
+template <class T, class KEY> void intkeymap<T, KEY>::resize(int size)
 {
   allocFactor = 1.0;
   rehash(size, NoKey, 0);

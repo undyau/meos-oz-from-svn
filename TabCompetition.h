@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "oFreeImport.h"
 
 class PrefsEditor;
+class ImportFormats;
 
 class TabCompetition :
   public TabBase
@@ -117,7 +118,8 @@ class TabCompetition :
   void newCompetitionGuide(gdioutput &gdi, int step);
 
   void entryForm(gdioutput &gdi, bool isGuide);
-  void saveEntries(gdioutput &gdi, bool removeRemoved, bool isGuide);
+  void saveEntries(gdioutput &gdi, bool removeRemoved, bool isGuide, const ImportFormats &importOpts);
+  void setExportOptionsStatus(gdioutput &gdi, int format) const;
 
   void selectStartlistOptions(gdioutput &gdi);
   void selectExportSplitOptions(gdioutput &gdi);

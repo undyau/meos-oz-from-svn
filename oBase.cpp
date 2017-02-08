@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "meos.h"
 #include "oBase.h"
 #include "oCard.h"
+#include "meos_util.h"
 
 #include "oEvent.h"
 
@@ -97,6 +98,63 @@ void oBase::setExtIdentifier(__int64 id)
 __int64 oBase::getExtIdentifier() const
 {
   return getDCI().getInt64("ExtId");
+}
+
+string oBase::getExtIdentifierString() const {
+  __int64 raw = getExtIdentifier();
+  char res[16];
+  if (raw == 0)
+    return "";
+  if (raw & BaseGenStringFlag)
+    convertDynamicBase(raw & ExtStringMask, 256-32, res);
+  else if (raw & Base36StringFlag)
+    convertDynamicBase(raw & ExtStringMask, 36, res);
+  else
+    convertDynamicBase(raw, 10, res);
+  return res;
+}
+
+void oBase::converExtIdentifierString(__int64 raw, char bf[16])  {
+  if (raw & BaseGenStringFlag)
+    convertDynamicBase(raw & ExtStringMask, 256-32, bf);
+  else if (raw & Base36StringFlag)
+    convertDynamicBase(raw & ExtStringMask, 36, bf);
+  else
+    convertDynamicBase(raw, 10, bf);
+}
+
+__int64 oBase::converExtIdentifierString(const string &str) {
+  __int64 val;
+    int base = convertDynamicBase(str, val);
+  if (base == 36)
+    val |= Base36StringFlag;
+  else if (base > 36)
+    val |= BaseGenStringFlag;
+  return val;
+}
+
+void oBase::setExtIdentifier(const string &str) {
+  __int64 val = converExtIdentifierString(str);
+  setExtIdentifier(val);
+}
+
+int oBase::idFromExtId(__int64 val) {
+  int basePart = int(val & 0x0FFFFFFF);
+  if (basePart == val)
+    return basePart;
+
+  __int64 hash = (val&ExtStringMask) % 2000000011ul;
+  
+  int res = basePart + int(hash&0xFFFFFF);
+  if (res == 0)
+    res += int(hash);
+
+  return res & 0x0FFFFFFF;
+}
+
+bool oBase::isStringIdentifier() const {
+  __int64 raw = getExtIdentifier();
+  return (raw & (BaseGenStringFlag|Base36StringFlag)) != 0;
 }
 
 string oBase::getTimeStamp() const {

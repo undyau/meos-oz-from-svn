@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -59,6 +59,7 @@ enum SortOrder {ClassStartTime,
                 ClassStartTimeClub,
                 ClassPoints,
                 SortByName,
+                SortByLastName,
                 SortByFinishTime,
                 SortByFinishTimeReverse,
                 SortByStartTime,
@@ -74,6 +75,10 @@ private:
   void resetChangeStatus() {changed &= reChanged;}
   bool reChanged;
   bool changed;
+
+  const static unsigned long long BaseGenStringFlag = 1ull << 63;
+  const static unsigned long long Base36StringFlag = 1ull << 62;
+  const static unsigned long long ExtStringMask = ~(BaseGenStringFlag|Base36StringFlag);
 
 protected:
   int Id;
@@ -148,6 +153,16 @@ public:
 
   /// Get an external identifier (or 0) if none
   __int64 getExtIdentifier() const;
+
+  string getExtIdentifierString() const;
+  void setExtIdentifier(const string &str);
+  bool isStringIdentifier() const;
+
+  // Convert an external to a int id. The result
+  // need not be unique, of course.
+  static int idFromExtId(__int64 extId);
+  static void converExtIdentifierString(__int64 raw, char bf[16]);
+  static __int64 converExtIdentifierString(const string &str);
 
   oBase(oEvent *poe);
   virtual ~oBase();

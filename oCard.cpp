@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -264,6 +264,13 @@ bool oCard::fillPunches(gdioutput &gdi, const string &name, pCourse crs) {
               gdi.addItem(name, "-\t-", -1);
               ctrl = crs->getControl(++matchPunch);
             }
+          }
+        }
+
+        if (it->isFinish() && crs) { //Add missing punches before the finish
+          while(ctrl) {
+            gdi.addItem(name, "-\t-", -1);
+            ctrl = crs->getControl(++matchPunch);
           }
         }
 

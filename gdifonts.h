@@ -56,7 +56,8 @@ const int timeSeconds = 1<<14;
 const int timerIgnoreSign = 1<<15;
 const int Capitalize = 1<<16;
 
-enum GDICOLOR {colorRed = RGB(128,0,0),
+enum GDICOLOR {colorBlack = RGB(0,0,0),
+              colorRed = RGB(128,0,0),
               colorGreen = RGB(0,128,0),
               colorDarkGrey = RGB(40,40,40),
               colorDarkRed = RGB(64,0,0),

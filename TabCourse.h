@@ -1,7 +1,7 @@
 #pragma once
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -47,6 +47,11 @@ class TabCourse :
   vector<ClassDrawSpecification> courseDrawClasses;
 
   DrawMethod getDefaultMethod() const;
+
+  string encodeCourse(const string &in, bool firstStart, bool lastFinish);
+  void refreshCourse(const string &text, gdioutput &gdi);
+  
+  const string &formatControl(int id, string &bf) const;
 
 protected:
   void clearCompetitionData();

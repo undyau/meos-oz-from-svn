@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -70,7 +70,7 @@ bool oTeam::write(xmlparser &xml)
   xml.write("Id", Id);
   xml.write("StartNo", StartNo);
   xml.write("Updated", Modified.getStamp());
-  xml.write("Name", Name);
+  xml.write("Name", sName);
   xml.write("Start", startTime);
   xml.write("Finish", FinishTime);
   xml.write("Status", status);
@@ -103,7 +103,7 @@ void oTeam::set(const xmlobject &xo)
       Id=it->getInt();
     }
     else if (it->is("Name")){
-      Name=it->get();
+      sName=it->get();
     }
     else if (it->is("StartNo")){
       StartNo=it->getInt();
@@ -728,8 +728,8 @@ bool oTeam::compareResult(const oTeam &a, const oTeam &b)
     return aix < bix;
 
   return CompareString(LOCALE_USER_DEFAULT, 0,
-                    a.Name.c_str(), a.Name.length(),
-                    b.Name.c_str(), b.Name.length()) == CSTR_LESS_THAN;
+                    a.sName.c_str(), a.sName.length(),
+                    b.sName.c_str(), b.sName.length()) == CSTR_LESS_THAN;
 }
 
 bool oTeam::compareStartTime(const oTeam &a, const oTeam &b)
@@ -755,8 +755,8 @@ bool oTeam::compareStartTime(const oTeam &a, const oTeam &b)
     return aix < bix;
 
   return CompareString(LOCALE_USER_DEFAULT, 0,
-                    a.Name.c_str(), a.Name.length(),
-                    b.Name.c_str(), b.Name.length()) == CSTR_LESS_THAN;
+                    a.sName.c_str(), a.sName.length(),
+                    b.sName.c_str(), b.sName.length()) == CSTR_LESS_THAN;
 }
 
 bool oTeam::compareSNO(const oTeam &a, const oTeam &b) {
@@ -774,8 +774,8 @@ bool oTeam::compareSNO(const oTeam &a, const oTeam &b) {
   }
 
   return CompareString(LOCALE_USER_DEFAULT, 0,
-                      a.Name.c_str(), a.Name.length(),
-                      b.Name.c_str(), b.Name.length()) == CSTR_LESS_THAN;
+                      a.sName.c_str(), a.sName.length(),
+                      b.sName.c_str(), b.sName.length()) == CSTR_LESS_THAN;
 }
 
 
@@ -1667,7 +1667,7 @@ bool oTeam::canRemove() const
 
 string oTeam::getDisplayName() const {
   if (!Class)
-    return Name;
+    return sName;
 
   ClassType ct = Class->getClassType();
   if (ct == oClassIndividRelay || ct == oClassPatrol) {
@@ -1677,7 +1677,7 @@ string oTeam::getDisplayName() const {
         return cname;
     }
   }
-  return Name;
+  return sName;
 }
 
 string oTeam::getDisplayClub() const {

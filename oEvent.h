@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -65,12 +65,13 @@ class ClassConfigInfo;
 enum EPostType;
 struct SocketPunchInfo;
 class DirectSocket;
-template<class T> class intkeymap;
+template<class T, class KEY> class intkeymap;
 class MeOSFeatures;
 class GeneralResult;
 class DynamicResult;
 struct SpeakerString;
 struct ClassDrawSpecification;
+class ImportFormats;
 
 struct oCounter {
   int level1;
@@ -495,7 +496,7 @@ public:
   RunnerDB &getRunnerDatabase() const {return *runnerDB;}
 
   MeOSFeatures &getMeOSFeatures() const {return *meosFeatures;}
-  void getDBRunnersInEvent(intkeymap<pClass> &runners) const;
+  void getDBRunnersInEvent(intkeymap<pClass, __int64> &runners) const;
   MetaListContainer &getListContainer() const;
   string getNameId(int id) const;
   const string &getFileNameFromId(int id) const;
@@ -608,6 +609,7 @@ public:
 
   bool importXMLNames(const char *file,
                       oFreeImport &fi, string &info) const;
+
 
   void calculateSplitResults(int controlIdFrom, int controlIdTo);
   // Get total number of completed runner for given class and leg.
@@ -867,7 +869,7 @@ public:
                           bool teamsAsIndividual,
                           bool includeStageInfo);
 
-  bool exportOECSV(const char *file, bool byClass = true);
+  bool exportOECSV(const char *file, int LanguageTypeIndex, bool includeSplits, bool useFFCOClubMapping, bool byClass = true);
   bool save();
   void duplicate();
   void newCompetition(const string &Name);
@@ -887,11 +889,6 @@ public:
 
   void generateMinuteStartlist(gdioutput &gdi);
   void generateMinuteStartlist(const string &file);
-
-  void generateResultlistFinishTime(gdioutput &gdi, bool PerClass,
-                                    GUICALLBACK cb=0);
-  void generateResultlistFinishTime(const string &file, bool PerClass);
-
 
   bool classHasTeams(int Id) const;
   bool classHasResults(int Id) const;
@@ -1167,13 +1164,14 @@ protected:
   pClub getClubCreate(int clubId);
 
   bool addXMLCompetitorDB(const xmlobject &xentry, int ClubId);
+  bool addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMapping);
   pRunner addXMLPerson(const xmlobject &person);
   pRunner addXMLStart(const xmlobject &xstart, pClass cls);
   pRunner addXMLEntry(const xmlobject &xentry, int ClubId, bool setClass);
   bool addXMLTeamEntry(const xmlobject &xentry, int ClubId);
   bool addXMLClass(const xmlobject &xclub);
   bool addXMLClub(const xmlobject &xclub, bool importToDB);
-  bool addXMLRank(const xmlobject &xrank);
+  bool addXMLRank(const xmlobject &xrank, map<__int64, int> &externIdToRunnerId);
   bool addXMLEvent(const xmlobject &xevent);
 
   bool addXMLCourse(const xmlobject &xcourse, bool addClasses);
@@ -1243,8 +1241,8 @@ public:
   void analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns,
                   vector<pRunner> &known, vector<pRunner> &unknown);
 
-  void importXML_IOF_Data(const char *clubfile,
-                          const char *competitorfile, bool clear);
+  void importOECSV_Data(const char * oecsvfile, bool clear, const ImportFormats &importFormats);
+  void importXML_IOF_Data(const char *clubfile, const char *competitorfile, bool clear);
 
   void generateTestCard(SICard &sic) const;
   pClass generateTestClass(int nlegs, int nrunners,

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -109,13 +109,15 @@ private:
  
   bool border3D;
 public:
+  const RECT &getRect()  const {return rc;}
   RectangleInfo(): color(0), color2(0), borderColor(0), border3D(false), drawBorder(false) {memset(&rc, 0, sizeof(RECT));}
   RectangleInfo &setColor(GDICOLOR c) {color = c; return *this;}
   RectangleInfo &setColor2(GDICOLOR c) {color2 = c; return *this;}
   RectangleInfo &set3D(bool is3d) {border3D = is3d; return *this;}
   RectangleInfo &setBorderColor(GDICOLOR c) {borderColor = c; return *this;}
   friend class gdioutput;
- 
+  friend struct PageInfo;
+
   RectangleInfo &changeDimension(gdioutput &gdi, int dx, int dy); 
 
   HWND getControlWindow() const {throw std::exception("Unsupported");}

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1347,14 +1347,10 @@ pRunner oEvent::dbLookUpByCard(int cardNo) const
   sRunner = oRunner(toe, 0);
   RunnerDBEntry *dbr = runnerDB->getRunnerByCard(cardNo);
   if (dbr != 0) {
-    dbr->getName(sRunner.Name);
+    dbr->getName(sRunner.sName);
+    oRunner::getRealName(sRunner.sName, sRunner.tRealName);
     sRunner.init(*dbr);
     sRunner.CardNo = cardNo;
-    /*sRunner.Club = runnerDB->getClub(dbr->clubNo);
-    sRunner.getDI().setString("Nationality", dbr->getNationality());
-    sRunner.getDI().setInt("BirthYear", dbr->getBirthYear());
-    sRunner.getDI().setString("Sex", dbr->getSex());
-    sRunner.setExtIdentifier(dbr->getExtId());*/
     return &sRunner;
   }
   else
@@ -1516,7 +1512,7 @@ void oEvent::autoRemoveTeam(pRunner pr)
         bool canRemove = true;
         const vector<pRunner> &runners = pr->tInTeam->Runners;
         for (size_t k = 0; k<runners.size(); k++) {
-          if (runners[k] && runners[k]->Name != pr->Name)
+          if (runners[k] && runners[k]->sName != pr->sName)
             canRemove = false;
         }
         if (canRemove)
@@ -1553,7 +1549,8 @@ pRunner oEvent::addRunner(const string &name, int clubId, int classId,
     return addRunnerFromDB(db_r, classId, autoAdd);
   }
   oRunner r(this);
-  r.Name = name;
+  r.sName = name;
+  oRunner::getRealName(r.sName, r.tRealName);
   r.Club = getClub(clubId);
   r.Class = getClass(classId);
   if (cardNo>0)
@@ -1592,7 +1589,8 @@ pRunner oEvent::addRunnerFromDB(const pRunner db_r,
                                 int classId, bool autoAdd)
 {
   oRunner r(this);
-  r.Name = db_r->Name;
+  r.sName = db_r->sName;
+  oRunner::getRealName(r.sName, r.tRealName);
   r.CardNo = db_r->CardNo;
 
   if (db_r->Club) {
@@ -2590,7 +2588,7 @@ void oEvent::generateVacancyList(gdioutput &gdi, GUICALLBACK cb)
     gdi.addStringUT(y, x+dx[1], 0, it->getStartTimeS(), 0,  cb).setExtra(it->getId());
 
     _itoa_s(it->Id, bf, 256, 10);
-    gdi.addStringUT(y, x+dx[2], 0, it->Name, dx[3]-dx[2]-4, cb).setExtra(it->getId());
+    gdi.addStringUT(y, x+dx[2], 0, it->getName(), dx[3]-dx[2]-4, cb).setExtra(it->getId());
     //gdi.addStringUT(y, x+dx[3], 0, it->getClub());
 
     y+=lh;
@@ -2657,7 +2655,7 @@ void oEvent::generateInForestList(gdioutput &gdi, GUICALLBACK cb, GUICALLBACK cb
       }
       gdi.addStringUT(y, x, 0, it->getClass());
       nr++;
-      gdi.addStringUT(y, x+100, 0, it->Name, 0, cb).setExtra(it->getId()).id = "T";
+      gdi.addStringUT(y, x+100, 0, it->getName(), 0, cb).setExtra(it->getId()).id = "T";
       y+=lh;
     }
   }
@@ -2737,7 +2735,7 @@ void oEvent::generateInForestList(gdioutput &gdi, GUICALLBACK cb, GUICALLBACK cb
         if (!club.empty())
           club = " (" + club + ")";
 
-        gdi.addStringUT(y, x+dx[1], 0, it->Name+club, dx[2]-dx[1]-4, cb).setExtra(it->getId()).id = "R";
+        gdi.addStringUT(y, x+dx[1], 0, it->getName()+club, dx[2]-dx[1]-4, cb).setExtra(it->getId()).id = "R";
         _itoa_s(it->Id, bf, 256, 10);
         nr++;
         tnr++;
@@ -2915,229 +2913,6 @@ const string &oEvent::getName() const {
   else
     return Name;
 }
-
-void oEvent::generateResultlistFinishTime(gdioutput &gdi, bool PerClass, GUICALLBACK cb)
-{
-  calculateResults(RTClassResult);
-
-  if (PerClass)
-    sortRunners(ClassFinishTime);
-  else
-    sortRunners(SortByFinishTime);
-
-  oRunnerList::iterator it;
-
-  int dx[5]={0, 40, 300, 490, 550};
-  int y=gdi.getCY();
-  int x=gdi.getCX();
-  int lh=gdi.getLineHeight();
-
-  gdi.addStringUT(2, lang.tl("Resultat") + MakeDash(" - ") + getName());
-  y+=lh/2;
-
-
-  gdi.addStringUT(1, getDate());
-  y+=lh;
-  y+=(3*lh)/2;
-
-  int FirstStart=getFirstStart();
-
-  int Id=0;
-  int place=0;
-  int order=1;
-  int lasttime=0;
-  char bf[256];
-
-  for(it=Runners.begin(); it != Runners.end(); ++it){
-    if (it->tStatus!=0) {
-      if (PerClass && it->getClassId()!=Id){
-        //Next class
-        Id=it->getClassId();
-        y+=lh/2;
-
-        gdi.addStringUT(y, x+dx[0], 1, it->getClass());
-
-        FirstStart=getFirstStart(Id);
-
-        order=1;
-        lasttime=0;
-        y+=lh+lh/3;
-      }
-      int tft = it->getFinishTime() + it->getTimeAdjustment();
-      if (tft>lasttime) {
-        place=order;
-        lasttime=tft;
-      }
-      order++;
-
-      if (it->getAge()<100) {
-        RECT rc;
-        rc.left=x;
-        rc.right=x+dx[3];
-        rc.top=y;
-        rc.bottom=y+lh;
-        gdi.addRectangle(rc);
-      }
-      gdi.addStringUT(y, x+dx[1], 0, it->Name, dx[2]-dx[1]-4, cb);
-      gdi.addStringUT(y, x+dx[2], 0, it->getClub(), dx[3]-dx[2]-4);
-
-
-      if (it->getStatus()==StatusOK){
-        _itoa_s(place, bf, 256, 10);
-        gdi.addStringUT(y, x+dx[0], 0, string(bf)+".");
-
-        char tstr[32];
-        int rt = tft - FirstStart;
-
-        if (rt>=3600)
-          sprintf_s(tstr, 32, "%d:%02d:%02d", rt/3600,(rt/60)%60, rt%60);
-        else
-          sprintf_s(tstr, 32, "%d:%02d", (rt/60), rt%60);
-
-        gdi.addStringUT(y, x+dx[3], 0, string(tstr));
-
-        if (PerClass)
-          gdi.addStringUT(y, x+dx[4], 0, string("(")+it->getPlaceS()+", "+it->getRunningTimeS()+")");
-        else
-          gdi.addStringUT(y, x+dx[4], 0, string("(")+it->getClass()+": "+it->getPlaceS()+", "+it->getRunningTimeS()+")");
-
-      }
-      else
-        gdi.addStringUT(y, x+dx[3], 0, it->getStatusS());
-
-      y+=lh;
-    }
-  }
-  //gdi.UpdatePos(x+700,y+40,0,0);
-  gdi.updateScrollbars();
-}
-
-void oEvent::generateResultlistFinishTime(const string &file, bool PerClass)
-{
-  calculateResults(RTClassResult);
-
-  if (PerClass)
-    sortRunners(ClassFinishTime);
-  else
-    sortRunners(SortByFinishTime);
-
-
-  oRunnerList::iterator it;
-
-  ofstream fout(file.c_str());
-
-  fout << "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" <<
-    "\"http://www.w3.org/TR/html4/loose.dtd\">\n\n";
-
-  fout << "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n";
-
-  fout << "<title>" << "Resultat &ndash; " + getName() << "</title>\n</head>\n\n";
-
-  fout << "<body bgcolor=\"#FFFFFF\" text=\"#000000\" link=\"#FF0000\" vlink=\"#AA0000\" alink=\"#0000DD\">\n";
-
-
-  fout << "<h2>" << "Resultat &ndash; " + getName() << "</h2>\n";
-
-  char bf1[256];
-  char bf2[256];
-    GetTimeFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf2, 256);
-  GetDateFormat(LOCALE_USER_DEFAULT, 0, NULL, NULL, bf1, 256);
-
-  fout << "Skapad av <i>MeOS</i>: " << bf1 << " "<< bf2 << "\n";
-
-  int FirstStart=getFirstStart();
-
-  int Id=0;
-  int place=0;
-  int order=1;
-  int lasttime=0;
-  char bf[256];
-
-  fout << "<table>\n";
-
-  fout << "<tr>";
-  fout << "<td width=\"20\">&nbsp;</td>";
-  fout << "<td width=\"200\">&nbsp;</td>";
-  fout << "<td width=\"200\">&nbsp;</td>";
-  fout << "<td width=\"80\">&nbsp;</td>";
-  fout << "</tr>";
-
-  for(it=Runners.begin(); it != Runners.end(); ++it){
-    if (it->tStatus!=0){
-      if (PerClass && it->getClassId()!=Id){
-
-        //Next class
-        Id=it->getClassId();
-
-        if (Id)
-          fout << "<tr><td colspan=\"4\">&nbsp;</td></tr>\n";
-
-        Id=it->getClassId();
-
-        fout << "<tr><td colspan=\"4\"><b>" << it->getClass() << "</b></td></tr>\n";
-
-        FirstStart=getFirstStart(Id);
-
-        order=1;
-        lasttime=0;
-      }
-
-      if (it->FinishTime>lasttime)
-      {
-        place=order;
-        lasttime=it->FinishTime;
-      }
-      order++;
-
-
-      fout << "<tr>\n";
-
-      if (it->getStatus()==StatusOK){
-        _itoa_s(place, bf, 256, 10);
-        fout << "<td>" <<  string(bf)+"." << "</td>\n";
-      }
-      else
-        fout << "<td>" << "&nbsp;" << "</td>\n";
-
-      fout << "<td>" <<  it->Name << "</td>\n";
-      fout << "<td>" <<  it->getClub() << "</td>\n";
-
-
-      if (it->getStatus()==StatusOK) {
-
-        char tstr[32];
-        int rt=it->FinishTime-FirstStart;
-
-        if (rt>=3600)
-          sprintf_s(tstr, 32, "%d:%02d:%02d", rt/3600,(rt/60)%60, rt%60);
-        else
-          sprintf_s(tstr, 32, "%d:%02d", (rt/60), rt%60);
-
-        fout << "<td>" <<  tstr << "</td>\n";
-
-
-
-        if (PerClass)
-          fout << "<td>" << string("(")+"<b>"+it->getPlaceS()+"</b>, "+it->getRunningTimeS()+")</td>\n";
-        else
-          fout << "<td>" << string("(")+it->getClass()+": <b>"+it->getPlaceS()+"</b>, "+it->getRunningTimeS()+")</td>\n";
-
-
-
-      }			else
-      {
-        fout << "<td>" <<  it->getStatusS() << "</td>\n";
-        fout << "<td>" <<  string("(")+it->getClass()+")" << "</td>\n";
-      }
-      fout << "</tr>\n";
-
-    }
-  }
-  fout << "</table>\n";
-
-  fout << "</body></html>\n";
-}
-
 
 bool oEvent::empty() const
 {
@@ -4611,7 +4386,7 @@ bool compareClubClassTeamName(const oRunner &a, const oRunner &b)
   if (a.Club==b.Club) {
     if (a.Class==b.Class) {
       if (a.tInTeam==b.tInTeam)
-        return a.Name<b.Name;
+        return a.tRealName<b.tRealName;
       else if (a.tInTeam) {
         if (b.tInTeam)
           return a.tInTeam->getStartNo() < b.tInTeam->getStartNo();
@@ -4664,7 +4439,7 @@ void oEvent::assignCardInteractive(gdioutput &gdi, GUICALLBACK cb)
       r+=bf;
     }
 
-    r+=it->Name+":";
+    r+=it->getName()+":";
     gdi.fillRight();
     gdi.pushX();
     gdi.addStringUT(0, r);
@@ -5471,7 +5246,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
       continue;
     if (onlyThisClass > 0 && it->getClassId() != onlyThisClass)
       continue;
-    if (it->Name.empty()) {
+    if (it->sName.empty()) {
       if (!warnNoName) {
         warnNoName = true;
         gdi.alert("Varning: deltagare med blankt namn påträffad. MeOS "
@@ -5483,7 +5258,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
 
     if (!it->Class) {
       if (!warnNoClass) {
-        gdi.alert("Deltagaren 'X' saknar klass.#" + it->Name);
+        gdi.alert("Deltagaren 'X' saknar klass.#" + it->getName());
         warnNoClass = true;
       }
       continue;
@@ -5498,7 +5273,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
       else if (type == oClassRelay) {
         if (!warnNoTeam) {
           gdi.alert("Deltagaren 'X' deltar i stafettklassen 'Y' men saknar lag. Klassens start- "
-                    "och resultatlistor kan därmed bli felaktiga.#" + it->Name +
+                    "och resultatlistor kan därmed bli felaktiga.#" + it->getName() +
                      "#" + it->getClass());
           warnNoTeam = true;
         }
@@ -5506,7 +5281,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
       else if (type == oClassPatrol) {
         if (!warnNoPatrol) {
           gdi.alert("Deltagaren 'X' deltar i patrullklassen 'Y' men saknar patrull. Klassens start- "
-                    "och resultatlistor kan därmed bli felaktiga.#" + it->Name +
+                    "och resultatlistor kan därmed bli felaktiga.#" + it->getName() +
                      + "#" + it->getClass());
           warnNoPatrol = true;
         }
@@ -5524,7 +5299,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
     if (onlyThisClass > 0 && it->getClassId() != onlyThisClass)
       continue;
 
-    if (it->Name.empty()) {
+    if (it->sName.empty()) {
       if (!warnNoName) {
         warnNoName = true;
         gdi.alert("Varning: lag utan namn påträffat. "
@@ -5536,7 +5311,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
 
     if (!it->Class) {
       if (!warnNoClass) {
-        gdi.alert("Laget 'X' saknar klass.#" + it->Name);
+        gdi.alert("Laget 'X' saknar klass.#" + it->getName());
         warnNoClass = true;
       }
       continue;
@@ -5546,7 +5321,7 @@ void oEvent::sanityCheck(gdioutput &gdi, bool expectResult, int onlyThisClass) {
     if (type == oClassIndividual) {
       if (!warnIndividualTeam) {
         gdi.alert("Laget 'X' deltar i individuella klassen 'Y'. Klassens start- och resultatlistor "
-          "kan därmed bli felaktiga.#" + it->Name + "#" + it->getClass());
+          "kan därmed bli felaktiga.#" + it->getName() + "#" + it->getClass());
         warnIndividualTeam = true;
       }
     }
@@ -5782,7 +5557,8 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
         continue;
 
       oRunner r(&ce, it->Id);
-      r.Name = it->Name;
+      r.sName = it->sName;
+      oRunner::getRealName(r.sName, r.tRealName);
       r.StartNo = it->StartNo;
       r.CardNo = it->CardNo;
       r.Club = ce.getClub(it->getClubId());
@@ -5816,7 +5592,7 @@ string oEvent::cloneCompetition(bool cloneRunners, bool cloneTimes,
 
       oTeam t(&ce, it->Id);
 
-      t.Name = it->Name;
+      t.sName = it->sName;
       t.StartNo = it->StartNo;
       t.Club = ce.getClub(it->getClubId());
       t.Class = ce.getClass(it->getClassId());
@@ -6008,14 +5784,14 @@ void oEvent::transferResult(oEvent &ce,
     if (id1>0 && id2>0 && id1 != id2)
       continue;
 
-    string cnA = canonizeName(it->Name.c_str());
-    string cnB = canonizeName(r->Name.c_str());
+    string cnA = canonizeName(it->sName.c_str());
+    string cnB = canonizeName(r->sName.c_str());
     string ccnA = canonizeName(it->getClub().c_str());
     string ccnB = canonizeName(r->getClub().c_str());
 
     if ((id1>0 && id1==id2) || 
        (r->CardNo>0 && r->CardNo == it->CardNo) || 
-       (it->Name == r->Name) || (cnA == cnB && ccnA == ccnB)) {
+       (it->sName == r->sName) || (cnA == cnB && ccnA == ccnB)) {
       processed.insert(it->Id, 1);
       used.insert(r->Id, 1);
       if (checkTargetClass(it, r, ce.Classes, targetVacant, changedClass, changeClassMethod))
@@ -6047,7 +5823,7 @@ void oEvent::transferResult(oEvent &ce,
         if (id1>0 && id2>0 && id1 != id2)
           continue;
 
-        if ((id1>0 && id1==id2) || (it->Name == r->Name && it->getClub() == r->getClub())) {
+        if ((id1>0 && id1==id2) || (it->sName == r->sName && it->getClub() == r->getClub())) {
           processed.insert(it->Id, 1);
           used.insert(r->Id, 1);
           if (checkTargetClass(it, r, ce.Classes, targetVacant, changedClass, changeClassMethod)) 
@@ -6099,7 +5875,7 @@ void oEvent::transferResult(oEvent &ce,
             break; //This is the one, if they have the same Id there will be a unique match below
           }
         }
-        if (it->Name == src->Name && it->getClub() == src->getClub())
+        if (it->sName == src->sName && it->getClub() == src->getClub())
           cnd.push_back(j);
       }
 
@@ -6249,7 +6025,7 @@ void oEvent::transferResult(oEvent &ce,
     if (id1>0 && id2>0 && id1 != id2)
       continue;
 
-    if ((id1>0 && id1==id2) || (it->Name == t->Name && it->getClub() == t->getClub())) {
+    if ((id1>0 && id1==id2) || (it->sName == t->sName && it->getClub() == t->getClub())) {
       processed.insert(it->Id, 1);
       used.insert(t->Id, 1);
       it->setInputData(*t);
@@ -6295,7 +6071,7 @@ void oEvent::transferResult(oEvent &ce,
           }
         }
 
-        if (it->Name == src->Name && it->getClub() == src->getClub())
+        if (it->sName == src->sName && it->getClub() == src->getClub())
           cnd.push_back(j);
       }
 

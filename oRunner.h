@@ -11,7 +11,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ const int MaxRankingConstant = 99999999;
 
 class oAbstractRunner : public oBase {
 protected:
-  string Name;
+  string sName;
   pClub Club;
   pClass Class;
 
@@ -239,7 +239,7 @@ public:
   virtual int getBirthAge() const;
 
   virtual void setName(const string &n, bool manualChange);
-  virtual const string &getName() const {return Name;}
+  virtual const string &getName() const {return sName;}
 
   virtual void setFinishTimeS(const string &t);
   virtual	void setFinishTime(int t);
@@ -379,7 +379,6 @@ struct SplitData {
 class oRunner : public oAbstractRunner
 {
 protected:
-  //int clubId; //For DataBase Only.
   pCourse Course;
 
   int CardNo;
@@ -387,6 +386,8 @@ protected:
 
   vector<pRunner> multiRunner;
   vector<int> multiRunnerId;
+
+  string tRealName;
 
   //Can be changed by apply
   mutable int tPlace;
@@ -492,6 +493,11 @@ protected:
   mutable int tAdaptedCourseRevision;
 
 public:
+
+  const string &getNameRaw() {return sName;}
+  virtual const string &getName() const;
+  static void getRealName(const string &input, string &output);
+
   /** Returns true if this runner can use the specified card, 
    or false if it conflicts with the card of the other runner. */
   bool canShareCard(const pRunner other, int newCardNumber) const;

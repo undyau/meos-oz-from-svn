@@ -1,6 +1,6 @@
 /********************i****************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -846,7 +846,7 @@ const string &oEvent::formatListStringAux(const oPrintPost &pp, const oListParam
       break;
     
     case lRunnerName:
-      sptr = r ? &r->Name : 0;
+      sptr = r ? &r->getName() : 0;
       break;
     case lRunnerGivenName:
       if (r) strcpy_s(bf, r->getGivenName().c_str());
@@ -862,7 +862,7 @@ const string &oEvent::formatListStringAux(const oPrintPost &pp, const oListParam
         pRunner r1 = t->getRunner(0);
         pRunner r2 = t->getRunner(1);
         if (r1 && r2) {
-          sprintf_s(bf, "%s / %s", r1->Name.c_str(),r2->Name.c_str());
+          sprintf_s(bf, "%s / %s", r1->getName().c_str(),r2->getName().c_str());
         }
         else if (r1) {
           sptr = &r1->getName();
@@ -872,7 +872,7 @@ const string &oEvent::formatListStringAux(const oPrintPost &pp, const oListParam
         }
       }
       else {
-        sptr = r ? &r->Name : 0;
+        sptr = r ? &r->getName() : 0;
       }
       break;
     case lPatrolClubNameNames:
@@ -1569,7 +1569,7 @@ const string &oEvent::formatListStringAux(const oPrintPost &pp, const oListParam
       break;
     case lTeamRunner:
       if (t && unsigned(legIndex)<t->Runners.size() && t->Runners[legIndex])
-        sptr=&t->Runners[legIndex]->Name;
+        sptr=&t->Runners[legIndex]->getName();
       break;
     case lTeamRunnerCard:
       if (t && unsigned(legIndex)<t->Runners.size() && t->Runners[legIndex]
@@ -2982,7 +2982,7 @@ void oEvent::getListTypes(map<EStdListType, oListInfo> &listMap, int filterResul
       listMap[EFixedEconomy]=li;
     }
   }
-
+  /*
   {
     oListInfo li;
     li.Name=lang.tl("Först-i-mål, klassvis");
@@ -2999,7 +2999,7 @@ void oEvent::getListTypes(map<EStdListType, oListInfo> &listMap, int filterResul
     li.supportLegs = false;
     li.listType=li.EBaseTypeNone;
     listMap[EFixedResultFinish]=li;
-  }
+  }*/
 
   if (!filterResults) {
     oListInfo li;
@@ -3086,14 +3086,6 @@ void oEvent::generateFixedList(gdioutput &gdi, const oListInfo &li)
 
     case EFixedInvoices:
       printInvoices(gdi, IPTAllPrint, dmy, false);
-    break;
-
-    case EFixedResultFinishPerClass:
-      generateResultlistFinishTime(gdi, true, li.lp.cb);
-    break;
-
-    case EFixedResultFinish:
-      generateResultlistFinishTime(gdi, false, li.lp.cb);
     break;
 
     case EFixedMinuteStartlist:
@@ -4150,8 +4142,6 @@ void oEvent::generateListInfoAux(oListParam &par, int lineHeight, oListInfo &li,
     case EFixedInForest:
     case EFixedEconomy:
     case EFixedInvoices:
-    case EFixedResultFinishPerClass:
-    case EFixedResultFinish:
     case EFixedMinuteStartlist:
     case EFixedTimeLine:
     case EFixedLiveResult:

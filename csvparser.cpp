@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@
 #include "SportIdent.h"
 #include "meos_util.h"
 #include "localizer.h"
+#include "importformats.h"
+
 #include "meosexception.h"
 
 #ifdef _DEBUG
@@ -88,7 +90,6 @@ int csvparser::iscsv(const char *file)
   if (_stricmp(sp[1], "Descr")==0 || _stricmp(sp[1], "Namn")==0
       || _stricmp(sp[1], "Descr.")==0 || _stricmp(sp[1], "Navn")==0) //OS-fil (SWE/ENG)??
     return 2;
-
   else return 1; //OE?!
 }
 
@@ -196,7 +197,7 @@ bool csvparser::ImportOS_CSV(oEvent &event, const char *file)
         r->setEntrySource(externalSourceId);
         oDataInterface DI=r->getDI();
         //DI.setInt("BirthYear", extendYear(atoi(sp[rindex+OSRyb])));
-        DI.setString("Sex", sp[rindex+OSRsex]);
+        r->setSex(interpretSex(sp[rindex + OSRsex]));
         DI.setString("Nationality", sp[OSnat]);
 
         if (strlen(sp[rindex+OSRrentcard])>0)
@@ -322,11 +323,11 @@ bool csvparser::ImportOr_CSV(oEvent &event, const char *file)
 	return true;
 }
 
-bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
+bool csvparser::ImportOE_CSV(oEvent &event, const char *file,  const ImportFormats &options)
 {
   enum {OEstno=0, OEcard=1, OEid=2, OEsurname=3, OEfirstname=4,
       OEbirth=5, OEsex=6, OEstart=9,  OEfinish=10, OEstatus=12,
-      OEclubno=13, OEclub=15, OEnat=16, OEclassno=17, OEclass=18, OEbib=23,
+      OEclubno=13, OEclub=14, OEclubcity=15, OEnat=16, OEclassno=17, OEclass=18, OEbib=23,
       OErent=35, OEfee=36, OEpaid=37, OEcourseno=38, OEcourse=39,
       OElength=40};
 
@@ -350,21 +351,46 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       nimport++;
 
       int clubId = atoi(sp[OEclubno]);
-      pClub pclub = event.getClubCreate(clubId, sp[OEclub]);
+      string clubName;
+      string shortClubName;
+      string clubCity;
+
+      if (options.getOption() == ImportFormats::FrenchFederationMapping) {
+        clubName = sp[OEclubcity];
+        shortClubName = sp[OEclub];
+        clubCity = "";
+      }
+      else {
+        clubName = sp[OEclub];
+        shortClubName = "";
+        clubCity = sp[OEclubcity];
+      }
+    
+      pClub pclub = event.getClubCreate(clubId, clubName);
 
       if (pclub) {
         if (strlen(sp[OEnat])>0)
           pclub->getDI().setString("Nationality", sp[OEnat]);
 
+        pclub->getDI().setString("ShortName", shortClubName.substr(0, 8));
+        pclub->getDI().setString("City", clubCity.substr(0, 23));
+        pclub->setExtIdentifier(clubId);
         pclub->synchronize(true);
       }
 
-      int id = atoi(sp[OEid]);
-      int extId = id;
+      __int64 extId = oBase::converExtIdentifierString(sp[OEid]);
+      int id = oBase::idFromExtId(extId);
       pRunner pr = 0;
 
       if (id>0)
         pr = event.getRunner(id, 0);
+
+      while (pr) { // Check that the exact match is OK
+        if (extId != pr->getExtIdentifier())
+          break;
+        id++;
+        pr = event.getRunner(id, 0);
+      }
 
       if (pr) {
         if (pr->getEntrySource() != externalSourceId) {
@@ -390,13 +416,11 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       if (pr==0)
         continue;
 
-      if (extId>0)
-        pr->setExtIdentifier(extId);
-
+      pr->setExtIdentifier(extId);
       pr->setEntrySource(externalSourceId);
 
       if (!pr->hasFlag(oAbstractRunner::FlagUpdateName)) {
-        string name = string(sp[OEfirstname])+" "+string(sp[OEsurname]);
+        string name = string(sp[OEsurname]) + ", " + string(sp[OEfirstname]);
         pr->setName(name, false);
       }
       pr->setClubId(pclub ? pclub->getId():0);
@@ -434,7 +458,7 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       }
       oDataInterface DI=pr->getDI();
 
-      DI.setString("Sex", sp[OEsex]);
+      pr->setSex(interpretSex(sp[OEsex]));
       DI.setInt("BirthYear", extendYear(atoi(sp[OEbirth])));
       DI.setString("Nationality", sp[OEnat]);
 
@@ -448,7 +472,7 @@ bool csvparser::ImportOE_CSV(oEvent &event, const char *file)
       }
 
       if (sp.size()>=40) {//Course
-        if (pr->getCourse(false) == 0){
+        if (pr->getCourse(false) == 0) {
           const char *cid=sp[OEcourseno];
           const int courseid=atoi(cid);
           if (courseid>0) {
@@ -724,7 +748,6 @@ bool csvparser::ImportRAID(oEvent &event, const char *file)
       team->setStartNo(atoi(sp[RAIDid]), false);
       if (sp.size()>8)
         team->getDI().setInt("SortIndex", atoi(sp[RAIDcanoe]));
-				
       oDataInterface teamDI=team->getDI();
       teamDI.setDate("EntryDate", sp[RAIDedate]);
       

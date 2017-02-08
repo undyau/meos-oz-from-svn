@@ -17,6 +17,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B854EF2A-2BB7-4D62-B08B-96BD64B347E8}</ProjectGuid>
     <RootNamespace>meos</RootNamespace>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='test|Win32'" Label="Configuration">
@@ -74,6 +75,9 @@
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='test|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='test|Win32'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='test|Win32'" />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <TargetName>meos</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Midl>
@@ -150,7 +154,7 @@
       <ObjectFileName>.\Debug/</ObjectFileName>
       <ProgramDataBaseFileName>.\Debug/</ProgramDataBaseFileName>
       <BrowseInformation>true</BrowseInformation>
-      <WarningLevel>Level4</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <DisableSpecificWarnings>4996;4100;4244;4245;4702;4389;4127;4201;%(DisableSpecificWarnings)</DisableSpecificWarnings>
@@ -243,6 +247,7 @@
     </ClCompile>
     <ClCompile Include="generalresult.cpp" />
     <ClCompile Include="HTMLWriter.cpp" />
+    <ClCompile Include="importformats.cpp" />
     <ClCompile Include="infoserver.cpp" />
     <ClCompile Include="iof30interface.cpp" />
     <ClCompile Include="listeditor.cpp" />
@@ -330,6 +335,7 @@
     <ClCompile Include="recorder.cpp" />
     <ClCompile Include="RunnerDB.cpp" />
     <ClCompile Include="socket.cpp" />
+    <ClCompile Include="speakermonitor.cpp" />
     <ClCompile Include="SportIdent.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -405,6 +411,7 @@
     <ClInclude Include="Printer.h" />
     <ClInclude Include="recorder.h" />
     <ClInclude Include="socket.h" />
+    <ClInclude Include="speakermonitor.h" />
     <ClInclude Include="testmeos.h" />
     <ClInclude Include="toolbar.h" />
     <ClInclude Include="csvparser.h" />

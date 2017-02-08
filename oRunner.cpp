@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -208,7 +208,7 @@ bool oRunner::Write(xmlparser &xml)
   xml.startTag("Runner");
   xml.write("Id", Id);
   xml.write("Updated", Modified.getStamp());
-  xml.write("Name", Name);
+  xml.write("Name", sName);
   xml.write("Start", startTime);
   xml.write("Finish", FinishTime);
   xml.write("Status", status);
@@ -254,7 +254,8 @@ void oRunner::Set(const xmlobject &xo)
       Id = it->getInt();
     }
     else if (it->is("Name")){
-      Name = it->get();
+      sName = it->get();
+      getRealName(sName, tRealName);
     }
     else if (it->is("Start")){
       tStartTime = startTime = it->getInt();
@@ -1656,7 +1657,7 @@ bool oRunner::sortSplit(const oRunner &a, const oRunner &b)
       if (a.tempRT!=b.tempRT)
         return a.tempRT<b.tempRT;
     }
-    return a.Name<b.Name;
+    return a.tRealName<b.tRealName;
   }
 }
 
@@ -1665,8 +1666,8 @@ bool oRunner::operator <(const oRunner &c) {
     return size_t(Class)<size_t(c.Class);
   else if (Class == c.Class && Class->getClassStatus() != oClass::Normal)
     return CompareString(LOCALE_USER_DEFAULT, 0,
-                         Name.c_str(), Name.length(),
-                         c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                         tRealName.c_str(), tRealName.length(),
+                         c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
 
   if (oe->CurrentSortOrder==ClassStartTime) {
     if (Class->Id != c.Class->Id)
@@ -1704,8 +1705,8 @@ bool oRunner::operator <(const oRunner &c) {
       if (stat==StatusOK) {
         if (Class->getNoTiming()) {
           return CompareString(LOCALE_USER_DEFAULT, 0,
-                               Name.c_str(), Name.length(),
-                               c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                               tRealName.c_str(), tRealName.length(),
+                               c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
         }
         int s = getNumShortening();
         int cs = c.getNumShortening();
@@ -1743,8 +1744,8 @@ bool oRunner::operator <(const oRunner &c) {
       if (tStatus==StatusOK) {
         if (Class->getNoTiming()) {
           return CompareString(LOCALE_USER_DEFAULT, 0,
-                               Name.c_str(), Name.length(),
-                               c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                               tRealName.c_str(), tRealName.length(),
+                               c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
         }
         int s = getNumShortening();
         int cs = c.getNumShortening();
@@ -1760,8 +1761,17 @@ bool oRunner::operator <(const oRunner &c) {
   }
   else if (oe->CurrentSortOrder==SortByName) {
     return CompareString(LOCALE_USER_DEFAULT, 0,
-                      Name.c_str(), Name.length(),
-                      c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                      tRealName.c_str(), tRealName.length(),
+                      c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
+  }
+  else if (oe->CurrentSortOrder==SortByLastName) {
+    string a = getFamilyName();
+    string b = c.getFamilyName();
+    if (a != b) {
+      return CompareString(LOCALE_USER_DEFAULT, 0,
+                           a.c_str(), a.length(),
+                           b.c_str(), b.length()) == CSTR_LESS_THAN;
+    }
   }
   else if (oe->CurrentSortOrder==SortByFinishTime) {
     if (tStatus != c.tStatus)
@@ -1829,8 +1839,8 @@ bool oRunner::operator <(const oRunner &c) {
       else if (s1 == StatusOK) {
         if (Class->getNoTiming()) {
           return CompareString(LOCALE_USER_DEFAULT, 0,
-                               Name.c_str(), Name.length(),
-                               c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                               tRealName.c_str(), tRealName.length(),
+                               c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
         }
         int t = getTotalRunningTime(FinishTime);
         int ct = c.getTotalRunningTime(c.FinishTime);
@@ -1858,7 +1868,7 @@ bool oRunner::operator <(const oRunner &c) {
 				if (t != ct)
 					return t < ct;
 			}			
-			return Name  <c.Name;
+			return tRealName  <c.tRealName;
 		}
 	}
   else if (oe->CurrentSortOrder == CourseResult) {
@@ -1912,7 +1922,7 @@ bool oRunner::operator <(const oRunner &c) {
       if (tInTeam->StartNo != c.tInTeam->StartNo)
         return tInTeam->StartNo < c.tInTeam->StartNo;
       else
-        return tInTeam->Name < c.tInTeam->Name;
+        return tInTeam->sName < c.tInTeam->sName;
     }
     else if (tInTeam && tLeg != c.tLeg)
       return tLeg < c.tLeg;
@@ -1932,8 +1942,8 @@ bool oRunner::operator <(const oRunner &c) {
   }
   
   return CompareString(LOCALE_USER_DEFAULT, 0,
-                      Name.c_str(), Name.length(),
-                      c.Name.c_str(), c.Name.length()) == CSTR_LESS_THAN;
+                      tRealName.c_str(), tRealName.length(),
+                      c.tRealName.c_str(), c.tRealName.length()) == CSTR_LESS_THAN;
 
 }
 
@@ -2095,12 +2105,12 @@ string oAbstractRunner::getPrintTotalPlaceS(bool withDot) const
 }
 string oRunner::getGivenName() const
 {
-  return ::getGivenName(Name);
+  return ::getGivenName(sName);
 }
 
 string oRunner::getFamilyName() const
 {
-  return ::getFamilyName(Name);
+  return ::getFamilyName(sName);
 }
 
 void oRunner::setCardNo(int cno, bool matchCard, bool updateFromDatabase)
@@ -2165,32 +2175,38 @@ void oAbstractRunner::setName(const string &n, bool manualUpdate)
   string tn = trim(n);
   if (tn.empty())
     throw std::exception("Tomt namn är inte tillåtet.");
-  if (tn != Name){
-    Name.swap(tn);
+  if (tn != sName){
+    sName.swap(tn);
     if (manualUpdate)
       setFlag(FlagUpdateName, true);
     updateChanged();
   }
 }
 
-void oRunner::setName(const string &n, bool manualUpdate)
+void oRunner::setName(const string &in, bool manualUpdate)
 {
-  if (trim(n).empty())
+  string n = trim(in);
+  
+  if (n.empty())
     throw std::exception("Tomt namn är inte tillåtet.");
-
+  for (size_t k = 0; k < n.length(); k++) {
+    if (BYTE(n[k]) == BYTE(160))
+      n[k] = ' ';
+  }
   if (n.length() <= 4 || n == lang.tl("N.N."))
     manualUpdate = false; // Never consider default names manual
 
   if (tParentRunner)
     tParentRunner->setName(n, manualUpdate);
   else {
-    string oldName = Name;
-    if (n!=Name) {
-      Name=trim(n);
-      for (size_t k = 0; k<Name.length(); k++) {
-        if (BYTE(Name[k]) == BYTE(160))
-          Name[k] = ' ';
-      }
+    string oldName = sName;
+    string oldRealName = tRealName;
+    string newRealName;
+    getRealName(n, newRealName);
+    if (newRealName != tRealName || n != sName) {
+      sName = n;
+      tRealName = newRealName;
+
       if (manualUpdate)
         setFlag(FlagUpdateName, true);
 
@@ -2198,16 +2214,29 @@ void oRunner::setName(const string &n, bool manualUpdate)
     }
 
     for (size_t k=0;k<multiRunner.size();k++) {
-      if (multiRunner[k] && n!=multiRunner[k]->Name) {
-        multiRunner[k]->Name=trim(n);
+      if (multiRunner[k] && n!=multiRunner[k]->sName) {
+        multiRunner[k]->sName = n;
+        multiRunner[k]->tRealName = tRealName;
         multiRunner[k]->updateChanged();
       }
     }
     if (tInTeam && Class && Class->isSingleRunnerMultiStage()) {
-      if (tInTeam->Name == oldName)
-        tInTeam->setName(Name, manualUpdate);
+      if (tInTeam->sName == oldName || tInTeam->sName == oldRealName)
+        tInTeam->setName(tRealName, manualUpdate);
     }
   }
+}
+
+const string &oRunner::getName() const {
+  return tRealName;
+}
+
+void oRunner::getRealName(const string &input, string &output) {
+  size_t comma = input.find_first_of(',');
+  if (comma == string::npos)
+    output = input;
+  else 
+    output = trim(input.substr(comma+1) + " " + input.substr(0, comma));
 }
 
 bool oAbstractRunner::setStatus(RunnerStatus st, bool updateSource, bool tmpOnly, bool recalculate) {
@@ -2520,9 +2549,9 @@ int oRunner::getRaceIdentifier() const {
     return stored;
 
   if (!tInTeam)
-    return 1000000 + Id * 2;//Even
+    return 1000000 + (Id&0xFFFFFFF) * 2;//Even
   else
-    return 1000000 * (tLeg+1) + tInTeam->Id * 2 + 1;//Odd
+    return 1000000 * (tLeg+1) + (tInTeam->Id & 0xFFFFFFF) * 2 + 1;//Odd
 }
 
 static int getEncodedBib(const string &bib) {
@@ -2639,7 +2668,7 @@ pRunner oEvent::getRunnerByName(const string &pname, const string &pclub) const
   vector<pRunner> cnd;
 
   for (it=Runners.begin(); it != Runners.end(); ++it) {
-    if (!it->skip() && it->Name==pname) {
+    if (!it->skip() && (it->sName==pname || it->tRealName==pname)) {
       if (pclub.empty() || pclub==it->getClub())
         cnd.push_back(pRunner(&*it));
     }
@@ -2715,9 +2744,9 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
 
       if (!it->skip() || (showAll && !it->isRemoved())) {
         if ( it->getClubId() != lVacId )
-          out.push_back(make_pair(it->Name, it->Id));
+          out.push_back(make_pair(it->getName(), it->Id));
         else {
-          sprintf_s(bf, "%s (%s)", it->Name.c_str(), it->getClass().c_str());
+          sprintf_s(bf, "%s (%s)", it->getName().c_str(), it->getClass().c_str());
           out.push_back(make_pair(bf, it->Id));
         }
       }
@@ -2741,9 +2770,9 @@ string oRunner::getNameAndRace() const
   if (tDuplicateLeg>0 || multiRunner.size()>0) {
     char bf[16];
     sprintf_s(bf, " (%d)", getRaceNo()+1);
-    return Name+bf;
+    return getName()+bf;
   }
-  else return Name;
+  else return getName();
 }
 
 pRunner oRunner::getMultiRunner(int race) const
@@ -2823,7 +2852,7 @@ void oRunner::createMultiRunner(bool createMaster, bool sync)
   for(int k=1;k<ndup; k++) {
     if (!multiRunner[k-1]) {
       update = true;
-      multiRunner[k-1]=oe->addRunner(Name, getClubId(),
+      multiRunner[k-1]=oe->addRunner(sName, getClubId(),
                                      getClassId(), 0, 0, false);
       multiRunner[k-1]->tDuplicateLeg=k;
       multiRunner[k-1]->tParentRunner=this;
@@ -3053,7 +3082,7 @@ bool oRunner::inputData(int id, const string &input,
       if (trim(input).empty())
         throw std::exception("Tomt namn inte tillåtet.");
 
-      if (Name != input) {
+      if (sName != input && tRealName != input) {
         updateFromDB(input, getClubId(), getClassId(), getCardNo(), getBirthYear());
         setName(input, true);
         synchronizeAll();
@@ -3412,7 +3441,7 @@ pRunner oEvent::findRunner(const string &s, int lastId, const stdext::hash_set<i
         }
       }
       else {
-        if (filterMatchString(r->Name, s_lc)) {
+        if (filterMatchString(r->tRealName, s_lc)) {
           matchFilter.insert(id);
           if (res == 0)
             res = r;
@@ -3447,7 +3476,7 @@ pRunner oEvent::findRunner(const string &s, int lastId, const stdext::hash_set<i
       }
     }
     else {
-      if (filterMatchString(r->Name, s_lc)) {
+      if (filterMatchString(r->tRealName, s_lc)) {
         matchFilter.insert(r->Id);
         if (res == 0)
           res = r;
@@ -3467,7 +3496,7 @@ pRunner oEvent::findRunner(const string &s, int lastId, const stdext::hash_set<i
       }
     }
     else {
-      if (filterMatchString(r->Name, s_lc)) {
+      if (filterMatchString(r->tRealName, s_lc)) {
         matchFilter.insert(r->Id);
         if (res == 0)
           res = r;
@@ -3699,6 +3728,38 @@ static int findNextControl(const vector<pControl> &ctrl, int startIndex, int id,
     return index;
 }
 
+static void gotoNextLine(gdioutput &gdi, int &xcol, int &cx, int &cy, int colDeltaX, int numCol, int baseCX) {
+  if (++xcol < numCol) {
+    cx += colDeltaX;
+  }
+  else {
+    xcol = 0;
+    cy += int(gdi.getLineHeight()*1.1);
+    cx = baseCX;
+  }
+}
+
+static void addMissingControl(bool wideFormat, gdioutput &gdi, 
+                              int &xcol, int &cx, int &cy, 
+                              int colDeltaX, int numCol, int baseCX) {
+  int xx = cx;
+  string str = MakeDash("-");
+  int posy = wideFormat ? cy : cy-int(gdi.getLineHeight()*0.4);
+  const int endx = cx + colDeltaX - 27;
+
+  while (xx < endx) {
+    gdi.addStringUT(posy, xx, fontSmall, str);
+    xx += 20;
+  }
+
+  // Make a thin line for list format, otherwise, take a full place
+  if (wideFormat) {
+    gotoNextLine(gdi, xcol, cx, cy, colDeltaX, numCol, baseCX);
+  }
+  else
+    cy+=int(gdi.getLineHeight()*0.3);
+}
+
 void oRunner::printSplits(gdioutput &gdi) const {
   bool withAnalysis = (oe->getDI().getInt("Analysis") & 1) == 0;
   bool withSpeed = (oe->getDI().getInt("Analysis") & 2) == 0;
@@ -3804,6 +3865,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
   }
 
   set<int> headerPos;
+  set<int> checkedIndex;
 
   if (Card && pc) {
     bool hasRogaining = pc->hasRogaining();
@@ -3856,6 +3918,17 @@ void oRunner::printSplits(gdioutput &gdi) const {
       int sp;
       int controlLegIndex = -1;
       if (it->isFinish(finishType)) {
+        // Check if the last normal control was missing, and indicate this
+        for (int j = pc->getNumControls() - 1; j >= 0; j--) {
+          pControl ctrl = pc->getControl(j);
+          if (ctrl && ctrl->isSingleStatusOK()) {
+            if (checkedIndex.count(j) == 0) {
+              addMissingControl(wideFormat, gdi, xcol, cx, cy, colDeltaX, numCol, baseCX);
+            }
+            break;
+          }
+        }
+
         gdi.addString("", cy, cx, fontSmall, "Mål");
         sp = getSplitTime(splitTimes.size(), false);
         if (sp>0) {
@@ -3875,9 +3948,11 @@ void oRunner::printSplits(gdioutput &gdi) const {
           index = findNextControl(ctrl, lastIndex+1, cid, offset, hasRogaining);
         if (index>=0) {
           if (index > lastIndex + 1) {
-            int xx = cx;
+            addMissingControl(wideFormat, gdi, xcol, cx, cy, colDeltaX, numCol, baseCX);
+
+            /*int xx = cx;
             string str = MakeDash("-");
-            int posy = cy-int(gdi.getLineHeight()*0.4);
+            int posy = wideFormat ? cy : cy-int(gdi.getLineHeight()*0.4);
             const int endx = cx+c5 + 5;
 
             while (xx < endx) {
@@ -3885,7 +3960,12 @@ void oRunner::printSplits(gdioutput &gdi) const {
               xx += 20;
             }
 
-            cy+=int(gdi.getLineHeight()*0.3);
+            // Make a thin line for list format, otherwise, take a full place
+            if (wideFormat) {
+              gotoNextLine(gdi, xcol, cx, cy, colDeltaX, numCol, baseCX);
+            }
+            else
+              cy+=int(gdi.getLineHeight()*0.3);*/
           }
           lastIndex = index;
 
@@ -3898,6 +3978,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
           gdi.addStringUT(cy, cx+c1, fontSmall, bf);
 
           controlLegIndex = it->tIndex;
+          checkedIndex.insert(controlLegIndex);
           adjust = getTimeAdjust(controlLegIndex);
           sp = getSplitTime(controlLegIndex, false);
           if (sp>0) {
@@ -3936,29 +4017,22 @@ void oRunner::printSplits(gdioutput &gdi) const {
       if (any) {
         if (!wideFormat) {
           cy+=int(gdi.getLineHeight()*0.9);
-
         }
         else {
-          if (++xcol < numCol) {
-            cx += colDeltaX;
-          }
-          else {
-            xcol = 0;
-            cy += int(gdi.getLineHeight()*1.1);
-            cx = baseCX;
-          }
+          gotoNextLine(gdi, xcol, cx, cy, colDeltaX, numCol, baseCX);
         }
       }
     }
     gdi.dropLine();
-    int deltaY = int(gdi.getLineHeight() * 0.3);
-    for (int i = 0; i < numCol; i++) {
-      RECT rc;
-      rc.top = baseY + deltaY;
-      rc.bottom = cy + deltaY;
-      rc.left = baseCX + colDeltaX*(i+1) + 28;
-      rc.right = rc.left + 3;
- //     gdi.addRectangle(rc, colorDarkBlue);  This is making splits tiny !!
+    if (wideFormat) {
+      for (int i = 0; i < numCol-1; i++) {
+        RECT rc;
+        rc.top = baseY;
+        rc.bottom = cy;
+        rc.left = baseCX + colDeltaX*(i+1)-10;
+        rc.right = rc.left + 1;
+        gdi.addRectangle(rc, colorBlack);
+      }
     }
     
     if (withAnalysis) {
@@ -4386,7 +4460,7 @@ void oEvent::updateRunnersFromDB()
 
   for (it=Runners.begin(); it != Runners.end(); ++it) {
     if (!it->isVacant() && !it->isRemoved())
-      it->updateFromDB(it->Name, it->getClubId(), it->getClassId(), it->getCardNo(), it->getBirthYear());
+      it->updateFromDB(it->sName, it->getClubId(), it->getClassId(), it->getCardNo(), it->getBirthYear());
   }
 }
 
@@ -4494,12 +4568,12 @@ string oRunner::getNationality() const
 
 bool oRunner::matchName(const string &pname) const
 {
-  if (pname == Name)
+  if (pname == sName || pname == tRealName)
     return true;
 
   vector<string> myNames, inNames;
 
-  split(Name, " ", myNames);
+  split(tRealName, " ", myNames);
   split(pname, " ", inNames);
 
   for (size_t k = 0; k < myNames.size(); k++)
@@ -5032,11 +5106,11 @@ int oRunner::getTotalRunningTime(int time) const {
 
   // Get the complete name, including team and club.
 string oRunner::getCompleteIdentification(bool includeExtra) const {
-  if (tInTeam == 0 || !Class || tInTeam->getName() == Name) {
+  if (tInTeam == 0 || !Class || tInTeam->getName() == sName) {
     if (Club)
-      return Name + " (" + Club->name + ")";
+      return getName() + " (" + Club->name + ")";
     else
-      return Name;
+      return getName();
   }
   else {
     string names;
@@ -5051,9 +5125,9 @@ string oRunner::getCompleteIdentification(bool includeExtra) const {
       pRunner r = tInTeam->getRunner(k);
       if (r) {
         if (names.empty())
-          names = r->Name;
+          names = r->tRealName;
         else
-          names += "/" + r->Name;
+          names += "/" + r->tRealName;
       }
       lt = clsToUse->getLegType(k + 1);
       if ( !(lt==LTIgnore || lt==LTParallel || lt == LTParallelOptional || (lt==LTExtra && includeExtra)))
@@ -5061,9 +5135,9 @@ string oRunner::getCompleteIdentification(bool includeExtra) const {
     }
 
     if (clsToUse->legInfo.size() <= 2)
-      return names + " (" + tInTeam->Name + ")";
+      return names + " (" + tInTeam->sName + ")";
     else
-      return tInTeam->Name + " (" + names + ")";
+      return tInTeam->sName + " (" + names + ")";
   }
 }
 
@@ -5199,20 +5273,21 @@ void oRunner::setInputData(const oRunner &r) {
   }
 }
 
-void oEvent::getDBRunnersInEvent(intkeymap<pClass> &runners) const {
+void oEvent::getDBRunnersInEvent(intkeymap<pClass, __int64> &runners) const {
   runners.clear();
   for (oRunnerList::const_iterator it = Runners.begin(); it != Runners.end(); ++it) {
     if (it->isRemoved())
       continue;
     __int64 id = it->getExtIdentifier();
-    if (id>0 && id < unsigned(-1))
-      runners.insert(int(id), it->Class);
+    if (id != 0)
+      runners.insert(id, it->Class);
   }
 }
 
 void oRunner::init(const RunnerDBEntry &dbr) {
   setTemporary();
-  dbr.getName(Name);
+  dbr.getName(sName);
+  getRealName(sName, tRealName);
   CardNo = dbr.cardNo;
   Club = oe->getRunnerDatabase().getClub(dbr.clubNo);
   getDI().setString("Nationality", dbr.getNationality());
@@ -5220,7 +5295,6 @@ void oRunner::init(const RunnerDBEntry &dbr) {
   getDI().setString("Sex", dbr.getSex());
   setExtIdentifier(dbr.getExtId());
 }
-
 
 void oEvent::selectRunners(const string &classType, int lowAge,
                            int highAge, const string &firstDate,
@@ -5690,3 +5764,4 @@ int oAbstractRunner::getPaymentMode() const {
 void oAbstractRunner::setPaymentMode(int mode) {
   getDI().setInt("PayMode", mode);
 }
+

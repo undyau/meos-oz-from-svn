@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -140,7 +140,7 @@ RunnerDBEntry *RunnerDB::addRunner(const char *name,
     if (card>0)
       rhash[card]=rdb.size()-1;
     if (!idhash.empty())
-      idhash[int(extId)] = rdb.size()-1;
+      idhash[extId] = rdb.size()-1;
     if (!nhash.empty())
       nhash.insert(pair<string, int>(canonizeName(e.name), rdb.size()-1));
   }
@@ -285,7 +285,7 @@ RunnerDBEntry *RunnerDB::getRunnerByIndex(size_t index) const {
 }
 
 
-RunnerDBEntry *RunnerDB::getRunnerById(int extId) const
+RunnerDBEntry *RunnerDB::getRunnerById(__int64 extId) const
 {
   if (extId == 0)
     return 0;
@@ -360,7 +360,7 @@ void RunnerDB::setupIdHash() const
 
   for (size_t k=0; k<rdb.size(); k++) {
     if (!rdb[k].isRemoved())
-      idhash[int(rdb[k].extId)] = int(k);
+      idhash[rdb[k].extId] = int(k);
   }
 }
 
@@ -894,10 +894,10 @@ void RunnerDB::generateRunnerTableData(Table &table, oDBRunnerEntry *addEntry)
 }
 
 void RunnerDB::hasEnteredCompetition(__int64 extId) {
-  if (runnerTable != 0 && extId>0) {
+  if (runnerTable != 0 && extId!=0) {
     setupIdHash();
     int value;
-    if (idhash.lookup(int(extId), value)) {
+    if (idhash.lookup(extId, value)) {
       try {
         runnerTable->reloadRow(value + 1);
       }
@@ -1038,7 +1038,9 @@ void oDBRunnerEntry::addTableRow(Table &table) const {
   int row = 0;
   table.set(row++, it, TID_INDEX, itos(index+1), false, cellEdit);
 
-  table.set(row++, it, TID_ID, itos(r.extId), false, cellEdit);
+  char bf[16];
+  oBase::converExtIdentifierString(r.extId, bf);
+  table.set(row++, it, TID_ID, bf, false, cellEdit);
   table.set(row++, it, TID_NAME, r.name, canEdit, cellEdit);
 
   const pClub pc = db->getClub(r.clubNo);
@@ -1058,8 +1060,8 @@ void oDBRunnerEntry::addTableRow(Table &table) const {
   oClass *val = 0;
   bool found = false;
 
-  if (r.extId < unsigned(-1))
-    found = db->runnerInEvent.lookup(int(r.extId), val);
+  if (r.extId != 0)
+    found = db->runnerInEvent.lookup(r.extId, val);
 
   if (canEdit)
     table.setTableProp(Table::CAN_DELETE|Table::CAN_INSERT|Table::CAN_PASTE);
@@ -1141,7 +1143,7 @@ void oDBRunnerEntry::fillInput(int id, vector< pair<string, size_t> > &out, size
 void oDBRunnerEntry::remove() {
   RunnerDBEntry &r = db->rdb[index];
   r.remove();
-  db->idhash.remove((int)r.extId);
+  db->idhash.remove(r.extId);
   string cname(canonizeName(r.name));
   multimap<string, int>::const_iterator it = db->nhash.find(cname);
 

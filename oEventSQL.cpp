@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -828,7 +828,7 @@ int oEvent::checkChanged(vector<string> &out) const
       it!=oe->Runners.end(); ++it)
     if (it->isChanged()) {
       changed++;
-      sprintf_s(bf, "Runner %s", it->Name.c_str());
+      sprintf_s(bf, "Runner %s", it->getName().c_str());
       out.push_back(bf);
       it->synchronize();
     }
@@ -836,7 +836,7 @@ int oEvent::checkChanged(vector<string> &out) const
       it!=oe->Teams.end(); ++it)
     if (it->isChanged()) {
       changed++;
-      sprintf_s(bf, "Team %s", it->Name.c_str());
+      sprintf_s(bf, "Team %s", it->getName().c_str());
       out.push_back(bf);
       it->synchronize();
     }

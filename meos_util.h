@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -182,7 +182,8 @@ public:
 
 bool isAscii(const string &s);
 bool isNumber(const string &s);
-
+int convertDynamicBase(const string &s, long long &out);
+void convertDynamicBase(long long val, int base, char out[16]);
 
 /// Find all files in dir matching given file pattern
 bool expandDirectory(const char *dir, const char *pattern, vector<string> &res);

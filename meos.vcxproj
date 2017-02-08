@@ -239,6 +239,7 @@
     </ClCompile>
     <ClCompile Include="generalresult.cpp" />
     <ClCompile Include="HTMLWriter.cpp" />
+    <ClCompile Include="importformats.cpp" />
     <ClCompile Include="infoserver.cpp" />
     <ClCompile Include="iof30interface.cpp" />
     <ClCompile Include="listeditor.cpp" />
@@ -378,6 +379,7 @@
     <ClInclude Include="gdistructures.h" />
     <ClInclude Include="generalresult.h" />
     <ClInclude Include="guihandler.h" />
+    <ClInclude Include="importformats.h" />
     <ClInclude Include="infoserver.h" />
     <ClInclude Include="inthashmap.h" />
     <ClInclude Include="intkeymap.hpp" />

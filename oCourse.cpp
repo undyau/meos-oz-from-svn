@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1195,6 +1195,8 @@ int oCourse::getAdaptionId() const {
 }
 
 int oCourse::matchLoopKey(const vector<int> &punches, const vector<pControl> &key) {
+  if (key.empty())
+    return 999;
   size_t ix = -1;
   for (size_t k = 0; k < key.size(); k++) {
     int code = key[k]->getFirstNumber();
@@ -1220,6 +1222,9 @@ bool oCourse::constructLoopKeys(int cc, vector< vector<pControl> > &loopKeys, ve
       }
     }
   }
+
+  if (Controls[0]->getId() == cc)
+    firstAsStart = true; // Handle a course that starts with the loop control
 
   bool lastAsFinish = useLastAsFinish();
   if (lastAsFinish) { // Only if it is a unique control

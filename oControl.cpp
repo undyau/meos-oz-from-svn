@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -177,16 +177,14 @@ void oControl::set(const xmlobject *xo)
   }
 }
 
-int oControl::getFirstNumber() const
-{
+int oControl::getFirstNumber() const {
   if (nNumbers > 0)
     return Numbers[0];
   else
     return 0;
 }
 
-string oControl::getString()
-{
+string oControl::getString() {
   char bf[32];
   if (Status==StatusOK || Status==StatusNoTiming)
     return codeNumbers('|');
@@ -326,13 +324,24 @@ bool oControl::setNumbers(const string &numbers)
 
 string oControl::getName() const
 {
-  if (!Name.empty())
-    return Name;
-  else {
-    char bf[16];
-    sprintf_s(bf, "[%d]", Id);
-    return bf;
-  }
+	if (!Name.empty())
+		return Name;
+	else {
+		char bf[16];
+		sprintf_s(bf, "[%d]", Id);
+		return bf;
+	}
+}
+
+string oControl::getIdS() const
+{
+	if (!Name.empty())
+		return Name;
+	else {
+		char bf[16];
+		sprintf_s(bf, "%d", Id);
+		return bf;
+	}
 }
 
 oDataContainer &oControl::getDataBuffers(pvoid &data, pvoid &olddata, pvectorstr &strData) const {

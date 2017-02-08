@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -286,7 +286,7 @@ void Table::filter(int col, const string &filt, bool forceFilter)
 bool Table::compareRow(int indexA, int indexB) const {
   const TableRow &a = Data[indexA];
   const TableRow &b = Data[indexB];
-  if (a.intKey != b.intKey && a.intKey != 0xFEFEFEFE && b.intKey != 0xFEFEFEFE)
+  if (a.intKey != b.intKey && (a.intKey != 0xFEFEFEFE && b.intKey != 0xFEFEFEFE))
     return a.intKey < b.intKey;
   else
     return CompareString( LOCALE_USER_DEFAULT, 0, Data[indexA].key.c_str(), Data[indexA].key.length(),
@@ -324,7 +324,10 @@ void Table::sort(int col)
         while (str[i] != 0 && (str[i] < '0' || str[i] > '9'))
           i++;
 
-        Data[sortIndex[k].index].intKey = atoi(str + i);
+        int key = atoi(str + i);
+        Data[sortIndex[k].index].intKey = key;
+        if (key == 0)
+          Data[sortIndex[k].index].key = Data[sortIndex[k].index].cells[col].contents; 
       }
 
       if (hasDeci) { // Times etc.
@@ -359,6 +362,8 @@ void Table::sort(int col)
           }
 
           Data[sortIndex[k].index].intKey = key;
+          if (key == 0)
+            Data[sortIndex[k].index].key = Data[sortIndex[k].index].cells[col].contents; 
         }
       }
     }

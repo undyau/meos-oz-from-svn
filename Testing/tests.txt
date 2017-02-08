@@ -9,6 +9,6 @@
 9.  SI number in output XML
 10. Test with server mode
 11. Test hire stick auto detect in server mode
-12. Test no crash if creting an auto report service on a list that is empty.
+12. Test no crash if creating an auto report service on a list that is empty.
 13. Print splits on splits printer for regular line event - check for size.
 14. Check that runners remaining logic works.

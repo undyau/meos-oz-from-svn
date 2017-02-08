@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@
 
 #include "meos_util.h"
 #include "meos.h"
+#include "importformats.h"
 
 #include <io.h>
 #include <fcntl.h>
@@ -57,8 +58,8 @@
 string conv_is(int i)
 {
   char bf[256];
-//	if (i==0)
-//		return "";
+//  if (i==0)
+//    return "";
   //else
    if (_itoa_s(i, bf, 10)==0)
     return bf;
@@ -98,17 +99,18 @@ string &getFirst(string &inout, int maxNames) {
   return inout;
 }
 
-/*
-  enum {OEstno=0, OEcard=1, OEid=2, OEsurname=3, OEfirstname=4,
-      OEbirth=5, OEsex=6, OEstart=9,  OEfinish=10, OEstatus=12,
-      OEclubno=13, OEclub=15, OEnat=16, OEclassno=17, OEclass=18,
-      OErent=35, OEfee=36, OEpaid=37, OEcourseno=38, OEcourse=39,
-      OElength=40};
-*/
-
-bool oEvent::exportOECSV(const char *file, bool byClass)
+bool oEvent::exportOECSV(const char *file, int languageTypeIndex, bool includeSplits, bool useFFCOClubMapping, bool byClass)
 {
+  enum {
+    OEstno = 0, OEcard = 1, OEid = 2, OEsurname = 3, OEfirstname = 4,
+    OEbirth = 5, OEsex = 6, OEnc = 8, OEstart = 9, OEfinish = 10, OEtime = 11, OEstatus = 12,
+    OEclubno = 13, OEclub = 14, OEclubcity = 15, OEnat = 16, OEclassno = 17,
+    OEclassshortname = 18, OEclassname = 19, OErent = 35, OEfee = 36, OEpaid = 37, OEcourseno = 38, OEcourse = 39,
+    OElength = 40, OEclimb = 41, OEcoursecontrols = 42, OEpl = 43, OEstartpunch = 44, OEfinishpunch = 45
+  };
+
   csvparser csv;
+
   oClass::initClassId(*this);
 
   if (!csv.openOutput(file))
@@ -120,58 +122,180 @@ bool oEvent::exportOECSV(const char *file, bool byClass)
 		calculateResults(RTCourseResult);
 
   oRunnerList::iterator it;
+  string maleString;
+  string femaleString;
 
 	csv.OutputRow(lang.tl("Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller;Pl"));
+  switch (languageTypeIndex)
+  {
+  case 1: // English
+    //csv.OutputRow("Stno;Chip;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...");
+    maleString = "M";
+    femaleString = "F";
+    break;
+  case 2: // Svenska
+    csv.OutputRow("Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller;Pl;Startstämpling;Målstämpling;Kontroll1;Stämplar1;Kontroll2;Stämplar2;Kontroll3;Stämplar3;Kontroll4;Stämplar4;Kontroll5;Stämplar5;Kontroll6;Stämplar6;Kontroll7;Stämplar7;Kontroll8;Stämplar8;Kontroll9;Stämplar9;Kontroll10;Stämplar10;(kan fortsätta)..");
+    maleString = "M"; 
+    femaleString = "K"; 
+    break;
+  case 3: // Deutsch
+    csv.OutputRow("Stnr;Chip;Datenbank Id;Nachname;Vorname;Jg;G;Block;AK;Start;Ziel;Zeit;Wertung;Club-Nr.;Abk;Ort;Nat;Katnr;Kurz;Lang;Num1;Num2;Num3;Text1;Text2;Text3;Adr. Name;Straße;Zeile2;PLZ;Ort;Tel;Fax;EMail;Id/Verein;Gemietet;Startgeld;Bezahlt;Bahnnummer;Bahn;km;Hm;Bahn Posten;Pl;Startstempel;Zielstempel;Posten1;Stempel1;Posten2;Stempel2;Posten3;Stempel3;Posten4;Stempel4;Posten5;Stempel5;Posten6;Stempel6;Posten7;Stempel7;Posten8;Stempel8;Posten9;Stempel9;Posten10;Stempel10;(und weitere)...");
+    maleString = "M";
+    femaleString = "W";
+    break;
+  case 4: // Dansk
+    csv.OutputRow("Stnr;Brik;Database ID;Efternavn;Fornavn;År;K;Blok;UFK;Start;Mål;Tid;Status;Klub nr.;Navn;Klub;Land;Klasse nr.;kort;Lang;Num1;Num2;Num3;Text1;Text2;Text3;Adr. navn;Gade;Linie2;Post nr.;Klub;Tlf.;Fax.;Email;Id/klub;Lejet;Startafgift;Betalt;Bane nr.;Bane;km;Hm;Poster på bane;Pl;Start-stempling;Mål-stempling;Post1;Klip1;Post2;Klip2;Post3;Klip3;Post4;Klip4;Post5;Klip5;Post6;Klip6;Post7;Klip7;Post8;Klip8;Post9;Klip9;Post10;Klip10;(måske mere)...");
+    maleString = "M";
+    femaleString = "K";
+    break;
+  case 5: // Français
+    csv.OutputRow("N° dép.;Puce;Ident. base de données;Nom;Prénom;Né;S;Plage;nc;Départ;Arrivée;Temps;Evaluation;N° club;Nom;Ville;Nat;N° cat.;Court;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. nom;Rue;Ligne2;Code Post.;Ville;Tél.;Fax;E-mail;Id/Club;Louée;Engagement;Payé;Circuit N°;Circuit;km;m;Postes du circuit;Pl;Poinçon de départ;Arrivée (P);Poste1;Poinçon1;Poste2;Poinçon2;Poste3;Poinçon3;Poste4;Poinçon4;Poste5;Poinçon5;Poste6;Poinçon6;Poste7;Poinçon7;Poste8;Poinçon8;Poste9;Poinçon9;Poste10;Poinçon10;(peut être plus) ...");
+    maleString = "H";
+    femaleString = "F";
+    break;
+  case 6: // Russian
+    csv.OutputRow("Stnr;Chip;Datenbank Id;Nachname;Vorname;Jg;G_Sex;Block;AK_notclass;Start;Ziel;Zeit;Wertung;Club-Nr.;Abk;Ort;Nat;Katnr;Kurz;Lang;Num1;Num2;Num3;Text1;Text2;Text3;Adr. Name;Strasse;Zeile2;PLZ;Ort;Tel;Fax;EMail;Club_TIdNr;Gemietet;Startgeld;Bezahlt;Bahnnummer;Bahn;km_Kilometer;Hm_Climbmeter;Bahn Posten;Pl_Place;Startstempel;Zielstempel;Posten1;Stempel1;Posten2;Stempel2;Posten3;Stempel3;Posten4;Stempel4;Posten5;Stempel5;Posten6;Stempel6;Posten7;Stempel7;Posten8;Stempel8;Posten9;Stempel9;Posten10;Stempel10;(und weitere)...");
+    maleString = "M";
+    femaleString = "W";
+    break;
+  default:
+    csv.OutputRow("Stno;Chip;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...");
+    maleString = "M";
+    femaleString = "F";
+  }
 
   char bf[256];
-  for(it=Runners.begin(); it != Runners.end(); ++it){
+  for (it = Runners.begin(); it != Runners.end(); ++it) {
     vector<string> row;
-    row.resize(44);
-    oDataInterface di=it->getDI();
+    row.resize(46);
+    oDataInterface di = it->getDI();
 
-    row[0]=conv_is(it->getId());
-    row[1]=conv_is(it->getCardNo());
-    row[2]=conv_is(int(it->getExtIdentifier()));
-    row[3]=it->getFamilyName();
-    row[4]=it->getGivenName();
-    row[5]=conv_is(di.getInt("BirthYear") % 100);
-    row[6]=di.getString("Sex");
+    row[OEstno] = conv_is(it->getId());
+    row[OEcard] = conv_is(it->getCardNo());
+    if (it->getExtIdentifier() != 0)
+      row[OEid] = it->getExtIdentifierString();
+    row[OEsurname] = it->getFamilyName();
+    row[OEfirstname] = it->getGivenName();
+    row[OEbirth] = conv_is(di.getInt("BirthYear") % 100);
 
-    row[9]=it->getStartTimeS();
-    if (row[9]=="-") row[9]="";
-
-    row[10]=it->getFinishTimeS();
-    if (row[10]=="-") row[10]="";
-
-    row[11]=it->getRunningTimeS();
-    if (row[11]=="-") row[11]="";
-
-    row[12]=conv_is(ConvertStatusToOE(it->getStatus()));
-    row[13]=conv_is(it->getClubId());
-
-    row[15]=it->getClub();
-    row[16]=di.getString("Nationality");
-    row[17]=conv_is(it->getClassId());
-    row[18]=it->getClass();
-		row[19]=it->getClass();
-
-    row[35]=conv_is(di.getInt("CardFee"));
-    row[36]=conv_is(di.getInt("Fee"));
-    row[37]=conv_is(di.getInt("Paid"));
-
-    pCourse pc=it->getCourse(true);
-    if (pc){
-      row[38]=conv_is(pc->getId());
-      row[39]=pc->getName();
-      if (pc->getLength()>0){
-        sprintf_s(bf, "%d.%d", pc->getLength()/1000, pc->getLength()%1000);
-        row[40]=bf;
-      }
-      row[41]=conv_is(pc->getDI().getInt("Climb"));
-
-      row[42]=conv_is(pc->nControls);
+    // Specialized per language
+    PersonSex s = it->getSex();
+    switch (s) {
+    case sFemale:
+      row[OEsex] = femaleString;
+      break;
+    case sMale:
+      row[OEsex] = maleString;
+      break;
+    case sBoth:
+    case sUnknown:
+    default:
+      row[OEsex] = di.getString("Sex");
+      break;
     }
-    row[43] = it->getPlaceS();
+
+    // nc / Runner shall not / doesn't want to be ranked
+    if (it->getStatus() == StatusNotCompetiting)
+      row[OEnc] = "X";
+    else
+      row[OEnc] = "0";
+
+    // Excel format HH:MM:SS
+    string dash = MakeDash("-");
+    row[OEstart] = it->getStartTimeS();
+    if (row[OEstart] == dash)
+      row[OEstart] = "";
+
+    // Excel format HH:MM:SS
+    row[OEfinish] = it->getFinishTimeS();
+    if (row[OEfinish] == dash)
+      row[OEfinish] = "";
+
+    // Excel format HH:MM:SS
+    row[OEtime] = formatTimeHMS(it->getRunningTime());
+    if (row[OEtime] == dash)
+      row[OEtime] = "";
+
+    row[OEstatus] = conv_is(ConvertStatusToOE(it->getStatus()));
+    row[OEclubno] = conv_is(it->getClubId());
+
+    if (it->getClubRef()) {
+      if (useFFCOClubMapping) {
+        row[OEclub] = it->getClubRef()->getDI().getString("ShortName");
+        row[OEclubcity] = it->getClub();
+      } else {
+        row[OEclub] = it->getClub();
+        row[OEclubcity] = it->getClubRef()->getDI().getString("City");
+      }
+    }
+    row[OEnat] = di.getString("Nationality");
+    row[OEclassno] = conv_is(it->getClassId());
+    row[OEclassshortname] = it->getClass();
+    row[OEclassname] = it->getClass();
+
+    row[OErent] = conv_is(di.getInt("CardFee"));
+    row[OEfee] = conv_is(di.getInt("Fee"));
+    row[OEpaid] = conv_is(di.getInt("Paid"));
+
+    pCourse pc = it->getCourse(true);
+    if (pc) {
+      row[OEcourseno] = conv_is(pc->getId());
+      row[OEcourse] = pc->getName();
+      if (pc->getLength()>0) {
+        sprintf_s(bf, "%d.%d", pc->getLength() / 1000, pc->getLength() % 1000);
+        row[OElength] = bf;
+      }
+      row[OEclimb] = conv_is(pc->getDI().getInt("Climb"));
+
+      row[OEcoursecontrols] = conv_is(pc->nControls);
+    }
+    row[OEpl] = it->getPlaceS();
+
+    if (includeSplits && pc != NULL)
+    {
+      // Add here split times
+
+      // row[45]: finish time
+      row[OEfinishpunch] = row[OEfinish];
+
+      // row[46; 48; 50; ..]: control id
+      // row[47; 49; 51; ..]: punch time of control id row[i-1]
+
+      const vector<SplitData> &sp = it->getSplitTimes(true);
+
+      bool hasRogaining = pc->hasRogaining();
+      int startIx = pc->useFirstAsStart() ? 1 : 0;
+      int endIx = pc->useLastAsFinish() ? pc->nControls - 1 : pc->nControls;
+
+      for (int k = startIx, m = 0; k < endIx; k++, m += 2) {
+        if (pc->getControl(k)->isRogaining(hasRogaining))
+          continue;
+        row.push_back(pc->getControl(k)->getIdS());
+        if (unsigned(k) < sp.size() && sp[k].time > 0)
+          row.push_back(formatTimeHMS(sp[k].time - it->tStartTime));
+        else
+          row.push_back("-----");
+      }
+
+      // Extra punches
+      vector<pFreePunch> punches;
+
+      oe->getPunchesForRunner(it->getId(), punches);
+      for (vector<pFreePunch>::iterator punchIt = punches.begin(); punchIt != punches.end(); ++punchIt) {
+        pPunch punch = *punchIt;
+        if (!punch->isUsed && !(punch->isFinish() && !pc->useLastAsFinish()) && !(punch->isStart() && !pc->useFirstAsStart()) && !punch->isCheck())
+        {
+          row.push_back(punch->getType());
+
+          int t = punch->getAdjustedTime();
+          if (it->tStartTime > 0 && t > 0 && t > it->tStartTime)
+            row.push_back(formatTimeHMS(t - it->tStartTime));
+          else
+            return "-----";
+        }
+      }
+
+    }
 
     csv.OutputRow(row);
   }
@@ -180,7 +304,6 @@ bool oEvent::exportOECSV(const char *file, bool byClass)
 
   return true;
 }
-
 
 void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateClass, bool removeNonexisting)
 {
@@ -379,9 +502,18 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
 
     xmlList::const_iterator it;
 
+    map<__int64, int> ext2Id;
+    for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
+      if (it->skip())
+        continue;
+      __int64 ext = it->getExtIdentifier();
+      if (ext != 0)
+        ext2Id[ext] = it->getId();
+    }
+
     for(it=xl.begin(); it != xl.end(); ++it){
       if (it->is("Competitor")){
-        if (addXMLRank(*it))
+        if (addXMLRank(*it, ext2Id))
           imp++;
         else
           fail++;
@@ -486,21 +618,24 @@ bool oEvent::addXMLCompetitorDB(const xmlobject &xentry, int clubId)
 {
   if (!xentry) return false;
 
-  xmlobject person=xentry.getObject("Person");
+  xmlobject person = xentry.getObject("Person");
   if (!person) return false;
 
-  int pid = person.getObjectInt("PersonId");
+  string pids;
+  person.getObjectString("PersonId", pids);
+  __int64 extId = oBase::converExtIdentifierString(pids);
+  int pid = oBase::idFromExtId(extId);
 
-  xmlobject pname=person.getObject("PersonName");
+  xmlobject pname = person.getObject("PersonName");
   if (!pname) return false;
 
-  int cardno=0;
+  int cardno = 0;
   string tmp;
 
   xmlList cards;
   xentry.getObjects("CCard", cards);
 
-  for (size_t k= 0; k<cards.size(); k++) {
+  for (size_t k = 0; k<cards.size(); k++) {
     xmlobject &card = cards[k];
     if (card) {
       xmlobject psys = card.getObject("PunchingUnitType");
@@ -523,30 +658,124 @@ bool oEvent::addXMLCompetitorDB(const xmlobject &xentry, int clubId)
   if (given.empty() || family.empty())
     return false;
 
-  string name(given+" "+family);
+  string name(family + ", " + given);
 
   char sex[2];
   person.getObjectString("sex", sex, 2);
 
-  xmlobject bd=person.getObject("BirthDate");
+  xmlobject bd = person.getObject("BirthDate");
   int birth = bd ? bd.getObjectInt("Date") : 0;
 
-  xmlobject nat=person.getObject("Nationality");
+  xmlobject nat = person.getObject("Nationality");
 
-  char national[4]={0,0,0,0};
+  char national[4] = { 0,0,0,0 };
   if (nat) {
     xmlobject natId = nat.getObject("CountryId");
     if (natId)
       natId.getObjectString("value", national, 4);
   }
 
-  RunnerDBEntry *rde = runnerDB->getRunnerById(pid);
+  RunnerDBEntry *rde = runnerDB->getRunnerById(extId);
 
   if (!rde) {
     rde = runnerDB->getRunnerByCard(cardno);
 
-    if (rde && rde->getExtId()!=0)
+    if (rde && rde->getExtId() != 0)
       rde = 0; //Other runner, same card
+
+    if (!rde)
+      rde = runnerDB->addRunner(name.c_str(), pid, clubId, cardno);
+  }
+
+  if (rde) {
+    rde->setExtId(extId);
+    rde->setName(name.c_str());
+    rde->clubNo = clubId;
+    rde->birthYear = extendYear(birth);
+    rde->sex = sex[0];
+    memcpy(rde->national, national, 3);
+  }
+  return true;
+}
+
+bool oEvent::addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMapping)
+{
+  // Ident. base de données;Puce;Nom;Prénom;Né;S;N° club;Nom;Ville;Nat;N° cat.;Court;Long;Num1;Num2;Num3;E_Mail;Texte1;Texte2;Texte3;Adr. nom;Rue;Ligne2;Code Post.;Ville;Tél.;Fax;E-mail;Id/Club;Louée
+  enum { OEid = 0, OEcard = 1, OEsurname = 2, OEfirstname = 3, OEbirth = 4, OEsex = 5,
+    OEclubno = 6, OEclub = 7, OEclubcity = 8, OEnat = 9, OEclassno = 10, OEclassshort = 11, OEclasslong = 12
+  };
+
+  int pid = atoi(row[OEid].c_str());
+
+  string given = row[OEfirstname];
+  string family = row[OEsurname];
+
+  if (given.empty() && family.empty())
+    return false;
+
+  string name = family + ", " + given;
+  
+  // Depending on the OE language, man = "H" (French) or "M" (English, Svenska, Dansk, Russian, Deutsch)
+  // woman = "F" (English, French) or "W" (Deutsch, Russian) or "K" (Svenska, Dansk)
+  char sex[2];
+  if (row[OEsex] == "H" || row[OEsex] == "M")
+    strcpy(sex, "M");
+  else if (row[OEsex] == "F" || row[OEsex] == "K" || row[OEsex] == "W")
+    strcpy(sex, "W");
+  else
+    strcpy(sex, "");
+
+  int birth = atoi(row[OEbirth].c_str());
+
+  // Hack to take care of inconsistency between FFCO licensees archive (France) and event registrations from FFCO (FR)
+  char national[4] = { 0,0,0,0 };
+  if (useFFCOClubMapping && (row[OEnat] == "France")) {
+    strcpy(national, "FRA");
+  }
+
+  // Extract club data
+
+  int clubId = atoi(row[OEclubno].c_str());
+  string clubName;
+  string shortClubName;
+  string clubCity;
+
+  if (useFFCOClubMapping) {
+    clubName = row[OEclubcity];
+    shortClubName = row[OEclub];
+    clubCity = "";
+  }
+  else {
+    clubName = row[OEclub];
+    shortClubName = "";
+    clubCity = row[OEclubcity];
+  }
+
+  if (clubName.length() > 0 && IsCharAlphaNumeric(clubName[0])) {
+
+    pClub pc = new oClub(this);
+    pc->Id = clubId;
+
+    pc->setName(clubName);
+    pc->setExtIdentifier(clubId);
+
+    oDataInterface DI = pc->getDI();
+    DI.setString("ShortName", shortClubName.substr(0, 8));
+    DI.setString("City", clubCity.substr(0, 23));
+    // Nationality?
+
+    runnerDB->importClub(*pc, false);
+    delete pc;
+  }
+
+  RunnerDBEntry *rde = runnerDB->getRunnerById(pid);
+
+  int cardno = atoi(row[OEcard].c_str());
+  if (!rde) {
+    rde = runnerDB->getRunnerByCard(cardno);
+
+    if (rde && rde->getExtId() != 0)
+      rde = NULL; //Other runner, same card
 
     if (!rde)
       rde = runnerDB->addRunner(name.c_str(), pid, clubId, cardno);
@@ -669,11 +898,14 @@ pRunner oEvent::addXMLPerson(const xmlobject &person) {
   xmlobject pname = person.getObject("PersonName");
   if (!pname) return 0;
 
-  int pid = person.getObjectInt("PersonId");
+  string pids;
+  person.getObjectString("PersonId", pids);
+  __int64 extId = oBase::converExtIdentifierString(pids);
+  int pid = oBase::idFromExtId(extId);
   pRunner r = 0;
 
   if (pid)
-    r=getRunner(pid, 0);
+    r = getRunner(pid, 0);
 
   if (!r) {
     if ( pid > 0) {
@@ -687,8 +919,11 @@ pRunner oEvent::addXMLPerson(const xmlobject &person) {
   }
 
   string given, family;
-  r->setName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family), false);
-  r->setExtIdentifier(pid);
+  pname.getObjectString("Given", given);
+  pname.getObjectString("Family", family);
+
+  r->setName(family + ", " + getFirst(given, 2), false);
+  r->setExtIdentifier(extId);
 
   oDataInterface DI=r->getDI();
   string tmp;
@@ -762,7 +997,11 @@ pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool setClass) 
     xmlobject person2 = adjRunner.getObject("Person");
     if (person2) {
       xmlobject pname2 = person2.getObject("PersonName");
-      int pid2 = person2.getObjectInt("PersonId");
+
+      string pids2;
+      person.getObjectString("PersonId", pids2);
+      const __int64 extId2 = oBase::converExtIdentifierString(pids2);
+      int pid2 = oBase::idFromExtId(extId2);
       pRunner r2 = getRunner(pid2, 0);
 
       if (!r2) {
@@ -778,7 +1017,9 @@ pRunner oEvent::addXMLEntry(const xmlobject &xentry, int clubId, bool setClass) 
 
       string given2, family2;
       if (pname2) {
-        r2->setName(getFirst(pname2.getObjectString("Given", given2), 2)+" "+pname2.getObjectString("Family", family2), false);
+        pname2.getObjectString("Given", given2);
+        pname2.getObjectString("Family", family2);
+        r2->setName(family2 + ", " + getFirst(given2, 2), false);
       }
 
       r2->setExtIdentifier(pid2);
@@ -1003,6 +1244,62 @@ bool oEvent::importXMLNames(const char *file,
   info+=bf;
 
   return true;
+}
+
+void oEvent::importOECSV_Data(const char *oecsvfile, bool clear, const ImportFormats &importOptions) {
+  // Clear DB if needed
+  if (clear) {
+    runnerDB->clearClubs();
+    runnerDB->clearRunners();
+  }
+
+  csvparser cp;
+  list< vector<string> > data;
+
+  gdibase.addString("",0,"Läser löpare...");
+  gdibase.refresh();
+
+  cp.parse(oecsvfile, data);
+
+  gdibase.addString("", 0, "Behandlar löpardatabasen").setColor(colorGreen);
+  
+  gdibase.refresh();
+
+  list<vector<string>>::iterator it;
+
+  for (it = ++(data.begin()); it != data.end(); ++it) {
+    addOECSVCompetitorDB(*it, importOptions.getOption() == ImportFormats::FrenchFederationMapping);
+  }
+    
+  gdibase.addString("", 0, "Klart. Antal importerade: X#" + itos(data.size()));
+  gdibase.refresh();
+
+  setProperty("DatabaseUpdate", getRelativeDay());
+
+  // Save DB
+  saveRunnerDatabase("database", true);
+
+  if (HasDBConnection) {
+    gdibase.addString("", 0, "Uppdaterar serverns databas...");
+    gdibase.refresh();
+
+    OpFailStatus stat = (OpFailStatus)msUploadRunnerDB(this);
+
+    if (stat == opStatusFail) {
+      char bf[256];
+      msGetErrorState(bf);
+      string error = string("Kunde inte ladda upp löpardatabasen (X).#") + bf;
+      throw meosException(error);
+    }
+    else if (stat == opStatusWarning) {
+      char bf[256];
+      msGetErrorState(bf);
+      gdibase.addInfoBox("", string("Kunde inte ladda upp löpardatabasen (X).#") + bf, 5000);
+    }
+
+    gdibase.addString("", 0, "Klart");
+    gdibase.refresh();
+  }
 }
 
 void oEvent::importXML_IOF_Data(const char *clubfile,
@@ -1501,9 +1798,6 @@ bool oEvent::addXMLClub(const xmlobject &xclub, bool savetoDB)
 
   xmlobject address=xclub.getObject("Address");
 
-  //if (!address)
-  //  return false;
-
   string str;
   string co;
 
@@ -1511,9 +1805,6 @@ bool oEvent::addXMLClub(const xmlobject &xclub, bool savetoDB)
     address.getObjectString("street", str).length();
     address.getObjectString("careOf", co).length();
   }
-  //if (address.getObjectString("street", str).length()==0 &&
-  //   address.getObjectString("careOf", co).length()==0)
-  //	return false;
 
   pClub pc=0;
 
@@ -1571,7 +1862,7 @@ bool oEvent::addXMLClub(const xmlobject &xclub, bool savetoDB)
 }
 
 
-bool oEvent::addXMLRank(const xmlobject &xrank)
+bool oEvent::addXMLRank(const xmlobject &xrank, map<__int64, int> &externIdToRunnerId)
 {
   if (!xrank)
     return false;
@@ -1604,10 +1895,17 @@ bool oEvent::addXMLRank(const xmlobject &xrank)
 
   if (!person) return false;
 
-  pRunner r=getRunner(person.getObjectInt("PersonId"), 0);
+  string pid;
+  person.getObjectString("PersonId", pid);
+  const __int64 extId = oBase::converExtIdentifierString(pid);
+  int id = oBase::idFromExtId(extId);
+  if (externIdToRunnerId.count(extId))
+    id = externIdToRunnerId[extId];
 
+  pRunner r = getRunner(id, 0);
+  
   if (!r){
-    xmlobject pname=person.getObject("PersonName");
+    xmlobject pname = person.getObject("PersonName");
 
     if (!pname) return false;
 
@@ -1628,7 +1926,6 @@ bool oEvent::addXMLRank(const xmlobject &xrank)
         swap(cn, cns);
 
       r=getRunnerByName(name, cns);
-
     }
   }
 
@@ -1662,7 +1959,7 @@ void oEvent::exportIOFEvent(xmlparser &xml)
   // (IndSingleDay|IndMultiDay|teamSingleDay|teamMultiDay|relay)
   xml.startTag("Event", "eventForm", "IndSingleDay");
 
-  xml.write("EventId", itos(getExtIdentifier()));
+  xml.write("EventId", getExtIdentifierString());
   xml.write("Name", getName());
 
   xml.write("EventClassificationId", "type", "other", "MeOS");
@@ -1778,8 +2075,8 @@ void cWrite(xmlparser &xml, const char *tag, const string &value) {
 
 void oClub::exportClubOrId(xmlparser &xml) const
 {
-  if (getExtIdentifier()>0)
-    xml.write("ClubId", itos(getExtIdentifier()));
+  if (getExtIdentifier() != 0)
+    xml.write("ClubId", getExtIdentifierString());
   else {
     exportIOFClub(xml, true);
   }
@@ -1788,8 +2085,8 @@ void oClub::exportClubOrId(xmlparser &xml) const
 void oClub::exportIOFClub(xmlparser &xml, bool compact) const
 {
   xml.startTag("Club");
-  if (getExtIdentifier() > 0)
-    xml.write("ClubId", itos(getExtIdentifier()));
+  if (getExtIdentifier() != 0)
+    xml.write("ClubId", getExtIdentifierString());
   else
     xml.write("ClubId");
 
@@ -1948,7 +2245,7 @@ void oClass::exportIOFStart(xmlparser &xml) {
           pRunner parent = it->Runners[k]->getMultiRunner(0);
           if (parent != 0)
             parent->exportIOFRunner(xml, true);
-            //xml.write("PersonId", itos(parent->getId()));
+
           if (it->Runners[k]->getClubId()>0) {
             it->Runners[k]->Club->exportClubOrId(xml);
           }
@@ -2012,7 +2309,10 @@ void oRunner::exportIOFRunner(xmlparser &xml, bool compact)
   else
     xml.startTag("Person");
 
-  xml.write("PersonId", itos(getExtIdentifier()));
+  if (getExtIdentifier() != 0)
+    xml.write("PersonId", getExtIdentifierString());
+  else
+    xml.write("PersonId");
 
   xml.startTag("PersonName");
   xml.write("Family", getFamilyName());

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@
 #include "localizer.h"
 #include "meosException.h"
 #include "MeOSFeatures.h"
+#include "importformats.h"
 
 #include <algorithm>
 #include <cassert>
@@ -69,8 +70,9 @@ int TabCompetition::newGuideCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "DoImportEntries") {
       createCompetition(gdi);
       try {
-        gdi.autoRefresh(true);
-        saveEntries(gdi, false, true);
+		    ImportFormats importOpt(gdi.getSelectedItem("ImportOptions").first);
+		    gdi.autoRefresh(true);
+        saveEntries(gdi, false, true, importOpt);
       }
       catch (std::exception &) {
         newCompetitionGuide(gdi, 1);

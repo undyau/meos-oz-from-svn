@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1549,7 +1549,8 @@ OpFailStatus MeosSQL::storeRunner(const Row &row, oRunner &r,
   int oldSno = r.StartNo;
   const string &oldBib = r.getBib();
 
-  r.Name = row["Name"];
+  r.sName = row["Name"];
+  oRunner::getRealName(r.sName, r.tRealName);
   r.setCardNo(row["CardNo"], false, true);
   r.StartNo = row["StartNo"];
   r.tStartTime = r.startTime = row["StartTime"];
@@ -1682,7 +1683,7 @@ OpFailStatus MeosSQL::storeTeam(const Row &row, oTeam &t,
   int oldSno = t.StartNo;
   const string &oldBib = t.getBib();
 
-  t.Name=row["Name"];
+  t.sName=row["Name"];
   t.StartNo=row["StartNo"];
   t.tStartTime  =  t.startTime = row["StartTime"];
   t.FinishTime=row["FinishTime"];
@@ -1741,9 +1742,10 @@ OpFailStatus MeosSQL::storeTeam(const Row &row, oTeam &t,
           oRunner or(oe, rns[k]);
           success = min(success, syncRead(true, &or, readRecursive, readRecursive));
 
-          if (or.Name.empty())
-            or.Name = "@AutoCorrection";
-
+          if (or.sName.empty()) {
+            or.sName = "@AutoCorrection";
+            oRunner::getRealName(or.sName, or.tRealName);
+          }
           pRns[k] = oe->addRunner(or, false);
           assert(pRns[k] && !pRns[k]->changed);
         }
@@ -1842,7 +1844,7 @@ OpFailStatus MeosSQL::syncUpdate(oRunner *r, bool forceWriteAll)
     return opStatusFail;
 
   mysqlpp::Query queryset = con.query();
-  queryset << " Name=" << quote << r->Name << ", "
+  queryset << " Name=" << quote << r->sName << ", "
       << " CardNo=" << r->CardNo << ", "
       << " StartNo=" << r->StartNo << ", "
       << " StartTime=" << r->startTime << ", "
@@ -1860,7 +1862,7 @@ OpFailStatus MeosSQL::syncUpdate(oRunner *r, bool forceWriteAll)
       << r->getDI().generateSQLSet(forceWriteAll);
 
   
-  string str = "write runner " + r->Name + ", st = " + itos(r->startTime) + "\n";
+  string str = "write runner " + r->sName + ", st = " + itos(r->startTime) + "\n";
   OutputDebugString(str.c_str());
 
   return syncUpdate(queryset, "oRunner", r);
@@ -2039,7 +2041,7 @@ OpFailStatus MeosSQL::syncUpdate(oTeam *t, bool forceWriteAll) {
 
   mysqlpp::Query queryset = con.query();
 
-  queryset << " Name=" << quote << t->Name << ", "
+  queryset << " Name=" << quote << t->sName << ", "
       << " Runners=" << quote << t->getRunners() << ", "
       << " StartTime=" << t->startTime << ", "
       << " FinishTime=" << t->FinishTime << ", "
@@ -2049,7 +2051,7 @@ OpFailStatus MeosSQL::syncUpdate(oTeam *t, bool forceWriteAll) {
       << " Status=" << t->status
       << t->getDI().generateSQLSet(forceWriteAll);
 
-  string str = "write team " + t->Name + "\n";
+  string str = "write team " + t->sName + "\n";
   OutputDebugString(str.c_str());
   return syncUpdate(queryset, "oTeam", t);
 }

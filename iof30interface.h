@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -170,9 +170,11 @@ class IOF30Interface {
   static void getFee(const xmlobject &xFee, FeeInfo &fee);
   static void getFeeAmounts(const xmlobject &xFee, double &fee, double &taxable, double &percentage, string &currency);
 
+  void writeFees(xmlparser &xml, const oRunner &r) const;
+
   void writeAmount(xmlparser &xml, const char *tag, int amount) const;
-  void writeAssignedFee(xmlparser &xml, const oDataConstInterface &dci) const;
-  void writeRentalCardService(xmlparser &xml, int cardFee) const;
+  void writeAssignedFee(xmlparser &xml, const oDataConstInterface &dci, int paidForCard) const;
+  void writeRentalCardService(xmlparser &xml, int cardFee, bool paid) const;
 
   void getProps(vector<string> &props) const;
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -420,9 +420,9 @@ pClass oEvent::getClassCreate(int Id, const string &CreateName)
 {
   oClassList::iterator it;
 
-  if (Id>0)
+  if (Id>0) {
     for (it=Classes.begin(); it != Classes.end(); ++it) {
-      if (it->Id==Id) {
+      if (it->Id==Id && !it->isRemoved()) {
 
         if (compareClassName(CreateName, it->getName())) {
           if (it!=Classes.begin())
@@ -436,6 +436,7 @@ pClass oEvent::getClassCreate(int Id, const string &CreateName)
         }
       }
     }
+  }
 
   if (CreateName.empty() && Id>0) {
     oClass c(this, Id);
@@ -445,7 +446,7 @@ pClass oEvent::getClassCreate(int Id, const string &CreateName)
   else {
     //Check if class exist under different id
     for (it=Classes.begin(); it != Classes.end(); ++it) {
-      if (compareClassName(it->Name, CreateName))
+      if (!it->isRemoved() && compareClassName(it->Name, CreateName))
         return &*it;
     }
 
@@ -558,7 +559,7 @@ pClass oEvent::getClass(const string &cname) const
 
   // Then try the normal MEOS match
   for (oClassList::const_iterator it=Classes.begin(); it != Classes.end(); ++it) {
-    if (compareClassName(cname, it->Name) && !it->isRemoved())
+    if (!it->isRemoved() && compareClassName(cname, it->Name))
       return pClass(&*it);
   }
   return 0;
@@ -2483,9 +2484,9 @@ void oClass::assignTypeFromName(){
 
     ClassMetaType mt = ctUnknown;
     if (age>=18) {
-      if (stringMatch(suffix, "Elit") || strchr(suffix.c_str(), 'E'))
+      if (stringMatch(suffix, lang.tl("Elit")) || strchr(suffix.c_str(), 'E'))
         mt = ctElite;
-      else if (stringMatch(suffix, "Motion") || strchr(suffix.c_str(), 'M'))
+      else if (stringMatch(suffix, lang.tl("Motion")) || strchr(suffix.c_str(), 'M'))
         mt = ctExercise;
       else
         mt = ctNormal;
@@ -2494,9 +2495,9 @@ void oClass::assignTypeFromName(){
       mt = ctYouth;
     }
     else if (age<10) {
-      if (stringMatch(prefix, "Ungdom") || strchr(prefix.c_str(), 'U'))
+      if (stringMatch(prefix, lang.tl("Ungdom")) || strchr(prefix.c_str(), 'U'))
         mt = ctYouth;
-      else if (stringMatch(suffix, "Motion") || strchr(suffix.c_str(), 'M'))
+      else if (stringMatch(suffix, lang.tl("Motion")) || strchr(suffix.c_str(), 'M'))
         mt = ctExercise;
       else
         mt = ctOpen;
@@ -2507,7 +2508,7 @@ void oClass::assignTypeFromName(){
 
     for (map<string, ClassMetaType>::iterator it = types.begin(); it != types.end(); ++it) {
       if (it->second == mt) {
-        setType(it->first);
+        setType(lang.tl(it->first));
         return;
       }
     }

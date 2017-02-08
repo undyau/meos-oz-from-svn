@@ -7,7 +7,7 @@
 #include <hash_set>
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -92,7 +92,7 @@ private:
 
   bool check(const RunnerDBEntry &rde) const;
 
-  intkeymap<oClass *> runnerInEvent;
+  intkeymap<oClass *, __int64> runnerInEvent;
 
   /** Init name hash lazy */
   void setupNameHash() const;
@@ -107,7 +107,7 @@ private:
   inthashmap rhash;
 
   // Runner id hash
-  mutable inthashmap idhash;
+  mutable intkeymap<int, __int64> idhash;
 
   // Club id hash
   inthashmap chash;
@@ -176,7 +176,7 @@ public:
   oClub *addClub();
 
   RunnerDBEntry *getRunnerByIndex(size_t index) const;
-  RunnerDBEntry *getRunnerById(int extId) const;
+  RunnerDBEntry *getRunnerById(__int64 extId) const;
   RunnerDBEntry *getRunnerByCard(int card) const;
   RunnerDBEntry *getRunnerByName(const string &name, int clubId,
                                  int expectedBirthYear) const;

@@ -401,6 +401,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\importformats.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\infoserver.cpp"
 				>
 			</File>

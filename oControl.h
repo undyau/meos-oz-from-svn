@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -172,7 +172,10 @@ public:
   const string getStatusS() const;
 
   bool hasName() const {return !Name.empty();}
+  /// Get name or [id]
   string getName() const;
+  /// Get name or id
+  string getIdS() const;
 
   bool isRogaining(bool useRogaining) const {return useRogaining && (Status == StatusRogaining);}
 

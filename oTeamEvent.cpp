@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -96,10 +96,10 @@ const vector< pair<string, size_t> > &oEvent::fillTeams(vector< pair<string, siz
         for (int i = 0; i < int(maxBib - bib.length()); i++)
           paddedBib += "0";
         
-        tn = paddedBib + bib + " " + it->Name;
+        tn = paddedBib + bib + " " + it->getName();
       }
       else {
-        tn = dashes + it->Name;
+        tn = dashes + it->getName();
       }
       if (it->Class)
         out.push_back(make_pair(tn + (" (" + it->getClass() + ")"), it->Id));
@@ -141,7 +141,7 @@ pTeam oEvent::getTeamByName(const string &pName) const {
   oTeamList::const_iterator it;
 
   for (it=Teams.begin(); it != Teams.end(); ++it) {
-    if (!it->isRemoved() && it->Name==pName)
+    if (!it->isRemoved() && it->sName==pName)
       return pTeam(&*it);
   }
   return 0;
@@ -150,7 +150,7 @@ pTeam oEvent::getTeamByName(const string &pName) const {
 pTeam oEvent::addTeam(const string &pname, int ClubId, int ClassId)
 {
   oTeam t(this);
-  t.Name=pname;
+  t.sName=pname;
 
   if (ClubId>0)
     t.Club=getClub(ClubId);
@@ -294,11 +294,11 @@ bool oTeam::matchTeam(int number, const char *s_lc) const
     }
   }
 
-  if (filterMatchString(Name, s_lc))
+  if (filterMatchString(sName, s_lc))
     return true;
 
   for(size_t k=0;k<Runners.size();k++)
-    if (Runners[k] && filterMatchString(Runners[k]->Name, s_lc))
+    if (Runners[k] && filterMatchString(Runners[k]->tRealName, s_lc))
       return true;
 
   return false;
@@ -691,7 +691,7 @@ void oEvent::makeUniqueTeamNames() {
         continue;
       if (it->Class != &*cls)
         continue;
-      teams[it->Name].push_back(&*it);
+      teams[it->sName].push_back(&*it);
     }
 
     for (map<string, list<pTeam> >::iterator it = teams.begin(); it != teams.end(); ++it) {
@@ -699,7 +699,7 @@ void oEvent::makeUniqueTeamNames() {
       if (t.size() > 1) {
         int counter = 1;
         for (list<pTeam>::iterator tit = t.begin(); tit != t.end(); ) {
-          string name = (*tit)->Name + " " + itos(counter);
+          string name = (*tit)->sName + " " + itos(counter);
           if (teams.count(name) == 0) {
             (*tit)->setName(name, true);
             (*tit)->synchronize();

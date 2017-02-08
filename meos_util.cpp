@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -921,12 +921,31 @@ int toLowerStripped(int c) {
 
 const char *canonizeName(const char *name)
 {
-  static char out[128];
+  static char out[70];
+  static char tbf[70];
+  
+  for (int i = 0; i<63 && name[i]; i++) {
+    if (name[i] == ',') {
+      int tout = 0;
+      for (int j = i+1; j < 63 && name[j]; j++) {
+        tbf[tout++] = name[j];
+      }      
+      tbf[tout++] = ' ';
+      for (int j = 0; j < i; j++) {
+        tbf[tout++] = name[j];
+      }
+      tbf[tout] = 0;
+      name = tbf;
+      break;
+    }
+  }
+
   int outp = 0;
   int k = 0;
-  for (k=0; k<63 && name[k]; k++)
+  for (k=0; k<63 && name[k]; k++) {
     if (name[k] != ' ')
       break;
+  }
 
   bool first = true;
   while (k<63 && name[k]) {
@@ -1047,101 +1066,67 @@ int extractAnyNumber(const string &str, string &prefix, string &suffix)
   return -1;
 }
 
+static void decompseClassName(const string &name, vector<string> &dec) {
+  if (name.empty())
+    return;
 
-/** Matches H21 L with H21 Lång and H21L */
+  dec.push_back(string());
+  
+  for (size_t i = 0; i < name.size(); i++) {
+    int bchar = toLowerStripped(name[i]);
+    if (isspace(bchar) || bchar == '-' || bchar == 160) {
+      if (!dec.back().empty())
+        dec.push_back(string());
+      continue;
+    }
+    if (!dec.back().empty()) {
+      int last = *dec.back().rbegin();
+      bool lastNum = last >= '0' && last <= '9';
+      bool isNum = bchar >= '0' && bchar <= '9';
+
+      if (lastNum^isNum)
+        dec.push_back(string()); // Change num/ non-num
+    }
+    dec.back().push_back(bchar);
+  }
+  if (dec.back().empty())
+    dec.pop_back();
+
+  sort(dec.begin(), dec.end());
+}
+
+/** Matches H21 L with H21 Lång and H21L 
+ but not Violet with Violet Court, which is obviously wrong.
+ */
 bool compareClassName(const string &a, const string &b)
 {
-  const char *as, *bs;
-  if (a.length()>b.length()) {
-    as = a.c_str();
-    bs = b.c_str();
-  }
-  else {
-    bs = a.c_str();
-    as = b.c_str();
-  }
+  if (a == b)
+    return true;
 
-  if (b.length() == 0 || a.length() == 0)
-    return false; // Dont process empty names
+	vector<string> acanon;
+	vector<string> bcanon;
 
-  int firstAChar = -1;
-  int firstBChar = -1;
+  decompseClassName(a, acanon);
+  decompseClassName(b, bcanon);
 
-  int lasttype = -1;
-  int lastatype = -1;
-  while (*bs) {
-    int bchar = toLowerStripped(*bs);
-    if (isspace(bchar) || bchar=='-' || bchar == 160) {
-      bs++;
-      lasttype = 0; // Space
+  if (acanon.size() != bcanon.size())
+    return false;
+
+  for (size_t k = 0; k < acanon.size(); k++) {
+    if (acanon[k] == bcanon[k])
       continue;
-    }
-    if (firstBChar == -1)
-      firstBChar = bchar;
 
-    if (bchar>='0' && bchar<='9')
-      lasttype = 1; // Digit
-    else
-      lasttype = 2; // Other
+    int sample = acanon[k][0];
+    if (sample >= '0' && sample <= '9')
+      return false; // Numbers must match
 
-    while (*as) {
-      int achar = toLowerStripped(*as);
-      int atype;
-      if (isspace(achar) || achar=='-' || achar == 160)
-        atype = 0; // Space
-      else if (achar>='0' && achar<='9')
-        atype = 1; // Digit
-      else
-        atype = 2; // Other
+    if (acanon[k][0] == bcanon[k][0] && (acanon[k].length() == 1 || bcanon[k].length() == 1))
+      continue; // Abbrevation W <-> Women etc
 
-      if (atype != 0 && firstAChar == -1) {
-        firstAChar = achar;
-        if (firstAChar != firstBChar)
-          return false; // First letter must match
-      }
-      if (achar == bchar) {
-        lastatype  = atype;
-        break; // Match!
-      }
-
-      if (lastatype != -1) {
-        if ((lastatype == 0 && atype != 0) || atype == 1)
-          return false; // Dont match missed word (space appear) or missing digits
-        if (lastatype == 1 && atype == 2)
-          return false; // Dont match 21 and 21L
-      }
-      lastatype = atype;
-      ++as;
-    }
-
-    if (*as == 0)
-      return false;
-    ++as;
-    ++bs;
+    return false; // No match
   }
 
-  int tail_len = strlen(as);
-
-  // Check remaining
-  while (*as) {
-    int achar = toLowerStripped(*as);
-    if (isspace(achar) || achar=='-' || achar == 160) {
-      as++;
-      continue;
-    }
-
-    if (lasttype <= 1) // The short name ended with a digit.
-      return false;   // We cannot allow more chars.
-
-    if (lasttype == 2 && tail_len == 1) // Do not match shortened names such has H and HL
-      return false;
-
-    if (achar>='0' && achar<='9')
-      return false; // Never allow more digits
-
-    ++as;
-  }
-  return true;
+  return true; // All parts matched
 }
 
 string getErrorMessage(int code) {
@@ -1305,10 +1290,77 @@ bool isAscii(const string &s) {
 }
 
 bool isNumber(const string &s) {
-  for (size_t k = 0; k<s.length(); k++)
+  int len = s.length();
+  for (int k = 0; k < len; k++) {
     if (!isdigit(s[k]))
       return false;
-  return true;
+  }
+  return len > 0;
+}
+
+int convertDynamicBase(const string &s, long long &out) {
+  out = 0;
+  if (s.empty())
+    return 0;
+
+  bool alpha = false;
+  bool general = false;
+  int len = s.length();
+  for (int k = 0; k < len; k++) {
+    unsigned c = s[k];
+    if (c >= '0' && c <= '9')
+      continue;
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+      alpha = true;
+      continue;
+    }
+    general = true;
+    if (c<32)
+      return 0; // Not a supported character
+  }
+
+  int base = general ? 256-32 : (alpha ? 36 : 10);
+  long long factor = 1;
+  for (int k = len-1; k >= 0; k--) {
+    unsigned c = s[k]&0xFF;
+    if (general)
+      c -= 32;
+    else {
+      if (c >= '0' && c <= '9')
+        c -= '0';
+      else if (c >= 'A' && c <= 'Z')
+        c -= 'A'-10;
+      else if (c >= 'a' && c <= 'z')
+        c -= 'a'-10;
+    }
+    out += factor * c;
+    factor *= base;
+  }
+
+  return base;
+}
+
+void convertDynamicBase(long long val, int base, char out[16]) {
+  int len = 0;
+  while (val != 0) {
+    unsigned int c = val % base;
+    val = val / base;
+    char cc;
+    if (base == 10)
+      cc = '0' + c;
+    else if (base == 36) {
+      if (c < 10)
+        cc = '0' + c;
+      else
+        cc = 'A' + c - 10;
+    }
+    else {
+      cc = c+32;
+    }
+    out[len++] = cc;
+  }
+  out[len] = 0;
+  reverse(out, out+len);
 }
 
 bool expandDirectory(const char *file, const char *filetype, vector<string> &res)
@@ -1365,14 +1417,12 @@ string encodeSex(PersonSex sex) {
 }
 
 PersonSex interpretSex(const string &sex) {
-  if (sex == "F")
+  if (sex == "F" || sex == "K" || sex == "W")
     return sFemale;
-  else if (sex == "M")
+  else if (sex == "M" || sex == "H")
     return sMale;
   else if (sex == "B")
     return sBoth;
-  if (sex == "K" || sex == "W")
-    return sFemale;
   else
     return sUnknown;
 }
@@ -1546,6 +1596,26 @@ bool compareBib(const string &b1, const string &b2) {
   return z1 < z2;
 }
 
+
+/// Split a name into first name and last name
+int getNameCommaSplitPoint(const string &name) {
+  int commaSplit = -1;
+
+  for (unsigned k = 1; k + 1 < name.size(); k++) {
+    if (name[k] == ',') {
+      commaSplit = k;
+      break;
+    }
+  }
+
+  if (commaSplit >= 0) {
+    commaSplit += 2;
+  }
+  
+  return commaSplit;
+}
+
+
 /// Split a name into first name and last name
 int getNameSplitPoint(const string &name) {
   int split[10];
@@ -1558,7 +1628,6 @@ int getNameSplitPoint(const string &name) {
         break;
     }
   }
-
   if (nSplit == 1)
     return split[0] + 1;
   else if (nSplit == 0)
@@ -1577,7 +1646,12 @@ int getNameSplitPoint(const string &name) {
 }
 
 string getGivenName(const string &name) {
-  int sp = getNameSplitPoint(name);
+  int sp = getNameCommaSplitPoint(name);
+  if (sp != -1) {
+    return trim(name.substr(sp));
+  }
+
+  sp = getNameSplitPoint(name);
   if (sp == -1)
     return trim(name);
   else
@@ -1585,7 +1659,12 @@ string getGivenName(const string &name) {
 }
 
 string getFamilyName(const string &name) {
-  int sp = getNameSplitPoint(name);
+  int sp = getNameCommaSplitPoint(name);
+  if (sp != -1) {
+    return trim(name.substr(0, sp - 2));
+  }
+
+  sp = getNameSplitPoint(name);
   if (sp == -1)
     return _EmptyString;
   else
@@ -1681,11 +1760,11 @@ void processGeneralTime(const string &generalTime, string &meosTime, string &meo
           found++;
           year = k;
         }
-        else if (number > 1 && number <= 12 && month < 0 && (year == k+1 || year == k-1) ) {
+        else if (number >= 1 && number <= 12 && month < 0 && (year == k+1 || year == k-1) ) {
           month = k;
           found++;
         }
-        else if (number > 1 && number <=31 && day < 0 && (month == k+1 || month == k-1)) {
+        else if (number >= 1 && number <=31 && day < 0 && (month == k+1 || month == k-1)) {
           day = k;
           found++;
           iter++;

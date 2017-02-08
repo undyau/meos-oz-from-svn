@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -168,12 +168,6 @@ int TabList::baseButtons(gdioutput &gdi, int extraButtons) {
               "EditInForest", "edit_in_forest", ListsCB, "", true, false).getDimension(gdi, w, h);
     ypos += h + 3;
   }
-  else if (extraButtons == 2) {
-    gdi.addButton(gdi.getWidth()+20, ypos, gdi.scaleLength(120),
-                    "ResultListFT_ONATT", "Dataexport...",
-                    ListsCB, "Exportformat för OK Linnés onsdagsnatt", true, false);
-    ypos += gdi.getButtonHeight() + 3;
-  }
 
   return ypos;
 }
@@ -231,8 +225,6 @@ void TabList::generateList(gdioutput &gdi)
     int extra = 0;
     if (currentList.getListCode() == EFixedInForest)
       extra = 1;
-    else if (currentList.getListCode() == EFixedResultFinishPerClass)
-      extra = 2;
 
     int baseY = baseButtons(gdi, extra);
 
@@ -483,6 +475,9 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
       tabAutoAddMachinge(prm);
       gdi.getTabs().get(TAutoTab)->loadPage(gdi);
     }
+    else if (bi.id == "WideFormat") {
+      enableWideFormat(gdi, gdi.isChecked(bi.id));
+    }
     else if (bi.id=="SelectAll") {
       set<int> lst;
       lst.insert(-1);
@@ -513,6 +508,22 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
                     + (gdi.isChecked("Results") ? 0 : 4);
         oe->getDI().setInt("Analysis", aflag);
       }
+
+       
+       if (gdi.hasField("WideFormat")) {
+         bool wide = gdi.isChecked("WideFormat");
+         oe->setProperty("WideSplitFormat", wide);
+    
+         if (wide && gdi.hasField("NumPerPage")) {
+           pair<int, bool> res = gdi.getSelectedItem("NumPerPage");
+           if (res.second)
+             oe->setProperty("NumSplitsOnePage", res.first);
+
+           int no = gdi.getTextNo("MaxWaitTime"); 
+           if (no >= 0)
+             oe->setProperty("SplitPrintMaxWait", no);
+         }
+       }
       gdi.getTabs().get(TabType(bi.getExtraInt()))->loadPage(gdi);
     }
     else if (bi.id == "PrinterSetup") {
@@ -911,34 +922,6 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
     }
     else if (bi.id=="ResultList") {
       settingsResultList(gdi);
-    }
-    else if (bi.id=="ResultListFT") {
-      oe->sanityCheck(gdi, true);
-      SelectedList=bi.id;
-      gdi.clearPage(false);
-
-      gdi.registerEvent("DataUpdate", ListsEventCB);
-      gdi.setData("DataSync", 1);
-      gdi.registerEvent(bi.id, ListsCB);
-
-      oe->generateResultlistFinishTime(gdi, false,  0);
-      baseButtons(gdi, 0);
-      gdi.refresh();
-    }
-    else if (bi.id=="ResultListCFT") {
-      oe->sanityCheck(gdi, true);
-      SelectedList=bi.id;
-      gdi.clearPage(false);
-
-      gdi.registerEvent("DataUpdate", ListsEventCB);
-      gdi.setData("DataSync", 1);
-      gdi.registerEvent(bi.id, ListsCB);
-
-      oe->generateResultlistFinishTime(gdi, true,  0);
-      baseButtons(gdi, 2);
-
-
-      gdi.refresh();
     }
     else if (bi.id.substr(0, 7) == "Result:" ||
              bi.id.substr(0, 7) == "StartL:" || 
@@ -1831,8 +1814,17 @@ bool TabList::loadPage(gdioutput &gdi)
   return true;
 }
 
+void TabList::enableWideFormat(gdioutput &gdi, bool wide) {
+  if (gdi.hasField("NumPerParge")) {
+    gdi.setInputStatus("NumPerPage", wide);
 
-void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, TabType returnMode, PrintSettingsSelection type)
+    bool needTime = gdi.getSelectedItem("NumPerPage").first != 1;
+    gdi.setInputStatus("MaxWaitTime", wide & needTime);
+  }
+}
+
+void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, 
+                                  TabType returnMode, PrintSettingsSelection type)
 {
   if (!gdi.canClear())
     return;
@@ -1852,6 +1844,8 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, 
     gdi.addButton("PrinterSetup", "Skrivare...", ListsCB, "Skrivarinställningar");
     gdi.dropLine(0.3);
   }
+
+ 
   if (!oe.empty() && type == Splits) {
     bool withSplitAnalysis = (oe.getDCI().getInt("Analysis") & 1) == 0;
     bool withSpeed = (oe.getDCI().getInt("Analysis") & 2) == 0;
@@ -1873,6 +1867,27 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter, 
   gdi.fillDown();
   char *ctype = type == Splits ? "SPExtra" : "EntryExtra";
   customTextLines(oe, ctype, gdi);
+
+  if (type == Splits) {
+    const bool wideFormat = oe.getPropertyInt("WideSplitFormat", 0) == 1;
+    gdi.addCheckbox("WideFormat", "Sträcktider i kolumner (för standardpapper)", ListsCB, wideFormat);
+
+    if (returnMode == TSITab) {
+      int printLen = oe.getPropertyInt("NumSplitsOnePage", 3);
+      vector< pair<string, size_t> > nsp;
+      for (size_t j = 1; j < 8; j++)
+        nsp.push_back(make_pair(itos(j), j));
+      gdi.addSelection("NumPerPage", 90, 200, 0, "Max antal brickor per sida");
+      gdi.addItem("NumPerPage", nsp);
+      gdi.selectItemByData("NumPerPage", printLen);
+
+      int maxWait = oe.getPropertyInt("SplitPrintMaxWait", 60);
+      gdi.addInput("MaxWaitTime", itos(maxWait), 8, 0, "Längsta tid i sekunder att vänta med utskrift");
+
+      enableWideFormat(gdi, wideFormat);
+    }
+  }
+
 
   gdi.fillRight();
   gdi.setData("Type", ctype);

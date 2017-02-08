@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@
 
 class oEvent;
 struct SICard;
+class  ImportFormats;
 
 struct PunchInfo {
   int code;
@@ -103,7 +104,7 @@ public:
 
 	int split(char *line, vector<char *> &split, char sep = ';');
 
-  bool ImportOE_CSV(oEvent &event, const char *file);
+  bool ImportOE_CSV(oEvent &event, const char *file,  const ImportFormats &);
   int iscsv(const char *file);
   csvparser();
   virtual ~csvparser();

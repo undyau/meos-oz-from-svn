@@ -22,10 +22,12 @@
 
 ************************************************************************/
 
-template<class T> class intkeymap {
+template<class T, class KEY = int> class intkeymap {
 private:
+  const static KEY NoKey = -1013;
+
   struct keypair {
-    int key;
+    KEY key;
     T value;
   };
   T dummy;
@@ -42,11 +44,11 @@ private:
   int level;
   static int optsize(int arg);
 
-  T &rehash(int size, int key, const T &value);
-  T &get(const int key);
+  T &rehash(int size, KEY key, const T &value);
+  T &get(const KEY key);
 
   const intkeymap &operator=(const intkeymap &co);
-  void *lookup(int key) const;
+  void *lookup(KEY key) const;
 public:
   virtual ~intkeymap();
   intkeymap(int size);
@@ -59,18 +61,18 @@ public:
   void clear();
 
   void resize(int size);
-  int count(int key) {
+  int count(KEY key) {
     return lookup(key, dummy) ? 1:0;
   }
-  bool lookup(int key, T &value) const;
+  bool lookup(KEY key, T &value) const;
 
-  void insert(int key, const T &value);
-  void remove(int key);
-  void erase(int key) {remove(key);}
-  const T operator[](int key) const
+  void insert(KEY key, const T &value);
+  void remove(KEY key);
+  void erase(KEY key) {remove(key);}
+  const T operator[](KEY key) const
     {if (lookup(key,tmp)) return tmp; else return T();}
 
-  T &operator[](int key) {
+  T &operator[](KEY key) {
     return get(key);
   }
 };

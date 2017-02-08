@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -869,7 +869,7 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
   {
   for ( ; ; ) {
      if (WaitCommEvent(hComm, &dwCommEvent, NULL)) {
-      if (dwCommEvent==EV_RXCHAR)  do{
+      if (dwCommEvent & EV_RXCHAR)  do{
        if ( (dwRead=ReadByte(chRead,  hComm))!=-1)
        {
         // A byte has been read; process it.
@@ -1544,6 +1544,11 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
     for(unsigned k=0;k<card.nPunch;k++) {
       AnalyseTPunch(14*4 + data + 8*k, card.Punch[k].Time, card.Punch[k].Code);
     }
+
+    // Remove unused punches
+    while(card.nPunch != 0 && card.Punch[card.nPunch-1].Code == -1) {
+      card.nPunch--;
+    }
   }
   else if (series == 15) {
     // Card 10, 11, SIAC
@@ -1562,7 +1567,7 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 void SportIdent::AnalyseTPunch(BYTE *data, DWORD &time, DWORD &control) {
   if (*LPDWORD(data)!=0xEEEEEEEE) {
     BYTE cn=data[0];
-    BYTE dt1=data[3];
+//    BYTE dt1=data[3];
     BYTE dt0=data[4];
     BYTE pth=data[5];
     BYTE ptl=data[6];

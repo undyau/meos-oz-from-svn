@@ -2,7 +2,7 @@
 
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -202,7 +202,7 @@ public:
   int getLegPlace(int leg, bool multidayTotal) const;
 
   static bool compareSNO(const oTeam &a, const oTeam &b);
-  static bool compareName(const oTeam &a, const oTeam &b) {return a.Name<b.Name;}
+  static bool compareName(const oTeam &a, const oTeam &b) {return a.sName<b.sName;}
   static bool compareResult(const oTeam &a, const oTeam &b);
   static bool compareStartTime(const oTeam &a, const oTeam &b);
 

@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -74,10 +74,15 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
   if (pc) {
     pc->synchronize();
 
-    gdi.setText("Controls", pc->getControlsUI());
+    string uis =  pc->getControlsUI();
+    gdi.setText("Controls", uis);
+
+    gdi.setText("CourseExpanded", encodeCourse(uis, pc->useFirstAsStart(), pc->useLastAsFinish()), true);
+
     gdi.setText("Name", pc->getName());
 
     gdi.setTextZeroBlank("Length", pc->getLength());
+    gdi.setTextZeroBlank("Climb", pc->getDI().getInt("Climb"));
     gdi.setTextZeroBlank("NumberMaps", pc->getNumberMaps());
 
     gdi.check("FirstAsStart", pc->useFirstAsStart());
@@ -185,8 +190,11 @@ void TabCourse::selectCourse(gdioutput &gdi, pCourse pc)
   else {
     gdi.setText("Name", "");
     gdi.setText("Controls", "");
-    gdi.setText("Length", "");
-    gdi.setText("NumberMaps", "");
+    gdi.setText("CourseExpanded", "");
+
+	  gdi.setText("Length", "");
+	  gdi.setText("Climb", "");
+	  gdi.setText("NumberMaps", "");
     gdi.check("FirstAsStart", false);
     gdi.check("LastAsFinish", false);
     courseId = 0;
@@ -257,6 +265,7 @@ void TabCourse::save(gdioutput &gdi, int canSwitchViewMode)
   pc->setName(name);
   bool changedCourse = pc->importControls(gdi.getText("Controls"), true);
   pc->setLength(gdi.getTextNo("Length"));
+  pc->getDI().setInt("Climb", gdi.getTextNo("Climb"));
   pc->setNumberMaps(gdi.getTextNo("NumberMaps"));
   pc->firstAsStart(firstAsStart);
   pc->lastAsFinish(lastAsFinish);
@@ -597,6 +606,9 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
 
       selectCourse(gdi, 0);
     }
+    else if (bi.id == "FirstAsStart" || bi.id == "LastAsFinish") {
+      refreshCourse(gdi.getText("Controls"), gdi);
+    }
     else if (bi.id=="Cancel"){
       LoadPage("Banor");
     }
@@ -652,6 +664,13 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       fillCourseControls(gdi, ii.text);
       if (gdi.isChecked("WithLoops") && current != 0)
         gdi.selectItemByData("CommonControl", current);
+    }
+  }
+  else if (type == GUI_INPUTCHANGE) {
+    InputInfo &ii=*(InputInfo *)data;
+     
+    if (ii.id == "Controls") {
+      refreshCourse(ii.text, gdi);
     }
   }
   else if (type==GUI_CLEAR) {
@@ -714,13 +733,10 @@ bool TabCourse::loadPage(gdioutput &gdi) {
   gdi.dropLine(0.5);
   gdi.pushX();
   gdi.fillRight();
-  gdi.addInput("Name", "", 16, 0, "Namn:");
-  gdi.addInput("NumberMaps", "", 6, 0, "Antal kartor:");
-  gdi.addInput("Length", "", 8, 0, "Längd (m):");
-  gdi.dropLine(0.9);
+  gdi.addInput("Name", "", 20, 0, "Namn:");
   gdi.fillDown();
-  gdi.addButton("LegLengths", "Redigera sträcklängder...", CourseCB).isEdit(true);
-
+  gdi.addInput("NumberMaps", "", 6, 0, "Antal kartor:");
+  
   gdi.popX();
 
   vector<pCourse> allCrs;
@@ -731,15 +747,25 @@ bool TabCourse::loadPage(gdioutput &gdi) {
   }
 
   gdi.addInput("Controls", "", max(48u, mlen), CourseCB, "Kontroller:");
+  gdi.dropLine(0.3);
+  gdi.addString("CourseExpanded", 0, "...").setColor(colorDarkGreen);
   gdi.dropLine(0.5);
- 
   gdi.addString("", 10, "help:12662");
-  gdi.dropLine(1.5);
+  gdi.dropLine(1);
 
   gdi.fillRight();
-  gdi.addCheckbox("FirstAsStart", "Använd första kontrollen som start");
+  gdi.addInput("Climb", "", 8, 0, "Climb (m):");
+  gdi.addInput("Length", "", 8, 0, "Längd (m):");
+  gdi.dropLine(0.9);
   gdi.fillDown();
-  gdi.addCheckbox("LastAsFinish", "Använd sista kontrollen som mål");
+  gdi.addButton("LegLengths", "Redigera sträcklängder...", CourseCB).isEdit(true);
+  gdi.dropLine(0.5);
+  gdi.popX();
+
+  gdi.fillRight();
+  gdi.addCheckbox("FirstAsStart", "Använd första kontrollen som start", CourseCB);
+  gdi.fillDown();
+  gdi.addCheckbox("LastAsFinish", "Använd sista kontrollen som mål", CourseCB);
   gdi.popX();
 
   gdi.fillRight();
@@ -1070,4 +1096,58 @@ DrawMethod TabCourse::getDefaultMethod() const {
 void TabCourse::clearCompetitionData() {
   courseId = 0;
   addedCourse = false;
+}
+
+void TabCourse::refreshCourse(const string &text, gdioutput &gdi) {
+  bool firstAsStart = gdi.isChecked("FirstAsStart");
+  bool lastAsFinish = gdi.isChecked("LastAsFinish");
+  string controls = encodeCourse(text, firstAsStart, lastAsFinish);
+  if (controls != gdi.getText("CourseExpanded"))
+    gdi.setText("CourseExpanded", controls, true);
+}
+string TabCourse::encodeCourse(const string &in, bool firstStart, bool lastFinish) {
+  vector<int> newC;
+  oCourse::splitControls(in, newC);
+  string dash = MakeDash("-");
+  string out;
+  out.reserve(in.length() * 2);
+  string bf;
+  for (size_t i = 0; i < newC.size(); ++i) {
+    if (i == 0) {
+      out += lang.tl("Start");
+      if (firstStart)
+        out += "(" + itos(newC[i]) + ")";
+      else
+        out += dash + formatControl(newC[i], bf);
+
+      if (newC.size() == 1) {
+        out += dash + lang.tl("Mål");
+        break;
+      }
+      continue;
+    }
+    else
+      out += dash;
+
+    if (i+1 == newC.size()) {
+      if (lastFinish)
+        out += lang.tl("Mål") + "(" + itos(newC[i]) + ")";
+      else
+        out += formatControl(newC[i], bf) + dash + lang.tl("Mål");
+    }
+    else {
+      out += formatControl(newC[i], bf);
+    }
+  }
+  return out;
+}
+
+const string &TabCourse::formatControl(int id, string &bf) const {
+  pControl ctrl = oe->getControl(id, false);
+  if (ctrl) {
+    bf = ctrl->getString();
+    return bf;
+  }
+  else
+    return itos(id);
 }

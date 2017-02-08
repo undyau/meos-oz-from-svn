@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -110,11 +110,18 @@ PrinterObject::~PrinterObject()
 
 void gdioutput::printPage(PrinterObject &po, const PageInfo &pageInfo, RenderedPage &page)
 {
+  if (po.hDC)
+    SelectObject(po.hDC, GetStockObject(DC_BRUSH));
+
   for (size_t k = 0; k < page.text.size(); k++) {
     // Use transformed coordinates
     page.text[k].ti.xp = (int)page.text[k].xp;
     page.text[k].ti.yp = (int)page.text[k].yp;
     RenderString(page.text[k].ti, po.hDC);
+  }
+
+  for (size_t k = 0; k < page.rectangles.size(); k++) {
+    renderRectangle(po.hDC, 0, page.rectangles[k]);
   }
 
   if (pageInfo.printHeader) {
@@ -433,7 +440,7 @@ bool gdioutput::doPrint(PrinterObject &po, PageInfo &pageInfo, pEvent oe)
   pageInfo.pageY = float(PageYMax);
 
   vector<RenderedPage> pages;
-  pageInfo.renderPages(TL, false, pages);
+  pageInfo.renderPages(TL, Rectangles, false, pages);
 
   vector<int> toPrint;
   for (size_t k = 0; k < pages.size(); k++) {
@@ -596,11 +603,23 @@ void RenderedPage::calculateCS(const TextInfo &text)
   checkSum += __int64(localCS) + (__int64(localCS2)<<32);
 }
 
-static bool compare_y_value (const TextInfo *a, const TextInfo *b) {
-  return a->yp < b->yp;
-}
+struct PrintItemInfo {
+  PrintItemInfo(int yp, const BaseInfo *obj) : yp(yp), obj(obj) {}
+  int yp;
+  const BaseInfo *obj;
+
+  bool operator<(const PrintItemInfo &other) const {
+    return yp < other.yp;
+  }
+
+  bool isNewPage() const {
+    const TextInfo *ti = dynamic_cast<const TextInfo *>(obj);
+    return ti && ti->format == pagePageInfo;
+  }
+};
 
 void PageInfo::renderPages(const list<TextInfo> &tl,
+                           const list<RectangleInfo> &rects,
                            bool invertHeightY,
                            vector<RenderedPage> &pages) {
   const PageInfo &pi = *this;
@@ -609,8 +628,8 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
   if (tl.empty())
     return;
   int currentYP = 0;
-  vector<const TextInfo *> indexedTL;
-  indexedTL.reserve(tl.size());
+  vector<PrintItemInfo> indexedTL;
+  indexedTL.reserve(tl.size() + rects.size());
   int top = 1000;
   float minX = 1000;
   currentYP = tl.front().yp;
@@ -626,11 +645,17 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
     minX = min(minX, (float)it->textRect.left);
     top = min(top, text.yp);
     currentYP = text.yp;
-    indexedTL.push_back(&text);
+    indexedTL.push_back(PrintItemInfo(currentYP, &text));
+  }
+
+  for (list<RectangleInfo>::const_iterator rit = rects.begin(); rit != rects.end(); ++rit) {
+    needSort = true;
+    top = min<int>(top, rit->getRect().top);
+    indexedTL.push_back(PrintItemInfo(rit->getRect().top, &*rit));
   }
 
   if (needSort)
-    stable_sort(indexedTL.begin(), indexedTL.end(), compare_y_value);
+    stable_sort(indexedTL.begin(), indexedTL.end());
 
   bool addPage = true;
   bool wasOrphan = false;
@@ -638,9 +663,29 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
   string infoText;
   int extraLimit = 0;
   for (size_t k = 0; k < indexedTL.size(); k++) {
+    const TextInfo *tlp = dynamic_cast<const TextInfo *>(indexedTL[k].obj);
 
-    if (indexedTL[k]->format == pagePageInfo) {
-      infoText = indexedTL[k]->text;
+    if (tlp == 0) {
+      const RectangleInfo *ri = dynamic_cast<const RectangleInfo *>(indexedTL[k].obj);
+      assert(ri && !pages.empty());
+      if (!ri || pages.empty())
+        throw std::exception("Unexpected type");
+
+      pages.back().rectangles.push_back(*ri);
+      RectangleInfo &r = pages.back().rectangles.back();
+
+      ///xxxx
+      r.rc.left = (r.rc.left - minX) * pi.scaleX + pi.leftMargin;
+      r.rc.right = (r.rc.right - minX) * pi.scaleX + pi.leftMargin;
+      
+      int off = invertHeightY ? (r.rc.bottom - r.rc.top) : 0;
+      r.rc.top = (r.rc.top + offsetY + off) * pi.scaleY + pi.topMargin;
+      r.rc.bottom = (r.rc.bottom + offsetY + off) * pi.scaleY + pi.topMargin;
+      continue;
+    }
+
+    if (tlp->format == pagePageInfo) {
+      infoText = tlp->text;
       if (!pages.empty() && pages.back().info.empty())
         pages.back().info = infoText;
     }
@@ -654,14 +699,14 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
       if (k == 0)
         offsetY = 0;
       else
-        offsetY =  -indexedTL[k]->yp + extraLimit;
+        offsetY =  -tlp->yp + extraLimit;
       extraLimit = 0;
     }
 
-    if (gdioutput::skipTextRender(indexedTL[k]->format))
+    if (gdioutput::skipTextRender(tlp->format))
         continue;
 
-    pages.back().text.push_back(PrintTextInfo(*indexedTL[k]));
+    pages.back().text.push_back(PrintTextInfo(*tlp));
     PrintTextInfo &text = pages.back().text.back();
 
     text.ti.yp +=  offsetY;
@@ -683,37 +728,41 @@ void PageInfo::renderPages(const list<TextInfo> &tl,
 
     pages.back().calculateCS(text.ti);
 
-    if (k + 1 < indexedTL.size() && indexedTL[k]->yp != indexedTL[k+1]->yp) {
+    if (k + 1 < indexedTL.size() && tlp->yp != indexedTL[k+1].yp) {
       size_t j = k + 1;
 
       // Required new page
-      if (indexedTL[j]->format == pageNewPage) {
+      if (indexedTL[j].isNewPage()) {
         k++;
         addPage = true;
-        extraLimit = indexedTL[j]->getExtraInt();
+        extraLimit = indexedTL[j].obj->getExtraInt();
         infoText.clear();
         continue;
       }
 
       map<int, int> forwardyp;
       while ( j < indexedTL.size() && forwardyp.size() < 3) {
-        if (indexedTL[j]->format != pagePageInfo) {
-          if (forwardyp.count(indexedTL[j]->yp) == 0 || indexedTL[j]->format == pageNewPage)
-            forwardyp[indexedTL[j]->yp] = j;
+        if (!indexedTL[j].isNewPage()) {
+          if (forwardyp.count(indexedTL[j].yp) == 0 || indexedTL[j].isNewPage())
+            forwardyp[indexedTL[j].yp] = j;
         }
         j++;
       }
 
       int ix = 0;
-      float lastSize = GDIImplFontSet::baseSize(indexedTL[k]->format, 1.0);
+      float lastSize = GDIImplFontSet::baseSize(tlp->format, 1.0);
       bool nextIsHead = false;
       bool firstCanBreak = true;
       for (map<int,int>::iterator it = forwardyp.begin(); it != forwardyp.end(); ++it, ++ix) {
-        float y = (max<int>(indexedTL[it->second]->textRect.bottom, indexedTL[it->second]->yp) + offsetY) * pi.scaleY + pi.topMargin;
-        float size = GDIImplFontSet::baseSize(indexedTL[it->second]->format, 1.0);
+        const TextInfo *tlpItSecond = dynamic_cast<const TextInfo *>(indexedTL[it->second].obj);
+        if (!tlpItSecond)
+          continue;
+
+        float y = (max<int>(tlpItSecond->textRect.bottom, indexedTL[it->second].yp) + offsetY) * pi.scaleY + pi.topMargin;
+        float size = GDIImplFontSet::baseSize(tlpItSecond->format, 1.0);
 
         bool over = y > pi.pageY - pi.bottomMargin;
-        bool canBreak = indexedTL[it->second]->lineBreakPrioity >= 0;
+        bool canBreak = tlpItSecond->lineBreakPrioity >= 0;
 
         if (ix == 0 && lastSize < size)
           nextIsHead = true;

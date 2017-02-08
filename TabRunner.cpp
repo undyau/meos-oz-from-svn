@@ -1,6 +1,6 @@
 /************************************************************************
     MeOS - Orienteering Software
-    Copyright (C) 2009-2016 Melin Software HB
+    Copyright (C) 2009-2017 Melin Software HB
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -175,7 +175,7 @@ void TabRunner::selectRunner(gdioutput &gdi, pRunner r) {
 
   runnerId=r->getId();
 
-  gdi.setText("Name", r->getName());
+  gdi.setText("Name", r->getNameRaw());
   string bib = r->getBib();
 
   if (gdi.hasField("Bib")) {
@@ -886,7 +886,7 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
       if (runnerId>0) {
         string name = gdi.getText("Name");
         pRunner r = oe->getRunner(runnerId, 0);
-        if (!name.empty() && r && r->getName() != name) {
+        if (!name.empty() && r && r->getName() != name && r->getNameRaw() != name) {
           if (gdi.ask("Vill du lägga till deltagaren 'X'?#" + name)) {
             r = oe->addRunner(name, 0, 0, 0,0, false);
             runnerId = r->getId();
