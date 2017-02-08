@@ -1,3 +1,9 @@
+  8 February 2017
+- Merge with standard MEOS 3.4.690 (3.4 RC1)
+  For changes see 3.4 RC1 notes in http://www.melin.nu/meos/en/whatsnew25.php
+- This fixes problem introduced in 3.4.666 with tiny font on splits print.
+- This fixes problem introduced where Competitors in Forest found nobody.
+  
   18 December 2016 3.4.666.1
 - Merge with standard MEOS 3.4.666
   For changes see 3.4 Beta 1 notes in http://www.melin.nu/meos/en/whatsnew25.php

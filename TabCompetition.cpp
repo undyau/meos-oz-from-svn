@@ -1740,7 +1740,7 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
     else if (bi.id=="BrowseExport" || bi.id=="BrowseExportResult") {
       int filterIndex = gdi.getSelectedItem("Type").first;
       vector< pair<string, string> > ext;
-      ImportFormats::getExportFilters(bi.id=="BrowseExport", ext);
+      ImportFormats::getExportFilters(true, ext);
       /*if (bi.id=="BrowseExport") {
         ext.push_back(make_pair("IOF Startlista (xml)", "*.xml"));
         ext.push_back(make_pair(lang.tl("OE Semikolonseparerad (csv)"), "*.csv"));
@@ -1869,11 +1869,11 @@ int TabCompetition::competitionCB(gdioutput &gdi, int type, void *data)
       else if (filterIndex == ImportFormats::OE || filterIndex == ImportFormats::OE_FRANCE) {
         oe->exportOECSV(save.c_str(), cSVLanguageHeaderIndex, includeSplits, filterIndex == ImportFormats::OE_FRANCE);
       }
-			else if (filterIndex == 7 || filterIndex == 8) {
+			else if (filterIndex == ImportFormats::IOF30BYCOURSE || filterIndex == ImportFormats::IOF203BYCOURSE) {
 					ClassConfigInfo cnf;
           oe->getClassConfigurationInfo(cnf);
           if (!cnf.hasTeamClass()) {
-						oEvent::IOFVersion ver = filterIndex == 7 ? oEvent::IOF30 : oEvent::IOF20;
+						oEvent::IOFVersion ver = filterIndex == ImportFormats::IOF30BYCOURSE ? oEvent::IOF30 : oEvent::IOF20;
 						static_cast<oExtendedEvent*>(oe)->exportCourseOrderedIOFSplits(ver, save.c_str(), true, set<int>(), -1);				
 					}
 				}
@@ -3621,8 +3621,6 @@ void TabCompetition::selectExportSplitOptions(gdioutput &gdi) {
 
   vector< pair<string, size_t> > types;
   ImportFormats::getExportFormats(types, true);
-  types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 3.0 (xml)"), 5));
-  types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 2.0.3 (xml)"), 6));
 
   gdi.addItem("Type", types);
   ImportFormats::ExportFormats format = ImportFormats::getDefaultExportFormat(*oe);

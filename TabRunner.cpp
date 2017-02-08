@@ -1935,7 +1935,7 @@ void TabRunner::showInForestList(gdioutput &gdi)
   gdi.popX();
 
   clearInForestData();
-
+  oe->analyseDNS(unknown_dns, known_dns, known, unknown);
   oe->setupCardHash(false);
   if (!unknown.empty()) {
     gdi.dropLine();
