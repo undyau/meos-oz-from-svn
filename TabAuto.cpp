@@ -381,7 +381,7 @@ int TabAuto::processButton(gdioutput &gdi, const ButtonInfo &bu)
 
     //Try exporting.
     oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false,
-                        set<int>(), -1, false, true, true);
+                        set<int>(), -1, false, true, true, false);
     SplitsMachine *sm=dynamic_cast<SplitsMachine*>(getMachine(bu.getExtraInt()));
 
     if (sm) {
@@ -777,12 +777,11 @@ void PrintResultMachine::settings(gdioutput &gdi, oEvent &oe, bool created) {
 
 void PrintResultMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
 {
-  #ifndef MEOSDB
-
   if (lock)
     return;
-
+  
   if (ast!=SyncDataUp) {
+    string printError;
     lock = true;
     try {
       gdioutput gdiPrint("print", gdi.getScale(), gdi.getEncoding());
@@ -790,7 +789,14 @@ void PrintResultMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
       oe->generateList(gdiPrint, true, listInfo, false);
       if (doPrint) {
         gdiPrint.refresh();
-        gdiPrint.print(po, oe);
+        try {
+          gdiPrint.print(po, oe);
+        }
+        catch (const meosException &ex) {
+          printError = ex.what();
+          if (printError.empty())
+            printError = "Printing failed (X: Y) Z#Auto#0#Unknown";
+        }
       }
       if (doExport) {
         if (!exportFile.empty()) {
@@ -810,10 +816,13 @@ void PrintResultMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
       throw;
     }
     lock = false;
+
+    if (!printError.empty() && !errorLock) {
+      errorLock = true;
+      gdi.alert(printError);
+      errorLock = false;
+    }
   }
-  #else
-    throw std::exception("Bad method call");
-  #endif
 }
 
 void PrintResultMachine::status(gdioutput &gdi)
@@ -1046,7 +1055,7 @@ void SplitsMachine::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast)
   if ((interval>0 && ast==SyncTimer) || (interval==0 && ast==SyncDataUp)) {
     if (!file.empty())
       oe->exportIOFSplits(oEvent::IOF20, file.c_str(), true, false, classes,
-                          leg, false, true, true);
+                          leg, false, true, true, false);
   }
 }
 

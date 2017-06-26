@@ -116,6 +116,7 @@ public:
 
   void tableCmd(const char *id) const;
   void setTableText(int editRow, int editCol, const string &text) const;
+  string getTableText(int editRow, int editCol) const;
 
   void setAnswer(const char *ans) const;
   void setFile(const string &file) const;

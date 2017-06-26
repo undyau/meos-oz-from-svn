@@ -45,7 +45,6 @@
 #include "intkeymapimpl.hpp"
 #include "meosexception.h"
 #include "MeOSFeatures.h"
-#include "oExtendedEvent.h"
 
 int SportIdentCB(gdioutput *gdi, int type, void *data);
 
@@ -847,23 +846,12 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
       else
         r->printStartInfo(gdiprint);
       gdiprint.print(oe, 0, false, true);
-      gdiprint.getPrinterSettings(splitPrinter);
+      gdiprint.fetchPrinterSettings(splitPrinter);
     }
     else if (bi.id == "PrintSettings") {
       if (runnerId)
         save(gdi, runnerId, true);
       TabList::splitPrintSettings(*oe, gdi, false, TRunnerTab, (TabList::PrintSettingsSelection)bi.getExtraInt());
-    }
-    else if (bi.id=="LabelPrint") {
-			if(!runnerId)
-				return 0;
-			pRunner r=oe->getRunner(runnerId, 0);
-			if(!r) return 0;
-
-      gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
-      r->printLabel(gdiprint);
-      gdiprint.print(oe, 0, false, true);
-      gdiprint.getPrinterSettings(labelPrinter);
     }
     else if (bi.id == "EditTeam") {
       pRunner r = oe->getRunner(runnerId, 0);
@@ -1983,7 +1971,7 @@ void TabRunner::listRunners(gdioutput &gdi, const vector<pRunner> &r, bool filte
       continue;
     sprintf_s(bf, "%d.", k+1);
     gdi.addStringUT(yp, xp, 0, bf);
-    gdi.addStringUT(yp, xp+40, 0, r[k]->getNameAndRace(), 190);
+    gdi.addStringUT(yp, xp+40, 0, r[k]->getNameAndRace(true), 190);
     gdi.addStringUT(yp, xp+200, 0, r[k]->getClass(), 140);
     gdi.addStringUT(yp, xp+350, 0, r[k]->getClub(), 190);
     int c = r[k]->getCardNo();
@@ -2530,7 +2518,6 @@ bool TabRunner::loadPage(gdioutput &gdi)
   gdi.addListBox("Course", 140, 300, PunchesCB, "Banmall:").ignore(true);
   gdi.addButton("AddC", "<< Lägg till stämpling", PunchesCB);
   gdi.addButton("AddAllC", "<< Lägg till alla", PunchesCB);
-	gdi.dropLine();
 
   gdi.synchronizeListScroll("Punches", "Course");
   disablePunchCourse(gdi);
@@ -2544,7 +2531,6 @@ bool TabRunner::loadPage(gdioutput &gdi)
   gdi.addButton(gdi.getCX(), gdi.getCY(), gdi.scaleLength(120), "SplitPrint", 
                 "Skriv ut sträcktider", RunnerCB, "", false, false).isEdit(true).setExtra(0);
   gdi.addButton("PrintSettings", "...", RunnerCB, "Inställningar").isEdit(true).setExtra(0);
-	gdi.addButton("LabelPrint", "Print Etikett", RunnerCB);
 
   gdi.dropLine(2.5);
   gdi.setCX(contX);

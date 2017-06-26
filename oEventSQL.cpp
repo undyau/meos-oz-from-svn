@@ -330,6 +330,7 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
       gdibase.setWindowTitle(getTitleName());
     }
   }
+
   //Controls
   if (mask & oLControlId) {
     int oc = sqlCounterControls;
@@ -338,7 +339,7 @@ bool oEvent::autoSynchronizeLists(bool SyncPunches)
     changed |= oc!=sqlCounterControls;
     changed |= ot!=sqlUpdateControls;
   }
-	
+
   //Courses
   if (mask & oLCourseId) {
     int oc = sqlCounterCourses;

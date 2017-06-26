@@ -43,7 +43,6 @@
 #include "random.h"
 #include "SportIdent.h"
 #include "RunnerDB.h"
-
 #include "meos_util.h"
 #include "meos.h"
 #include "importformats.h"
@@ -99,7 +98,7 @@ string &getFirst(string &inout, int maxNames) {
   return inout;
 }
 
-bool oEvent::exportOECSV(const char *file, int languageTypeIndex, bool includeSplits, bool useFFCOClubMapping, bool byClass)
+bool oEvent::exportOECSV(const char *file, int languageTypeIndex, bool includeSplits)
 {
   enum {
     OEstno = 0, OEcard = 1, OEid = 2, OEsurname = 3, OEfirstname = 4,
@@ -116,20 +115,16 @@ bool oEvent::exportOECSV(const char *file, int languageTypeIndex, bool includeSp
   if (!csv.openOutput(file))
     return false;
 
-	if (byClass)
-		calculateResults(RTClassResult);
-	else
-		calculateResults(RTCourseResult);
+  calculateResults(RTClassResult);
 
   oRunnerList::iterator it;
   string maleString;
   string femaleString;
 
-	csv.OutputRow(lang.tl("Startnr;Bricka;Databas nr.;Efternamn;Förnamn;År;K;Block;ut;Start;Mål;Tid;Status;Klubb nr.;Namn;Ort;Land;Klass nr.;Kort;Lång;Num1;Num2;Num3;Text1;Text2;Text3;Adr. namn;Gata;Rad 2;Post nr.;Ort;Tel;Fax;E-post;Id/Club;Hyrd;Startavgift;Betalt;Bana nr.;Bana;km;Hm;Bana kontroller;Pl"));
   switch (languageTypeIndex)
   {
   case 1: // English
-    //csv.OutputRow("Stno;Chip;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...");
+    csv.OutputRow("Stno;Chip;Database Id;Surname;First name;YB;S;Block;nc;Start;Finish;Time;Classifier;Club no.;Cl.name;City;Nat;Cl. no.;Short;Long;Num1;Num2;Num3;Text1;Text2;Text3;Adr. name;Street;Line2;Zip;City;Phone;Fax;EMail;Id/Club;Rented;Start fee;Paid;Course no.;Course;km;m;Course controls;Pl;Start punch;Finish punch;Control1;Punch1;Control2;Punch2;Control3;Punch3;Control4;Punch4;Control5;Punch5;Control6;Punch6;Control7;Punch7;Control8;Punch8;Control9;Punch9;Control10;Punch10;(may be more) ...");
     maleString = "M";
     femaleString = "F";
     break;
@@ -220,13 +215,8 @@ bool oEvent::exportOECSV(const char *file, int languageTypeIndex, bool includeSp
     row[OEclubno] = conv_is(it->getClubId());
 
     if (it->getClubRef()) {
-      if (useFFCOClubMapping) {
-        row[OEclub] = it->getClubRef()->getDI().getString("ShortName");
-        row[OEclubcity] = it->getClub();
-      } else {
-        row[OEclub] = it->getClub();
-        row[OEclubcity] = it->getClubRef()->getDI().getString("City");
-      }
+      row[OEclub] = it->getClubRef()->getDI().getString("ShortName");
+      row[OEclubcity] = it->getClub();
     }
     row[OEnat] = di.getString("Nationality");
     row[OEclassno] = conv_is(it->getClassId());
@@ -326,7 +316,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     int ent = 0, fail = 0, removed = 0;
 
     if (xo.getAttrib("iofVersion")) {
-      IOF30Interface reader(this);
+      IOF30Interface reader(this, false);
       reader.readEntryList(gdi, xo, removeNonexisting, ent, fail, removed);
     }
     else {
@@ -383,50 +373,50 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     gdi.addString("", 0, "Importerar anmälningar (IOF, xml)");
     gdi.refreshFast();
 
-      int ent = 0, fail = 0;
-		 
-      if (xo.getAttrib("iofVersion")) {
-        IOF30Interface reader(this);
-        reader.readStartList(gdi, xo, ent, fail);
-      }
-      else {
-		    xmlList xl;
-        xo.getObjects(xl);
-        
-        xmlList::const_iterator it;
-		    for(it=xl.begin(); it != xl.end(); ++it){
-			    if(it->is("ClassStart")){
-            xmlList entries;
-            int clsId = it->getObjectInt("ClassId");
-            
-            pClass cls = 0;
-            if (clsId == 0) {
-              string clsName;
-              it->getObjectString("ClassShortName", clsName);
-              if (!clsName.empty())
-                cls = getClassCreate(0, clsName);
+    int ent = 0, fail = 0;
+
+    if (xo.getAttrib("iofVersion")) {
+      IOF30Interface reader(this, false);
+      reader.readStartList(gdi, xo, ent, fail);
+    }
+    else {
+      xmlList xl;
+      xo.getObjects(xl);
+
+      xmlList::const_iterator it;
+      for(it=xl.begin(); it != xl.end(); ++it){
+        if (it->is("ClassStart")){
+          xmlList entries;
+          int clsId = it->getObjectInt("ClassId");
+
+          pClass cls = 0;
+          if (clsId == 0) {
+            string clsName;
+            it->getObjectString("ClassShortName", clsName);
+            if (!clsName.empty())
+              cls = getClassCreate(0, clsName);
+          }
+          else
+            cls = getClassCreate(clsId, lang.tl("Klass ") + itos(clsId));
+
+          it->getObjects("PersonStart", entries);
+          for (size_t k = 0; k<entries.size(); k++) {
+            {
+              if (addXMLStart(entries[k], cls))
+                ent++;
+              else
+                fail++;
             }
-            else
-              cls = getClassCreate(clsId, lang.tl("Klass ") + itos(clsId));
-            
-            it->getObjects("PersonStart", entries);          
-            for (size_t k = 0; k<entries.size(); k++) {
-              {
-                if(addXMLStart(entries[k], cls))
-                  ent++;
-                else
-                  fail++;
-              }
-            }
-			    }
-		    }
+          }
+        }
       }
-      gdi.addString("", 0, "Klart. Antal importerade: X#" + itos(ent));
-      if (fail>0)
-        gdi.addString("", 0, "Antal misslyckade: X#" + itos(fail)).setColor(colorRed);
-      gdi.dropLine();
-      gdi.refreshFast();
-	  }
+    }
+    gdi.addString("", 0, "Klart. Antal importerade: X#" + itos(ent));
+    if (fail>0)
+      gdi.addString("", 0, "Antal misslyckade: X#" + itos(fail)).setColor(colorRed);
+    gdi.dropLine();
+    gdi.refreshFast();
+  }
 
   xo = xml.getObject("ClassData");
 
@@ -439,7 +429,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     int imp = 0, fail = 0;
 
     if (xo.getAttrib("iofVersion")) {
-      IOF30Interface reader(this);
+      IOF30Interface reader(this, false);
       reader.readClassList(gdi, xo, imp, fail);
     }
     else {
@@ -535,7 +525,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     int imp = 0, fail = 0;
 
     if (xo && xo.getAttrib("iofVersion")) {
-      IOF30Interface reader(this);
+      IOF30Interface reader(this, false);
       reader.readCourseData(gdi, xo, updateClass, imp, fail);
     }
     else {
@@ -578,7 +568,7 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
     gdi.refreshFast();
 
     if (xo.getAttrib("iofVersion")) {
-      IOF30Interface reader(this);
+      IOF30Interface reader(this, false);
       reader.readEventList(gdi, xo);
       gdi.addString("", 0, "Tävlingens namn: X#" + getName());
       gdi.dropLine();
@@ -588,19 +578,19 @@ void oEvent::importXML_EntryData(gdioutput &gdi, const char *file, bool updateCl
       xmlList xl;
       xo.getObjects(xl);
 
-		    xmlList::const_iterator it;
+      xmlList::const_iterator it;
 
-		    for(it=xl.begin(); it != xl.end(); ++it){
-			    if(it->is("Event")){						
-				    addXMLEvent(*it);
-            gdi.addString("", 0, "Tävlingens namn: X#" + getName());
-            gdi.dropLine();
-            gdi.refreshFast();
-            break;
-			    }
-		    }
+      for(it=xl.begin(); it != xl.end(); ++it){
+        if (it->is("Event")){
+          addXMLEvent(*it);
+          gdi.addString("", 0, "Tävlingens namn: X#" + getName());
+          gdi.dropLine();
+          gdi.refreshFast();
+          break;
+        }
       }
     }
+  }
 
   vector<int> toRemove;
   for (size_t k = 0; k < runnersInTeam.size(); k++) {
@@ -698,7 +688,7 @@ bool oEvent::addXMLCompetitorDB(const xmlobject &xentry, int clubId)
   return true;
 }
 
-bool oEvent::addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMapping)
+bool oEvent::addOECSVCompetitorDB(const vector<string> &row)
 {
   // Ident. base de données;Puce;Nom;Prénom;Né;S;N° club;Nom;Ville;Nat;N° cat.;Court;Long;Num1;Num2;Num3;E_Mail;Texte1;Texte2;Texte3;Adr. nom;Rue;Ligne2;Code Post.;Ville;Tél.;Fax;E-mail;Id/Club;Louée
   enum { OEid = 0, OEcard = 1, OEsurname = 2, OEfirstname = 3, OEbirth = 4, OEsex = 5,
@@ -729,7 +719,7 @@ bool oEvent::addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMap
 
   // Hack to take care of inconsistency between FFCO licensees archive (France) and event registrations from FFCO (FR)
   char national[4] = { 0,0,0,0 };
-  if (useFFCOClubMapping && (row[OEnat] == "France")) {
+  if (row[OEnat] == "France") {
     strcpy(national, "FRA");
   }
 
@@ -738,18 +728,9 @@ bool oEvent::addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMap
   int clubId = atoi(row[OEclubno].c_str());
   string clubName;
   string shortClubName;
-  string clubCity;
 
-  if (useFFCOClubMapping) {
-    clubName = row[OEclubcity];
-    shortClubName = row[OEclub];
-    clubCity = "";
-  }
-  else {
-    clubName = row[OEclub];
-    shortClubName = "";
-    clubCity = row[OEclubcity];
-  }
+  clubName = row[OEclubcity];
+  shortClubName = row[OEclub];
 
   if (clubName.length() > 0 && IsCharAlphaNumeric(clubName[0])) {
 
@@ -761,7 +742,6 @@ bool oEvent::addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMap
 
     oDataInterface DI = pc->getDI();
     DI.setString("ShortName", shortClubName.substr(0, 8));
-    DI.setString("City", clubCity.substr(0, 23));
     // Nationality?
 
     runnerDB->importClub(*pc, false);
@@ -1222,7 +1202,6 @@ bool oEvent::importXMLNames(const char *file,
   DWORD tc=GetTickCount(), t;
 
   xml.read(file);
-
   char bf[128];
   t=GetTickCount()-tc;
   sprintf_s(bf, "XML read: %d.%ds ", t/1000, (t/100)%10);
@@ -1246,7 +1225,7 @@ bool oEvent::importXMLNames(const char *file,
   return true;
 }
 
-void oEvent::importOECSV_Data(const char *oecsvfile, bool clear, const ImportFormats &importOptions) {
+void oEvent::importOECSV_Data(const char *oecsvfile, bool clear) {
   // Clear DB if needed
   if (clear) {
     runnerDB->clearClubs();
@@ -1268,7 +1247,7 @@ void oEvent::importOECSV_Data(const char *oecsvfile, bool clear, const ImportFor
   list<vector<string>>::iterator it;
 
   for (it = ++(data.begin()); it != data.end(); ++it) {
-    addOECSVCompetitorDB(*it, importOptions.getOption() == ImportFormats::FrenchFederationMapping);
+    addOECSVCompetitorDB(*it);
   }
     
   gdibase.addString("", 0, "Klart. Antal importerade: X#" + itos(data.size()));
@@ -1326,7 +1305,7 @@ void oEvent::importXML_IOF_Data(const char *clubfile,
     if (!xo) {
       xo = xml_club.getObject("OrganisationList");
       if (xo) {
-        IOF30Interface reader(this);
+        IOF30Interface reader(this, false);
         reader.readClubList(gdibase, xo, clubCount);
       }
     }
@@ -1365,7 +1344,7 @@ void oEvent::importXML_IOF_Data(const char *clubfile,
     xmlobject xo=xml_cmp.getObject("CompetitorList");
 
     if (xo && xo.getAttrib("iofVersion")) {
-      IOF30Interface reader(this);
+      IOF30Interface reader(this, false);
       reader.readCompetitorList(gdibase, xo, personCount);
     }
     else {
@@ -1787,9 +1766,6 @@ bool oEvent::addXMLClub(const xmlobject &xclub, bool savetoDB)
 
   if (!shortName.empty() && shortName.length() < Name.length())
     swap(Name, shortName);
-
-	if (Name.length() > 6)
-		Name = shortenName(Name);
 
   int district = xclub.getObjectInt("OrganisationId");
 
@@ -2383,8 +2359,8 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
             xml.write("CountryId", "value", it->getDI().getString("Nationality"));
           xml.endTag();
 
-				  xml.startTag("Result");
-					  xml.startTag("StartTime");
+          xml.startTag("Result");
+            xml.startTag("StartTime");
               xml.write("Clock", "clockFormat", "HH:MM:SS", formatTimeIOF(it->getStartTime(), ZeroTime));
             xml.endTag();
             xml.startTag("FinishTime");
@@ -2487,7 +2463,7 @@ void oEvent::exportIOFResults(xmlparser &xml, bool selfContained, const set<int>
 
       xml.startTag("Result");
         xml.startTag("CCard");
-        xml.write("CCardId", it->getCardNo());
+          xml.write("CCardId", it->getCardNo());
         xml.endTag();
         xml.startTag("StartTime");
         xml.write("Clock", "clockFormat", "HH:MM:SS", formatTimeIOF(it->getStartTime(), ZeroTime));
@@ -2695,7 +2671,7 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file,
                              bool oldStylePatrolExport, bool useUTC,
                              const set<int> &classes, int leg,
                              bool teamsAsIndividual, bool unrollLoops,
-                             bool includeStageInfo) {
+                             bool includeStageInfo, bool forceSplitFee) {
   xmlparser xml(gdibase.getEncoding() == ANSI ? 0 : &gdibase);
 
   xml.openOutput(file, false);
@@ -2711,7 +2687,7 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file,
   if (version == IOF20)
     exportIOFResults(xml, true, classes, leg, oldStylePatrolExport);
   else {
-    IOF30Interface writer(this);
+    IOF30Interface writer(this, forceSplitFee);
     writer.writeResultList(xml, classes, leg, useUTC, 
                            teamsAsIndividual, unrollLoops, includeStageInfo);
   }
@@ -2720,7 +2696,8 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file,
 }
 
 void oEvent::exportIOFStartlist(IOFVersion version, const char *file, bool useUTC,
-                                const set<int> &classes, bool teamsAsIndividual, bool includeStageInfo) {
+                                const set<int> &classes, bool teamsAsIndividual,
+                                bool includeStageInfo, bool forceSplitFee) {
   xmlparser xml(gdibase.getEncoding() == ANSI ? 0 : &gdibase);
   
   oClass::initClassId(*this);
@@ -2729,7 +2706,7 @@ void oEvent::exportIOFStartlist(IOFVersion version, const char *file, bool useUT
   if (version == IOF20)
     exportIOFStartlist(xml);
   else {
-    IOF30Interface writer(this);
+    IOF30Interface writer(this, forceSplitFee);
     writer.writeStartList(xml, classes, useUTC, teamsAsIndividual, includeStageInfo);
   }
   xml.closeOut();

@@ -1702,6 +1702,7 @@ TimingFrom = Первый КП
 FinishTimeReverse = Перевенуть финишные временя (последние сначала)
 Vдxel = Передача
 Print Card Data = Печать данных
+Print card data = Печать данных
 Prepare start lists = Подготовка стартовых протоколов
 Support time to control = Поддержка времени до КП
 Support time from control = Поддержка времени от КП

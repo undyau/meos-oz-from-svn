@@ -28,7 +28,7 @@
 //V31: a
 //V33: abcde
 int getMeosBuild() {
-  string revision("$Rev: 516 $");
+  string revision("$Rev: 543 $");
   return 174 + atoi(revision.substr(5, string::npos).c_str());
 }
 
@@ -38,14 +38,14 @@ int getMeosBuild() {
 //V31: abcde
 //V32: abcdefgh
 //V33: abcdefghij
-//V34: abcdf
+//V34: abcdfg
 string getMeosDate() {
-  string date("$Date: 2017-01-20 12:12:51 +0100 (fr, 20 jan 2017) $");
+  string date("$Date: 2017-03-25 20:00:02 +0100 (lÃ¶, 25 mar 2017) $");
   return date.substr(7,10);
 }
 
 string getBuildType() {
-  return "RC1"; // No parantheses (...)
+  return ""; // No parantheses (...)
 }
 
 string getMajorVersion() {
@@ -56,9 +56,9 @@ string getMeosFullVersion() {
   char bf[256];
   string maj = getMajorVersion();
   if (getBuildType().empty())
-    sprintf_s(bf, "Version X#%s.%d, %s (+ minor Australian customisations)", maj.c_str(), getMeosBuild(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#%s.%d, %s", maj.c_str(), getMeosBuild(), getMeosDate().c_str());
   else
-    sprintf_s(bf, "Version X#%s.%d, %s %s (+ minor Australian customisations)", maj.c_str(), getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
+    sprintf_s(bf, "Version X#%s.%d, %s %s", maj.c_str(), getMeosBuild(), getBuildType().c_str(), getMeosDate().c_str());
   return bf;
 }
 
@@ -166,4 +166,7 @@ void getSupporters(vector<string> &supp)
   supp.push_back("Gävle OK");
   supp.push_back("Kenneth Gattmalm, Jönköpings OK");
   supp.push_back("Søllerød OK");
+  supp.push_back("O-travel");
+  supp.push_back("Bengt Bengtsson");
+  supp.push_back("OK Landehof");
 }

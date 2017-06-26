@@ -21,6 +21,7 @@
 ************************************************************************/
 
 #include "stdafx.h"
+
 #include <algorithm>
 #include <cassert>
 
@@ -36,6 +37,13 @@
 
 string &getFirst(string &inout, int maxNames);
 string getMeosCompectVersion();
+
+IOF30Interface::IOF30Interface(oEvent *oe, bool forceSplitFee) : oe(*oe), useGMT(false), teamsAsIndividual(false), 
+                                entrySourceId(1), unrollLoops(true), 
+                                includeStageRaceInfo(true) {
+  cachedStageNumber = -1;
+  splitLateFee = forceSplitFee || oe->getPropertyInt("SplitLateFees", false) == 1;
+}
 
 void IOF30Interface::readCourseData(gdioutput &gdi, const xmlobject &xo, bool updateClass,
                                     int &courseCount, int &failed) {
@@ -1625,18 +1633,7 @@ pRunner IOF30Interface::readPerson(gdioutput &gdi, const xmlobject &person) {
       pid++;
       r = oe.getRunner(pid, 0);
     }
-  }
-  else
-	{
-		// Runner may already exist, but without a number ?
-		if (pname)
-		{
-			string given, family;
-			r = oe.getRunnerByName(getFirst(pname.getObjectString("Given", given), 2)+" "+pname.getObjectString("Family", family));
-		}
-	}
-	
-	if (pid || r){
+
     if (r) {
       // Check that a with this id runner does not happen to exist with a different source
       if (entrySourceId>0 && r->getEntrySource() != entrySourceId) {
@@ -1708,27 +1705,11 @@ pClub IOF30Interface::readOrganization(gdioutput &gdi, const xmlobject &xclub, b
   if (name.length()==0 || !IsCharAlphaNumeric(name[0]))
     return 0;
 
-	if (name.length() > 6)
-		name = oe.shortenName(name);
-
   pClub pc=0;
 
   if ( !saveToDB ) {
     if (clubId)
       pc = oe.getClubCreate(clubId, name);
-		else {
-			std::vector<pClub>c;
-			oe.getClubs(c, false);
-			for (unsigned int i = 0; i < c.size(); i++)
-				if (c[i]->getName() == name) {
-					pc = c[i];
-					break;
-				}
-		}
-		if (!pc && oe.useRunnerDb() && oe.getRunnerDatabase().getClub(name)) // Have match in the databse, so feel OK to add to this event (why wasn't DB used for search ?)
-			{
-			pc = new oClub(&oe, oe.getRunnerDatabase().getClub(name)->getId());
-			}
 
     if (!pc) return false;
   }
@@ -1865,7 +1846,8 @@ void IOF30Interface::writeAmount(xmlparser &xml, const char *tag, int amount) co
   }
 }
 
-void IOF30Interface::writeAssignedFee(xmlparser &xml, const oDataConstInterface &dci, int paidForCard) const {
+void IOF30Interface::writeAssignedFee(xmlparser &xml, const oAbstractRunner &tr, int paidForCard) const {
+  const oDataConstInterface dci = tr.getDCI();
   int fee = dci.getInt("Fee");
   int taxable = dci.getInt("Taxable");
   int paid = dci.getInt("Paid");
@@ -1876,18 +1858,46 @@ void IOF30Interface::writeAssignedFee(xmlparser &xml, const oDataConstInterface 
   if (paid >= paidForCard) {
     paid -= paidForCard; // Included in card service fee
   }
+  const pClass pc = tr.getClassRef();
+  if (!splitLateFee || !pc || !tr.hasLateEntryFee()) {
+    xml.startTag("AssignedFee");
+     string type = tr.hasLateEntryFee() ? "Late" : "Normal";
+     xml.startTag("Fee", "type", type);
+      xml.write("Name", "Entry fee");
+      writeAmount(xml, "Amount", fee);
+      writeAmount(xml, "TaxableAmount", taxable);
+     xml.endTag();
 
-  xml.startTag("AssignedFee");
+    writeAmount(xml, "PaidAmount", paid);
+    xml.endTag();
+  }
+  else {
+    int normalFee = pc->getDCI().getInt("ClassFee");
+  
+    int feeSplit[2] = {fee, 0};
+    int paidSplit[2] = {paid, 0};
+    if (normalFee > 0) {
+      feeSplit[0] = min<int>(normalFee, fee);
+      feeSplit[1] = max<int>(0, fee - feeSplit[0]);
 
-  xml.startTag("Fee");
-  xml.write("Name", "Entry fee");
-  writeAmount(xml, "Amount", fee);
-  writeAmount(xml, "TaxableAmount", taxable);
-  xml.endTag();
+      paidSplit[0] = min<int>(paid, feeSplit[0]);
+      paidSplit[1] = max<int>(0, paid - paidSplit[0]);
+    }
 
-  writeAmount(xml, "PaidAmount", paid);
+    for (int ft = 0; ft < 2; ft++) {
+      xml.startTag("AssignedFee");
+       string type = ft == 1 ? "Late" : "Normal";
+       xml.startTag("Fee", "type", type);
+        xml.write("Name", "Entry fee");
+        writeAmount(xml, "Amount", feeSplit[ft]);
+        if (ft == 0)
+          writeAmount(xml, "TaxableAmount", taxable);
+       xml.endTag();
 
-  xml.endTag();
+      writeAmount(xml, "PaidAmount", paidSplit[ft]);
+      xml.endTag();
+    }
+  }
 }
 
 void IOF30Interface::writeRentalCardService(xmlparser &xml, int cardFee, bool paid) const {
@@ -1990,38 +2000,16 @@ pClass IOF30Interface::readClass(const xmlobject &xclass,
 
   pClass pc = 0;
 
-	if (name.length() > 0) {
-		pc = oe.getClass(name);
-		if (!pc) {
-			pc = oe.addClass(name, 0, oe.getClass(classId) ? 0 : classId);
-		}		
-	}
-	else {
-		pc = oe.getClass(classId);
-		if (!pc) {
-				oClass c(&oe, classId);
-				pc = oe.addClass(c);
-		}
-	}
-
- /* if (classId) {
+  if (classId) {
     pc = oe.getClass(classId);
 
     if (!pc) {
-			if (name.length() > 0)
-				pc = oe.getClass(name);
-			if (!pc) {
-				oClass c(&oe, classId);
-				pc = oe.addClass(c);
-			}
+      oClass c(&oe, classId);
+      pc = oe.addClass(c);
     }
   }
-	else {
-    if (name.length() > 0)
-			pc = oe.getClass(name);
-		if (!pc)
-			pc = oe.addClass(name);
-	}*/
+  else
+    pc = oe.addClass(name);
 
   oDataInterface DI = pc->getDI();
 
@@ -2629,7 +2617,7 @@ void IOF30Interface::writeFees(xmlparser &xml, const oRunner &r) const {
   int cardFee = r.getDCI().getInt("CardFee");
   bool paidCard = r.getDCI().getInt("Paid") >= cardFee;
   
-  writeAssignedFee(xml, r.getDCI(), paidCard ? cardFee : 0);
+  writeAssignedFee(xml, r, paidCard ? cardFee : 0);
 
   if (cardFee > 0) 
     writeRentalCardService(xml, cardFee, paidCard);
@@ -2653,7 +2641,7 @@ void IOF30Interface::writeTeamResult(xmlparser &xml, const oTeam &t, bool hasInp
       writePersonResult(xml, *t.getRunner(k), true, true, hasInputTime);
   }
 
-  writeAssignedFee(xml, t.getDCI(), 0);
+  writeAssignedFee(xml, t, 0);
   xml.endTag();
 }
 
@@ -2962,7 +2950,7 @@ void IOF30Interface::writeTeamStart(xmlparser &xml, const oTeam &t) {
       writePersonStart(xml, *t.getRunner(k), true, true);
   }
 
-  writeAssignedFee(xml, t.getDCI(), 0);
+  writeAssignedFee(xml, t, 0);
   xml.endTag();
 }
 

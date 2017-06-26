@@ -1199,7 +1199,7 @@ void TabTeam::loadTeamMembers(gdioutput &gdi, int ClassId, int ClubId, pTeam t)
     if (t) {
       pRunner r=t->getRunner(i);
       if (r) {
-        gdi.setText(bf, r->getName())->setExtra(r->getId());
+        gdi.setText(bf, r->getNameRaw())->setExtra(r->getId());
 
         if (hasSI) {
           int cno = r->getCardNo();

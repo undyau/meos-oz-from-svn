@@ -95,6 +95,16 @@ struct SICard
   void deserializePunches(const string &arg);
 };
 
+struct SI_StationData {
+  SI_StationData();
+  
+  int stationNumber;
+  int stationMode;
+  bool extended;
+  bool handShake;
+  bool autoSend;
+  int radioChannel;
+};
 
 struct SI_StationInfo
 {
@@ -104,12 +114,25 @@ struct SI_StationInfo
   HANDLE hComm;
   COMMTIMEOUTS TimeOuts;
 
-  int StationNumber;
-  int StationMode;
-  bool Extended;
-  bool HandShake;
-  bool AutoSend;
+  vector<SI_StationData> data;
 
+  int stationMode() const {
+    if (data.empty())
+      return 0;
+    else
+      return data[0].stationMode;
+  }
+
+  bool extended() const {
+    if (data.empty())
+      return false;
+    bool ext = true;
+    for (size_t k = 0; k < data.size(); k++) {
+      if (!data[k].extended)
+        ext = false;
+    }
+    return ext;
+  }
   //Used for TCP ports
   WORD tcpPort;
   int localZeroTime;
@@ -121,17 +144,20 @@ class SportIdent
 protected:
   bool ReadSI6Block(HANDLE hComm, BYTE *data);
   bool ReadSystemData(SI_StationInfo *si, int retry=2);
-  bool ReadSystemDataOldProtocoll(SI_StationInfo *si, int retry=2);
+  bool ReadSystemDataV2(SI_StationInfo &si);
   CRITICAL_SECTION SyncObj;
 
   DWORD ZeroTime; //Used to analyse times. Seconds 0-24h (0-24*3600)
   int ReadByte_delay(BYTE &byte,  HANDLE hComm);
-  int ReadBytes_delay(BYTE *byte, DWORD len,  HANDLE hComm);
-  int ReadBytesDLE_delay(BYTE *byte, DWORD len,  HANDLE hComm);
+  int ReadBytes_delay(BYTE *byte, DWORD buffSize, DWORD len,  HANDLE hComm);
+  int ReadBytesDLE_delay(BYTE *byte, DWORD buffSize, DWORD len,  HANDLE hComm);
 
   int ReadByte(BYTE &byte,  HANDLE hComm);
   int ReadBytes(BYTE *byte, DWORD len,  HANDLE hComm);
   int ReadBytesDLE(BYTE *byte, DWORD len,  HANDLE hComm);
+
+  // Returns zero on failure, number of bytes used on success. 
+  int analyzeStation(BYTE *db, SI_StationData &si);
 
   SI_StationInfo SI_Info[32];
   int n_SI_Info; //Number of structures..
@@ -172,7 +198,7 @@ protected:
 public:
   SI_StationInfo *findStation(const string &com);
 
-  string getInfoString(const string &com);
+  void getInfoString(const string &com, vector<string> &info);
   bool IsPortOpen(const string &com);
   void SetZeroTime(DWORD zt);
   bool AutoDetect(list<int> &ComPorts);

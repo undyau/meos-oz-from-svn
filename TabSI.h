@@ -61,7 +61,6 @@ private:
   bool printStartInfo;
   bool manualInput;
   PrinterObject splitPrinter;
-  PrinterObject labelPrinter;
   list< pair<unsigned, int> > printPunchRunnerIdQueue;
   void addToPrintQueue(pRunner r);
   
@@ -70,10 +69,14 @@ private:
   vector<string> filterDate;
 
   int runnerMatchedId;
+  bool printErrorShown;
+  void printProtected(gdioutput &gdi, gdioutput &gdiprint);
 
   //Interactive card assign
   SIMode mode;
   int currentAssignIndex;
+
+  void printSIInfo(gdioutput &gdi, const string &port) const;
 
   void assignCard(gdioutput &gdi, const SICard &sic);
   void entryCard(gdioutput &gdi, const SICard &sic);
@@ -128,7 +131,6 @@ private:
 
 
   void generateSplits(const pRunner r, gdioutput &gdi);
-	void generateLabel(const pRunner r, gdioutput &gdi);
   int logcounter;
   csvparser *logger;
 
@@ -199,7 +201,6 @@ public:
 
   static SportIdent &getSI(const gdioutput &gdi);
   void printerSetup(gdioutput &gdi);
-	void labelPrinterSetup(gdioutput &gdi);
 
   void generateStartInfo(gdioutput &gdi, const oRunner &r);
   bool hasPrintStartInfo() const {return printStartInfo;}

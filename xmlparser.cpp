@@ -254,7 +254,6 @@ void xmlparser::endTag()
       throw meosException("Writing to XML file failed.");
   }
   else throw std::exception("BAD XML CODE");
-
 }
 
 void xmlparser::openMemoryOutput(bool useCutMode) {
@@ -297,7 +296,7 @@ void xmlparser::openOutputT(const char *file, bool useCutMode, const string &typ
 
   if (!type.empty()) {
     startTag(type.c_str());
-    }
+  }
   return;
 }
 
@@ -546,7 +545,6 @@ const char * xmlparser::ltrim(const char *s)
   return s;
 }
 /*
-
 const char * xmlparser::getError()
 {
   return errorMessage.c_str();

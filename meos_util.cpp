@@ -1686,6 +1686,8 @@ static bool noCapitalize(const string &str, size_t pos) {
   if (word == "with")
     return true;
 
+  if (word == "to" || word == "next" || word == "a" || word == "an" || word == "the" || word == "but")
+    return true;
 
   return false;
 }
@@ -1725,6 +1727,8 @@ void MeOSFileLock::lockFile(const string &file) {
 }
 
 void processGeneralTime(const string &generalTime, string &meosTime, string &meosDate) {
+  meosTime = "";
+  meosDate = "";
   vector<string> parts;
   split(generalTime, ":-,. /\t", parts);
   

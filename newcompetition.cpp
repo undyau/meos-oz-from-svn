@@ -70,9 +70,8 @@ int TabCompetition::newGuideCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "DoImportEntries") {
       createCompetition(gdi);
       try {
-		    ImportFormats importOpt(gdi.getSelectedItem("ImportOptions").first);
 		    gdi.autoRefresh(true);
-        saveEntries(gdi, false, true, importOpt);
+        saveEntries(gdi, false, true);
       }
       catch (std::exception &) {
         newCompetitionGuide(gdi, 1);

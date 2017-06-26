@@ -435,7 +435,7 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       ext.push_back(make_pair("IOF CourseData, version 3.0 (xml)", "*.xml"));
       string save = gdi.browseForSave(ext, "xml", FilterIndex);
       if (save.length()>0) {
-        IOF30Interface iof30(oe);
+        IOF30Interface iof30(oe, false);
         xmlparser xml(gdi.getEncoding() == ANSI ? 0 : &gdi);
         xml.openOutput(save.c_str(), false);
         iof30.writeCourses(xml);
@@ -537,8 +537,13 @@ int TabCourse::courseCB(gdioutput &gdi, int type, void *data)
       for (size_t k = 1; k < courseDrawClasses.size(); k++) {
         vector<pRunner> r;
         oe->getRunners(courseDrawClasses[k-1].classID, 0, r, false);
+        int vacDelta = vacances;
+        for (size_t i = 0; i < r.size(); i++) {
+          if (r[i]->isVacant()) 
+            vacDelta--;
+        }
 
-        courseDrawClasses[k].firstStart = courseDrawClasses[k-1].firstStart + r.size() * iv;
+        courseDrawClasses[k].firstStart = courseDrawClasses[k-1].firstStart + (r.size() + vacDelta) * iv;
         courseDrawClasses[k].vacances = vacances;
         courseDrawClasses[k].interval = iv;
       }

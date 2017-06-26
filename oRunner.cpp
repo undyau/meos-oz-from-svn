@@ -41,7 +41,6 @@
 #include "runnerdb.h"
 #include "meosexception.h"
 #include <algorithm>
-#include "oExtendedEvent.h"
 #include "socket.h"
 #include "MeOSFeatures.h"
 #include "oListInfo.h"
@@ -1767,6 +1766,17 @@ bool oRunner::operator <(const oRunner &c) {
   else if (oe->CurrentSortOrder==SortByLastName) {
     string a = getFamilyName();
     string b = c.getFamilyName();
+    if (a.empty() && !b.empty())
+      return false;
+    else if (b.empty() && !a.empty())
+      return true;
+    else if (a != b) {
+      return CompareString(LOCALE_USER_DEFAULT, 0,
+                           a.c_str(), a.length(),
+                           b.c_str(), b.length()) == CSTR_LESS_THAN;
+    }
+    a = getGivenName();
+    b = c.getGivenName();
     if (a != b) {
       return CompareString(LOCALE_USER_DEFAULT, 0,
                            a.c_str(), a.length(),
@@ -1849,28 +1859,6 @@ bool oRunner::operator <(const oRunner &c) {
       }
     }
   }
-  else if(oe->CurrentSortOrder == CoursePoints){
-    const pCourse crs1 = getCourse(false);
-    const pCourse crs2 = c.getCourse(false);
-    if (crs1 != crs2) {
-      int id1 = crs1 ? crs1->getId() : 0;
-      int id2 = crs2 ? crs2->getId() : 0;
-      return id1 < id2;
-    }
-		if(status != c.status)
-			return unsigned(status-1) < unsigned(c.status-1);
-		else {
-			if (status==StatusOK) {
-        if(tRogainingPoints != c.tRogainingPoints)
-			    return tRogainingPoints > c.tRogainingPoints;
-				int t=getRunningTime();
-				int ct=c.getRunningTime();
-				if (t != ct)
-					return t < ct;
-			}			
-			return tRealName  <c.tRealName;
-		}
-	}
   else if (oe->CurrentSortOrder == CourseResult) {
     const pCourse crs1 = getCourse(false);
     const pCourse crs2 = c.getCourse(false);
@@ -2119,9 +2107,6 @@ void oRunner::setCardNo(int cno, bool matchCard, bool updateFromDatabase)
     int oldNo = CardNo;
     CardNo=cno;
 
-		if (static_cast<oExtendedEvent*>(oe)->isRentedCard(cno))
-			getDI().setInt("CardFee", oe->getDI().getInt("CardFee"));
-
     oFreePunch::rehashPunches(*oe, oldNo, 0);
     oFreePunch::rehashPunches(*oe, CardNo, 0);
 
@@ -2229,6 +2214,17 @@ void oRunner::setName(const string &in, bool manualUpdate)
 
 const string &oRunner::getName() const {
   return tRealName;
+}
+
+const string &oRunner::getNameLastFirst() const {
+  if (sName.find_first_of(',') != sName.npos)
+    return sName;  // Already "Fiske, Eric"
+  if (sName.find_first_of(' ') == sName.npos)
+    return sName; // No space "Vacant", "Eric"
+  
+  string &res = StringCache::getInstance().get();
+  res = getFamilyName() + ", " + getGivenName();
+  return res;
 }
 
 void oRunner::getRealName(const string &input, string &output) {
@@ -2699,7 +2695,10 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
   synchronizeList(oLRunnerId);
   oRunnerList::iterator it;
   int lVacId = getVacantClub();
-  CurrentSortOrder=SortByName;
+  if (getNameMode() == LastFirst)
+    CurrentSortOrder = SortByLastName;
+  else
+    CurrentSortOrder = SortByName;
   Runners.sort();
   out.clear();
   if (personFilter.empty())
@@ -2720,12 +2719,12 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
         continue;
       if (!it->skip() || (showAll && !it->isRemoved())) {
         if (compact) {
-          sprintf_s(bf, "%s, %s (%s)", it->getNameAndRace().c_str(),
+          sprintf_s(bf, "%s, %s (%s)", it->getNameAndRace(true).c_str(),
                                       it->getClub().c_str(),
                                       it->getClass().c_str());
 
         } else {
-          sprintf_s(bf, "%s\t%s\t%s", it->getNameAndRace().c_str(),
+          sprintf_s(bf, "%s\t%s\t%s", it->getNameAndRace(true).c_str(),
                                       it->getClass().c_str(),
                                       it->getClub().c_str());
         }
@@ -2744,9 +2743,9 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
 
       if (!it->skip() || (showAll && !it->isRemoved())) {
         if ( it->getClubId() != lVacId )
-          out.push_back(make_pair(it->getName(), it->Id));
+          out.push_back(make_pair(it->getUIName(), it->Id));
         else {
-          sprintf_s(bf, "%s (%s)", it->getName().c_str(), it->getClass().c_str());
+          sprintf_s(bf, "%s (%s)", it->getUIName().c_str(), it->getClass().c_str());
           out.push_back(make_pair(bf, it->Id));
         }
       }
@@ -2765,13 +2764,17 @@ void oRunner::resetPersonalData()
   //getDI().initData();
 }
 
-string oRunner::getNameAndRace() const
+string oRunner::getNameAndRace(bool userInterface) const
 {
   if (tDuplicateLeg>0 || multiRunner.size()>0) {
     char bf[16];
     sprintf_s(bf, " (%d)", getRaceNo()+1);
+    if (userInterface)
+      return getUIName() + bf;
     return getName()+bf;
   }
+  else if (userInterface)
+    return getUIName();
   else return getName();
 }
 
@@ -3025,6 +3028,20 @@ void oEvent::generateRunnerTableData(Table &table, oRunner *addRunner)
   }
 }
 
+const string &oRunner::getUIName() const {
+  oEvent::NameMode nameMode = oe->getNameMode();
+  
+  switch (nameMode) {
+  case oEvent::Raw: 
+    return getNameRaw();
+  case oEvent::LastFirst:
+    return getNameLastFirst();
+  default:
+    return getName();
+  }
+}
+
+
 void oRunner::addTableRow(Table &table) const
 {
   oRunner &it = *pRunner(this);
@@ -3034,7 +3051,8 @@ void oRunner::addTableRow(Table &table) const
   table.set(row++, it, TID_ID, itos(getId()), false);
   table.set(row++, it, TID_MODIFIED, getTimeStamp(), false);
 
-  table.set(row++, it, TID_RUNNER, getName(), true);
+  table.set(row++, it, TID_RUNNER, getUIName(), true);
+  
   table.set(row++, it, TID_CLASSNAME, getClass(), true, cellSelection);
   table.set(row++, it, TID_COURSE, getCourseName(), true, cellSelection);
   table.set(row++, it, TID_CLUB, getClub(), true, cellCombo);
@@ -3765,26 +3783,11 @@ void oRunner::printSplits(gdioutput &gdi) const {
   bool withSpeed = (oe->getDI().getInt("Analysis") & 2) == 0;
   bool withResult = (oe->getDI().getInt("Analysis") & 4) == 0;
   const bool wideFormat = oe->getPropertyInt("WideSplitFormat", 0) == 1;
-
   const int numCol = 4;
 
   if (Class && Class->getNoTiming()) {
     withResult = false;
     withAnalysis = false;
-  }
-
-  
-  if (getCourse(false) && getCourse(false)->hasRogaining()) {
-	  vector<pControl> ctrl;
-    bool rogaining(true);
-    getCourse(false)->getControls(ctrl);
-    for (vector<pControl>::const_iterator it=ctrl.begin(); it!=ctrl.end(); ++it)
-      if (!(*it)->isRogaining(true))
-        rogaining = false;
-    if (rogaining) {  
-      printRogainingSplits( gdi);
-      return;
-    }
   }
 
   gdiFonts head = boldText;
@@ -3818,10 +3821,6 @@ void oRunner::printSplits(gdioutput &gdi) const {
       withSpeed = false; // No leg lenghts available
   }
   gdi.addStringUT(normal, statInfo);
-  oe->calculateResults(oEvent::RTClassResult);
-	if (getPlaceS() != _EmptyString)
-    gdi.addStringUT(fontSmall, lang.tl("Aktuell klassposition") + " in " + getClass() + ": " + getPlaceS());
-  
 
   int cy = gdi.getCY()+4;
   int cx = gdi.getCX();
@@ -3983,7 +3982,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
           sp = getSplitTime(controlLegIndex, false);
           if (sp>0) {
             punchTime = getPunchTimeS(controlLegIndex, false);
-						gdi.addStringUT(cy, cx+c2, getLegPlace(it->tIndex) == 1 ? boldSmall|textRight : fontSmall|textRight, formatTime(sp));
+            gdi.addStringUT(cy, cx+c2, fontSmall|textRight, formatTime(sp));
           }
         }
         else {
@@ -4001,7 +4000,7 @@ void oRunner::printSplits(gdioutput &gdi) const {
         }
 
         if (!punchTime.empty()) {
-          gdi.addStringUT(cy, cx+c4, getLegPlaceAcc(it->tIndex) == 1 ? boldSmall|textRight : fontSmall|textRight, punchTime);
+          gdi.addStringUT(cy, cx+c4, fontSmall|textRight, punchTime);
         }
         any = true;
       }
@@ -4121,232 +4120,6 @@ void oRunner::printSplits(gdioutput &gdi) const {
     gdi.dropLine(0.5);
 
   gdi.addString("", fontSmall, "Av MeOS: www.melin.nu/meos");
-}
-
-void oRunner::printRogainingSplits(gdioutput &gdi) const {
-  const int ct1=160;
-
-  gdi.setCX(10);
-  gdi.fillDown();
-  gdi.addStringUT(boldText, oe->getName());
-  gdi.addStringUT(fontSmall, oe->getDate());
-  gdi.dropLine(0.5);
-  
-  gdi.addStringUT(boldSmall, getName() + " " + getClub());
-  int cy = gdi.getCY();
-  gdi.addStringUT(boldSmall, lang.tl("Poäng: ") + itos(getRogainingPoints(false)));    
-  gdi.addStringUT(cy, gdi.getCX() + ct1, boldSmall, lang.tl("Tid: ") + getRunningTimeS());
-	if (getCard())
-		gdi.addStringUT(fontSmall, lang.tl("SportIdent: ") + getCard()->getCardNoString());
-  gdi.dropLine(0.5);
-  cy = gdi.getCY();
-  gdi.addStringUT(fontSmall, lang.tl("Bana: ") + getCourseName());
-  gdi.addStringUT(cy, gdi.getCX() + ct1, fontSmall, lang.tl("Klass: ") + getClass());
-  cy = gdi.getCY();
-  gdi.addStringUT(fontSmall, lang.tl("Gross: ") + itos(getRogainingPoints(false) + getRogainingReduction()));
-  gdi.addStringUT(cy, gdi.getCX() + ct1, fontSmall, lang.tl("Penalty: ") + itos(getRogainingReduction()));
-  cy = gdi.getCY();
-  gdi.addStringUT(fontSmall, lang.tl("Start: ") + getStartTimeS());
-  gdi.addStringUT(cy, gdi.getCX() + ct1, fontSmall, lang.tl("Mål: ") + getFinishTimeS());
-
-  cy = gdi.getCY()+4;
-  int cx = gdi.getCX();
-  const int c1=90;
-  const int c2=130;
-  const int c3=170;
-  const int c4=200;
-  const int c5=240;
-  const int width = 68;
-  char bf[256];
-  int lastIndex = -1;
-  int adjust = 0;
-  int offset = 1;
-  int runningTotal = 0;
-
-  bool moreThanHour = getRunningTime()>3600;
-  vector<pControl> ctrl;
-  pCourse pc = getCourse(false);
-  if (pc)
-    pc->getControls(ctrl);
-
-  if (Card) {
-		std::vector<pPunch> p;
-    Card->getPunches(p);
-		/*gdi.addStringUT(cy, cx, fontSmall, lang.tl("Kontroll"));
-		gdi.addStringUT(cy, cx + c3, fontSmall, lang.tl("Poäng"));
-		gdi.addStringUT(cy, cx + c4, fontSmall, lang.tl("Löptid"));*/
-		cy+=int(gdi.getLineHeight()*0.9);
-    for (unsigned int i = 0; i < p.size(); i++) {
-      if (p[i]->tRogainingIndex>=0) { 
-        const pControl c = pc->getControl(p[i]->tRogainingIndex);
-        string point = c ? c->getRogainingPointsS() : "";
-        runningTotal += c ? c->getRogainingPoints() : 0;   
-        
-        if (c->getName().length() > 0) 
-          gdi.addStringUT(cy, cx, fontSmall, c->getName() + " (" + itos(p[i]->getControlNumber()) + ")");
-        else
-          gdi.addStringUT(cy, cx, fontSmall, itos(p[i]->getControlNumber()));
-        gdi.addStringUT(cy, cx + c1, fontSmall, point);
-
-        int st = Card->getSplitTime(getStartTime(), p[i]);
-        
-        if (st>0) {
-          gdi.addStringUT(cy, cx + c2, fontSmall, formatTime(st));
-					if (c->getRogainingPoints() > 0) {
-						float pps = ((float)c->getRogainingPoints() * 60.0f)/st;
-						sprintf_s(bf, "%01.1f", pps);
-						//gdi.addStringUT(cy, cx+c2, fontSmall, bf);
-					}
-				}
-
-        int pt = p[i]->getAdjustedTime();
-        st = getStartTime();
-        if (st>0 && pt>0 && pt>st) {
-          string punchTime = formatTime(pt-st);
-          if (!moreThanHour)
-            gdi.addStringUT(cy, cx+c5, fontSmall, punchTime);
-          else
-            gdi.addStringUT(cy, cx+c5+width, fontSmall|textRight, punchTime);
-        }
-
-        gdi.addStringUT(cy, cx+c4, fontSmall, itos(runningTotal));
-
-        cy+=int(gdi.getLineHeight()*0.9);
-        continue;
-      }
-
-      int cid = p[i]->tMatchControlId;
-      string punchTime; 
-      if (p[i]->isFinish()) {
-        gdi.addString("", cy, cx, fontSmall, "Mål");
-        int sp = getSplitTime(splitTimes.size(), false);
-        if (sp>0) {
-          gdi.addStringUT(cy, cx+c2, fontSmall, formatTime(sp));
-          punchTime = formatTime(getRunningTime());
-        }
-        gdi.addStringUT(cy, cx+c3, fontSmall, oe->getAbsTime(p[i]->Time + adjust));
-
-        if (!punchTime.empty()) {
-          if (!moreThanHour)
-            gdi.addStringUT(cy, cx+c5, fontSmall, punchTime);
-          else
-            gdi.addStringUT(cy, cx+c5+width, fontSmall|textRight, punchTime);
-        }
-        cy+=gdi.getLineHeight();
-      }
-      else if (p[i]->Type>10) { //Filter away check and start
-        int index = -1;
-        if (cid>0)
-          index = findNextControl(ctrl, lastIndex+1, cid, offset, true);
-        if (index>=0) {
-          if (index > lastIndex + 1) {
-            int xx = cx;
-            string str = MakeDash("-");
-            int posy = cy-int(gdi.getLineHeight()*0.4);
-            const int endx = cx+c5 + (moreThanHour ? width : 50);
-
-            while (xx < endx) {
-              gdi.addStringUT(posy, xx, fontSmall, str);
-              xx += 20;
-            }
-            
-            cy+=int(gdi.getLineHeight()*0.3);
-          }
-          
-          lastIndex = index;
-          sprintf_s(bf, "%d.", index+offset);
-          gdi.addStringUT(cy, cx, fontSmall, bf);
-          sprintf_s(bf, "(%d)", p[i]->Type);
-          gdi.addStringUT(cy, cx+c1, fontSmall, bf);
-          
-          adjust = getTimeAdjust(p[i]->tIndex);
-          int sp = getSplitTime(p[i]->tIndex, false);
-          if (sp>0) {
-            punchTime = getPunchTimeS(p[i]->tIndex, false);
-            gdi.addStringUT(cy, cx+c2, fontSmall, formatTime(sp));
-          }
-        }
-        else {
-          if (!p[i]->isUsed) {
-            gdi.addStringUT(cy, cx, fontSmall, MakeDash("-"));
-          }
-          sprintf_s(bf, "(%d)", p[i]->Type);
-          gdi.addStringUT(cy, cx+c1, fontSmall, bf);
-        }
-        if (p[i]->Time > 0)
-          gdi.addStringUT(cy, cx+c3, fontSmall, oe->getAbsTime(p[i]->Time + adjust));
-        else {
-          string str = MakeDash("-");
-          gdi.addStringUT(cy, cx+c3, fontSmall, str);
-        }
-
-        if (!punchTime.empty()) {
-          if (!moreThanHour)
-            gdi.addStringUT(cy, cx+c5, fontSmall, punchTime);
-          else
-            gdi.addStringUT(cy, cx+c5+width, fontSmall|textRight, punchTime);
-        }
-        cy+=int(gdi.getLineHeight()*0.9);
-      }
-    }
-
-
-		if (getProblemDescription().size() > 0)
-			gdi.addStringUT(fontSmall, lang.tl(getProblemDescription()));
-  }
-
-  gdi.dropLine();
-
-  vector< pair<string, int> > lines;
-  oe->getExtraLines("SPExtra", lines);
-
-  for (size_t k = 0; k < lines.size(); k++) {
-    gdi.addStringUT(lines[k].second, lines[k].first);
-  }
-  if (lines.size()>0)
-    gdi.dropLine(0.5);
-
-  gdi.addString("", fontSmall, "Av MeOS: www.melin.nu/meos");
-}
-
-void oRunner::printLabel(gdioutput &gdi) const {
-  
-  bool rogaining(false);
-  if (getCourse(false) && getCourse(false)->hasRogaining()) {
-		rogaining = true;
-	  vector<pControl> ctrl;
-    getCourse(false)->getControls(ctrl);
-    for (vector<pControl>::const_iterator it=ctrl.begin(); it!=ctrl.end(); ++it)
-      if (!(*it)->isRogaining(true))
-        rogaining = false;
-  }
-
-  const int c2=400;
- 	gdi.setCX(0);
-	gdi.setCY(0);
-	int cx = gdi.getCX();
-	int cy = gdi.getCY();
-  gdi.fillDown();
-
-	gdi.addStringUT(getName().length() < 20 ? boldHuge : boldLarge, getName());
-	gdi.dropLine(getName().length() < 20 ? 0.2 : 0.4);
-	cy = gdi.getCY();
-	gdi.addStringUT(cy, cx, boldLarge, getClass());
-	if (getStatus()==StatusOK)
-			{
-			if (rogaining)
-				gdi.addStringUT(cy, cx+c2, boldHuge, itos(getRogainingPoints(false)));    
-			else
-				gdi.addStringUT(cy, cx+c2, boldHuge, getRunningTimeS());
-			}
-		else
-			gdi.addStringUT(cy, cx+c2, boldHuge,  getStatusS());
-  gdi.dropLine(-0.1);
-	cy = gdi.getCY();
-	gdi.addStringUT(cy, cx, fontMedium, getClub());
-	if (getCourse(false))
-		gdi.addStringUT(cy, cx + c2, fontMedium, getCourse(false)->getName());
-
 }
 
 
@@ -5765,3 +5538,22 @@ void oAbstractRunner::setPaymentMode(int mode) {
   getDI().setInt("PayMode", mode);
 }
 
+bool oAbstractRunner::hasLateEntryFee() const {
+  if (!Class)
+    return false;
+  int highFee = Class->getDCI().getInt("HighClassFee");
+  int normalFee = Class->getDCI().getInt("ClassFee");
+  
+  int fee = getDCI().getInt("Fee");
+  if (fee == normalFee || fee == 0)
+    return false;
+  else if (fee == highFee && highFee > normalFee && normalFee > 0)
+    return true;
+
+  string date = getEntryDate(true);
+  oDataConstInterface odc = oe->getDCI();
+  string oentry = odc.getDate("OrdinaryEntry");
+  bool late = date > oentry && oentry>="2010-01-01";
+
+  return late;
+}

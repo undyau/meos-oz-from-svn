@@ -30,7 +30,7 @@
 #include "importformats.h"
 #include "oEvent.h"
 
-
+/*
 void ImportFormats::getImportFormats(vector< pair<string, size_t> > &formats) {
   formats.clear();
   formats.push_back(make_pair(lang.tl("Standard"), Default));
@@ -40,7 +40,7 @@ void ImportFormats::getImportFormats(vector< pair<string, size_t> > &formats) {
 int ImportFormats::getDefault(oEvent &oe) {
   return oe.getPropertyString("Language", "English") == "Français" ? FrenchFederationMapping : Default;
 }
-
+*/
 void ImportFormats::getExportFormats(vector< pair<string, size_t> > &types, bool exportFilter) {
   types.clear();
     
@@ -53,13 +53,7 @@ void ImportFormats::getExportFormats(vector< pair<string, size_t> > &types, bool
   types.push_back(make_pair(lang.tl("IOF " + v + ", version 3.0 (xml)"), IOF30));
   types.push_back(make_pair(lang.tl("IOF " + v + ", version 2.0.3 (xml)"), IOF203));
   types.push_back(make_pair(lang.tl("OE Semikolonseparerad (csv)"), OE));
-  types.push_back(make_pair(lang.tl("OE/French Federation of Orienteering (csv)"), OE_FRANCE));
   types.push_back(make_pair(lang.tl("Webbdokument (html)"), HTML));
-	if (exportFilter)
-    {
-    types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 3.0 (xml)"), IOF30BYCOURSE));
-    types.push_back(make_pair(lang.tl("IOF Resultat efter bana, version 2.0.3 (xml)"), IOF203BYCOURSE));
-    }
 }
 
 void ImportFormats::getExportFilters(bool exportFilters, vector< pair<string, string> > &ext) {
@@ -74,15 +68,10 @@ void ImportFormats::getExportFilters(bool exportFilters, vector< pair<string, st
   ext.push_back(make_pair("OE Semikolonseparerad (csv)", "*.csv"));
   ext.push_back(make_pair("OE/French Federation of Orienteering (csv)", "*.csv"));
   ext.push_back(make_pair("Webbdokument (html)", "*.html"));
-  if (exportFilters)
-    {
-    ext.push_back(make_pair(lang.tl("IOF " + v + ", v3.0 (xml)"), "*.xml"));
-    ext.push_back(make_pair(lang.tl("IOF " + v + ", v2.0.3 (xml)"), "*.xml"));
-    }
 }
 
 ImportFormats::ExportFormats ImportFormats::getDefaultExportFormat(oEvent &oe) {
-  int def = oe.getPropertyString("Language", "English") == "Français" ? OE_FRANCE : IOF30;
+  int def = IOF30;
   return (ExportFormats)oe.getPropertyInt("ExportFormat", def);
 }
 

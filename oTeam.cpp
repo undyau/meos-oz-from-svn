@@ -48,12 +48,12 @@ oTeam::oTeam(oEvent *poe, int id): oAbstractRunner(poe, true) {
 }
 
 oTeam::~oTeam(void) {
-  for(unsigned i=0; i<Runners.size(); i++) {
+  /*for(unsigned i=0; i<Runners.size(); i++) {
     if (Runners[i] && Runners[i]->tInTeam==this) {
       assert(Runners[i]->tInTeam!=this);
       Runners[i]=0;
     }
-  }
+  }*/
 }
 
 void oTeam::prepareRemove()
@@ -1871,7 +1871,7 @@ void oTeam::addTableRow(Table &table) const {
   for (unsigned k = 0; k < nRunnerMaxStored; k++) {
     pRunner r = getRunner(k);
     if (r) {
-      table.set(row++, it, 100+2*k, r->getName(), r->getRaceNo() == 0);
+      table.set(row++, it, 100+2*k, r->getUIName(), r->getRaceNo() == 0);
       table.set(row++, it, 101+2*k, itos(r->getCardNo()), true);
     }
     else {

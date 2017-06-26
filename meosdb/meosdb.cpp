@@ -49,7 +49,6 @@ using namespace std;
 #include "../oRunner.h"
 #include "../oEvent.h"
 #include "../Localizer.h"
-#include "../oExtendedEvent.h"
 
 #include <typeinfo.h>
 
@@ -126,9 +125,6 @@ int MEOSDB_API msSynchronizeUpdate(oBase *obj)
 
     return msql.SyncUpdate((oEvent *) obj);
   }
-	else if(typeid(*obj)==typeid(oExtendedEvent)){
-		return msql.SyncUpdate((oEvent *) obj);
-	}
   else if (typeid(*obj)==typeid(oTeam)){
     return msql.syncUpdate((oTeam *) obj, false);
   }
@@ -168,10 +164,6 @@ int MEOSDB_API msSynchronizeRead(oBase *obj)
   else if (typeid(*obj)==typeid(oEvent)){
     return msql.SyncRead((oEvent *) obj);
   }
-	else if(typeid(*obj)==typeid(oExtendedEvent)){
-		return msql.SyncRead((oEvent *) obj);
-	}
-
   return 0;
 }
 

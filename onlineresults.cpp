@@ -344,10 +344,10 @@ void OnlineResults::process(gdioutput &gdi, oEvent *oe, AutoSyncType ast) {
     t = getTempFile();
     if (dataType == 2)
       oe->exportIOFSplits(oEvent::IOF20, t.c_str(), false, false,
-                          classes, -1, false, true, true);
+                          classes, -1, false, true, true, false);
     else if (dataType == 3)
       oe->exportIOFSplits(oEvent::IOF30, t.c_str(), false, false, 
-                          classes, -1, false, true, true);
+                          classes, -1, false, true, true, false);
     else
       throw meosException("Internal error");
   }

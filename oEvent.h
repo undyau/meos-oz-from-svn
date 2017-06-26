@@ -220,7 +220,7 @@ enum PropertyType {
 
 class oEvent : public oBase
 {
-  friend class oSSSQuickStart;   //Trying to minimise code chanes to oEvent, but this is a bit ugly
+private:
   oDataDefiner *firstStartDefiner;
   oDataDefiner *intervalDefiner;
 
@@ -365,7 +365,6 @@ protected:
   char CurrentFile[260];
   char CurrentNameId[64];
 
-
   static int dbVersion;
   string MySQLServer;
   string MySQLUser;
@@ -410,7 +409,8 @@ protected:
   void initProperties();
 
   map<string, string> eventProperties;
-
+  map<string, string> savedProperties;
+  
   bool tUseStartSeconds;
 
   set< pair<int,int> > readPunchHash;
@@ -423,7 +423,6 @@ protected:
                               int baseFee, int &entries_sum, int &started_sum, int &fee_sum) const;
   void getRunnersPerDistrict(vector<int> &runners) const;
   void getDistricts(vector<string> &district);
-	void generateRunnersPerCourse(gdioutput &gdi);
 
   void autoAddTeam(pRunner pr);
   void autoRemoveTeam(pRunner pr);
@@ -473,6 +472,20 @@ protected:
   // Temporarily disable recaluclate leader times
   bool disableRecalculate;
 public:
+
+  enum NameMode {
+    FirstLast,
+    LastFirst,
+    Raw,
+  };
+
+private:
+  NameMode currentNameMode;
+
+public:
+  NameMode getNameMode() const {return currentNameMode;};
+  NameMode setNameMode(NameMode newNameMode);
+
   /// Get new punches since firstTime
   void getLatestPunches(int firstTime, vector<const oFreePunch *> &punches) const;
 
@@ -531,7 +544,7 @@ public:
   void setMaximalTime(const string &time);
 
   void saveProperties(const char *file);
-  virtual void loadProperties(const char *file);
+  void loadProperties(const char *file);
 
   // Get window handle
   HWND hWnd() const;
@@ -769,13 +782,13 @@ protected:
   mutable multimap<int, oAbstractRunner*> bibStartNoToRunnerTeam;
   int tClubDataRevision;
   bool readOnly;
-	virtual void writeExtraXml(xmlparser &xml){};
   mutable int tLongTimesCached;
-	virtual void readExtraXml(const xmlparser &xml) {};
 
   map<pair<int, int>, oFreePunch> advanceInformationPunches;
 
 public:
+
+  void useDefaultProperties(bool useDefault);
 
   bool isReadOnly() const {return readOnly;}
   void setReadOnly() {readOnly = true;}
@@ -862,14 +875,16 @@ public:
                        int leg,
                        bool teamsAsIndividual,
                        bool unrollLoops,
-                       bool includeStageData);
+                       bool includeStageData,
+                       bool forceSplitFee);
 
   void exportIOFStartlist(IOFVersion version, const char *file,
                           bool useUTC, const set<int> &classes,
                           bool teamsAsIndividual,
-                          bool includeStageInfo);
+                          bool includeStageInfo,
+                          bool forceSplitFee);
 
-  bool exportOECSV(const char *file, int LanguageTypeIndex, bool includeSplits, bool useFFCOClubMapping, bool byClass = true);
+  bool exportOECSV(const char *file, int LanguageTypeIndex, bool includeSplits);
   bool save();
   void duplicate();
   void newCompetition(const string &Name);
@@ -1164,7 +1179,7 @@ protected:
   pClub getClubCreate(int clubId);
 
   bool addXMLCompetitorDB(const xmlobject &xentry, int ClubId);
-  bool addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMapping);
+  bool addOECSVCompetitorDB(const vector<string> &row);
   pRunner addXMLPerson(const xmlobject &person);
   pRunner addXMLStart(const xmlobject &xstart, pClass cls);
   pRunner addXMLEntry(const xmlobject &xentry, int ClubId, bool setClass);
@@ -1179,9 +1194,6 @@ protected:
   bool addXMLControl(const xmlobject &xcontrol, int type);
 
 public:
-	string shortenName(string name);  // implemented in oExtendedEvent.cpp
-  void setShortClubNames(bool shorten); // implemented in oExtendedEvent.cpp
-	void calculateCourseRogainingResults(); // implemented in oExtendedEvent.cpp
 
   GeneralResult &getGeneralResult(const string &tag, string &sourceFileOut) const;
   void getGeneralResults(bool onlyEditable, vector< pair<int, pair<string, string> > > &tagNameList, bool includeDateInName) const;
@@ -1241,7 +1253,7 @@ public:
   void analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns,
                   vector<pRunner> &known, vector<pRunner> &unknown);
 
-  void importOECSV_Data(const char * oecsvfile, bool clear, const ImportFormats &importFormats);
+  void importOECSV_Data(const char * oecsvfile, bool clear);
   void importXML_IOF_Data(const char *clubfile, const char *competitorfile, bool clear);
 
   void generateTestCard(SICard &sic) const;

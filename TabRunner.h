@@ -72,7 +72,6 @@ private:
   void clearInForestData();
 
   PrinterObject splitPrinter;
-	PrinterObject labelPrinter;
 
   void showRunnerReport(gdioutput &gdi);
   void runnerReport(gdioutput &gdi, int id, bool compactReport);

@@ -529,9 +529,6 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
     else if (bi.id == "PrinterSetup") {
       ((TabSI *)gdi.getTabs().get(TSITab))->printerSetup(gdi);
     }
-    else if (bi.id == "LabelPrinterSetup") {
-      ((TabSI *)gdi.getTabs().get(TSITab))->labelPrinterSetup(gdi);
-    }
     else if (bi.id=="Generate") {
       ListBoxInfo lbi;
       bool advancedResults = false;
@@ -1102,7 +1099,10 @@ int TabList::listCB(gdioutput &gdi, int type, void *data)
   else if (type==GUI_LISTBOX) {
     ListBoxInfo lbi=*(ListBoxInfo *)data;
 
-    if (lbi.id == "SavedInstance") {
+    if (lbi.id == "NumPerPage") {
+      enableWideFormat(gdi, true);
+    }
+    else if (lbi.id == "SavedInstance") {
       int ix = lbi.data;
       bool split = oe->getListContainer().canSplit(ix);
       gdi.setInputStatus("SplitSaved", split);
@@ -1815,7 +1815,7 @@ bool TabList::loadPage(gdioutput &gdi)
 }
 
 void TabList::enableWideFormat(gdioutput &gdi, bool wide) {
-  if (gdi.hasField("NumPerParge")) {
+  if (gdi.hasField("NumPerPage")) {
     gdi.setInputStatus("NumPerPage", wide);
 
     bool needTime = gdi.getSelectedItem("NumPerPage").first != 1;
@@ -1855,14 +1855,7 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter,
     gdi.addCheckbox("Speed", "Med km-tid", 0, withSpeed);
     gdi.addCheckbox("Results", "Med resultat", 0, withResult);
 
-	}
-  gdi.popX();
-	gdi.dropLine(2);
-
-  if (returnMode == TSITab) {
-    gdi.addButton("LabelPrinterSetup", "Etikettskrivare...", ListsCB, "Skrivarinställningar för etiketter");
   }
-
   gdi.popX();
   gdi.fillDown();
   char *ctype = type == Splits ? "SPExtra" : "EntryExtra";
@@ -1877,7 +1870,7 @@ void TabList::splitPrintSettings(oEvent &oe, gdioutput &gdi, bool setupPrinter,
       vector< pair<string, size_t> > nsp;
       for (size_t j = 1; j < 8; j++)
         nsp.push_back(make_pair(itos(j), j));
-      gdi.addSelection("NumPerPage", 90, 200, 0, "Max antal brickor per sida");
+      gdi.addSelection("NumPerPage", 90, 200, ListsCB, "Max antal brickor per sida");
       gdi.addItem("NumPerPage", nsp);
       gdi.selectItemByData("NumPerPage", printLen);
 

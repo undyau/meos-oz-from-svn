@@ -182,6 +182,8 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   msReConnect=0;
 #endif
 
+  currentNameMode = FirstLast;
+
   nextTimeLineEvent = 0;
   //These object must be initialized on creation of any oObject,
   //but we need to create (dummy) objects to get the sizeof their
@@ -236,7 +238,6 @@ oEvent::oEvent(gdioutput &gdi):oBase(0), gdibase(gdi)
   // bit 1: without analysis
   // bit 2: without min/km
   // bit 4: without result
-  oEventData->addVariableInt("PrintLabels", oDataContainer::oIS8, "Skriva ut etiketter");
 
   oEventData->addVariableString("SPExtra", "Extra rader");
   oEventData->addVariableString("IVExtra", "Fakturainfo");
@@ -447,13 +448,22 @@ oEvent::~oEvent()
 
 void oEvent::initProperties() {
   setProperty("TextSize", getPropertyString("TextSize", "0"));
-  setProperty("Language", getPropertyString("Language", "104")); //English
+  setProperty("Language", getPropertyString("Language", "103"));
 
   setProperty("Interactive", getPropertyString("Interactive", "1"));
   setProperty("Database", getPropertyString("Database", "1"));
+
+  // Setup some defaults
+  getPropertyInt("SplitLateFees", false);
+  getPropertyInt("DirectPort", 21338);
+  getPropertyInt("UseHourFormat", 1);
+  getPropertyInt("UseDirectSocket", true);
+  getPropertyInt("UseEventorUTC", 0);
 }
 
 void oEvent::listProperties(bool userProps, vector< pair<string, PropertyType> > &propNames) const {
+  
+  
   set<string> filter;
   if (userProps) {
     filter.insert("Language");
@@ -468,6 +478,7 @@ void oEvent::listProperties(bool userProps, vector< pair<string, PropertyType> >
     filter.insert("DrawTypeDefault");
     filter.insert("Email"); 
     filter.insert("TextSize");
+    filter.insert("PayModes");
   }
 
   // Boolean and integer properties
@@ -489,6 +500,11 @@ void oEvent::listProperties(bool userProps, vector< pair<string, PropertyType> >
   b.insert("UseEventor");
   b.insert("UseEventorUTC");
   b.insert("UseHourFormat");
+  b.insert("SplitLateFees");
+  b.insert("WideSplitFormat");
+  b.insert("pagebreak");
+  b.insert("FirstTime");
+  b.insert("ExportCSVSplits");
 
   // Integers
   i.insert("YouthFee");
@@ -857,8 +873,7 @@ bool oEvent::save(const string &fileIn) {
   xml.write("ZeroTime", ZeroTime);
   xml.write("NameId", CurrentNameId);
   xml.write("Annotation", Annotation);
-	xml.write("Id", Id);
-	writeExtraXml(xml);
+  xml.write("Id", Id);
   xml.write("Updated", Modified.getStamp());
 
   oEventData->write(this, xml);
@@ -1059,13 +1074,10 @@ bool oEvent::open(const xmlparser &xml) {
   if (xo) Annotation = xo.get();
 
   xo=xml.getObject("ZeroTime");
-  ZeroTime=0;
   if (xo) ZeroTime=xo.getInt();
 
   xo=xml.getObject("Id");
   if (xo) Id=xo.getInt();
-
-	readExtraXml(xml);
 
   xo=xml.getObject("oData");
 
@@ -2243,13 +2255,25 @@ int oEvent::getRelativeTimeFrom12Hour(const string &m) const
   int atime=convertAbsoluteTime(m);
 
   if (atime>=0 && atime<3600*24) {
-    int rtime=atime-(ZeroTime % (3600*12));
+    int lowBound = ZeroTime;
+    int highBound = ZeroTime + 3600 * 12;
 
-    if (rtime<=0)
+    bool ok = ( atime >= lowBound && atime <= highBound) ||
+              ( (atime+3600*24) >= lowBound && (atime+3600*24) <= highBound);
+
+    int rtime = atime - ZeroTime;
+    if (!ok)
+      rtime += 12 * 3600;
+
+    rtime = (rtime+24*3600)%(24*3600);
+      
+    //int rtime=atime-(ZeroTime % (3600*12));
+
+/*    if (rtime<=0)
       rtime+=3600*12;
-
+    */
     //Don't allow times just before zero time.
-    if (rtime>3600*20)
+    if (rtime>3600*22)
       return -1;
 
     return rtime;
@@ -2774,7 +2798,7 @@ void oEvent::generateInForestList(gdioutput &gdi, GUICALLBACK cb, GUICALLBACK cb
 void oEvent::generateMinuteStartlist(gdioutput &gdi) {
   sortRunners(SortByStartTime);
 
-  int dx[5]={0, gdi.scaleLength(70), gdi.scaleLength(200), gdi.scaleLength(400), gdi.scaleLength(510)};
+  int dx[4]={0, gdi.scaleLength(70), gdi.scaleLength(340), gdi.scaleLength(510)};
   int y=gdi.getCY();
   int x=gdi.getCX();
   int lh=gdi.getLineHeight();
@@ -2898,7 +2922,6 @@ void oEvent::generateMinuteStartlist(gdioutput &gdi) {
 
         gdi.addStringUT(src_y, x+dx[2], fontMedium, r[0]->getClub(), dx[3]-dx[2]-4);
         gdi.addStringUT(src_y, x+dx[3], fontMedium, r[0]->getClass());
-				gdi.addStringUT(src_y, x+dx[4], fontMedium, r[0]->getCourseName());
         y+=lh;
       }
     }
@@ -3369,6 +3392,8 @@ void oEvent::clear()
   gdibase.getTabs().clearCompetitionData();
   
   MeOSUtil::useHourFormat = getPropertyInt("UseHourFormat", 1) != 0;
+
+  currentNameMode = (NameMode) getPropertyInt("NameMode", FirstLast);
 }
 
 bool oEvent::deleteCompetition()
@@ -3414,7 +3439,7 @@ void oEvent::newCompetition(const string &name)
   getDI().setString("Account", getPropertyString("Account", ""));
   getDI().setString("LateEntryFactor", getPropertyString("LateEntryFactor", "50 %"));
 
-  getDI().setString("CurrencySymbol", getPropertyString("CurrencySymbol", "$"));
+  getDI().setString("CurrencySymbol", getPropertyString("CurrencySymbol", "kr"));
   getDI().setString("CurrencySeparator", getPropertyString("CurrencySeparator", "."));
   getDI().setInt("CurrencyFactor", getPropertyInt("CurrencyFactor", 1));
   getDI().setInt("CurrencyPreSymbol", getPropertyInt("CurrencyPreSymbol", 0));
@@ -3781,7 +3806,7 @@ void oEvent::convertTimes(SICard &sic) const
   }
 
    // Support times longer than 24 hours
-  int maxLegTime = 22 * 3600;
+  int maxLegTime = useLongTimes() ? 22 * 3600 : 0;
   
   if (maxLegTime > 0) {
 
@@ -5127,6 +5152,7 @@ void oEvent::applyEventFees(bool updateClassFromEvent,
 
   if (updateCardFees) {
     int cf = getDCI().getInt("CardFee");
+
     for (oRunnerList::iterator it = Runners.begin(); it != Runners.end(); ++it) {
       if (it->skip())
         continue;
@@ -6403,3 +6429,15 @@ void oEvent::setPayMode(int id, const string &mode) {
   setExtraLines("PayModes", lines);
 }
 
+void oEvent::useDefaultProperties(bool useDefault) {
+  if (useDefault) {
+    if (savedProperties.empty())
+      savedProperties.swap(eventProperties);
+  }
+  else {
+    if (!savedProperties.empty()) {
+      savedProperties.swap(eventProperties);
+      savedProperties.clear();
+    }
+  }
+}

@@ -2,7 +2,7 @@
 /************************************************************************
     MeOS - Orienteering Software
     Copyright (C) 2009-2012 Melin Software HB
-    
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +18,7 @@
 
     Melin Software HB - software@melin.nu - www.melin.nu
     Eksoppsvägen 16, SE-75646 UPPSALA, Sweden
-    
+
 ************************************************************************/
 
 #include <mysql++.h>
@@ -52,9 +52,9 @@ protected:
   bool warnedOldVersion;
   int monitorId;
   int buildVersion;
-	mysqlpp::Connection con;
-	string CmpDataBase;
-	void alert(const string &s);
+  mysqlpp::Connection con;
+  string CmpDataBase;
+  void alert(const string &s);
 
   string errorMessage;
 
@@ -63,14 +63,14 @@ protected:
   string serverPassword;
   unsigned int serverPort;
 
-	bool isOld(int counter, const string &time, oBase *ob);
+  bool isOld(int counter, const string &time, oBase *ob);
   string andWhereOld(oBase *ob);
 
-	OpFailStatus updateTime(const char *oTable, oBase *ob);
+  OpFailStatus updateTime(const char *oTable, oBase *ob);
   // Update object in database with fixed query. If useId is false, Id is ignored (used
-	OpFailStatus syncUpdate(mysqlpp::Query &updateqry, const char *oTable, oBase *ob);
-	bool storeData(oDataInterface odi, const mysqlpp::Row &row, unsigned long &revision);
-  
+  OpFailStatus syncUpdate(mysqlpp::Query &updateqry, const char *oTable, oBase *ob);
+  bool storeData(oDataInterface odi, const mysqlpp::Row &row, unsigned long &revision);
+
   void importLists(oEvent *oe, const char *bf);
   void encodeLists(const oEvent *or, string &listEnc) const;
 
@@ -83,20 +83,20 @@ protected:
   OpFailStatus syncRead(bool forceRead, oTeam *t, bool readRecursive);
   OpFailStatus syncRead(bool forceRead, oRunner *r, bool readClassClub, bool readCourseCard);
   OpFailStatus syncReadCourse(bool forceRead, oCourse *c, set<int> &readControls);
-	OpFailStatus syncRead(bool forceRead, oClass *c, bool readCourses);
-	OpFailStatus syncReadControls(oEvent *oe, const set<int> &controlIds);
+  OpFailStatus syncRead(bool forceRead, oClass *c, bool readCourses);
+  OpFailStatus syncReadControls(oEvent *oe, const set<int> &controlIds);
 
   void storeClub(const mysqlpp::Row &row, oClub &c);
   void storeControl(const mysqlpp::Row &row, oControl &c);
   void storeCard(const mysqlpp::Row &row, oCard &c);
   void storePunch(const mysqlpp::Row &row, oFreePunch &p, bool rehash);
 
-  OpFailStatus storeTeam(const mysqlpp::Row &row, oTeam &t, 
+  OpFailStatus storeTeam(const mysqlpp::Row &row, oTeam &t,
                          bool readRecursive);
 
-  OpFailStatus storeRunner(const mysqlpp::Row &row, oRunner &r, 
-                           bool readCourseCard, 
-                           bool readClassClub, 
+  OpFailStatus storeRunner(const mysqlpp::Row &row, oRunner &r,
+                           bool readCourseCard,
+                           bool readClassClub,
                            bool readRunners);
   OpFailStatus storeCourse(const mysqlpp::Row &row, oCourse &c,
                            set<int> &readControls);
@@ -126,8 +126,8 @@ public:
 
   bool getErrorMessage(char *bf);
   bool reConnect();
-	bool listCompetitions(oEvent *oe, bool keepConnection);
-	bool Remove(oBase *ob);
+  bool listCompetitions(oEvent *oe, bool keepConnection);
+  bool Remove(oBase *ob);
 
   // Create database of runners and clubs
   bool createRunnerDB(oEvent *oe, mysqlpp::Query &query);
@@ -135,50 +135,50 @@ public:
   // Upload runner database to server
   OpFailStatus uploadRunnerDB(oEvent *oe);
 
-	bool openDB(oEvent *oe);
-	
+  bool openDB(oEvent *oe);
+
   bool closeDB();
 
-	bool syncListRunner(oEvent *oe);
-	bool syncListClass(oEvent *oe);
-	bool syncListCourse(oEvent *oe);
-	bool syncListControl(oEvent *oe);
-	bool syncListCard(oEvent *oe);
-	bool syncListClub(oEvent *oe);
-	bool syncListPunch(oEvent *oe);
-	bool syncListTeam(oEvent *oe);	
+  bool syncListRunner(oEvent *oe);
+  bool syncListClass(oEvent *oe);
+  bool syncListCourse(oEvent *oe);
+  bool syncListControl(oEvent *oe);
+  bool syncListCard(oEvent *oe);
+  bool syncListClub(oEvent *oe);
+  bool syncListPunch(oEvent *oe);
+  bool syncListTeam(oEvent *oe);
 
   OpFailStatus SyncEvent(oEvent *oe);
 
-	OpFailStatus SyncUpdate(oEvent *oe);
-	OpFailStatus SyncRead(oEvent *oe);
+  OpFailStatus SyncUpdate(oEvent *oe);
+  OpFailStatus SyncRead(oEvent *oe);
 
-	OpFailStatus syncUpdate(oRunner *r, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oRunner *r);
+  OpFailStatus syncUpdate(oRunner *r, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oRunner *r);
 
-	OpFailStatus syncUpdate(oCard *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oCard *c);
+  OpFailStatus syncUpdate(oCard *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oCard *c);
 
-	OpFailStatus syncUpdate(oClass *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oClass *c);
-	
-	OpFailStatus syncUpdate(oClub *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oClub *c);
+  OpFailStatus syncUpdate(oClass *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oClass *c);
 
-	OpFailStatus syncUpdate(oCourse *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oCourse *c);
-	
-	OpFailStatus syncUpdate(oControl *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oControl *c);
+  OpFailStatus syncUpdate(oClub *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oClub *c);
 
-	OpFailStatus syncUpdate(oFreePunch *c, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oFreePunch *c, bool rehash);
+  OpFailStatus syncUpdate(oCourse *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oCourse *c);
 
-	OpFailStatus syncUpdate(oTeam *t, bool forceWriteAll);
-	OpFailStatus syncRead(bool forceRead, oTeam *t);
+  OpFailStatus syncUpdate(oControl *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oControl *c);
+
+  OpFailStatus syncUpdate(oFreePunch *c, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oFreePunch *c, bool rehash);
+
+  OpFailStatus syncUpdate(oTeam *t, bool forceWriteAll);
+  OpFailStatus syncRead(bool forceRead, oTeam *t);
 
   int getModifiedMask(oEvent &oe);
 
-	MeosSQL(void);
-	virtual ~MeosSQL(void);
+  MeosSQL(void);
+  virtual ~MeosSQL(void);
 };

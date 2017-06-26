@@ -1,8 +1,0 @@
-Do the following as a quick check that a merge didn't lose -OZ functionality:
-1) Print Splits from a normal event - is bolding working ?
-2) Does import remember the entries file name ?
-3) Does start list show courses
-4) Print splits from an SSS event
-5) Look at results from an SSS event
-6) Does SSS event show SSS upload
-7) Does Create SSS event create an SSS event ?

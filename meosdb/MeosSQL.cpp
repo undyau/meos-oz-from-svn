@@ -36,7 +36,6 @@
 #include "../RunnerDB.h"
 #include "../progress.h"
 #include "../metalist.h"
-#include "../oExtendedEvent.h"
 #include "../MeOSFeatures.h"
 
 using namespace mysqlpp;
@@ -145,8 +144,6 @@ bool MeosSQL::listCompetitions(oEvent *oe, bool keepConnection) {
     return false;
   }
 
-// READ THIS
-// Next line only works in Release build !
   string serverInfo = con.server_info();
 
   if (serverInfo < "5.0.3") {
@@ -1812,11 +1809,7 @@ bool MeosSQL::Remove(oBase *ob)
     //Must change db!
     return 0;
   }
-   else if(typeid(*ob)==typeid(oExtendedEvent)){
-    oTable="oEvent";
-    //Must change db!
-    return 0;
-  } 
+
   query << "Removed=1";
   try{
     ResNSel res = updateCounter(oTable.c_str(), ob->Id, &query);
@@ -3596,9 +3589,6 @@ int getTypeId(const oBase &ob)
     return 8;
   }
   else if (typeid(ob)==typeid(oEvent)){
-    return 9;
-  }
-  else if(typeid(ob)==typeid(oExtendedEvent)){
     return 9;
   }
   return -1;
