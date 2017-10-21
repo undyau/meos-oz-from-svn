@@ -2478,7 +2478,7 @@ bool TabCompetition::loadPage(gdioutput &gdi)
     gdi.addButton("LocalSettings", "Ändra lokala inställningar...", CompetitionCB);
     gdi.popX();
     gdi.dropLine(2.5); 
-	gdi.addButton("SSS", "Sydney Summer Series", CompetitionCB, "Create Sydney Summer Series Event");
+    gdi.addButton("SSS", "Sydney Summer Series", CompetitionCB, "Create Sydney Summer Series Event");
 
     gdi.popX();
     gdi.dropLine(3);
@@ -2565,6 +2565,7 @@ bool TabCompetition::loadPage(gdioutput &gdi)
     gdi.addButton("Settings", "Tävlingsinställningar", CompetitionCB);
     gdi.addButton("Report", "Tävlingsrapport", CompetitionCB);
     gdi.addButton("Features", "MeOS Funktioner", CompetitionCB);
+    gdi.addButton("SSS", "Sydney Summer Series", CompetitionCB, "Create Sydney Summer Series Event");
 
 #ifdef _DEBUG
     gdi.addButton("Test", "Test", CompetitionCB);

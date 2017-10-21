@@ -6,6 +6,7 @@
 #include "meos_util.h"
 #include "metalist.h"
 #include <ctime>
+#include "MeOSFeatures.h"
 
 oSSSQuickStart::oSSSQuickStart(oExtendedEvent& a_Event):m_Event(a_Event)
 {
@@ -23,25 +24,49 @@ if (!GetEventTemplateFromInstall(file))
 	if (!GetEventTemplateFromWeb(file))
 		return false;
 
-
-gdi.setWaitCursor(true);
-if(m_Event.open(file, true)) 
-	{
-	m_Event.updateTabs();
-	gdi.setWindowTitle(m_Event.getTitleName());
-	}
+// If the competition already exists (say from Eventor) then just add course, controls etc
+if (!m_Event.empty())
+  {
+    m_Event.getMeOSFeatures().useFeature(MeOSFeatures::Rogaining, true, m_Event);
+  // Set course for each class, set controls
+    std::vector<pControl> controls;
+    m_Event.getControls(controls, false);
+    if (controls.size() == 0)
+      if (!LoadControlsFromFile(file))
+        {
+        removeTempFile(file);
+        return false;
+        }
+    std::vector<pCourse> courses;
+    m_Event.getCourses(courses);
+    if (courses.size() == 0)
+      if (!LoadCoursesFromFile(file))
+        {
+        removeTempFile(file);
+        return false;
+        }
+  }
 else
-	{
-	removeTempFile(file);
-	return false;
-	}
+  {
+  gdi.setWaitCursor(true);
+  if(m_Event.open(file, true)) 
+	  {
+	  m_Event.updateTabs();
+	  gdi.setWindowTitle(m_Event.getTitleName());
+    removeTempFile(file);
+	  }
+  else
+	  {
+	  removeTempFile(file);
+	  return false;
+	  }
+  }
+
 SYSTEMTIME st;
 GetSystemTime(&st);
 
 m_Event.setDate(convertSystemDate(st));
 CustomiseClasses();
-
-removeTempFile(file);
 
 AddMeosOzCustomList(string("SSS Receipt Results.xml"));
 AddMeosOzCustomList(string("SSS Results.xml"));
@@ -184,4 +209,67 @@ void oSSSQuickStart::CustomiseClasses()
 				it->setAgeLimit(55 + s,64 + s);
 			}
 		}
+}
+
+
+bool oSSSQuickStart::LoadCoursesFromFile(string file)
+{
+  xmlparser xml(0);
+  xml.read(file);
+  xmlobject xo;
+
+  //Get courses
+  xo=xml.getObject("CourseList");
+  if (xo){
+    xmlList xl;
+    xo.getObjects(xl);
+
+    xmlList::const_iterator it;
+    set<int> knownCourse;
+    for(it=xl.begin(); it != xl.end(); ++it){
+      if (it->is("Course")){
+        oCourse c(&m_Event);
+        c.Set(&*it);
+        if (c.getId()>0 && knownCourse.count(c.getId()) == 0) {
+          m_Event.addCourse(c);
+          knownCourse.insert(c.getId());
+        }
+      }
+    }
+  }
+  else
+    return false;
+
+  return true;
+}
+
+bool oSSSQuickStart::LoadControlsFromFile(string file)
+{
+  xmlparser xml(0);
+  xml.read(file);
+  xmlobject xo;
+
+  xo = xml.getObject("ControlList");
+  if (xo){
+    xmlList xl;
+    xo.getObjects(xl);
+
+    xmlList::const_iterator it;
+    set<int> knownControls;
+    for(it=xl.begin(); it != xl.end(); ++it){
+      if (it->is("Control")){
+        oControl c(&m_Event);
+        c.set(&*it);
+
+        if (c.getId()>0 && knownControls.count(c.getId()) == 0) {
+          m_Event.Controls.push_back(c);
+          knownControls.insert(c.getId());
+        }
+      }
+    }
+  }
+  else
+    return false;
+
+  return true;
 }
