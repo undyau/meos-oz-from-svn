@@ -73,6 +73,32 @@ protected:
   // Returns true if a SI-manager line is identified
   bool checkSimanLine(const oEvent &oe, const vector<char *> &sp, SICard &cards);
 
+  // Check and setup header for SIConfig import
+  void checkSIConfigHeader(const vector<char *> &sp);
+
+  // Return true if SIConfig line was detected 
+  bool checkSIConfigLine(const oEvent &oe, const vector<char *> &sp, SICard &card);
+
+  enum SIConfigFields {
+    sicSIID,
+    sicCheck,
+    sicCheckTime,
+    sicCheckDOW,
+    sicStart,
+    sicStartTime,
+    sicStartDOW,
+    sicFinish,
+    sicFinishTime,
+    sicFinishDOW,
+    sicNumPunch,
+    sicRecordStart,
+    sicFirstName,
+    sicLastName,
+  };
+
+  map<SIConfigFields, int> siconfigmap;
+  const char *getSIC(SIConfigFields sic, const vector<char *> &sp) const;
+
   // Check and process a punch line
   static int selectPunchIndex(const string &competitionDate, const vector<char *> &sp, 
                               int &cardIndex, int &timeIndex, int &dateIndex,
@@ -104,7 +130,7 @@ public:
 
 	int split(char *line, vector<char *> &split, char sep = ';');
 
-  bool ImportOE_CSV(oEvent &event, const char *file,  const ImportFormats &);
+  bool ImportOE_CSV(oEvent &event, const char *file);
   int iscsv(const char *file);
   csvparser();
   virtual ~csvparser();

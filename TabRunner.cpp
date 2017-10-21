@@ -847,7 +847,7 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
       else
         r->printStartInfo(gdiprint);
       gdiprint.print(oe, 0, false, true);
-      gdiprint.getPrinterSettings(splitPrinter);
+      gdiprint.fetchPrinterSettings(splitPrinter);
     }
     else if (bi.id == "PrintSettings") {
       if (runnerId)
@@ -863,7 +863,7 @@ int TabRunner::runnerCB(gdioutput &gdi, int type, void *data)
       gdioutput gdiprint(2.0, gdi.getEncoding(), gdi.getHWND(), labelPrinter);
       r->printLabel(gdiprint);
       gdiprint.print(oe, 0, false, true);
-      gdiprint.getPrinterSettings(labelPrinter);
+      gdiprint.fetchPrinterSettings(labelPrinter);
     }
     else if (bi.id == "EditTeam") {
       pRunner r = oe->getRunner(runnerId, 0);
@@ -1983,7 +1983,7 @@ void TabRunner::listRunners(gdioutput &gdi, const vector<pRunner> &r, bool filte
       continue;
     sprintf_s(bf, "%d.", k+1);
     gdi.addStringUT(yp, xp, 0, bf);
-    gdi.addStringUT(yp, xp+40, 0, r[k]->getNameAndRace(), 190);
+    gdi.addStringUT(yp, xp+40, 0, r[k]->getNameAndRace(true), 190);
     gdi.addStringUT(yp, xp+200, 0, r[k]->getClass(), 140);
     gdi.addStringUT(yp, xp+350, 0, r[k]->getClub(), 190);
     int c = r[k]->getCardNo();

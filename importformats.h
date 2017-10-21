@@ -27,19 +27,17 @@ class oEvent;
 class ImportFormats {
 public:
   enum ImportFormatOptions {
-    Default,
-    FrenchFederationMapping
+    Default
   };
 
-  static void getImportFormats(vector< pair<string, size_t> > &formats);
+  //static void getImportFormats(vector< pair<string, size_t> > &formats);
 
-  static int getDefault(oEvent &oe);
+  //static int getDefault(oEvent &oe);
 
   enum ExportFormats {
     IOF30 = 1,
     IOF203 = 2,
     OE = 3,
-    OE_FRANCE = 4,
     HTML = 5,
     IOF30BYCOURSE = 6,
     IOF203BYCOURSE = 7

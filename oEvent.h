@@ -410,7 +410,8 @@ protected:
   void initProperties();
 
   map<string, string> eventProperties;
-
+  map<string, string> savedProperties;
+  
   bool tUseStartSeconds;
 
   set< pair<int,int> > readPunchHash;
@@ -473,6 +474,20 @@ protected:
   // Temporarily disable recaluclate leader times
   bool disableRecalculate;
 public:
+
+  enum NameMode {
+    FirstLast,
+    LastFirst,
+    Raw,
+  };
+
+private:
+  NameMode currentNameMode;
+
+public:
+  NameMode getNameMode() const {return currentNameMode;};
+  NameMode setNameMode(NameMode newNameMode);
+
   /// Get new punches since firstTime
   void getLatestPunches(int firstTime, vector<const oFreePunch *> &punches) const;
 
@@ -777,6 +792,8 @@ protected:
 
 public:
 
+  void useDefaultProperties(bool useDefault);
+
   bool isReadOnly() const {return readOnly;}
   void setReadOnly() {readOnly = true;}
 
@@ -862,14 +879,16 @@ public:
                        int leg,
                        bool teamsAsIndividual,
                        bool unrollLoops,
-                       bool includeStageData);
+                       bool includeStageData,
+                       bool forceSplitFee);
 
   void exportIOFStartlist(IOFVersion version, const char *file,
                           bool useUTC, const set<int> &classes,
                           bool teamsAsIndividual,
-                          bool includeStageInfo);
+                          bool includeStageInfo,
+                          bool forceSplitFee);
 
-  bool exportOECSV(const char *file, int LanguageTypeIndex, bool includeSplits, bool useFFCOClubMapping, bool byClass = true);
+  bool exportOECSV(const char *file, int LanguageTypeIndex, bool includeSplits, bool byClass = true);
   bool save();
   void duplicate();
   void newCompetition(const string &Name);
@@ -1164,7 +1183,7 @@ protected:
   pClub getClubCreate(int clubId);
 
   bool addXMLCompetitorDB(const xmlobject &xentry, int ClubId);
-  bool addOECSVCompetitorDB(const vector<string> &row, bool useFFCOClubMapping);
+  bool addOECSVCompetitorDB(const vector<string> &row);
   pRunner addXMLPerson(const xmlobject &person);
   pRunner addXMLStart(const xmlobject &xstart, pClass cls);
   pRunner addXMLEntry(const xmlobject &xentry, int ClubId, bool setClass);
@@ -1241,7 +1260,7 @@ public:
   void analyseDNS(vector<pRunner> &unknown_dns, vector<pRunner> &known_dns,
                   vector<pRunner> &known, vector<pRunner> &unknown);
 
-  void importOECSV_Data(const char * oecsvfile, bool clear, const ImportFormats &importFormats);
+  void importOECSV_Data(const char * oecsvfile, bool clear);
   void importXML_IOF_Data(const char *clubfile, const char *competitorfile, bool clear);
 
   void generateTestCard(SICard &sic) const;

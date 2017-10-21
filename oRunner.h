@@ -189,6 +189,9 @@ public:
   // a non-zero fee is changed only if resetFee is true
   void addClassDefaultFee(bool resetFees);
 
+  /** Returns true if the entry fee is a late fee. */
+  bool hasLateEntryFee() const;
+
   bool hasInputData() const {return inputTime > 0 || inputStatus != StatusOK || inputPoints > 0;}
 
   /** Reset input data to no input and the input status to NotCompeting. */
@@ -493,9 +496,10 @@ protected:
   mutable int tAdaptedCourseRevision;
 
 public:
-
-  const string &getNameRaw() {return sName;}
+  const string &getUIName() const;
+  const string &getNameRaw() const {return sName;}
   virtual const string &getName() const;
+  const string &getNameLastFirst() const;
   static void getRealName(const string &input, string &output);
 
   /** Returns true if this runner can use the specified card, 
@@ -522,7 +526,6 @@ public:
   string getEntryDate(bool useTeamEntryDate = true) const;
 
   // Get date of birth
-
   int getBirthAge() const;
 
   // Multi day data input
@@ -551,7 +554,6 @@ public:
 
   //Get total running time after leg
   int getRaceRunningTime(int leg) const;
-
 
   // Get the complete name, including team and club.
   string getCompleteIdentification(bool includeExtra = true) const;
@@ -640,7 +642,7 @@ public:
   int getNumMulti() const {return multiRunner.size();} //Returns number of  multi runners (zero=no multi)
   void createMultiRunner(bool createMaster, bool sync);
   int getRaceNo() const {return tDuplicateLeg;}
-  string getNameAndRace() const;
+  string getNameAndRace(bool useUIName) const;
 
   void fillSpeakerObject(int leg, int courseControlId, int previousControlCourseId, bool totalResult,
                          oSpeakerObject &spk) const;

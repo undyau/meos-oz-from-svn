@@ -37,6 +37,13 @@
 string &getFirst(string &inout, int maxNames);
 string getMeosCompectVersion();
 
+IOF30Interface::IOF30Interface(oEvent *oe, bool forceSplitFee) : oe(*oe), useGMT(false), teamsAsIndividual(false), 
+                                entrySourceId(1), unrollLoops(true), 
+                                includeStageRaceInfo(true) {
+  cachedStageNumber = -1;
+  splitLateFee = forceSplitFee || oe->getPropertyInt("SplitLateFees", false) == 1;
+}
+
 void IOF30Interface::readCourseData(gdioutput &gdi, const xmlobject &xo, bool updateClass,
                                     int &courseCount, int &failed) {
   string ver;
@@ -1865,7 +1872,8 @@ void IOF30Interface::writeAmount(xmlparser &xml, const char *tag, int amount) co
   }
 }
 
-void IOF30Interface::writeAssignedFee(xmlparser &xml, const oDataConstInterface &dci, int paidForCard) const {
+void IOF30Interface::writeAssignedFee(xmlparser &xml, const oAbstractRunner &tr, int paidForCard) const {
+  const oDataConstInterface dci = tr.getDCI();
   int fee = dci.getInt("Fee");
   int taxable = dci.getInt("Taxable");
   int paid = dci.getInt("Paid");
@@ -1876,18 +1884,46 @@ void IOF30Interface::writeAssignedFee(xmlparser &xml, const oDataConstInterface 
   if (paid >= paidForCard) {
     paid -= paidForCard; // Included in card service fee
   }
+  const pClass pc = tr.getClassRef();
+  if (!splitLateFee || !pc || !tr.hasLateEntryFee()) {
+    xml.startTag("AssignedFee");
+     string type = tr.hasLateEntryFee() ? "Late" : "Normal";
+     xml.startTag("Fee", "type", type);
+      xml.write("Name", "Entry fee");
+      writeAmount(xml, "Amount", fee);
+      writeAmount(xml, "TaxableAmount", taxable);
+     xml.endTag();
 
-  xml.startTag("AssignedFee");
+    writeAmount(xml, "PaidAmount", paid);
+    xml.endTag();
+  }
+  else {
+    int normalFee = pc->getDCI().getInt("ClassFee");
+  
+    int feeSplit[2] = {fee, 0};
+    int paidSplit[2] = {paid, 0};
+    if (normalFee > 0) {
+      feeSplit[0] = min<int>(normalFee, fee);
+      feeSplit[1] = max<int>(0, fee - feeSplit[0]);
 
-  xml.startTag("Fee");
-  xml.write("Name", "Entry fee");
-  writeAmount(xml, "Amount", fee);
-  writeAmount(xml, "TaxableAmount", taxable);
-  xml.endTag();
+      paidSplit[0] = min<int>(paid, feeSplit[0]);
+      paidSplit[1] = max<int>(0, paid - paidSplit[0]);
+    }
 
-  writeAmount(xml, "PaidAmount", paid);
+    for (int ft = 0; ft < 2; ft++) {
+      xml.startTag("AssignedFee");
+       string type = ft == 1 ? "Late" : "Normal";
+       xml.startTag("Fee", "type", type);
+        xml.write("Name", "Entry fee");
+        writeAmount(xml, "Amount", feeSplit[ft]);
+        if (ft == 0)
+          writeAmount(xml, "TaxableAmount", taxable);
+       xml.endTag();
 
-  xml.endTag();
+      writeAmount(xml, "PaidAmount", paidSplit[ft]);
+      xml.endTag();
+    }
+  }
 }
 
 void IOF30Interface::writeRentalCardService(xmlparser &xml, int cardFee, bool paid) const {
@@ -2629,7 +2665,7 @@ void IOF30Interface::writeFees(xmlparser &xml, const oRunner &r) const {
   int cardFee = r.getDCI().getInt("CardFee");
   bool paidCard = r.getDCI().getInt("Paid") >= cardFee;
   
-  writeAssignedFee(xml, r.getDCI(), paidCard ? cardFee : 0);
+  writeAssignedFee(xml, r, paidCard ? cardFee : 0);
 
   if (cardFee > 0) 
     writeRentalCardService(xml, cardFee, paidCard);
@@ -2653,7 +2689,7 @@ void IOF30Interface::writeTeamResult(xmlparser &xml, const oTeam &t, bool hasInp
       writePersonResult(xml, *t.getRunner(k), true, true, hasInputTime);
   }
 
-  writeAssignedFee(xml, t.getDCI(), 0);
+  writeAssignedFee(xml, t, 0);
   xml.endTag();
 }
 
@@ -2962,7 +2998,7 @@ void IOF30Interface::writeTeamStart(xmlparser &xml, const oTeam &t) {
       writePersonStart(xml, *t.getRunner(k), true, true);
   }
 
-  writeAssignedFee(xml, t.getDCI(), 0);
+  writeAssignedFee(xml, t, 0);
   xml.endTag();
 }
 

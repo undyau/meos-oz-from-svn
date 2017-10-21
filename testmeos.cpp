@@ -129,8 +129,14 @@ void TestMeOS::runProtected(bool protect) const {
   oe_main->clear();
   gdi_main->isTestMode = true;
   showTab(TCmpTab);
-  string pmOrig = oe_main->getPropertyString("PayModes", "");
-  oe_main->setProperty("PayModes", "");
+  string tp = oe_main->getPropertyString("TestPath", "");
+  oe_main->useDefaultProperties(true);
+  oe_main->setProperty("FirstTime", 0);
+  oe_main->setProperty("TestPath", tp);
+  oe_main->getPropertyInt("UseEventor", 1);
+
+  //string pmOrig = oe_main->getPropertyString("PayModes", "");
+  //oe_main->setProperty("PayModes", "");
   try {
     status = RUNNING;
     run();
@@ -147,37 +153,41 @@ void TestMeOS::runProtected(bool protect) const {
   }
   catch (const meosAssertionFailure & ex) {
     status = FAILED;
+    oe_main->useDefaultProperties(false);
     gdi_main->clearDialogAnswers(false);
     gdi_main->isTestMode = false;
     subWindows.clear();
     message = ex.message;
-    oe_main->setProperty("PayModes", pmOrig);
+    //oe_main->setProperty("PayModes", pmOrig);
     if (!protect)
       throw meosException(message);
   }
   catch (const std::exception &ex) {
     status = FAILED;
+    oe_main->useDefaultProperties(false);
     gdi_main->clearDialogAnswers(false);
     gdi_main->isTestMode = false;
     subWindows.clear();
-    oe_main->setProperty("PayModes", pmOrig);
+    //oe_main->setProperty("PayModes", pmOrig);
     message = ex.what();
     if (!protect)
       throw;
   }
   catch (...) {
     status = FAILED;
+    oe_main->useDefaultProperties(false);
     gdi_main->clearDialogAnswers(false);
     gdi_main->isTestMode = false;
     subWindows.clear();
-    oe_main->setProperty("PayModes", pmOrig);
+    //oe_main->setProperty("PayModes", pmOrig);
     message = "Unknown Exception";
     cleanup();
     if (!protect)
       throw;
   }
-  oe_main->setProperty("PayModes", pmOrig);
-
+  //oe_main->setProperty("PayModes", pmOrig);
+  oe_main->useDefaultProperties(false);
+    
   for (size_t k = 0; k < tmpFiles.size(); k++)
     removeTempFile(tmpFiles[k]);
   tmpFiles.clear();
@@ -435,4 +445,9 @@ void TestMeOS::setTableText(int editRow, int editCol, const string &text) const 
   Table &t = gdi_main->getTable();
   t.setTableText(*gdi_main, editRow, editCol, text);
   mainMessageLoop(0, 50);
+}
+
+string TestMeOS::getTableText(int editRow, int editCol) const {
+  Table &t = gdi_main->getTable();
+  return t.getTableText(*gdi_main, editRow, editCol);
 }

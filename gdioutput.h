@@ -342,7 +342,9 @@ public:
 
   int getButtonHeight() const;
   int scaleLength(int input) const {return int(scale*input + 0.5);}
-  void getPrinterSettings(PrinterObject &po);
+  
+  // Fill in current printer settings
+  void fetchPrinterSettings(PrinterObject &po) const;
 
   void tableCB(ButtonInfo &bu, Table *t);
 

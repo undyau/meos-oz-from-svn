@@ -1601,6 +1601,17 @@ void Table::setTableText(gdioutput &gdi, int editRow, int editCol, const string 
   InvalidateRect(gdi.getTarget(), &rc, false);
 }
 
+const string &Table::getTableText(gdioutput &gdi, int editRow, int editCol) {
+  if (size_t(editRow) >= Data.size() || size_t(editCol) >= Data[editRow].cells.size())
+    throw std::exception("Index out of bounds");
+
+  string output;
+  TableCell &cell=Data[editRow].cells[editCol];
+
+  return cell.contents;
+}
+
+
 bool Table::enter(gdioutput &gdi)
 {
   if (hEdit) {

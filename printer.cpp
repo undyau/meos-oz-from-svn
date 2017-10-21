@@ -31,6 +31,7 @@
 #include "Printer.h"
 #include "gdiimpl.h"
 #include <algorithm>
+#include "meosexception.h"
 
 extern gdioutput *gdi_main;
 static bool bPrint;
@@ -370,9 +371,15 @@ bool gdioutput::startDoc(PrinterObject &po)
     nError=GetLastError();
     DeleteDC(po.hDC);
     po.hDC=0;
+
+    if (nError == ERROR_CANCELLED)
+      return false;
+
+    string err = "Printing failed (X: Y) Z#StartDoc#"+ itos(nError) + "#" + getErrorMessage(nError);
+    throw meosException(err);
     //sprintf_s(sb, "Window's StartDoc API returned with error code %d,", nError);
-    alert("StartDoc error: " + getErrorMessage(nError));
-    return false;
+    //alert("StartDoc error: " + getErrorMessage(nError));
+    //return false;
   }
   return true;
 }
@@ -614,7 +621,7 @@ struct PrintItemInfo {
 
   bool isNewPage() const {
     const TextInfo *ti = dynamic_cast<const TextInfo *>(obj);
-    return ti && ti->format == pagePageInfo;
+    return ti && ti->format == pageNewPage;
   }
 };
 

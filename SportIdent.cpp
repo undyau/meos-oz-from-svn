@@ -44,17 +44,20 @@
 
 //#define DEBUG_SI
 
+SI_StationData::SI_StationData() {
+  stationNumber=0;
+  stationMode=0;
+  extended=false;
+  handShake=false;
+  autoSend=false;
+  radioChannel = 0;
+}
+
 SI_StationInfo::SI_StationInfo()
 {
   ThreadHandle=0;
   hComm=0;
   memset(&TimeOuts, 0, sizeof(TimeOuts));
-
-  StationNumber=0;
-  StationMode=0;
-  Extended=false;
-  HandShake=false;
-  AutoSend=false;
 
   tcpPort=0;
   localZeroTime=0;
@@ -143,7 +146,7 @@ bool SportIdent::CheckCRC(BYTE *bf)
 bool SportIdent::ReadSystemData(SI_StationInfo *si, int retry)
 {
   BYTE c[16];
-  BYTE buff[32];
+  BYTE buff[256];
 
   c[0]=STX;
   c[1]=0x83;
@@ -159,17 +162,21 @@ bool SportIdent::ReadSystemData(SI_StationInfo *si, int retry)
   WriteFile(si->hComm, c, 8, &written, NULL);
   Sleep(100);
   memset((void *)buff, 0, 30);
-  //if (ReadBytes_delay(buff, 10, si->hComm)==10){
-  ReadBytes_delay(buff, 15, si->hComm);//==10){
+  DWORD offset = 0;
+  ReadBytes_delay(buff, sizeof(buff), 15, si->hComm);
+  if (buff[0] == 0xFF && buff[1] == STX)
+    offset++;
   if (1){
-    if (CheckCRC(LPBYTE(buff+1))){
-      si->StationNumber=MAKEWORD(buff[4], buff[3]);
-      BYTE PR=buff[6+4];
-      BYTE MO=buff[6+1];
-      si->Extended=(PR&0x1)!=0;
-      si->HandShake=(PR&0x4)!=0;
-      si->AutoSend=(PR&0x2)!=0;
-      si->StationMode=MO & 0xf;
+    if (CheckCRC(LPBYTE(buff+1 + offset))){
+      si->data.resize(1);
+      SI_StationData &da = si->data[0];
+      da.stationNumber=511 & MAKEWORD(buff[4 + offset], buff[3 + offset]);
+      BYTE PR=buff[6+4 + offset];
+      BYTE MO=buff[6+1 + offset];
+      da.extended = (PR&0x1)!=0;
+      da.handShake = (PR&0x4)!=0;
+      da.autoSend = (PR&0x2)!=0;
+      da.stationMode = MO & 0xf;
     }
     else if (retry>0)
       return ReadSystemData(si, retry-1);
@@ -181,6 +188,91 @@ bool SportIdent::ReadSystemData(SI_StationInfo *si, int retry)
     return false;
 
   return true;
+}
+
+bool SportIdent::ReadSystemDataV2(SI_StationInfo &si)
+{
+  BYTE c[16];
+  BYTE buff[4096];
+
+  int maxbytes = 256;
+  while (ReadByte(c[0], si.hComm) == 1 && maxbytes> 0) {
+    maxbytes--;
+  }
+
+ // 02 83 01 00 80 bf 17 03
+
+  c[0]=STX;
+  c[1]=0x83;
+  c[2]=0x02;
+  c[3]=0;
+  c[4]=0x80;
+  c[5]=0xbf;
+  c[6]=0x17;
+  SetCRC(c+1);
+  c[7]=ETX;
+
+  DWORD written=0;
+  WriteFile(si.hComm, c, 8, &written, NULL);
+  Sleep(100);
+  memset((void *)buff, 0, sizeof(buff) );
+//  DWORD offset = 0;
+  int consumed = 0;
+  int read = ReadBytes_delay(buff, sizeof(buff), -1, si.hComm);
+  const int requested = 0x80;
+  while ( (read - consumed) >= requested) {
+    while (consumed < read && buff[consumed] != STX)
+      consumed++;
+
+    BYTE *db = buff + consumed;
+    if ((read - consumed) >= requested && db[0] == STX) {
+      si.data.push_back(SI_StationData());
+      int used = analyzeStation(db, si.data.back());
+      if (used == 0) {
+        si.data.pop_back(); // Not valid
+        break;
+      }
+      else consumed += used;
+
+      // Test duplicate units: si.data.push_back(si.data.back());
+    }
+    else break;
+  }
+
+  return si.data.size() > 0;
+}
+
+int SportIdent::analyzeStation(BYTE *db, SI_StationData &si) {
+  DWORD size = 0;
+  DWORD addr = 0x70;
+  if (CheckCRC(LPBYTE(db+1))) {
+    size = DWORD(db[2]) + 6;
+
+    bool dongle = db[0x11] == 0x6f && db[0x12] == 0x21;
+
+    if (dongle) {
+      BYTE PR=db[69];
+      BYTE MO=db[6+1+addr];
+      si.extended=(PR&0x1)!=0;
+      si.handShake = false;
+      si.autoSend=db[68] == 1;
+      si.stationMode=MO & 0xf;
+      si.radioChannel = db[58] & 0x1;
+      si.stationNumber = 0;
+    }
+    else {
+      si.stationNumber=511 & MAKEWORD(db[4], db[3]);
+      BYTE PR=db[6+4+addr];
+      BYTE MO=db[6+1+addr];
+      si.extended=(PR&0x1)!=0;
+      si.handShake=(PR&0x4)!=0;
+      si.autoSend=(PR&0x2)!=0;
+      si.stationMode=MO & 0xf;
+      si.radioChannel = 0;
+    }
+  }
+  
+  return size;
 }
 
 string decode(BYTE *bf, int read)
@@ -204,49 +296,6 @@ string decode(BYTE *bf, int read)
   return st;
 }
 
-bool SportIdent::ReadSystemDataOldProtocoll(SI_StationInfo *si, int retry)
-{
-  return false;
-  BYTE c[16];
-  BYTE buff[32];
-
-  c[0]=STX;
-  //[1]=0x83;
-  //c[2]=0x02;
-  //c[3]=0x72; //Request address 0x70
-  //c[4]=0x01; //And 6 bytes
-  //Address 0x74 = protocoll settings
-  //Address 0x71 = Programming ctrl/readout/finish etc.
-  SetCRC(c+1);
-  c[7]=ETX;
-
-  DWORD written=0;
-  WriteFile(si->hComm, c, 8, &written, NULL);
-  Sleep(100);
-  memset((void *)buff, 0, 30);
-  //if (ReadBytes_delay(buff, 10, si->hComm)==10){
-  int read=ReadBytesDLE(buff, 26, si->hComm);//==10){
-  if (1){
-
-    string code=decode(buff, read);
-
-    //if (CheckCRC(LPBYTE(buff+1))){
-      si->StationNumber=buff[4];
-      BYTE PR=buff[6+4];
-      BYTE MO=buff[6+1];
-      si->Extended=(PR&0x1)!=0;
-      si->HandShake=(PR&0x4)!=0;
-      si->AutoSend=(PR&0x2)!=0;
-      si->StationMode=MO & 0xf;
-  }
-  else if (retry>0)
-    return ReadSystemDataOldProtocoll(si, retry-1);
-  else
-    return false;
-
-  return true;
-}
-
 bool SportIdent::OpenComListen(const char *com, DWORD BaudRate) {
   CloseCom(com);
 
@@ -258,12 +307,8 @@ bool SportIdent::OpenComListen(const char *com, DWORD BaudRate) {
     si=&SI_Info[n_SI_Info];
     n_SI_Info++;
   }
-
-  si->StationNumber=0;
-  si->Extended=0;
-  si->HandShake=0;
-  si->StationMode=0;
-
+  si->data.clear();
+  
   string comfile=string("//./")+com;
   si->hComm = CreateFile( comfile.c_str(),
             GENERIC_READ | GENERIC_WRITE,
@@ -338,11 +383,8 @@ bool SportIdent::OpenCom(const char *com)
     n_SI_Info++;
   }
 
-  si->StationNumber=0;
-  si->Extended=0;
-  si->HandShake=0;
-  si->StationMode=0;
-
+  si->data.clear();
+  
   string comfile=string("//./")+com;
   si->hComm = CreateFile( comfile.c_str(),
             GENERIC_READ | GENERIC_WRITE,
@@ -410,7 +452,8 @@ bool SportIdent::OpenCom(const char *com)
   if (read==1 && buff[0]==STX) {
     ReadFile(si->hComm, buff, 8, &read, NULL);
 
-    ReadSystemData(si);
+    if (!ReadSystemDataV2(*si))
+      ReadSystemData(si, 1);
   }
   else {
     dcb.BaudRate=CBR_4800;
@@ -446,12 +489,13 @@ bool SportIdent::OpenCom(const char *com)
         return false;
       }
 
-      read=ReadBytesDLE_delay(buff, 4, si->hComm);
+      read=ReadBytesDLE_delay(buff, sizeof(buff), 4, si->hComm);
       if (read==4) {
+        si->data.resize(1);
         if (buff[1]>30)
-          si->StationNumber=buff[1];
+          si->data[0].stationNumber = buff[1];
         else{
-          si->StationNumber=buff[2];
+          si->data[0].stationNumber = buff[2];
 
         }
         if (buff[3]!=ETX)
@@ -521,8 +565,7 @@ void SportIdent::CloseCom(const char *com)
 int SportIdent::ReadByte_delay(BYTE &byte, HANDLE hComm)
 {
   byte=0;
-
-  return ReadBytes_delay(&byte, 1, hComm);
+  return ReadBytes_delay(&byte, 1, 1, hComm);
 }
 
 
@@ -542,7 +585,7 @@ int SportIdent::ReadByte(BYTE &byte, HANDLE hComm)
     sprintf_s(t, 64, "read=%02X\n", (int)byte);
     OutputDebugString(t);
 #endif
-		if(dwRead)
+    if (dwRead)
       return 1;
     else return 0;
   }
@@ -551,27 +594,47 @@ int SportIdent::ReadByte(BYTE &byte, HANDLE hComm)
 
 
 
-int SportIdent::ReadBytes_delay(BYTE *byte, DWORD len,  HANDLE hComm)
-{
+int SportIdent::ReadBytes_delay(BYTE *byte, DWORD buffSize, DWORD len,  HANDLE hComm) {
   int read=0;
-  int toread=len;
   int d;
-  for(d=0;d<7 && read<toread;d++)
-  {
-    int r=ReadBytes(byte+read, len, hComm);
+  bool autoLen = false;
+  if (len == -1) {
+    len = min<int>(buffSize, 10);
+    autoLen = true;
+  }
+  int toread=len;
 
-    if (r==-1) return -1;
+  for(d=0;d<7 && read<toread;d++) {
+    int maxToRead = min<int>(buffSize - read, len);
+    if (maxToRead <= 0)
+      return read;
 
+    int r = ReadBytes(byte+read, maxToRead, hComm);
+
+    if (r==-1) {
+      if (read > 0)
+        return read;
+      return -1;
+    }
     read+=r;
+    if (read == 1 && byte[0] == NAK)
+      return read;
 
-    if (read<toread)
-    {
-      len=toread-read;
+    if (autoLen && r == len) {
+       int rloop;
+       Sleep(100);
+       while (read < int(buffSize) && (rloop = ReadBytes(byte+read, min<int>(16, buffSize-read), hComm)) > 0) {
+         read += rloop;
+       }
+    }
+
+    if (read < toread) {
+      len = toread - read;
       Sleep(100);
     }
   }
 #ifdef DEBUG_SI2
-	char t[64];
+  char t[64];
   sprintf_s(t, 64, "retry=%d\n", d);
   OutputDebugString(t);
 
@@ -581,7 +644,6 @@ int SportIdent::ReadBytes_delay(BYTE *byte, DWORD len,  HANDLE hComm)
     OutputDebugString(t);
   }
 #endif
-
 
   return read;
 }
@@ -608,15 +670,15 @@ int SportIdent::ReadBytes(BYTE *byte, DWORD len,  HANDLE hComm)
 }
 
 
-int SportIdent::ReadBytesDLE_delay(BYTE *byte, DWORD len,  HANDLE hComm)
+int SportIdent::ReadBytesDLE_delay(BYTE *byte, DWORD buffSize, DWORD len,  HANDLE hComm)
 {
   int read=0;
   int toread=len;
   int d;
 
-  for(d=0;d<15 && read<toread;d++)
-  {
-    int r=ReadBytes(byte+read, len, hComm);
+  for(d=0;d<15 && read<toread;d++) {
+    int maxToRead = max(buffSize-read, len);
+    int r = ReadBytes(byte+read, maxToRead, hComm);
 
     if (r==-1) return -1;
 
@@ -629,7 +691,6 @@ int SportIdent::ReadBytesDLE_delay(BYTE *byte, DWORD len,  HANDLE hComm)
     }
   }
 #ifdef DEBUG_SI2
-
   char t[64];
   sprintf_s(t, 64, "retry=%d\n", d);
   OutputDebugString(t);
@@ -902,7 +963,7 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
               sprintf_s(str, "EXTENDED: Card = %d, Station = %d, StationMode = %d", Card, Station, si.StationMode);
               MessageBox(NULL, str, NULL, MB_OK);
 #endif
-              AddPunch(Time, Station & 1023, Card & 0x00FFFFFF, si.StationMode);
+              AddPunch(Time, Station & 511, Card & 0x00FFFFFF, si.stationMode());
             }
             break;
           }
@@ -938,7 +999,7 @@ bool SportIdent::MonitorSI(SI_StationInfo &si)
               sprintf_s(str, "OLD: Card = %d, Station = %d, StationMode = %d", DCard, Station, si.StationMode);
               MessageBox(NULL, str, NULL, MB_OK);
 #endif
-            AddPunch(Time, Station, DCard, si.StationMode);
+            AddPunch(Time, Station, DCard, si.stationMode());
             break;
           }
           case 0xE7:{//SI5/6 removed
@@ -1239,7 +1300,7 @@ void SportIdent::GetSI9DataExt(HANDLE hComm)
           else {
             limit = 2; // Card 8, 9, p, t
           }
-				}
+        }
 
         }
         else {
@@ -1487,7 +1548,6 @@ DWORD SportIdent::GetExtCardNumber(BYTE *data) const {
   return cnr;
 }
 
-
 bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 {
   /*ofstream fout("si.txt");
@@ -1511,15 +1571,13 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
 
   int series = data[24] & 15;
 
-
   AnalysePunch(data+12, card.StartPunch.Time, card.StartPunch.Code);
   AnalysePunch(data+16, card.FinishPunch.Time, card.FinishPunch.Code);
   AnalysePunch(data+8, card.CheckPunch.Time, card.CheckPunch.Code);
 
   if (series == 1) {
     // SI Card 9
-	card.nPunch=min(int(data[22]), 50);
-
+    card.nPunch=min(int(data[22]), 50);
     for(unsigned k=0;k<card.nPunch;k++) {
       AnalysePunch(14*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
     }
@@ -1527,9 +1585,9 @@ bool SportIdent::GetCard9Data(BYTE *data, SICard &card)
   else if (series == 2) {
     // SI Card 8
     card.nPunch=min(int(data[22]), 30);
-	for(unsigned k=0;k<card.nPunch;k++)	{
+    for(unsigned k=0;k<card.nPunch;k++) {
       AnalysePunch(34*4 + data + 4*k, card.Punch[k].Time, card.Punch[k].Code);
-	}
+    }
   }
   else if (series == 4) {
     // pCard
@@ -1816,7 +1874,7 @@ void SportIdent::AddPunch(DWORD Time, int Station, int Card, int Mode)
   sic.CheckPunch.Code = -1;
   sic.FinishPunch.Code = -1;
 
-  if (Mode==0){
+  if (Mode==0 || Mode == 11){ // 11 is dongle
     if (Station>30){
       sic.Punch[0].Code=Station;
       sic.Punch[0].Time=Time;
@@ -1935,8 +1993,8 @@ void checkport_si_thread(void *ptr)
     bool valid = true;
     SI_StationInfo *sii = si.findStation(bf);
     if (sii) {
-      if (sii->StationNumber>=1024 || sii->StationMode>10 ||
-              !(sii->AutoSend || sii->HandShake))
+      if (sii->data.empty() || sii->data[0].stationNumber>=1024 || sii->data[0].stationMode>15 ||
+              !(sii->data[0].autoSend || sii->data[0].handShake))
         valid = false;
     }
     if (valid)
@@ -2008,62 +2066,78 @@ bool SportIdent::IsPortOpen(const string &com)
     return si!=0 && si->hComm && si->ThreadHandle;
 }
 
-string SportIdent::getInfoString(const string &com)
+void SportIdent::getInfoString(const string &com, vector<string> &infov)
 {
+  infov.clear();
   SI_StationInfo *si = findStation(com);
 
   if (com=="TCP") {
-    if (!si || !tcpPortOpen || !serverSocket)
-      return "TCP: "+lang.tl("ej aktiv.");
+    if (!si || !tcpPortOpen || !serverSocket) {
+      infov.push_back("TCP: "+lang.tl("ej aktiv."));
+      return;
+    }
 
     char bf[128];
     sprintf_s(bf, lang.tl("TCP: Port %d, Nolltid: %s").c_str(), tcpPortOpen, "00:00:00");
-    return bf;
+    infov.push_back(bf);
+    return;
   }
 
-  if (!(si!=0 && si->hComm && si->ThreadHandle))
-    return com+": "+lang.tl("ej aktiv.");
-
-  string info=si->ComPort;
-  if (si->Extended) info+=lang.tl(": Utökat protokoll. ");
-  else info+=lang.tl(": Äldre protokoll. ");
-
-  switch(si->StationMode){
-    case 2:
-    case 50:
-      info+=lang.tl("Kontrol");
-      break;
-    case 4:
-      info+=lang.tl("Mål");
-      break;
-    case 3:
-      info+=lang.tl("Start");
-      break;
-    case 5:
-      info+=lang.tl("Läs brickor");
-      break;
-    case 7:
-      info+=lang.tl("Töm");
-      break;
-    case 10:
-      info+=lang.tl("Check");
-      break;
-    default:
-      info+=lang.tl("Okänd funktion");
+  if (!(si!=0 && si->hComm && si->ThreadHandle)) {
+    infov.push_back(com+": "+lang.tl("ej aktiv."));
+    return;
   }
+  
+  for (size_t k = 0; k < si->data.size(); k++) {
+    string info = si->ComPort;
 
-  if (si->StationNumber) {
-    char bf[16];
-    sprintf_s(bf, " (%d).", si->StationNumber);
-    info+=bf;
+    if (si->data.size() > 1)
+      info += MakeDash("-") + itos(k+1);
+
+    const SI_StationData &da = si->data[k];
+    if (da.extended) info+=lang.tl(": Utökat protokoll. ");
+    else info+=lang.tl(": Äldre protokoll. ");
+
+    switch(da.stationMode){
+      case 2:
+      case 50:
+        info+=lang.tl("Kontrol");
+        break;
+      case 4:
+        info+=lang.tl("Mål");
+        break;
+      case 3:
+        info+=lang.tl("Start");
+        break;
+      case 5:
+        info+=lang.tl("Läs brickor");
+        break;
+      case 7:
+        info+=lang.tl("Töm");
+        break;
+      case 10:
+        info+=lang.tl("Check");
+        break;
+      case 11:
+        info+=lang.tl("SRR Dongle ") + (da.radioChannel == 0? lang.tl("red channel.") : lang.tl("blue channel."));
+        break;
+      default:
+        info+=lang.tl("Okänd funktion");
+    }
+
+    if (da.stationNumber) {
+      char bf[16];
+      sprintf_s(bf, " (%d).", da.stationNumber);
+      info+=bf;
+    }
+
+    info += lang.tl(" Kommunikation: ");
+    if (da.autoSend) info+=lang.tl("skicka stämplar.");
+    else if (da.handShake) info+=lang.tl("handskakning.");
+    else info+=lang.tl("[VARNING] ingen/okänd.");
+
+    infov.push_back(info);
   }
-
-  info += lang.tl(" Kommunikation: ");
-  if (si->AutoSend) info+=lang.tl("skicka stämplar.");
-  else if (si->HandShake) info+=lang.tl("handskakning.");
-  else info+=lang.tl("[VARNING] ingen/okänd.");
-
-  return info;
 }
 
 vector<string> SICard::codeLogData(int row) const

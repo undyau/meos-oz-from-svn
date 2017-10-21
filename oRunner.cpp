@@ -1767,6 +1767,17 @@ bool oRunner::operator <(const oRunner &c) {
   else if (oe->CurrentSortOrder==SortByLastName) {
     string a = getFamilyName();
     string b = c.getFamilyName();
+    if (a.empty() && !b.empty())
+      return false;
+    else if (b.empty() && !a.empty())
+      return true;
+    else if (a != b) {
+      return CompareString(LOCALE_USER_DEFAULT, 0,
+                           a.c_str(), a.length(),
+                           b.c_str(), b.length()) == CSTR_LESS_THAN;
+    }
+    a = getGivenName();
+    b = c.getGivenName();
     if (a != b) {
       return CompareString(LOCALE_USER_DEFAULT, 0,
                            a.c_str(), a.length(),
@@ -2229,6 +2240,17 @@ void oRunner::setName(const string &in, bool manualUpdate)
 
 const string &oRunner::getName() const {
   return tRealName;
+}
+
+const string &oRunner::getNameLastFirst() const {
+  if (sName.find_first_of(',') != sName.npos)
+    return sName;  // Already "Fiske, Eric"
+  if (sName.find_first_of(' ') == sName.npos)
+    return sName; // No space "Vacant", "Eric"
+  
+  string &res = StringCache::getInstance().get();
+  res = getFamilyName() + ", " + getGivenName();
+  return res;
 }
 
 void oRunner::getRealName(const string &input, string &output) {
@@ -2699,7 +2721,10 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
   synchronizeList(oLRunnerId);
   oRunnerList::iterator it;
   int lVacId = getVacantClub();
-  CurrentSortOrder=SortByName;
+  if (getNameMode() == LastFirst)
+    CurrentSortOrder = SortByLastName;
+  else
+    CurrentSortOrder = SortByName;
   Runners.sort();
   out.clear();
   if (personFilter.empty())
@@ -2720,12 +2745,12 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
         continue;
       if (!it->skip() || (showAll && !it->isRemoved())) {
         if (compact) {
-          sprintf_s(bf, "%s, %s (%s)", it->getNameAndRace().c_str(),
+          sprintf_s(bf, "%s, %s (%s)", it->getNameAndRace(true).c_str(),
                                       it->getClub().c_str(),
                                       it->getClass().c_str());
 
         } else {
-          sprintf_s(bf, "%s\t%s\t%s", it->getNameAndRace().c_str(),
+          sprintf_s(bf, "%s\t%s\t%s", it->getNameAndRace(true).c_str(),
                                       it->getClass().c_str(),
                                       it->getClub().c_str());
         }
@@ -2744,9 +2769,9 @@ const vector< pair<string, size_t> > &oEvent::fillRunners(vector< pair<string, s
 
       if (!it->skip() || (showAll && !it->isRemoved())) {
         if ( it->getClubId() != lVacId )
-          out.push_back(make_pair(it->getName(), it->Id));
+          out.push_back(make_pair(it->getUIName(), it->Id));
         else {
-          sprintf_s(bf, "%s (%s)", it->getName().c_str(), it->getClass().c_str());
+          sprintf_s(bf, "%s (%s)", it->getUIName().c_str(), it->getClass().c_str());
           out.push_back(make_pair(bf, it->Id));
         }
       }
@@ -2765,13 +2790,17 @@ void oRunner::resetPersonalData()
   //getDI().initData();
 }
 
-string oRunner::getNameAndRace() const
+string oRunner::getNameAndRace(bool userInterface) const
 {
   if (tDuplicateLeg>0 || multiRunner.size()>0) {
     char bf[16];
     sprintf_s(bf, " (%d)", getRaceNo()+1);
+    if (userInterface)
+      return getUIName() + bf;
     return getName()+bf;
   }
+  else if (userInterface)
+    return getUIName();
   else return getName();
 }
 
@@ -3025,6 +3054,20 @@ void oEvent::generateRunnerTableData(Table &table, oRunner *addRunner)
   }
 }
 
+const string &oRunner::getUIName() const {
+  oEvent::NameMode nameMode = oe->getNameMode();
+  
+  switch (nameMode) {
+  case oEvent::Raw: 
+    return getNameRaw();
+  case oEvent::LastFirst:
+    return getNameLastFirst();
+  default:
+    return getName();
+  }
+}
+
+
 void oRunner::addTableRow(Table &table) const
 {
   oRunner &it = *pRunner(this);
@@ -3034,7 +3077,8 @@ void oRunner::addTableRow(Table &table) const
   table.set(row++, it, TID_ID, itos(getId()), false);
   table.set(row++, it, TID_MODIFIED, getTimeStamp(), false);
 
-  table.set(row++, it, TID_RUNNER, getName(), true);
+  table.set(row++, it, TID_RUNNER, getUIName(), true);
+  
   table.set(row++, it, TID_CLASSNAME, getClass(), true, cellSelection);
   table.set(row++, it, TID_COURSE, getCourseName(), true, cellSelection);
   table.set(row++, it, TID_CLUB, getClub(), true, cellCombo);
@@ -5765,3 +5809,22 @@ void oAbstractRunner::setPaymentMode(int mode) {
   getDI().setInt("PayMode", mode);
 }
 
+bool oAbstractRunner::hasLateEntryFee() const {
+  if (!Class)
+    return false;
+  int highFee = Class->getDCI().getInt("HighClassFee");
+  int normalFee = Class->getDCI().getInt("ClassFee");
+  
+  int fee = getDCI().getInt("Fee");
+  if (fee == normalFee || fee == 0)
+    return false;
+  else if (fee == highFee && highFee > normalFee && normalFee > 0)
+    return true;
+
+  string date = getEntryDate(true);
+  oDataConstInterface odc = oe->getDCI();
+  string oentry = odc.getDate("OrdinaryEntry");
+  bool late = date > oentry && oentry>="2010-01-01";
+
+  return late;
+}

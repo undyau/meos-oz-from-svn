@@ -118,7 +118,7 @@ class TabCompetition :
   void newCompetitionGuide(gdioutput &gdi, int step);
 
   void entryForm(gdioutput &gdi, bool isGuide);
-  void saveEntries(gdioutput &gdi, bool removeRemoved, bool isGuide, const ImportFormats &importOpts);
+  void saveEntries(gdioutput &gdi, bool removeRemoved, bool isGuide);
   void setExportOptionsStatus(gdioutput &gdi, int format) const;
 
   void selectStartlistOptions(gdioutput &gdi);
