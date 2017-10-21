@@ -2691,6 +2691,7 @@ void oEvent::exportIOFSplits(IOFVersion version, const char *file,
   calculateResults(RTClassResult);
   calculateTeamResults(true);
   calculateTeamResults(false);
+  calculateRogainingResults();
 
   if (version == IOF20)
     exportIOFResults(xml, true, classes, leg, oldStylePatrolExport);
