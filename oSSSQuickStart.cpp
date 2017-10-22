@@ -27,24 +27,36 @@ if (!GetEventTemplateFromInstall(file))
 // If the competition already exists (say from Eventor) then just add course, controls etc
 if (!m_Event.empty())
   {
-    m_Event.getMeOSFeatures().useFeature(MeOSFeatures::Rogaining, true, m_Event);
-  // Set course for each class, set controls
-    std::vector<pControl> controls;
-    m_Event.getControls(controls, false);
-    if (controls.size() == 0)
-      if (!LoadControlsFromFile(file))
-        {
-        removeTempFile(file);
-        return false;
-        }
-    std::vector<pCourse> courses;
-    m_Event.getCourses(courses);
-    if (courses.size() == 0)
-      if (!LoadCoursesFromFile(file))
-        {
-        removeTempFile(file);
-        return false;
-        }
+  // Make sure that we have courses, controls and class->course mapping
+  m_Event.getMeOSFeatures().useFeature(MeOSFeatures::Rogaining, true, m_Event);
+  std::vector<pControl> controls;
+  m_Event.getControls(controls, false);
+  if (controls.size() == 0)
+    if (!LoadControlsFromFile(file))
+      {
+      removeTempFile(file);
+      return false;
+      }
+
+  std::vector<pCourse> courses;
+  m_Event.getCourses(courses);
+  if (courses.size() == 0)
+    if (!LoadCoursesFromFile(file))
+      {
+      removeTempFile(file);
+      return false;
+      }
+
+  vector<pClass> allCls;
+  m_Event.getClasses(allCls, false);
+  m_Event.getCourses(courses);
+  for (size_t k = 0; k < allCls.size(); k++) 
+    {
+    if (courses.size() && allCls[k]->getCourse(false) == 0)
+      allCls[k]->setCourse(courses.at(0));
+    allCls[k]->setAllowQuickEntry(true);
+    }
+
   }
 else
   {

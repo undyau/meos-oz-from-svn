@@ -7,7 +7,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{5A8ACFDC-9E0A-4B59-9D8F-4013251EB156}
 AppName=MEOS-OZ
-AppVersion=3.4.690.1
+AppVersion=3.4.717.1
 AppPublisher=undy
 AppPublisherURL=http://sourceforge.net/projects/meosoz/
 AppSupportURL=http://sourceforge.net/projects/meosoz/
@@ -31,15 +31,15 @@ Source: "meos.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "libHaru.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "libmySQL.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "license.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "meos_doc_eng.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "meos_doc_swe.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*.html"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*.meos"; DestDir: "{app}"; Flags: ignoreversion
 Source: "mysqlpp.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "thirdpartylicense.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "baseclass.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "database.clubs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "database.persons"; DestDir: "{app}"; Flags: ignoreversion
-Source: "ind_finalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
-Source: "ind_totalresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*.lxml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*.listdef"; DestDir: "{app}"; Flags: ignoreversion
 Source: "ind_courseresult.lxml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "sss201230.xml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "classcourse.lxml"; DestDir: "{app}"; Flags: ignoreversion
