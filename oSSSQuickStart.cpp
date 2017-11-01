@@ -49,6 +49,14 @@ if (!m_Event.empty())
 
   vector<pClass> allCls;
   m_Event.getClasses(allCls, false);
+  if (allCls.size() == 0)
+    if (!LoadClassesFromFile(file))
+      {
+      removeTempFile(file);
+      return false;
+      }
+
+  m_Event.getClasses(allCls, false);
   m_Event.getCourses(courses);
   for (size_t k = 0; k < allCls.size(); k++) 
     {
@@ -276,6 +284,36 @@ bool oSSSQuickStart::LoadControlsFromFile(string file)
         if (c.getId()>0 && knownControls.count(c.getId()) == 0) {
           m_Event.Controls.push_back(c);
           knownControls.insert(c.getId());
+        }
+      }
+    }
+  }
+  else
+    return false;
+
+  return true;
+}
+
+bool oSSSQuickStart::LoadClassesFromFile(string file)
+{
+  xmlparser xml(0);
+  xml.read(file);
+  xmlobject xo;
+
+  xo = xml.getObject("ClassList");
+  if (xo){
+    xmlList xl;
+    xo.getObjects(xl);
+
+    xmlList::const_iterator it;
+    set<int> knownClass;
+    for(it=xl.begin(); it != xl.end(); ++it){
+      if (it->is("Class")){
+        oClass c(&m_Event);
+        c.Set(&*it);
+        if (c.getId()>0 && knownClass.count(c.getId()) == 0) {
+          m_Event.Classes.push_back(c);
+          knownClass.insert(c.getId());
         }
       }
     }

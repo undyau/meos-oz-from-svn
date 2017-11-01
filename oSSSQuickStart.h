@@ -18,6 +18,7 @@ private:
 	void CustomiseClasses(); // Set age limits, gender for each class
   bool LoadCoursesFromFile(string file);
   bool LoadControlsFromFile(string file);
+  bool LoadClassesFromFile(string file);
 	int m_ImportCount;
 };
 #pragma warning (default: 4512)

@@ -1,3 +1,13 @@
+  1 November 2017
+- Set SSS classes when comp (without classes) is created before pressing SSS button.
+- Set the class for a competitor from gender/age if their details are retrieved at
+  download from runner db.   
+  
+  23 October 2017
+- Merge with standard MEOS 3.4.717
+- Add support for export of Score points in IOF XML 3
+- Add support for instant SSS set-up when event has been imported from Eventor 
+
   8 February 2017
 - Merge with standard MEOS 3.4.690 (3.4 RC1)
   For changes see 3.4 RC1 notes in http://www.melin.nu/meos/en/whatsnew25.php

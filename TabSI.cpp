@@ -665,7 +665,24 @@ int TabSI::siCB(gdioutput &gdi, int type, void *data)
       gdi.setInputFocus("Classes");
 
       if (classes.size()>0)
-        gdi.selectItemByData("Classes", classes[0]->getId());
+      {   
+        pRunner db_r = gEvent->dbLookUpByCard(si_copy.CardNumber);
+        vector<int> probable_classes;
+        oe->getClassesFromBirthYear(db_r->getBirthYear(), db_r->getSex(), probable_classes);
+      // Will have all classes runner is eligible for. Select lowest numbered class, leave all classes in list.
+        if (!probable_classes.empty()) {
+          int min(-1);
+          for (unsigned int i = 0; i < probable_classes.size(); i++)
+            if (probable_classes.at(i) < min || min == -1)
+              min = probable_classes.at(i);
+				  if (oe->getClass(min))
+            gdi.selectItemByData("Classes", min);
+          else 
+            gdi.selectItemByData("Classes", classes[0]->getId());
+        }
+        else 
+          gdi.selectItemByData("Classes", classes[0]->getId());
+      }
 
       gdi.dropLine();
 
