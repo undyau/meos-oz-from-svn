@@ -1,3 +1,6 @@
+  6 November 2017
+- Allow specification of a "series" for SSS style events rather than forcing "sss"
+
   1 November 2017
 - Set SSS classes when comp (without classes) is created before pressing SSS button.
 - Set the class for a competitor from gender/age if their details are retrieved at

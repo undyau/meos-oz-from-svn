@@ -213,7 +213,8 @@ void TabCompetition::loadSssUploadPage(gdioutput &gdi)
 
   gdi.fillRight();
   gdi.addInput("SssServer", defaultSssServer, 30, 0, "Upload server:", "URL of server expecting upload");
-  gdi.addInput("SssEventNum", itos(static_cast<oExtendedEvent*>(oe)->getSssEventNum()), 4, 0, "Event number within SSS series");
+  gdi.addInput("SssSeriesPrefix", static_cast<oExtendedEvent*>(oe)->getSssSeriesPrefix(), 4, 0, "Series");
+  gdi.addInput("SssEventNum", itos(static_cast<oExtendedEvent*>(oe)->getSssEventNum()), 4, 0, "Number within series");
   gdi.dropLine(4);
   gdi.popX();
   gdi.addButton("SssUpload", "Upload Results", CompetitionCB);

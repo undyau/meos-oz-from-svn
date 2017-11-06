@@ -15,6 +15,7 @@ public:
 	virtual void writeExtraXml(xmlparser &xml);
 	virtual void readExtraXml(const xmlparser &xml);
 	int getSssEventNum() {return SssEventNum;};
+  string getSssSeriesPrefix() {return SssSeriesPrefix;};
 	int getIsSydneySummerSeries() {return IsSydneySummerSeries;};
 	bool exportOrCSV(const char *file, bool byClass);
 	bool isRentedCard(int card);
@@ -25,6 +26,7 @@ private:
 	string string_replace(string src, string const& target, string const& repl);
 	bool IsSydneySummerSeries;
 	int SssEventNum;
+  string SssSeriesPrefix;
 	std::vector<int> RentedCards;
 	bool LoadedCards;
 };

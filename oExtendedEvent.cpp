@@ -14,6 +14,7 @@ oExtendedEvent::oExtendedEvent(gdioutput &gdi) : oEvent(gdi)
 {
 	IsSydneySummerSeries = 0;
   SssEventNum = 0;
+  SssSeriesPrefix = "sss";
 	LoadedCards = false;
 	setShortClubNames(false);   // default to behaving like vanilla MEOS
 }
@@ -304,6 +305,7 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 	static int s_counter(0);
 	string url = gdi.getText("SssServer");
 	SssEventNum = gdi.getTextNo("SssEventNum", false);
+  SssSeriesPrefix = gdi.getText("SssSeriesPrefix",false);
 	if (SssEventNum == 0) {
 		gdi.alert("Invalid event number :" + gdi.getText("SssEventNum"));
 		return;
@@ -314,7 +316,7 @@ void oExtendedEvent::uploadSss(gdioutput &gdi)
 	exportOrCSV(resultCsv.c_str(), false);
 	string data = _T(loadCsvToString(resultCsv));
 	data = string_replace(data, "&","and");
-	data = "Name=sss" + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=sss" + itos(SssEventNum) + "&Data=" + data + "&Serial=" + itos(s_counter++);
+	data = "Name=" + SssSeriesPrefix + itos(SssEventNum) + "&Title=" + Name + "&Subtitle=" + SssSeriesPrefix + itos(SssEventNum) + "&Data=" + data + "&Serial=" + itos(s_counter++);
 	Download dwl;
   dwl.initInternet();
 	string result;
@@ -338,6 +340,7 @@ void oExtendedEvent::writeExtraXml(xmlparser &xml)
 {
 	xml.write("IsSydneySummerSeries", IsSydneySummerSeries);
 	xml.write("SssEventNum", SssEventNum);
+  xml.write("SssSeriesPrefix", SssSeriesPrefix);
 }
 
 void oExtendedEvent::readExtraXml(const xmlparser &xml)
@@ -349,6 +352,9 @@ void oExtendedEvent::readExtraXml(const xmlparser &xml)
 
 	xo=xml.getObject("SssEventNum");
 	if(xo) SssEventNum=xo.getInt();
+
+	xo=xml.getObject("SssSeriesPrefix");
+	if(xo) SssSeriesPrefix=xo.get();
 }
 
 string oExtendedEvent::loadCsvToString(string file)
