@@ -1,3 +1,6 @@
+  15 November 2017
+- MEOS crashed when an unknown runner downloaded (bug introduced 3.4.717.2)
+
   6 November 2017
 - Allow specification of a "series" for SSS style events rather than forcing "sss"
 
